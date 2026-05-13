@@ -101,17 +101,17 @@ module Program =
         // Load game data from JSON builtins + mods
         let builtinsDir = Data.ModPaths.builtinsDir
         let modsDir = Data.ModPaths.modsDir
-        printfn "[ModLoader] builtinsDir: %s" builtinsDir
-        printfn "[ModLoader] modsDir: %s" modsDir
-        printfn "[ModLoader] builtins exists: %b" (System.IO.Directory.Exists builtinsDir)
+        printfn $"[ModLoader] builtinsDir: %s{builtinsDir}"
+        printfn $"[ModLoader] modsDir: %s{modsDir}"
+        printfn $"[ModLoader] builtins exists: %b{System.IO.Directory.Exists builtinsDir}"
 
         match Data.ModLoader.loadAll builtinsDir modsDir with
         | Ok data ->
             Data.DataRegistry.setLoadedData data
-            printfn "[ModLoader] OK: %d countries, %d intl comps" data.Countries.Count data.InternationalComps.Length
+            printfn $"[ModLoader] OK: %d{data.Countries.Count} countries, %d{data.InternationalComps.Length} intl comps"
         | Error errors ->
             for e in errors do
-                printfn "[ModLoader] Error: %A" e
+                printfn $"[ModLoader] Error: %A{e}"
 
         Db.initTables () |> Async.AwaitTask |> Async.RunSynchronously
         AppBuilder.Configure<App>().UsePlatformDetect().UseSkia().StartWithClassicDesktopLifetime(args)

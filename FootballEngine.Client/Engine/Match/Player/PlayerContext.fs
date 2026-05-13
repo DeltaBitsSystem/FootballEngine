@@ -165,17 +165,11 @@ module AgentContext =
 
         let dist = abs (myPos.X - goalX)
 
-        let directiveState = SimStateOps.getDirective state team.ClubSide
-
-        let directive =
-            TeamDirectiveOps.currentDirective directiveState
-            |> Option.defaultValue (TeamDirectiveOps.empty state.SubTick)
-
         { MeIdx = meIdx
           Me = me
           Profile = profile
           MentalState = mentalState
-          MyCondition = me.Condition
+          MyCondition = team.OwnFrame.Condition[meIdx]
           MyPos = myPos
           BallState = ballState
           Team = team
@@ -198,11 +192,6 @@ module AgentContext =
           Decision = decision
           BuildUp = buildUp
           Dribble = state.Config.Dribble
-          DirectiveKind = directive.Kind
-          DirectiveParams = directive.Params
-          TargetRunner = directive.TargetRunner
-          RunType = directive.RunType
-          RunTarget = directive.RunTarget
           PreviousIntent = previousIntent
           VisibilityMask = visibilityMask
           CurrentSubTick = state.SubTick

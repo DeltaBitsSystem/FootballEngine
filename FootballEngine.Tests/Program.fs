@@ -5,36 +5,26 @@ open Expecto.Logging
 open FootballEngine.Tests.EngineTests
 open FootballEngine.Tests.WorldTests
 open FootballEngine.Tests.TrainingSystemTests
-open FootballEngine.Tests.MatchEngineTests.PossessionTests
-open FootballEngine.Tests.MatchEngineTests.BallPhysicsTests
-open FootballEngine.Tests.MatchEngineTests.BallTrajectoryTests
-open FootballEngine.Tests.MatchEngineTests.OffsideTests
-open FootballEngine.Tests.MatchEngineTests.DuelActionTests
-open FootballEngine.Tests.MatchEngineTests.PassActionTests
-open FootballEngine.Tests.MatchEngineTests.ShotActionTests
-open FootballEngine.Tests.MatchEngineTests.CrossActionTests
-open FootballEngine.Tests.MatchEngineTests.SetPieceTests
-open FootballEngine.Tests.MatchEngineTests.SetPieceE2ETests
-open FootballEngine.Tests.MatchEngineTests.GKActionTests
-open FootballEngine.Tests.MatchEngineTests.ChemistryTests
-open FootballEngine.Tests.MatchEngineTests.AdvantageEngineTests
-open FootballEngine.Tests.MatchEngineTests.VARTests
-open FootballEngine.Tests.MatchEngineTests.HandballDetectorTests
-open FootballEngine.Tests.MatchEngineTests.PlayerPersonalityTests
-open FootballEngine.Tests.MatchEngineTests.AdaptiveTacticsTests
-open FootballEngine.Tests.MatchEngineTests.EmergentLoopsTests
-open FootballEngine.Tests.MatchEngineTests.CognitiveFrameTests
-open FootballEngine.Tests.MatchEngineTests.InfluenceFrameTests
-open FootballEngine.Tests.MatchEngineTests.TacticalImpactTests
-open FootballEngine.Tests.MatchEngineTests.StateInvariantTests
-open FootballEngine.Tests.MatchEngineTests.MatchInvariantsTests
-open FootballEngine.Tests.MatchEngineTests.StatisticalContractsTests
-open FootballEngine.Tests.MatchEngineTests.PossessionTransitionTests
-open FootballEngine.Tests.MatchEngineTests.KnockoutMatchTests
-open FootballEngine.Tests.MatchEngineTests.EdgeCaseTests
-open FootballEngine.Tests.MatchEngineTests.PerformanceTests
-open FootballEngine.Tests.MatchEngineTests.MatchFlowTests
-open FootballEngine.Tests.MatchEngineTests.DeterminismTests
+open FootballEngine.Tests.Infrastructure.Builders
+open FootballEngine.Tests.Infrastructure.Runners
+open FootballEngine.Tests.Infrastructure.Assertions
+open FootballEngine.Tests.Layer1.FlowTransitionTests
+open FootballEngine.Tests.Layer1.GoalCycleTests
+open FootballEngine.Tests.Layer1.GKDistributionTests
+open FootballEngine.Tests.Layer1.SetPieceFlowTests
+open FootballEngine.Tests.Layer1.MatchInvariantTests
+open FootballEngine.Tests.Layer2.ApplyOutputContractTests
+open FootballEngine.Tests.Layer2.BallSystemTests
+open FootballEngine.Tests.Layer2.ChemistryTests
+open FootballEngine.Tests.Layer2.EmergentLoopsTests
+open FootballEngine.Tests.Layer2.AdaptiveTacticsTests
+open FootballEngine.Tests.Layer2.VARTests
+open FootballEngine.Tests.Layer2.HandballDetectorTests
+open FootballEngine.Tests.Layer2.StatisticalContractsTests
+open FootballEngine.Tests.Layer3.ShotEdgeCaseTests
+open FootballEngine.Tests.Layer3.GKEdgeCaseTests
+open FootballEngine.Tests.Layer3.PassEdgeCaseTests
+open FootballEngine.Tests.Layer3.PlayerPersonalityTests
 
 [<EntryPoint>]
 let main argv =
@@ -42,36 +32,23 @@ let main argv =
     let matchEngineTests =
         testList
             "MatchEngine"
-            [ possessionTests
-              ballPhysicsTests
-              ballTrajectoryTests
-              offsideTests
-              duelActionTests
-              passActionTests
-              shotActionTests
-              crossActionTests
-              setPieceTests
-              setPieceE2ETests
-              gkActionTests
+            [ flowTransitionTests
+              goalCycleTests
+              gkDistributionTests
+              setPieceFlowTests
+              matchInvariantTests
+              applyOutputContractTests
+              ballSystemTests
               chemistryTests
-              advantageEngineTests
+              emergentLoopsTests
+              adaptiveTacticsTests
               varTests
               handballDetectorTests
-              playerPersonalityTests
-              adaptiveTacticsTests
-              emergentLoopsTests
-              cognitiveFrameTests
-              influenceFrameTests
-              tacticalImpactTests
-              stateInvariantTests
-              matchInvariantsTests
-              statisticalContractsTests
-              phaseTransitionTests
-              knockoutMatchTests
-              edgeCaseTests
-              performanceTests |> testSequenced
-              matchFlowTests
-              determinismTests |> testSequenced ]
+              statisticalContractsTests |> testSequenced
+              shotEdgeCaseTests
+              gkEdgeCaseTests
+              passEdgeCaseTests
+              playerPersonalityTests ]
 
     let engineTests =
         testList "Engine" [ batchTests; doubleSimGuardTests; standingUpdateTests; fixtureIntegrityTests ]

@@ -915,7 +915,7 @@ module BallAgent =
     // agent — entry point
     // -------------------------------------------------------------------------
 
-    let agent (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : BallResult =
+    let agent_DEPRECATED (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : BallResult =
         let pcfg = ctx.Config.Physics
         let dt = SimulationClock.dt clock
         let trajectoryBefore = state.Ball.Trajectory

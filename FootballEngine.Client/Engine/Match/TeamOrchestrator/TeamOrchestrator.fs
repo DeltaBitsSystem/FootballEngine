@@ -101,7 +101,7 @@ module private DirectiveResolver =
             | Balanced -> managerIntent
             | Scramble -> ContestBall
 
-module private BatchDecisionSupport =
+module BatchDecisionSupport =
 
     let computeSupportPositions
         (team: TeamPerspective)

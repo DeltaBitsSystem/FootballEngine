@@ -138,7 +138,8 @@ module SetPieceAgent =
 
                 if penaltyScored then
                     { Events = []
-                      PendingRefereeActions = [ConfirmGoal(clubSide, Some kickerPlayer.Id, false)] }
+                      PendingRefereeActions = [ConfirmGoal(clubSide, Some kickerPlayer.Id, false)]
+                      Outputs = [] }
                 else
                     ActionResult.empty
 
@@ -223,6 +224,8 @@ module SetPieceAgent =
 
                     if dist > 0.1<meter> then
                         withBallVelocity (dx / dist * speed) (dy / dist * speed) 0.0<meter / second> state
+
+                    SimStateOps.emitSemantic SemanticEvent.BallLoose state
 
                     ActionResult.ofEvents
                         [ { SubTick = state.SubTick

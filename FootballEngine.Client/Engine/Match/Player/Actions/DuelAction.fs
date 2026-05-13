@@ -3,15 +3,12 @@ namespace FootballEngine.Player.Actions
 open System
 open FootballEngine
 open FootballEngine.Domain
-open FootballEngine.MatchSpatial
 open FootballEngine.Player.Decision
 
 open FootballEngine.SimStateOps
 open FootballEngine.Stats
 open FootballEngine.Types
-open FootballEngine.Types.MatchMemory
 open FootballEngine.Types.PhysicsContract
-
 
 
 
@@ -27,13 +24,12 @@ module DuelAction =
         else
             1.0
 
-
     let resolve
         (subTick: int)
         (ctx: MatchContext)
         (state: SimState)
         (clock: SimulationClock)
-        : MatchEvent list * RefereeAction list =
+        : MatchEvent list * RefereeAction list * SystemOutput list =
         let actx = ActionContext.build ctx state
         let attClubId = actx.Att.ClubId
         let defClubId = actx.Def.ClubId
@@ -46,7 +42,7 @@ module DuelAction =
         let defRoster = getRoster ctx actx.Def.ClubSide
 
         match state.Ball.Control with
-        | Receiving _ -> [], []
+        | Receiving _ -> [], [], []
         | _ ->
 
             match nearestActiveSlotInFrame attFrame bX bY, nearestActiveSlotInFrame defFrame bX bY with
@@ -76,12 +72,11 @@ module DuelAction =
                 let foulChance = 0.06 + aggressionNorm * 0.10
 
                 if bernoulli foulChance then
-                    state.Ball <-
+                    let contestBall =
                         { state.Ball with
                             Control = Contesting(actx.Def.ClubSide) }
 
-                    adjustMomentum actx.Att.AttackDir (-ctx.Config.Tackle.FoulMomentum) state
-
+                    let mDelta = forwardX actx.Att.AttackDir * (-ctx.Config.Tackle.FoulMomentum)
                     let reckless = bernoulli (aggressionNorm * 0.3)
                     let excessiveForce = bernoulli (aggressionNorm * 0.15)
 
@@ -106,24 +101,23 @@ module DuelAction =
                         |> Map.tryFind defP.Id
                         |> Option.defaultValue 0
 
-                    let cardActions =
+                    let side = actx.Def.ClubSide
+                    let clubId = if side = HomeClub then ctx.Home.Id else ctx.Away.Id
+
+                    let cardActions, cardOutputs =
                         match FoulAnalysis.decideCard severity yellows with
                         | Some FoulAnalysis.CardDecision.Yellow ->
-                            emitSemantic (FoulOccurred(defP.Id, attP.Id)) state
-                            let side = actx.Def.ClubSide
-                            let clubId = if side = HomeClub then ctx.Home.Id else ctx.Away.Id
-                            [ IssueYellow(defP, clubId) ]
+                            [ IssueYellow(defP, clubId) ],
+                            [ EmitSemantic(SemanticEvent.FoulOccurred(defP.Id, attP.Id)) ]
                         | Some FoulAnalysis.CardDecision.Red ->
-                            emitSemantic (FoulOccurred(defP.Id, attP.Id)) state
-                            let side = actx.Def.ClubSide
-                            let clubId = if side = HomeClub then ctx.Home.Id else ctx.Away.Id
-                            [ IssueRed(defP, clubId) ]
-                        | None -> []
+                            [ IssueRed(defP, clubId) ], [ EmitSemantic(SemanticEvent.FoulOccurred(defP.Id, attP.Id)) ]
+                        | None -> [], []
 
-                    [ createEvent subTick defP.Id defClubId FoulCommitted ], cardActions
+                    [ createEvent subTick defP.Id defClubId FoulCommitted ],
+                    cardActions,
+                    BallUpdate contestBall :: MomentumUpdate mDelta :: cardOutputs
                 else
                     let diff = float attScore - float defScore
-
                     let aX = float attFrame.Physics.PosX[attIdx] * 1.0<meter>
                     let aY = float attFrame.Physics.PosY[attIdx] * 1.0<meter>
                     let dX = float defFrame.Physics.PosX[defIdx] * 1.0<meter>
@@ -132,52 +126,80 @@ module DuelAction =
                     if logisticBernoulli diff cfg.DuelSteepness then
                         let nx, ny = PitchMath.jitter bX bY aX aY 0.5 cfg.JitterWin cfg.JitterWin
 
-                        let ballWithJitter =
+                        let newControl =
                             { state.Ball with
                                 Position =
                                     { state.Ball.Position with
                                         X = nx
-                                        Y = ny } }
+                                        Y = ny }
+                                Control = Controlled(actx.Att.ClubSide, attP.Id)
+                                LastTouchBy = Some attP.Id
+                                PendingOffsideSnapshot = None
+                                GKHoldSinceSubTick = if attP.Position = GK then Some subTick else None
+                                PlayerHoldSinceSubTick = if attP.Position <> GK then Some subTick else None
+                                Trajectory = None }
 
-                        givePossessionTo actx.Att.ClubSide attP.Id (attP.Position = GK) subTick ballWithJitter state
+                        let mDelta = forwardX actx.Att.AttackDir * cfg.MomentumBonus
 
-                        state.Momentum <- Math.Clamp(state.Momentum + cfg.MomentumBonus, -10.0, 10.0)
-                        recordDuel actx.Att.ClubSide attIdx defIdx Won state.MatchMemory
-                        recordSuccess actx.Att.ClubSide attIdx state.MatchMemory
-                        [ createEvent subTick attP.Id attClubId DribbleSuccess ], []
+                        [ createEvent subTick attP.Id attClubId DribbleSuccess ],
+                        [],
+                        [ BallUpdate newControl
+                          MomentumUpdate mDelta
+                          MemoryWrite(actx.Att.ClubSide, attIdx, DuelResult(true, defIdx))
+                          MemoryWrite(actx.Att.ClubSide, attIdx, PassSuccess)
+                          EmitSemantic(SemanticEvent.BallSecured(actx.Att.ClubSide, attP.Id)) ]
                     elif logisticBernoulli (-diff) cfg.DuelSteepness then
                         let nx, ny = PitchMath.jitter bX bY dX dY 0.5 cfg.JitterRecover cfg.JitterRecover
 
-                        losePossession state
-
-                        state.Ball <-
+                        let looseBallJittered =
                             { state.Ball with
                                 Position =
                                     { state.Ball.Position with
                                         X = nx
-                                        Y = ny } }
+                                        Y = ny }
+                                Control = Free
+                                PendingOffsideSnapshot = None
+                                GKHoldSinceSubTick = None
+                                PlayerHoldSinceSubTick = None
+                                Trajectory = None }
 
-                        state.Momentum <- Math.Clamp(state.Momentum - 1.0, -10.0, 10.0)
-                        recordDuel actx.Att.ClubSide attIdx defIdx Lost state.MatchMemory
-                        [ createEvent subTick attP.Id attClubId DribbleFail ], []
+                        let loseOutputs =
+                            match state.Ball.Control with
+                            | Controlled(side, pid)
+                            | Receiving(side, pid, _) ->
+                                [ EmitSemantic(SemanticEvent.BallLost(side, pid))
+                                  for run in SimStateOps.getActiveRuns state side do
+                                      yield ExpireRun(side, run.PlayerId) ]
+                            | _ -> []
+
+                        [ createEvent subTick attP.Id attClubId DribbleFail ],
+                        [],
+                        BallUpdate looseBallJittered
+                        :: MomentumUpdate -1.0
+                        :: MemoryWrite(actx.Att.ClubSide, attIdx, DuelResult(false, defIdx))
+                        :: loseOutputs
                     else
                         let nx, ny = PitchMath.jitter bX bY bX bY 0.0 cfg.JitterKeep cfg.JitterKeep
+                        let dx = (nx - bX) / 1.0<meter> * cfg.SpeedKeep
+                        let dy = (ny - bY) / 1.0<meter> * cfg.SpeedKeep
 
-                        withBallVelocity
-                            ((nx - bX) / 1.0<meter> * cfg.SpeedKeep)
-                            ((ny - bY) / 1.0<meter> * cfg.SpeedKeep)
-                            cfg.SpeedKeepVz
-                            state
+                        let velBall =
+                            { state.Ball with
+                                Position =
+                                    { state.Ball.Position with
+                                        Vx = dx
+                                        Vy = dy
+                                        Vz = cfg.SpeedKeepVz } }
 
-                        [ createEvent subTick attP.Id attClubId DribbleKeep ], []
-            | _ -> [], []
+                        [ createEvent subTick attP.Id attClubId DribbleKeep ], [], [ BallUpdate velBall ]
+            | _ -> [], [], []
 
     let resolveTackle
         (subTick: int)
         (ctx: MatchContext)
         (state: SimState)
         (defender: Player)
-        : MatchEvent list * RefereeAction list =
+        : MatchEvent list * RefereeAction list * SystemOutput list =
         let actx = ActionContext.build ctx state
         let defFrame = actx.Def.OwnFrame
         let attFrame = actx.Att.OwnFrame
@@ -186,12 +208,7 @@ module DuelAction =
 
         let defClubId =
             match findIdxByPid defender.Id defFrame defRoster with
-            | ValueSome _ ->
-                defRoster.Players
-                |> Array.tryFind (fun p -> p.Id = defender.Id)
-                |> Option.map (fun _ -> defRoster)
-                |> Option.map (fun _ -> actx.Def.ClubId)
-                |> Option.defaultValue ctx.Away.Id
+            | ValueSome _ -> actx.Def.ClubId
             | ValueNone ->
                 match findIdxByPid defender.Id (getFrame state HomeClub) (getRoster ctx HomeClub) with
                 | ValueSome _ -> ctx.Home.Id
@@ -203,12 +220,10 @@ module DuelAction =
             | ValueNone -> -1
 
         if defIdx < 0 then
-            [], []
+            [], [], []
         else
-            let condNorm = normaliseCondition (int defFrame.Condition[defIdx])
-
+            let condNorm = normaliseCondition defFrame.Condition[defIdx]
             let tCfg = ctx.Config.Tackle
-            let dCfg = ctx.Config.Duel
 
             let defScore =
                 ActionMath.evalPerformance
@@ -219,7 +234,6 @@ module DuelAction =
                 + actx.Def.Bonus.Tackle
 
             let bPos = state.Ball.Position
-
             let mutable bestIdx = ValueNone
             let mutable bestDistSq = Single.MaxValue
             let bX32 = float32 bPos.X
@@ -278,10 +292,12 @@ module DuelAction =
                 let foulChance = betaSample adjustedFoulRate tCfg.FoulShapeBeta
 
                 if bernoulli foulChance then
-                    state.Ball <- { state.Ball with Control = Free }
+                    let freeBall =
+                        { state.Ball with
+                            Control = Free
+                            PendingOffsideSnapshot = None }
 
-                    adjustMomentum actx.Att.AttackDir (-tCfg.FoulMomentum) state
-
+                    let mDelta = forwardX actx.Att.AttackDir * (-tCfg.FoulMomentum)
                     let reckless = bernoulli (aggressionNorm * 0.3)
                     let excessiveForce = bernoulli (aggressionNorm * 0.15)
                     let ballPos = state.Ball.Position
@@ -307,23 +323,29 @@ module DuelAction =
                         |> Map.tryFind defender.Id
                         |> Option.defaultValue 0
 
-                    let cardActions =
+                    let cardActions, cardOutputs =
                         match FoulAnalysis.decideCard severity yellows with
                         | Some FoulAnalysis.CardDecision.Yellow ->
-                            emitSemantic (FoulOccurred(defender.Id, attacker.Id)) state
-                            let clubId = actx.Def.ClubId
-                            [ IssueYellow(defender, clubId) ]
+                            [ IssueYellow(defender, actx.Def.ClubId) ],
+                            [ EmitSemantic(SemanticEvent.FoulOccurred(defender.Id, attacker.Id)) ]
                         | Some FoulAnalysis.CardDecision.Red ->
-                            emitSemantic (FoulOccurred(defender.Id, attacker.Id)) state
-                            let clubId = actx.Def.ClubId
-                            [ IssueRed(defender, clubId) ]
-                        | None -> []
+                            [ IssueRed(defender, actx.Def.ClubId) ],
+                            [ EmitSemantic(SemanticEvent.FoulOccurred(defender.Id, attacker.Id)) ]
+                        | None -> [], []
 
-                    [ createEvent subTick defender.Id defClubId FoulCommitted ], cardActions
+                    [ createEvent subTick defender.Id defClubId FoulCommitted ],
+                    cardActions,
+                    [ BallUpdate freeBall; MomentumUpdate mDelta ] @ cardOutputs
                 else
-                    adjustMomentum actx.Att.AttackDir tCfg.SuccessMomentum state
-                    [ createEvent subTick defender.Id defClubId TackleSuccess ], []
+                    let mDelta = forwardX actx.Att.AttackDir * tCfg.SuccessMomentum
+                    [ createEvent subTick defender.Id defClubId TackleSuccess ], [], [ MomentumUpdate mDelta ]
             else
-                adjustMomentum actx.Att.AttackDir (-tCfg.FailMomentum) state
-                clearOffsideSnapshot state
-                [ createEvent subTick defender.Id defClubId TackleFail ], []
+                let mDelta = forwardX actx.Att.AttackDir * (-tCfg.FailMomentum)
+
+                let clearBall =
+                    { state.Ball with
+                        PendingOffsideSnapshot = None }
+
+                [ createEvent subTick defender.Id defClubId TackleFail ],
+                [],
+                [ MomentumUpdate mDelta; BallUpdate clearBall ]

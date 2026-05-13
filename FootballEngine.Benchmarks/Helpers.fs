@@ -2,12 +2,13 @@ module FootballEngine.Benchmarks.Helpers
 
 open FootballEngine
 open FootballEngine.Domain
-open FootballEngine.Lineup
+open FootballEngine.Domain.LineupOps
+
 
 let loadGame () =
     match Db.loadGame().GetAwaiter().GetResult() with
     | None -> failwith "No saved game — run generateNewGame first."
-    | Some (game, clock) -> game, clock
+    | Some(game, clock) -> game, clock
 
 let loadClubs () =
     let game, _clock = loadGame ()

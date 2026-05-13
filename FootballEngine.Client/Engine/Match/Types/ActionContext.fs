@@ -15,7 +15,7 @@ type AgentContext =
       Me: Player
       Profile: BehavioralProfile
       MentalState: MentalState
-      MyCondition: int
+      MyCondition: float32
       MyPos: Spatial
       BallState: BallPhysicsState
       Team: TeamPerspective
@@ -35,11 +35,6 @@ type AgentContext =
       Decision: DecisionConfig
       BuildUp: BuildUpConfig
       Dribble: DribbleConfig
-      DirectiveKind: DirectiveKind
-      DirectiveParams: DirectiveParams
-      TargetRunner: PlayerId option
-      RunType: RunType option
-      RunTarget: Spatial option
       PreviousIntent: MovementIntent voption
       VisibilityMask: VisibilityMask voption
       CurrentSubTick: int

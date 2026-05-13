@@ -73,7 +73,7 @@ module RefereeAgent =
                 | NoOut -> []
 
             let goalIntent =
-                match GoalDetector.detect state.Ball with
+                match GoalDetector.detect state.Ball state.HomeAttackDir with
                 | Some team ->
                     let scorerId, isOwn = GoalDetector.scorer team state.Ball ctx state
                     [ ConfirmGoal(team, scorerId, isOwn) ]
@@ -225,16 +225,4 @@ module RefereeAgent =
               Restart = restart
               Transition = transition }
 
-    let runRefereeStep subTick (att: Player option) (def: Player option) ctx state =
-        let actions = decide att def ctx state
 
-        let evs =
-            actions
-            |> List.fold
-                (fun accEvents action ->
-                    let evs = RefereeApplicator.apply subTick action ctx state
-                    evs @ accEvents)
-                []
-            |> List.rev
-
-        evs, actions

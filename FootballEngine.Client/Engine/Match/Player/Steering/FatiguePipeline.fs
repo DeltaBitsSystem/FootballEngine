@@ -7,7 +7,7 @@ module FatiguePipeline =
 
     let private sigmoid (x: float) = 1.0 / (1.0 + System.Math.Exp(-x))
 
-    let effectiveVisionFromCondition baseVision condition =
+    let effectiveVisionFromCondition (baseVision: int) (condition: float32) =
         let normVision = PhysicsContract.normaliseAttr baseVision
         let normCond = PhysicsContract.normaliseCondition condition
         let threshold = 0.7
@@ -21,7 +21,7 @@ module FatiguePipeline =
 
         normVision * decay
 
-    let effectivePositioningFromCondition basePositioning condition =
+    let effectivePositioningFromCondition (basePositioning: int) (condition: float32) =
         let normPos = PhysicsContract.normaliseAttr basePositioning
         let normCond = PhysicsContract.normaliseCondition condition
         let threshold = 0.55
@@ -35,7 +35,7 @@ module FatiguePipeline =
 
         normPos * decay
 
-    let effectiveComposureFromCondition baseComposure condition =
+    let effectiveComposureFromCondition (baseComposure: int) (condition: float32) =
         let normComp = PhysicsContract.normaliseAttr baseComposure
         let normCond = PhysicsContract.normaliseCondition condition
         let threshold = 0.4
@@ -49,7 +49,7 @@ module FatiguePipeline =
 
         normComp * decay
 
-    let decisionQuality (player: Player) (profile: BehavioralProfile) condition =
+    let decisionQuality (player: Player) (profile: BehavioralProfile) (condition: float32) =
         let v = effectiveVisionFromCondition player.Mental.Vision condition
         let p = effectivePositioningFromCondition player.Mental.Positioning condition
         let c = effectiveComposureFromCondition player.Mental.Composure condition
@@ -69,36 +69,30 @@ module FatiguePipeline =
     // Degradation depends on pressing intensity, stamina, and work rate
     // -------------------------------------------------------------------------
 
-    let degradeCondition (player: Player) (currentCondition: int) (isPressing: bool) (matchMinute: float) : int =
+    let degradeCondition (player: Player) (currentCondition: float32) (isPressing: bool) (matchMinute: float) : float32 =
 
-        let stamina = player.Physical.Stamina // 1-20
-        let workRate = player.Mental.WorkRate // 1-20
-        let naturalCondition = player.Condition // base natural condition
+        let stamina = player.Physical.Stamina
+        let workRate = player.Mental.WorkRate
+        let naturalCondition = float32 player.Condition
 
-        // Base decay: higher for low stamina, high work rate
         let staminaFactor = 1.0 - PhysicsContract.normaliseAttr stamina
         let workFactor = PhysicsContract.normaliseAttr workRate
         let baseDecay = 0.0008 + staminaFactor * 0.003 + workFactor * 0.001
 
-        // Pressing multiplier
         let pressingMultiplier = if isPressing then 1.8 else 1.0
 
-        // Late match acceleration (after 60 min)
         let lateMultiplier =
             if matchMinute > 60.0 then
                 1.0 + (matchMinute - 60.0) / 30.0 * 0.5
             else
                 1.0
 
-        // Time factor: starts low, increases with match time
-        let timeFactor =
-            0.4 + 0.6 * (matchMinute / 90.0)
+        let timeFactor = 0.4 + 0.6 * (matchMinute / 90.0)
 
         let totalDecay = baseDecay * pressingMultiplier * lateMultiplier * timeFactor
 
-        // Decay pulls toward natural condition
-        let diff = float currentCondition - float naturalCondition
-        let naturalPull = if diff > 0.0 then diff * 0.001 else 0.0
+        let diff = currentCondition - naturalCondition
+        let naturalPull = if diff > 0.0f then diff * 0.001f else 0.0f
 
-        let newCond = float currentCondition - totalDecay - naturalPull
-        int (System.Math.Clamp(newCond, 10.0, 100.0))
+        let newCond = currentCondition - float32 totalDecay - naturalPull
+        System.Math.Clamp(newCond, 10.0f, 100.0f)

@@ -6,7 +6,19 @@ open FootballEngine.Types
 open SimStateOps
 open PhysicsContract
 
+
 module RefereeApplicator =
+
+    let private goalKickOff (scoringClub: ClubSide) : BallPhysicsState =
+        { Position = kickOffSpatial
+          Spin = Spin.zero
+          Control = Free
+          LastTouchBy = None
+          PendingOffsideSnapshot = None
+          StationarySinceSubTick = None
+          GKHoldSinceSubTick = None
+          PlayerHoldSinceSubTick = None
+          Trajectory = None }
 
     let private awardGoal
         (scoringClub: ClubSide)
@@ -14,67 +26,68 @@ module RefereeApplicator =
         (subTick: int)
         (ctx: MatchContext)
         (state: SimState)
-        : MatchEvent list =
-        state.StoppageTime.Add(subTick, StoppageReason.GoalDelay) |> ignore
-
-        if scoringClub = HomeClub then
-            state.HomeScore <- state.HomeScore + 1
-            state.Momentum <- clampFloat (state.Momentum + 3.0) -10.0 10.0
-        else
-            state.AwayScore <- state.AwayScore + 1
-            state.Momentum <- clampFloat (state.Momentum - 3.0) -10.0 10.0
-
-        resetBallForKickOff (ClubSide.flip scoringClub) state
-
+        : MatchEvent list * SystemOutput list =
         let clubId = if scoringClub = HomeClub then ctx.Home.Id else ctx.Away.Id
+        let momentumDelta = if scoringClub = HomeClub then 3.0 else -3.0
+        let kickOffBall = goalKickOff (ClubSide.flip scoringClub)
+        let scoreOutputs =
+            [ ScoreGoal(scoringClub, scorerId, false)
+              MomentumUpdate momentumDelta
+              BallUpdate kickOffBall
+              LastAttackingClubSet (ClubSide.flip scoringClub)
+              StoppageTimeAdd(subTick, StoppageReason.GoalDelay) ]
 
-        match scorerId with
-        | Some pid ->
-            [ { SubTick = subTick
-                PlayerId = pid
-                ClubId = clubId
-                Type = Goal
-                Context = EventContext.empty } ]
-        | None -> []
+        let events =
+            match scorerId with
+            | Some pid ->
+                [ { SubTick = subTick
+                    PlayerId = pid
+                    ClubId = clubId
+                    Type = Goal
+                    Context = EventContext.empty } ]
+            | None -> []
 
-    let apply (subTick: int) (action: RefereeAction) (ctx: MatchContext) (state: SimState) : MatchEvent list =
+        events, scoreOutputs
+
+    let apply
+        (subTick: int)
+        (action: RefereeAction)
+        (ctx: MatchContext)
+        (state: SimState)
+        : MatchEvent list * SystemOutput list =
         match action with
-        | RefereeIdle -> []
+        | RefereeIdle -> [], []
 
         | ConfirmGoal(scoringClub, scorerId, isOwnGoal) ->
-            emitSemantic (GoalScored(scoringClub, scorerId)) state
-            let goalEvents = awardGoal scoringClub scorerId subTick ctx state
-            clearOffsideSnapshot state
+            let events, goalOutputs = awardGoal scoringClub scorerId subTick ctx state
+            let semantic = EmitSemantic(GoalScored(scoringClub, scorerId))
+            let outputs = semantic :: goalOutputs
 
             if isOwnGoal then
-                goalEvents |> List.map (fun e -> { e with Type = OwnGoal })
+                events |> List.map (fun e -> { e with Type = OwnGoal }), outputs
             else
-                goalEvents
+                events, outputs
 
         | AnnulGoal ->
             let resetX =
                 match state.PendingOffsideSnapshot with
                 | Some snap -> snap.BallXAtPass
                 | None -> HalfwayLineX
-
-            state.Ball <-
+            let resetBall =
                 { state.Ball with
                     Position = defaultSpatial resetX (PitchWidth / 2.0)
                     Spin = Spin.zero
                     LastTouchBy = None
-                    Control = Free }
-
-            clearOffsideSnapshot state
-            []
+                    Control = Free
+                    PendingOffsideSnapshot = None }
+            [], [ BallUpdate resetBall ]
 
         | AwardThrowIn team ->
-            emitSemantic (SetPieceAwarded(SetPieceKind.ThrowIn, team)) state
             let throwX =
                 match team with
                 | HomeClub -> PenaltyAreaDepth
                 | AwayClub -> PitchLength - PenaltyAreaDepth
-
-            state.Ball <-
+            let throwBall =
                 { state.Ball with
                     Position =
                         { state.Ball.Position with
@@ -87,18 +100,15 @@ module RefereeApplicator =
                     Spin = Spin.zero
                     LastTouchBy = None
                     Control = Free }
-
-            clearOffsideSnapshot state
-            []
+            [], [ EmitSemantic(SetPieceAwarded(SetPieceKind.ThrowIn, team))
+                  BallUpdate throwBall ]
 
         | AwardCorner team ->
-            emitSemantic (SetPieceAwarded(SetPieceKind.Corner, team)) state
             let cornerX =
                 match team with
                 | HomeClub -> PitchLength - 0.5<meter>
                 | AwayClub -> 0.5<meter>
-
-            state.Ball <-
+            let cornerBall =
                 { state.Ball with
                     Position =
                         { state.Ball.Position with
@@ -111,38 +121,31 @@ module RefereeApplicator =
                     Spin = Spin.zero
                     LastTouchBy = None
                     Control = Free }
-
-            clearOffsideSnapshot state
-
+            let clubId = if team = HomeClub then ctx.Home.Id else ctx.Away.Id
             [ { SubTick = subTick
                 PlayerId = 0
-                ClubId = if team = HomeClub then ctx.Home.Id else ctx.Away.Id
+                ClubId = clubId
                 Type = MatchEventType.Corner
-                Context = EventContext.empty } ]
+                Context = EventContext.empty } ],
+            [ EmitSemantic(SetPieceAwarded(SetPieceKind.Corner, team))
+              BallUpdate cornerBall ]
 
         | AwardGoalKick team ->
-            emitSemantic (SetPieceAwarded(SetPieceKind.GoalKick, team)) state
             let gkX =
                 match team with
                 | HomeClub -> GoalAreaDepth
                 | AwayClub -> PitchLength - GoalAreaDepth
-
-            state.Ball <-
+            let gkBall =
                 { state.Ball with
                     Position = defaultSpatial gkX (PitchWidth / 2.0)
                     Spin = Spin.zero
                     LastTouchBy = None
                     Control = Free }
-
-            clearOffsideSnapshot state
-            []
+            [], [ EmitSemantic(SetPieceAwarded(SetPieceKind.GoalKick, team))
+                  BallUpdate gkBall ]
 
         | AwardIndirectFreeKick team ->
-            emitSemantic (SetPieceAwarded(SetPieceKind.FreeKick, team)) state
-            let ballX = state.Ball.Position.X
-            let ballY = state.Ball.Position.Y
-
-            state.Ball <-
+            let fkBall =
                 { state.Ball with
                     Position =
                         { state.Ball.Position with
@@ -152,19 +155,17 @@ module RefereeApplicator =
                     Spin = Spin.zero
                     LastTouchBy = None
                     Control = Free }
-
-            clearOffsideSnapshot state
-
             let clubId = if team = HomeClub then ctx.Home.Id else ctx.Away.Id
-
             [ { SubTick = subTick
                 PlayerId = 0
                 ClubId = clubId
                 Type = MatchEventType.IndirectFreeKickAwarded team
-                Context = EventContext.empty } ]
+                Context = EventContext.empty } ],
+            [ EmitSemantic(SetPieceAwarded(SetPieceKind.FreeKick, team))
+              BallUpdate fkBall ]
 
-        | DropBall team ->
-            state.Ball <-
+        | DropBall _ ->
+            let dropBall =
                 { state.Ball with
                     Position =
                         { state.Ball.Position with
@@ -174,44 +175,39 @@ module RefereeApplicator =
                             Vz = 0.0<meter / second> }
                     Spin = Spin.zero
                     Control = Free }
-
-            clearOffsideSnapshot state
-            []
+            [], [ BallUpdate dropBall ]
 
         | IssueYellow(player, clubId) ->
-            state.StoppageTime.Add(subTick, StoppageReason.CardDelay) |> ignore
             let isHome = clubId = ctx.Home.Id
             let side = if isHome then HomeClub else AwayClub
+            let currentYellows = getYellows state side |> Map.tryFind player.Id |> Option.defaultValue 0
+            let newCount = currentYellows + 1
+            let yellowOutputs =
+                [ YellowsWrite(side, player.Id, newCount)
+                  StoppageTimeAdd(subTick, StoppageReason.CardDelay) ]
 
-            let count = getYellows state side |> Map.tryFind player.Id |> Option.defaultValue 0
-
-            if count >= 1 then
-                setYellows state side (Map.add player.Id (count + 1) (getYellows state side))
-                setSidelined state side (Map.add player.Id SidelinedByRedCard (getSidelined state side))
-                emitSemantic (RedCardIssued player.Id) state
-
-                [ createEvent subTick player.Id clubId YellowCard
-                  createEvent subTick player.Id clubId RedCard ]
+            if currentYellows >= 1 then
+                let events =
+                    [ createEvent subTick player.Id clubId YellowCard
+                      createEvent subTick player.Id clubId RedCard ]
+                events,
+                yellowOutputs
+                @ [ SidelinedWrite(side, player.Id, SidelinedByRedCard)
+                    EmitSemantic(RedCardIssued player.Id) ]
             else
-                setYellows state side (Map.add player.Id (count + 1) (getYellows state side))
-
-                [ createEvent subTick player.Id clubId YellowCard ]
+                [ createEvent subTick player.Id clubId YellowCard ], yellowOutputs
 
         | IssueRed(player, clubId) ->
-            emitSemantic (RedCardIssued player.Id) state
-            state.StoppageTime.Add(subTick, StoppageReason.CardDelay) |> ignore
             let isHome = clubId = ctx.Home.Id
             let side = if isHome then HomeClub else AwayClub
-
-            setSidelined state side (Map.add player.Id SidelinedByRedCard (getSidelined state side))
-
-            [ createEvent subTick player.Id clubId RedCard ]
+            [ createEvent subTick player.Id clubId RedCard ],
+            [ EmitSemantic(RedCardIssued player.Id)
+              SidelinedWrite(side, player.Id, SidelinedByRedCard)
+              StoppageTimeAdd(subTick, StoppageReason.CardDelay) ]
 
         | IssueInjury(player, clubId) ->
-            state.StoppageTime.Add(subTick, StoppageReason.InjuryDelay 1) |> ignore
             let isHome = clubId = ctx.Home.Id
             let side = if isHome then HomeClub else AwayClub
-
-            setSidelined state side (Map.add player.Id SidelinedByInjury (getSidelined state side))
-
-            [ createEvent subTick player.Id clubId (MatchEventType.Injury "match") ]
+            [ createEvent subTick player.Id clubId (MatchEventType.Injury "match") ],
+            [ SidelinedWrite(side, player.Id, SidelinedByInjury)
+              StoppageTimeAdd(subTick, StoppageReason.InjuryDelay 1) ]

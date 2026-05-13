@@ -41,14 +41,17 @@ module ShotAction =
         * (1.0 + urgency * cfg.UrgencyMultiplier)
         * bonus
 
-    let resolve (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : MatchEvent list =
+    let resolve
+        (subTick: int)
+        (ctx: MatchContext)
+        (state: SimState)
+        (clock: SimulationClock)
+        : MatchEvent list * SystemOutput list =
         let actx = ActionContext.build ctx state
         let sc = ctx.Config.Shot
         let attClubId = actx.Att.ClubId
         let attFrame = actx.Att.OwnFrame
-        let defFrame = actx.Def.OwnFrame
         let attRoster = getRoster ctx actx.Att.ClubSide
-        let defRoster = getRoster ctx actx.Def.ClubSide
 
         let bX = state.Ball.Position.X
         let bY = state.Ball.Position.Y
@@ -56,14 +59,14 @@ module ShotAction =
         let inChance = actx.Zone = AttackingZone || actx.Zone = MidfieldZone
 
         match nearestActiveSlotInFrame attFrame bX bY with
-        | ValueNone -> []
+        | ValueNone -> [], []
         | ValueSome shooterIdx ->
             let shooter = attRoster.Players[shooterIdx]
             let shooterCond = int attFrame.Condition[shooterIdx]
             let shooterProfile = attRoster.Profiles[shooterIdx]
 
             if not inChance then
-                [ createEvent subTick shooter.Id attClubId ShotOffTarget ]
+                [ createEvent subTick shooter.Id attClubId ShotOffTarget ], []
             else
                 let quality =
                     let distToGoal = PhysicsContract.distToGoal bX actx.Att.AttackDir
@@ -77,7 +80,7 @@ module ShotAction =
                     (1.0 - distNorm) * sc.DistNormWeight + positionBonus * sc.PositionBonusWeight
 
                 if quality < sc.QualityGate then
-                    [ createEvent subTick shooter.Id attClubId ShotOffTarget ]
+                    [ createEvent subTick shooter.Id attClubId ShotOffTarget ], []
                 else
                     let attTactics = getTactics state actx.Att.ClubSide
                     let attInstructions = getInstructions state actx.Att.ClubSide
@@ -134,9 +137,6 @@ module ShotAction =
 
                     let targetY = if abs vx > 0.001 then bY + (vy / vx) * (goalX - bX) else bY
 
-                    let inGoalYRange = targetY >= PostNearY && targetY <= PostFarY
-                    let inGoalZRange = float vz * float vz / (2.0 * 19.6133) < float CrossbarHeight
-
                     let spin =
                         { Top =
                             -(normaliseAttr shooter.Technical.Finishing)
@@ -176,7 +176,7 @@ module ShotAction =
 
                     let xgValue = xGCalculator.calculate xgModel
 
-                    state.Ball <-
+                    let newBall =
                         { state.Ball with
                             Position =
                                 { state.Ball.Position with
@@ -187,11 +187,10 @@ module ShotAction =
                             Spin = spin
                             LastTouchBy = Some shooter.Id
                             Control = Airborne
-                            Trajectory = Some trajectory }
+                            Trajectory = Some trajectory
+                            PendingOffsideSnapshot = None }
 
-                    adjustMomentum actx.Att.AttackDir ctx.Config.Duel.MomentumBonus state
-                    clearOffsideSnapshot state
-                    emitSemantic (SemanticEvent.ShotLaunched shooter.Id) state
+                    let momentumDelta = forwardX actx.Att.AttackDir * ctx.Config.Duel.MomentumBonus
 
                     [ { SubTick = subTick
                         PlayerId = shooter.Id
@@ -199,4 +198,7 @@ module ShotAction =
                         Type = MatchEventType.ShotLaunched
                         Context =
                           EventContext.at (float bX) (float bY)
-                          |> fun c -> { c with ExpectedGoal = Some xgValue } } ]
+                          |> fun c -> { c with ExpectedGoal = Some xgValue } } ],
+                    [ BallUpdate newBall
+                      MomentumUpdate momentumDelta
+                      EmitSemantic(SemanticEvent.ShotLaunched shooter.Id) ]

@@ -100,7 +100,7 @@ module PhysicsContract =
     [<Literal>]
     let ConditionMax = 100.0
 
-    let inline normaliseCondition (v: int) : float = float v / ConditionMax
+    let inline normaliseCondition v : float = float v / ConditionMax
 
     [<Literal>]
     let PlayerSpeedMax = 9.5<meter / second>

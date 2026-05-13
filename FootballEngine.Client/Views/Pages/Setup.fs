@@ -97,10 +97,16 @@ module Setup =
                             UniformGrid.create
                                 [ UniformGrid.columns 2
                                   UniformGrid.children
-                                      [ UI.menuButton "NEW CAREER" NotificationIcons.newCareer "Start a new journey as a manager" (fun _ ->
-                                            dispatch (SetupMsg(GoToStep CountrySelection)))
-                                        UI.menuButton "LOAD GAME" NotificationIcons.loadGame "Continue your existing career" (fun _ ->
-                                            dispatch (SimMsg SaveGame)) ] ] ] ]
+                                      [ UI.menuButton
+                                            "NEW CAREER"
+                                            NotificationIcons.newCareer
+                                            "Start a new journey as a manager"
+                                            (fun _ -> dispatch (SetupMsg(GoToStep CountrySelection)))
+                                        UI.menuButton
+                                            "LOAD GAME"
+                                            NotificationIcons.loadGame
+                                            "Continue your existing career"
+                                            (fun _ -> dispatch (SimMsg SaveGame)) ] ] ] ]
             )
 
         | CountrySelection ->
@@ -125,12 +131,15 @@ module Setup =
                                               TextBlock.fontSize 13.0 ] ] ]
 
                             let countryCount = Data.DataRegistry.allCountries () |> List.length
-                            printfn "[Setup] CountrySelection rendering: %d countries" countryCount
+                            printfn $"[Setup] CountrySelection rendering: %d{countryCount} countries"
 
                             let flagForCode (code: string) =
                                 match code with
-                                | "ARG" -> "🇦🇷" | "BRA" -> "🇧🇷" | "ENG" -> "🏴"
-                                | "ESP" -> "🇪🇸" | _ -> "🌍"
+                                | "ARG" -> "🇦🇷"
+                                | "BRA" -> "🇧🇷"
+                                | "ENG" -> "🏴"
+                                | "ESP" -> "🇪🇸"
+                                | _ -> "🌍"
 
                             let countryCards: IView list =
                                 Data.DataRegistry.allCountries ()
@@ -139,6 +148,7 @@ module Setup =
                                     let code = cd.Country.Code
                                     let name = cd.Country.Name
                                     let flag = flagForCode code
+
                                     UI.countrySelectionCard
                                         name
                                         flag
@@ -148,9 +158,7 @@ module Setup =
                                         (fun _ -> dispatch (SetupMsg(ToggleSecondaryCountry code)))
                                     :> IView)
 
-                            StackPanel.create
-                                [ StackPanel.spacing 8.0
-                                  StackPanel.children countryCards ]
+                            StackPanel.create [ StackPanel.spacing 8.0; StackPanel.children countryCards ]
 
                             navRow
                                 (Some MainMenu)
@@ -248,11 +256,13 @@ module Setup =
         | ClubSelection ->
             let clubs =
                 match state.Mode with
-                | InGame (gs, _) ->
+                | InGame(gs, _) ->
                     gs.Competitions
                     |> Map.tryPick (fun _ (comp: Competition) ->
                         match comp.Type, comp.Country with
-                        | NationalLeague(LeagueLevel 0, _), Some country when country = state.Setup.SelectedCountry.Value ->
+                        | NationalLeague(LeagueLevel 0, _), Some country when
+                            country = state.Setup.SelectedCountry.Value
+                            ->
                             Some comp
                         | _ -> None)
                     |> Option.map (fun comp -> comp.ClubIds |> List.map (fun id -> gs.Clubs[id]))

@@ -5,6 +5,8 @@ open System.Diagnostics
 open FootballEngine
 open FootballEngine.Domain
 open FootballEngine.Generation
+open FootballEngine.Simulation
+open FootballEngine.Types
 
 let sw = Stopwatch()
 

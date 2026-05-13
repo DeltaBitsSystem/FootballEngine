@@ -6,6 +6,7 @@ open FootballEngine.Types
 open PhysicsContract
 open SimStateOps
 
+
 module VARApplicator =
 
     let applyOverturn
@@ -13,15 +14,10 @@ module VARApplicator =
         (incident: VARReviewableIncident)
         (ctx: MatchContext)
         (state: SimState)
-        : MatchEvent list =
+        : MatchEvent list * SystemOutput list =
         match incident with
-        | GoalCheck(scoringClub, scorerId, isOwnGoal, goalSubTick) ->
-            if scoringClub = HomeClub then
-                state.HomeScore <- max 0 (state.HomeScore - 1)
-            else
-                state.AwayScore <- max 0 (state.AwayScore - 1)
-
-            state.Ball <-
+        | GoalCheck(scoringClub, _, _, _) ->
+            let resetBall =
                 { state.Ball with
                     Position = kickOffSpatial
                     Spin = Spin.zero
@@ -32,18 +28,10 @@ module VARApplicator =
                     GKHoldSinceSubTick = None
                     PlayerHoldSinceSubTick = None
                     Trajectory = None }
+            [], [ ScoreGoalAdjust(scoringClub, -1); BallUpdate resetBall ]
 
-            let clubId = if scoringClub = HomeClub then ctx.Home.Id else ctx.Away.Id
-            let pid = scorerId |> Option.defaultValue 0
-
-            [ { SubTick = subTick
-                PlayerId = pid
-                ClubId = clubId
-                Type = MatchEventType.Goal
-                Context = EventContext.empty } ]
-
-        | PenaltyCheck(awardedTo, fx, fy) ->
-            state.Ball <-
+        | PenaltyCheck(_, _, _) ->
+            let resetBall =
                 { state.Ball with
                     Position =
                         { state.Ball.Position with
@@ -58,34 +46,25 @@ module VARApplicator =
                     GKHoldSinceSubTick = None
                     PlayerHoldSinceSubTick = None
                     Trajectory = None }
-
-            []
+            [], [ BallUpdate resetBall ]
 
         | RedCardCheck(playerId, _) ->
             let side = clubSideOf ctx state playerId |> Option.defaultValue HomeClub
-            setSidelined state side (Map.add playerId SidelinedByRedCard (getSidelined state side))
             let clubId = if side = HomeClub then ctx.Home.Id else ctx.Away.Id
-
             [ { SubTick = subTick
                 PlayerId = playerId
                 ClubId = clubId
                 Type = MatchEventType.RedCard
-                Context = EventContext.empty } ]
+                Context = EventContext.empty } ],
+            [ SidelinedWrite(side, playerId, SidelinedByRedCard) ]
 
         | OffsideCheck _ ->
-            clearOffsideSnapshot state
-
-            state.Ball <-
-                { state.Ball with
-                    Control = Free
-                    PendingOffsideSnapshot = None }
-
-            []
+            [], [ BallUpdate { state.Ball with Control = Free; PendingOffsideSnapshot = None } ]
 
     let applyCheckComplete
         (subTick: int)
         (incident: VARReviewableIncident)
         (ctx: MatchContext)
         (state: SimState)
-        : MatchEvent list =
-        []
+        : MatchEvent list * SystemOutput list =
+        [], []

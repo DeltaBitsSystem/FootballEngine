@@ -2,7 +2,7 @@ namespace FootballEngine
 
 open FootballEngine.Domain
 open FootballEngine.Types
-open FootballEngine.TeamOrchestrator
+
 open FootballEngine.Types.PhysicsContract
 
 

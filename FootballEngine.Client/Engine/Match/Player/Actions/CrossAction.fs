@@ -25,7 +25,7 @@ module CrossAction =
         | ValueNone -> ActionResult.empty
         | ValueSome crosserIdx ->
             let crosser = attRoster.Players[crosserIdx]
-            let crosserCond = int attFrame.Condition[crosserIdx]
+            let crosserCond = attFrame.Condition[crosserIdx]
 
             let crosserPos =
                 { X = float attFrame.Physics.PosX[crosserIdx] * 1.0<meter>
@@ -60,7 +60,6 @@ module CrossAction =
                                  Vx = 0.0<meter / second>
                                  Vy = 0.0<meter / second>
                                  Vz = 0.0<meter / second> }
-
                            yield (defRoster.Players[i], sp)
                        | _ -> () |]
 
@@ -69,7 +68,6 @@ module CrossAction =
                        match attFrame.Physics.Occupancy[i] with
                        | OccupancyKind.Active _ ->
                            let profile = attRoster.Profiles[i]
-
                            if
                                profile.AerialThreat > cc.AerialThreatThreshold
                                || profile.AttackingDepth > cc.AttackingDepthThreshold
@@ -105,16 +103,24 @@ module CrossAction =
                     else
                         PenaltyAreaDepth
 
-                let defClub = ClubSide.flip actx.Att.ClubSide
-                ballTowards crosserPos.X crosserPos.Y targetX (PitchWidth / 2.0) cc.FallbackSpeed cc.FallbackVz state
-                state.Ball <- { state.Ball with Control = Airborne }
-                clearOffsideSnapshot state
+                let dx = targetX - crosserPos.X
+                let dy = (PitchWidth / 2.0) - crosserPos.Y
+                let dist = sqrt (dx * dx + dy * dy)
+                let vx, vy =
+                    if dist < 0.01<meter> then 0.0<meter / second>, 0.0<meter / second>
+                    else dx / dist * cc.FallbackSpeed, dy / dist * cc.FallbackSpeed
 
-                ActionResult.ofEvents
+                let fallbackBall =
+                    { state.Ball with
+                        Position = { state.Ball.Position with Vx = vx; Vy = vy; Vz = cc.FallbackVz }
+                        Control = Airborne
+                        PendingOffsideSnapshot = None }
+
+                ActionResult.withOutputs
                     [ createEvent subTick crosser.Id attClubId (CrossLaunched(crosser.Id, crosser.Id)) ]
+                    [ BallUpdate fallbackBall ]
             else
                 let target, targetSp = targets[0]
-
                 let accuracyNoise = 0.15 * (1.0 - quality)
 
                 let targetX =
@@ -142,13 +148,9 @@ module CrossAction =
 
                 let spin =
                     { Top =
-                        -(normaliseAttr crosser.Technical.Crossing)
-                        * cc.SpinTopMult
-                        * 1.0<radianPerSecond>
+                        -(normaliseAttr crosser.Technical.Crossing) * cc.SpinTopMult * 1.0<radianPerSecond>
                       Side =
-                        (normaliseAttr crosser.Technical.Crossing)
-                        * cc.SpinSideMult
-                        * 1.0<radianPerSecond> }
+                        (normaliseAttr crosser.Technical.Crossing) * cc.SpinSideMult * 1.0<radianPerSecond> }
 
                 let trajectory =
                     { OriginX = crosserPos.X
@@ -161,16 +163,22 @@ module CrossAction =
                       PeakHeight = cc.Vz * cc.Vz / (2.0 * 9.80665<meter / second^2>)
                       Intent = Aimed(crosser.Id, target.Id, quality, AimedKind.Cross) }
 
-                ballTowards crosserPos.X crosserPos.Y targetX targetY cc.Speed cc.Vz state
+                let dx = targetX - crosserPos.X
+                let dy = targetY - crosserPos.Y
+                let d = sqrt (dx * dx + dy * dy)
+                let vx, vy =
+                    if d < 0.01<meter> then 0.0<meter / second>, 0.0<meter / second>
+                    else dx / d * cc.Speed, dy / d * cc.Speed
 
-                state.Ball <-
+                let crossBall =
                     { state.Ball with
+                        Position = { state.Ball.Position with Vx = vx; Vy = vy; Vz = cc.Vz }
                         Control = Airborne
                         Spin = spin
                         LastTouchBy = Some crosser.Id
-                        Trajectory = Some trajectory }
+                        Trajectory = Some trajectory
+                        PendingOffsideSnapshot = None }
 
-                clearOffsideSnapshot state
-
-                ActionResult.ofEvents
+                ActionResult.withOutputs
                     [ createEvent subTick crosser.Id attClubId (CrossLaunched(crosser.Id, target.Id)) ]
+                    [ BallUpdate crossBall ]

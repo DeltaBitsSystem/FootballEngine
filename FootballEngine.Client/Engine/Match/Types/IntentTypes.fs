@@ -95,6 +95,20 @@ module CognitiveFrameBuffers =
           BestPassTargetPos = Array.create<Spatial voption> n ValueNone
           PressureOnPlayer = Array.create<float32> n System.Single.MaxValue }
 
+
+    let copyIntoCFrameBuffers (buffers: CognitiveFrameBuffers option) (frame: CognitiveFrame) =
+        match buffers with
+        | Some buf ->
+            let n = min frame.SlotCount buf.NearestTeammateIdx.Length
+            Array.blit frame.NearestTeammateIdx 0 buf.NearestTeammateIdx 0 n
+            Array.blit frame.NearestTeammateDistSq 0 buf.NearestTeammateDistSq 0 n
+            Array.blit frame.NearestOpponentIdx 0 buf.NearestOpponentIdx 0 n
+            Array.blit frame.NearestOpponentDistSq 0 buf.NearestOpponentDistSq 0 n
+            Array.blit frame.BestPassTargetIdx 0 buf.BestPassTargetIdx 0 n
+            Array.blit frame.BestPassTargetPos 0 buf.BestPassTargetPos 0 n
+            Array.blit frame.PressureOnPlayer 0 buf.PressureOnPlayer 0 n
+        | None -> ()
+
 type IntentKind =
     | Idle = 0uy
     | MaintainShape = 1uy

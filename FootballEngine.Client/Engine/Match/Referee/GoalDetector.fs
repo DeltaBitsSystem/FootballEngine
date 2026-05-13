@@ -7,17 +7,20 @@ open SimStateOps
 
 module GoalDetector =
 
-    let detect (ball: BallPhysicsState) : ClubSide option =
+    let detect (ball: BallPhysicsState) (homeAttackDir: AttackDir) : ClubSide option =
         let pos = ball.Position
         let inGoalY = pos.Y >= PostNearY && pos.Y <= PostFarY
         let inGoalZ = pos.Z >= 0.0<meter> && pos.Z <= CrossbarHeight
 
-        if pos.X >= GoalLineHome && inGoalY && inGoalZ then
-            Some HomeClub
-        elif pos.X <= GoalLineAway && inGoalY && inGoalZ then
-            Some AwayClub
-        else
-            None
+        match homeAttackDir with
+        | LeftToRight ->
+            if pos.X >= GoalLineHome && inGoalY && inGoalZ then Some HomeClub
+            elif pos.X <= GoalLineAway && inGoalY && inGoalZ then Some AwayClub
+            else None
+        | RightToLeft ->
+            if pos.X <= GoalLineAway && inGoalY && inGoalZ then Some HomeClub
+            elif pos.X >= GoalLineHome && inGoalY && inGoalZ then Some AwayClub
+            else None
 
     let scorer
         (scoringClub: ClubSide)

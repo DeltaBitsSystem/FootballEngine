@@ -7,7 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <!-- ── Domain ─────────────────────────────────────────────────────── -->
+
         <Compile Include="Domain\DomainTypes.fs"/>
         <Compile Include="Domain\Country.fs"/>
         <Compile Include="Domain\Training.fs"/>
@@ -28,7 +28,7 @@
         <Compile Include="Domain\FormationData.fs"/>
         <Compile Include="Domain\LineupOps.fs"/>
 
-        <!-- ── GameData ───────────────────────────────────────────────────── -->
+
         <Compile Include="GameData\DomainEncoders.fs"/>
         <Compile Include="GameData\JsonTypes.fs"/>
         <Compile Include="GameData\JsonConverters.fs"/>
@@ -39,52 +39,38 @@
         <Compile Include="GameData\ModSaver.fs"/>
         <Compile Include="GameData\ModPaths.fs"/>
 
-        <!-- ── Engine.Stats ───────────────────────────────────────────────── -->
         <Compile Include="Engine\Stats.fs"/>
 
-        <!-- ══════════════════════════════════════════════════════════════════
-             ENGINE / MATCH — TYPES
-             Todos los tipos puros del match engine, sin dependencias cruzadas.
-             Orden: physics → clock → primitivos → jugador → equipo → árbitro → scheduling
-             ══════════════════════════════════════════════════════════════════ -->
-
-        <!-- Nivel 0 — contratos físicos y reloj (sin dependencias de Domain) -->
         <Compile Include="Engine\Match\Types\PhysicsContract.fs"/>
         <Compile Include="Engine\Match\Types\SimulationClock.fs"/>
         <Compile Include="Engine\Match\Types\Probability.fs"/>
 
-        <!-- Nivel 1 — primitivos espaciales (dependen de PhysicsContract) -->
+
         <Compile Include="Engine\Match\Types\Primitives.fs"/>
         <Compile Include="Engine\Match\Types\VARTypes.fs"/>
         <Compile Include="Engine\Match\Types\MatchPrimitives.fs"/>
 
-        <!-- Nivel 2 — tipos de movimiento y asignación de runs -->
+
         <Compile Include="Engine\Match\Types\MovementTypes.fs"/>
         <Compile Include="Engine\Match\Types\RunAssignment.fs"/>
 
-        <!-- Nivel 3 — tipos de influencia espacial (dependen de PhysicsContract + Domain) -->
+
         <Compile Include="Engine\Match\Types\InfluenceTypes.fs"/>
 
-        <!-- Nivel 4 — tipos de intent y frame cognitivo (dependen de MovementTypes + InfluenceTypes) -->
+
         <Compile Include="Engine\Match\Types\IntentTypes.fs"/>
 
-        <!-- Nivel 5 — frame de jugador y equipo (depende de IntentTypes + InfluenceTypes) -->
-
-        <!-- Nivel 6 — tipos de memoria de partido (depende de PlayerFrame) -->
         <Compile Include="Engine\Match\Types\MatchMemory.fs"/>
 
-        <!-- Nivel 7 — tipos de directiva de equipo (depende de MovementTypes + RunAssignment) -->
         <Compile Include="Engine\Match\Types\DirectiveTypes.fs"/>
         <Compile Include="Engine\Match\Types\BalanceConfig.fs"/>
 
-        <!-- Nivel 8 — tipos de bola (depende de PlayerFrame para TeamFrame + PhysicsContract) -->
-
-        <!-- Nivel 9 — árbitro y scheduling (dependen de MatchPrimitives + VARTypes + BallTypes) -->
         <Compile Include="Engine\Match\Types\RefereeAction.fs"/>
         <Compile Include="Engine\Match\Types\SchedulingTypes.fs"/>
         <Compile Include="Engine\Match\Types\TacticsConfig.fs"/>
         <Compile Include="Engine\Match\Types\PlayerFrame.fs"/>
         <Compile Include="Engine\Match\Types\SlotRole.fs"/>
+        <Compile Include="Engine\Match\Types\CollectiveIntent.fs"/>
         <Compile Include="Engine\Match\Types\TeamFrame.fs"/>
         <Compile Include="Engine\Match\Types\TeamContext.fs"/>
         <Compile Include="Engine\Match\Types\BallTypes.fs"/>
@@ -92,52 +78,38 @@
         <Compile Include="Engine\Match\Types\AdaptiveTactics.fs"/>
         <Compile Include="Engine\Match\Types\ShapeEngine.fs"/>
         <Compile Include="Engine\Match\Types\SlotRoleAssigner.fs"/>
+        <Compile Include="Engine\Match\Types\SemanticEvent.fs"/>
+        <Compile Include="Engine\Match\Types\StoppageTimeTracker.fs"/>
+        <Compile Include="Engine\Match\Types\SystemOutput.fs"/>
 
-        <!-- Nivel 10 — balance y configuración (depende de PhysicsContract + SimulationClock) -->
-
-        <!-- ══════════════════════════════════════════════════════════════════
-             ENGINE / MATCH — IMPLEMENTACIÓN
-             ══════════════════════════════════════════════════════════════════ -->
-
-        <!-- ── Core — configuración y validación ─────────────────────────── -->
         <Compile Include="Engine\Match\Core\ConfigValidation.fs"/>
         <Compile Include="Engine\Match\Core\HomeBonus.fs"/>
-        <Compile Include="Engine\Match\Core\StoppageTimeTracker.fs"/>
-        <Compile Include="Engine\Match\Core\SemanticEvent.fs"/>
         <Compile Include="Engine\Match\Core\SimState.fs"/>
         <Compile Include="Engine\Match\Core\MatchSpatial.fs"/>
         <Compile Include="Engine\Match\Core\MatchContext.fs"/>
         <Compile Include="Engine\Match\Core\SimStateOps.fs"/>
 
 
-        <!-- ── Core — contexto (depende de Player base) ───────────────────── -->
-
-        <!-- ── Referee — análisis (depende de MatchContext) ──────────────── -->
         <Compile Include="Engine\Match\Referee\FoulAnalysis.fs"/>
         <Compile Include="Engine\Match\Referee\AdvantageEngine.fs"/>
         <Compile Include="Engine\Match\Referee\HandballDetector.fs"/>
-        <!--   RefereeAction ya está en Types/                                            -->
+
         <Compile Include="Engine\Match\Referee\PendingGoal.fs"/>
         <Compile Include="Engine\Match\Core\MatchFormulas.fs"/>
 
-        <!-- ── Core — scheduling y rates ─────────────────────────────────── -->
-        <!--   SchedulingTypes ya está en Types/                                          -->
         <Compile Include="Engine\Match\Core\EventRouter.fs"/>
         <Compile Include="Engine\Match\Core\MatchCommands.fs"/>
 
-        <!-- ── Simulation ─────────────────────────────────────────────────── -->
         <Compile Include="Engine\Match\Player\FrameMutate.fs"/>
-        <!-- ── Player — Perception ────────────────────────────────────────── -->
-        <!--   InfluenceTypes ya está en Types/                                           -->
+
         <Compile Include="Engine\Match\Player\Perception\InfluenceFrame.fs"/>
         <Compile Include="Engine\Match\Player\Perception\Perception.fs"/>
+        <Compile Include="Engine\Match\Player\Perception\CognitiveFrameBuilder.fs"/>
 
-        <!-- ── Player — Intent ────────────────────────────────────────────── -->
-        <!--   IntentTypes (CognitiveFrame incluido) ya está en Types/                    -->
+
         <Compile Include="Engine\Match\Player\Intent\IntentFrame.fs"/>
         <Compile Include="Engine\Match\Player\Intent\IntentPhase.fs"/>
 
-        <!-- ── Player — Decision ──────────────────────────────────────────── -->
         <Compile Include="Engine\Match\Player\Decision\ActionContext.fs"/>
         <Compile Include="Engine\Match\Player\Decision\ActionMath.fs"/>
         <Compile Include="Engine\Match\Player\Decision\ActionEligibility.fs"/>
@@ -149,33 +121,29 @@
         <Compile Include="Engine\Match\Player\Decision\ReactiveLayer.fs"/>
         <Compile Include="Engine\Match\Player\Decision\PlayerDecision.fs"/>
 
-        <!-- ── Player — Steering ──────────────────────────────────────────── -->
         <Compile Include="Engine\Match\Player\Steering\FatiguePipeline.fs"/>
         <Compile Include="Engine\Match\Player\Steering\OrganicDrift.fs"/>
         <Compile Include="Engine\Match\Player\Steering\PlayerSteering.fs"/>
         <Compile Include="Engine\Match\Player\Steering\MovementEngine.fs"/>
+        <Compile Include="Engine\Match\Player\Physics\PhysicsSystem.fs"/>
 
-        <!-- ── Player — Actions ───────────────────────────────────────────── -->
         <Compile Include="Engine\Match\Player\Actions\SetPiecePositioning.fs"/>
         <Compile Include="Engine\Match\Player\Actions\DuelAction.fs"/>
         <Compile Include="Engine\Match\Player\Actions\ShotAction.fs"/>
         <Compile Include="Engine\Match\Player\Actions\PassAction.fs"/>
         <Compile Include="Engine\Match\Player\Actions\CrossAction.fs"/>
+        <Compile Include="Engine\Match\Player\Actions\GKAction.fs"/>
         <Compile Include="Engine\Match\Player\Actions\SetPieceRoutines.fs"/>
         <Compile Include="Engine\Match\Player\Actions\WallBehavior.fs"/>
         <Compile Include="Engine\Match\Player\Actions\SecondPhase.fs"/>
         <Compile Include="Engine\Match\Player\Actions\SetPlayAction.fs"/>
         <Compile Include="Engine\Match\Player\Actions\SetPieceAgent.fs"/>
 
-        <!-- ── Player — orquestación ──────────────────────────────────────── -->
         <Compile Include="Engine\Match\Player\PlayerAction.fs"/>
-        <Compile Include="Engine\Match\Player\GKAction.fs"/>
         <Compile Include="Engine\Match\Player\PlayerContext.fs"/>
-        <Compile Include="Engine\Match\Player\BatchDecision.fs"/>
         <Compile Include="Engine\Match\Player\ActionResolver.fs"/>
         <Compile Include="Engine\Match\Player\PlayerAgent.fs"/>
 
-        <!-- ── TeamOrchestrator — lógica colectiva ────────────────────────── -->
         <Compile Include="Engine\Match\TeamOrchestrator\EmergentLoops.fs"/>
         <Compile Include="Engine\Match\TeamOrchestrator\EventWindow.fs"/>
         <Compile Include="Engine\Match\TeamOrchestrator\ChemistryTracker.fs"/>
@@ -183,37 +151,37 @@
         <Compile Include="Engine\Match\TeamOrchestrator\ReactiveLoop.fs"/>
         <Compile Include="Engine\Match\TeamOrchestrator\StrategicLoop.fs"/>
         <Compile Include="Engine\Match\TeamOrchestrator\TeamOrchestrator.fs"/>
+        <Compile Include="Engine\Match\TeamOrchestrator\TeamSystem.fs"/>
+        <Compile Include="Engine\Match\Systems\Cognition\CognitionSystem.fs"/>
+        <Compile Include="Engine\Match\Systems\Adaptive\AdaptiveSystem.fs"/>
 
-        <!-- ── Ball ───────────────────────────────────────────────────────── -->
-        <!--   BallTypes ya está en Types/                                                -->
         <Compile Include="Engine\Match\Ball\BallPhysics.fs"/>
         <Compile Include="Engine\Match\Ball\Interception.fs"/>
         <Compile Include="Engine\Match\Ball\BallAgent.fs"/>
+        <Compile Include="Engine\Match\Ball\ContactResolver.fs"/>
+        <Compile Include="Engine\Match\Ball\OutcomeResolver.fs"/>
+        <Compile Include="Engine\Match\Ball\BallSystem.fs"/>
 
-        <!-- ── Referee — detección y aplicación ──────────────────────────── -->
         <Compile Include="Engine\Match\Referee\GoalDetector.fs"/>
         <Compile Include="Engine\Match\Referee\RefereeApplicator.fs"/>
+        <Compile Include="Engine\Match\Systems\Action\ActionSystem.fs"/>
         <Compile Include="Engine\Match\Referee\RefereeAgent.fs"/>
         <Compile Include="Engine\Match\Referee\VAR\VARDetector.fs"/>
         <Compile Include="Engine\Match\Referee\VAR\VARReview.fs"/>
         <Compile Include="Engine\Match\Referee\VAR\VARApplicator.fs"/>
 
-        <!-- ── Manager ────────────────────────────────────────────────────── -->
         <Compile Include="Engine\Match\Manager\SubstitutionIntelligence.fs"/>
         <Compile Include="Engine\Match\Manager\ManagerAction.fs"/>
         <Compile Include="Engine\Match\Manager\ManagerAgent.fs"/>
 
-        <!-- ── Core — stepper ─────────────────────────────────────────────── -->
         <Compile Include="Engine\Match\Core\MatchStepper.fs"/>
         <Compile Include="Engine\Match\Simulation\BalanceCalibrator.fs"/>
         <Compile Include="Engine\Match\Simulation\EnvironmentSystems.fs"/>
         <Compile Include="Engine\Match\Simulation\Momentum.fs"/>
 
-        <!-- ── Simulation — runner ────────────────────────────────────────── -->
         <Compile Include="Engine\Match\Simulation\SnapshotBuilder.fs"/>
         <Compile Include="Engine\Match\Simulation\Simulator.fs"/>
 
-        <!-- ── WorldGeneration ────────────────────────────────────────────── -->
         <Compile Include="Engine\WorldGeneration\PlayerGen.fs"/>
         <Compile Include="Engine\WorldGeneration\StaffGen.fs"/>
         <Compile Include="Engine\WorldGeneration\ClubGen.fs"/>
@@ -221,7 +189,6 @@
         <Compile Include="Engine\WorldGeneration\WorldGen.fs"/>
         <Compile Include="Engine\WorldGeneration\SeasonGen.fs"/>
 
-        <!-- ── World ──────────────────────────────────────────────────────── -->
         <Compile Include="Engine\World\Core\WorldTick.fs"/>
         <Compile Include="Engine\World\Core\AgentTypes.fs"/>
         <Compile Include="Engine\World\Core\WorldClock.fs"/>
@@ -240,7 +207,6 @@
         <Compile Include="Engine\World\WorldScheduler.fs"/>
         <Compile Include="Engine\World\WorldRunner.fs"/>
 
-        <!-- ── App ────────────────────────────────────────────────────────── -->
         <Compile Include="Engine\InboxMessages.fs"/>
         <Compile Include="Database\Entities.fs"/>
         <Compile Include="Database\Serializers.fs"/>

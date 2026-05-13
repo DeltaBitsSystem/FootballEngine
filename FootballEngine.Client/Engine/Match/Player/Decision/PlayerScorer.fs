@@ -18,21 +18,12 @@ type ActionScores =
 module PlayerScorer =
 
     let private normStat (v: int) = float v / 20.0
-    let private condFactor (c: int) = 0.90 + 0.10 * (float c / 100.0)
+    let private condFactor (c: float32) = 0.90 + 0.10 * (float c / 100.0)
 
     let private directnessFactor (t: TacticsConfig) (profile: BehavioralProfile) =
         t.Directness * 0.6 + profile.Directness * 0.4
 
-    let private buildUpSideBonus (directiveKind: DirectiveKind) (pos: Position) =
-        let buildUpSide =
-            match directiveKind with
-            | DirectiveKind.DirectAttack -> BuildUpSide.Central
-            | _ -> BuildUpSide.Balanced
-
-        match buildUpSide with
-        | BuildUpSide.LeftFlank -> if pos = AMR || pos = MR || pos = WBR then 0.1 else 0.0
-        | BuildUpSide.RightFlank -> if pos = AML || pos = ML || pos = WBL then 0.1 else 0.0
-        | _ -> 0.0
+    let private buildUpSideBonus (_pos: Position) = 0.0
 
     let private shootScore (ctx: AgentContext) (matchMemory: MatchMemory) : float<decisionScore> =
         let me = ctx.Me
@@ -229,7 +220,7 @@ module PlayerScorer =
         let tempoBias = t.Tempo * 0.15
         let directBias = -(df * 0.20)
 
-        let busMod = buildUpSideBonus ctx.DirectiveKind me.Position
+        let busMod = buildUpSideBonus me.Position
 
         let confidenceMod = ctx.MentalState.ConfidenceLevel * 0.08
         let riskMod = ctx.MentalState.RiskTolerance * d.PassTargetBonus * 0.3

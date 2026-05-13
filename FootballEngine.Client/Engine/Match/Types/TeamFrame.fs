@@ -1,5 +1,7 @@
 namespace FootballEngine.Types
 
+open FootballEngine
+
 type TeamFrame() =
     member val Physics: PhysicsFrame = Unchecked.defaultof<_> with get, set
     member val Intent: IntentDataFrame = Unchecked.defaultof<_> with get, set
@@ -9,11 +11,12 @@ type TeamFrame() =
 
     member this.SlotCount = this.Physics.SlotCount
 
-    member val Condition: byte[] = Array.empty with get, set
+    member val Condition: float32[] = Array.empty with get, set
     member val SupportPositionX: float32[] = Array.empty with get, set
     member val SupportPositionY: float32[] = Array.empty with get, set
     member val DefensiveRole: byte[] = Array.empty with get, set
     member val SlotRoles: SlotRole[] = Array.empty with get, set
+    member val CollectiveIntents: CollectiveIntent[] = Array.empty with get, set
     member val CachedTargetX: float32[] = Array.empty with get, set
     member val CachedTargetY: float32[] = Array.empty with get, set
     member val CachedExecution: float32[] = Array.empty with get, set
@@ -32,11 +35,12 @@ module TeamFrame =
         frame.Cognitive <- CognitiveOutputFrame.init n
         frame.Cond <- ConditionFrame.init n roster basePositions
         frame.Mental <- MentalFrame.init n roster
-        frame.Condition <- Array.init n (fun i -> byte roster.Players[i].Condition)
+        frame.Condition <- Array.init n (fun i -> float32 roster.Players[i].Condition)
         frame.SupportPositionX <- Array.zeroCreate n
         frame.SupportPositionY <- Array.zeroCreate n
         frame.DefensiveRole <- Array.create n (byte DefensiveRole.Marker)
         frame.SlotRoles <- Array.create n FreeRole
+        frame.CollectiveIntents <- Array.create n CollectiveIntent.neutral
         frame.CachedTargetX <- Array.init n (fun i -> float32 basePositions[i].X)
         frame.CachedTargetY <- Array.init n (fun i -> float32 basePositions[i].Y)
         frame.CachedExecution <- Array.create n 1.0f

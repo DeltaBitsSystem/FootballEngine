@@ -20,7 +20,7 @@ printfn "=== Waiting 10s..."
 System.Threading.Thread.Sleep(10000)
 
 printfn "=== Capturing trace (60s)..."
-let trace = Process.Start("dotnet-trace", "collect --process-id " + string bench.Id + " --duration 00:01:00 --output trace.nettrace")
+let trace = Process.Start("dotnet-trace", "collect --profile gc-verbose --process-id " + string bench.Id + " --duration 00:02:00 --output trace.nettrace")
 trace.WaitForExit()
 
 printfn "=== Report:"

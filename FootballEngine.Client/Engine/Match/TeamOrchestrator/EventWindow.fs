@@ -1,10 +1,9 @@
 namespace FootballEngine.TeamOrchestrator
 
 open FootballEngine.Domain
+open FootballEngine.Types
 
 module EventWindow =
-    open FootballEngine
-
     let recentEvents (windowSubTicks: int) (events: ResizeArray<MatchEvent>) : MatchEvent list =
         let n = events.Count
 
@@ -67,7 +66,7 @@ module EventWindow =
                     | MatchEventType.CrossAttempt false -> flankTotal <- flankTotal + 1
                     | _ -> ()
 
-            let result = List.ofSeq recentList |> List.rev 
+            let result = List.ofSeq recentList |> List.rev
 
             let calcRate total success =
                 if total = 0 then 0.5 else float success / float total

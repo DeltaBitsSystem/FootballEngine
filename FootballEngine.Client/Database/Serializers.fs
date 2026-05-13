@@ -458,4 +458,4 @@ module Serializers =
 
         match JsonConverters.countryDataFromDto dto with
         | Ok cd -> cd
-        | Error msg -> failwithf "deserializeCountryData: %s" msg
+        | Error msg -> failwithf $"deserializeCountryData: %s{msg}"

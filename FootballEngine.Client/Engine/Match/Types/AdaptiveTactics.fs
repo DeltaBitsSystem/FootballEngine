@@ -1,4 +1,4 @@
-namespace FootballEngine.TeamOrchestrator
+namespace FootballEngine.Types
 
 
 type AttackPattern =

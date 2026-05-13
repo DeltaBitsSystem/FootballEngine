@@ -5,7 +5,7 @@ open FootballEngine.Domain.TacticalInstructions
 
 
 open FootballEngine.MatchSpatial
-open FootballEngine.TeamOrchestrator
+
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
 open FootballEngine.Types.SimulationClock
@@ -237,6 +237,26 @@ module SimStateOps =
                 GKHoldSinceSubTick = None
                 PlayerHoldSinceSubTick = None
                 Trajectory = None }
+
+    let losePossessionOutputs (state: SimState) : SystemOutput list =
+        let looseBall =
+            { state.Ball with
+                Control = Free
+                PendingOffsideSnapshot = None
+                GKHoldSinceSubTick = None
+                PlayerHoldSinceSubTick = None
+                Trajectory = None }
+
+        let semantics =
+            match state.Ball.Control with
+            | Controlled(side, pid)
+            | Receiving(side, pid, _) ->
+                [ EmitSemantic(SemanticEvent.BallLost(side, pid))
+                  for run in getActiveRuns state side do
+                      yield ExpireRun(side, run.PlayerId) ]
+            | _ -> []
+
+        BallUpdate looseBall :: semantics
 
     let givePossessionTo
         (club: ClubSide)

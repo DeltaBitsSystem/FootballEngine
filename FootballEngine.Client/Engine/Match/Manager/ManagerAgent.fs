@@ -310,7 +310,7 @@ module ManagerAgent =
                           Vz = 0.0<meter / second> }
 
                     FrameMutate.setPos frame.Physics outIdx inheritedPos.X inheritedPos.Y
-                    FrameMutate.setCondition frame outIdx incoming.Condition
+                    FrameMutate.setCondition frame outIdx (float32 incoming.Condition)
                     FrameMutate.setIntent frame.Intent outIdx IntentKind.Idle 0.0f 0.0f 0
 
                     let team = getTeam state side

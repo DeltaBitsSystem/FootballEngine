@@ -6,20 +6,12 @@ open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
 
 
-[<Struct>]
-type MovementScores =
-    { MaintainShape: float
-      MarkMan: float
-      PressBall: float
-      CoverSpace: float
-      SupportAttack: float
-      RecoverBall: float
-      MoveToSetPiecePos: float }
+
 
 module MovementScorer =
 
     let private normStat (v: int) = float v / 20.0
-    let private normCond (v: int) = float v / 100.0
+    let private normCond (v: float32) = float v / 100.0
 
     let private hasBall (ballState: BallPhysicsState) (pid: PlayerId) =
         match ballState.Control with
@@ -141,7 +133,7 @@ module MovementScorer =
                     | ST -> 0.1
                     | _ -> 0.0
 
-                let staminaPenalty = float (100 - ctx.MyCondition) / 100.0 * 0.2
+                let staminaPenalty = float (100.0f - ctx.MyCondition) / 100.0 * 0.2
 
                 let transitionBonus =
                     if ctx.CurrentSubTick < ctx.TransitionPressExpiry then
@@ -228,25 +220,6 @@ module MovementScorer =
 
             let widthBonus = ctx.Tactics.Width * ctx.Profile.LateralTendency * 0.25
 
-            let buildUpSide =
-                match ctx.DirectiveKind with
-                | DirectiveKind.DirectAttack -> BuildUpSide.Central
-                | _ -> BuildUpSide.Balanced
-
-            let buildUpSideBonus =
-                match buildUpSide with
-                | BuildUpSide.LeftFlank ->
-                    if ctx.Me.Position = AMR || ctx.Me.Position = MR || ctx.Me.Position = WBR then
-                        0.15
-                    else
-                        0.0
-                | BuildUpSide.RightFlank ->
-                    if ctx.Me.Position = AML || ctx.Me.Position = ML || ctx.Me.Position = WBL then
-                        0.15
-                    else
-                        0.0
-                | _ -> 0.0
-
             let positionBonus =
                 match ctx.Me.Position with
                 | ST
@@ -291,7 +264,6 @@ module MovementScorer =
              + depthBonus
              + positionBonus
              + widthBonus
-             + buildUpSideBonus
              + spaceBonus)
             * normCond ctx.MyCondition
 
@@ -365,17 +337,12 @@ module MovementScorer =
                         0.8 - (float dist / 15.0) * 0.4
             | _ -> 0.0
 
-    let applyEmergentModifiers (emergent: EmergentState) (ctx: AgentContext) (scores: MovementScores) : MovementScores =
-        let transition = ctx.DirectiveParams.Transition
-
+    let applyEmergentModifiers (emergent: EmergentState) (_ctx: AgentContext) (scores: MovementScores) : MovementScores =
         { scores with
             PressBall = scores.PressBall * emergent.PressingIntensity
             MarkMan = scores.MarkMan * emergent.CompactnessLevel
-            CoverSpace =
-                scores.CoverSpace
-                * emergent.CompactnessLevel
-                * (1.0 - transition.DirectnessBias)
-            SupportAttack = scores.SupportAttack * emergent.RiskAppetite * (1.0 + transition.WingBias) }
+            CoverSpace = scores.CoverSpace * emergent.CompactnessLevel
+            SupportAttack = scores.SupportAttack * emergent.RiskAppetite }
 
     let interceptPassScore (ctx: AgentContext) : float =
         if ctx.TeamHasBall then
@@ -671,29 +638,6 @@ module MovementScorer =
 
                     bestScore <- runScore
                     bestIntent <- ExecuteRun assignment
-
-            match ctx.TargetRunner with
-            | Some runnerId when runnerId = ctx.Me.Id ->
-                match ctx.RunType, ctx.RunTarget with
-                | Some runType, Some runTarget ->
-                    let runScore = 2.0 + scores.SupportAttack
-
-                    if runScore > bestScore then
-                        let assignment =
-                            RunAssignment.create
-                                runType
-                                ctx.MyPos.X
-                                ctx.MyPos.Y
-                                runTarget.X
-                                runTarget.Y
-                                ctx.Me.Id
-                                currentSubTick
-                                120
-
-                        bestScore <- runScore
-                        bestIntent <- ExecuteRun assignment
-                | _ -> ()
-            | _ -> ()
 
             if bestScore < 0.15 then
                 if not ctx.TeamHasBall then

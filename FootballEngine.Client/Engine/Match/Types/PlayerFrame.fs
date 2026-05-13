@@ -92,14 +92,14 @@ module CognitiveOutputFrame =
           DefensiveRole = Array.create n (byte DefensiveRole.Marker) }
 
 type ConditionFrame =
-    { Condition: byte[]
+    { Condition: float32[]
       CachedTargetX: float32[]
       CachedTargetY: float32[]
       CachedExecution: float32[] }
 
 module ConditionFrame =
     let init (n: int) (roster: PlayerRoster) (basePositions: Spatial[]) : ConditionFrame =
-        { Condition = Array.init n (fun i -> byte roster.Players[i].Condition)
+        { Condition = Array.init n (fun i -> float32 roster.Players[i].Condition)
           CachedTargetX = Array.init n (fun i -> float32 basePositions[i].X)
           CachedTargetY = Array.init n (fun i -> float32 basePositions[i].Y)
           CachedExecution = Array.create n 1.0f }
