@@ -1,5 +1,6 @@
 namespace FootballEngine.Player.Perception
 
+open System
 open FootballEngine.Types
 open FootballEngine.Types.InfluenceTypes
 
@@ -120,3 +121,99 @@ module InfluenceFrame =
                 coverage[i] <- 1.0f - (a / total)
 
         result
+
+    /// Same algorithm as compute but writes into a pre-existing target InfluenceFrame
+    /// to avoid allocating new arrays every tick.
+    let computeInto (homeFrame: TeamFrame) (awayFrame: TeamFrame) (target: InfluenceFrame) : unit =
+        let homeGrid = target.HomeGrid
+        let awayGrid = target.AwayGrid
+        let sigma = PlayerSigma
+        let sigmaSq = sigma * sigma
+
+        Array.Clear(homeGrid, 0, homeGrid.Length)
+        Array.Clear(awayGrid, 0, awayGrid.Length)
+
+        // Accumulate home influence
+        for i = 0 to homeFrame.SlotCount - 1 do
+            match homeFrame.Physics.Occupancy[i] with
+            | OccupancyKind.Active _ ->
+                let px = homeFrame.Physics.PosX[i]
+                let py = homeFrame.Physics.PosY[i]
+                let conditionFactor = float32 homeFrame.Condition[i] / 100.0f
+                let minCol = max 0 (int ((px - 3.0f * sigma) / CellWidth))
+                let maxCol = min (GridCols - 1) (int ((px + 3.0f * sigma) / CellWidth))
+                let minRow = max 0 (int ((py - 3.0f * sigma) / CellHeight))
+                let maxRow = min (GridRows - 1) (int ((py + 3.0f * sigma) / CellHeight))
+
+                for row = minRow to maxRow do
+                    for col = minCol to maxCol do
+                        let cell = row * GridCols + col
+                        let cx, cy = cellCenters[cell]
+                        let dx = cx - px
+                        let dy = cy - py
+                        let distSq = dx * dx + dy * dy
+                        let weight = System.MathF.Exp(-distSq / (2.0f * sigmaSq)) * conditionFactor
+                        homeGrid[cell] <- homeGrid[cell] + weight
+            | _ -> ()
+
+        // Accumulate away influence (same logic)
+        for i = 0 to awayFrame.SlotCount - 1 do
+            match awayFrame.Physics.Occupancy[i] with
+            | OccupancyKind.Active _ ->
+                let px = awayFrame.Physics.PosX[i]
+                let py = awayFrame.Physics.PosY[i]
+                let conditionFactor = float32 awayFrame.Condition[i] / 100.0f
+                let minCol = max 0 (int ((px - 3.0f * sigma) / CellWidth))
+                let maxCol = min (GridCols - 1) (int ((px + 3.0f * sigma) / CellWidth))
+                let minRow = max 0 (int ((py - 3.0f * sigma) / CellHeight))
+                let maxRow = min (GridRows - 1) (int ((py + 3.0f * sigma) / CellHeight))
+
+                for row = minRow to maxRow do
+                    for col = minCol to maxCol do
+                        let cell = row * GridCols + col
+                        let cx, cy = cellCenters[cell]
+                        let dx = cx - px
+                        let dy = cy - py
+                        let distSq = dx * dx + dy * dy
+                        let weight = System.MathF.Exp(-distSq / (2.0f * sigmaSq)) * conditionFactor
+                        awayGrid[cell] <- awayGrid[cell] + weight
+            | _ -> ()
+
+        // Compute contested grid and control
+        let contested = target.ContestedGrid
+        let control = target.ControlGrid
+
+        for i = 0 to GridSize - 1 do
+            let h = homeGrid[i]
+            let a = awayGrid[i]
+            contested[i] <- h - a
+
+            if h > a + 0.3f then control[i] <- 1uy
+            elif a > h + 0.3f then control[i] <- 2uy
+            else control[i] <- 0uy
+
+        // Attacker pass safety
+        let passSafety = target.AttackerPassSafety
+
+        for i = 0 to GridSize - 1 do
+            let h = homeGrid[i]
+            let a = awayGrid[i]
+            let total = h + a
+
+            if total < 0.01f then
+                passSafety[i] <- 0.5f
+            else
+                passSafety[i] <- 0.5f + 0.5f * (h - a) / total
+
+        // Defender coverage
+        let coverage = target.DefenderCoverage
+
+        for i = 0 to GridSize - 1 do
+            let h = homeGrid[i]
+            let a = awayGrid[i]
+            let total = h + a
+
+            if total < 0.01f then
+                coverage[i] <- 0.0f
+            else
+                coverage[i] <- 1.0f - (a / total)

@@ -4,6 +4,7 @@ open System.Threading.Tasks
 open Elmish
 open FootballEngine.Domain
 open FootballEngine.Icons
+open FootballEngine.Types
 open AppTypes
 open AppMsgs
 open FootballEngine.Types.SimulationClock
@@ -38,7 +39,7 @@ module UpdateSim =
                 fixture.Events
                 |> List.choose (fun ev ->
                     if ev.Type = Goal || ev.Type = OwnGoal then
-                        let minutes = int (subTicksToSeconds defaultClock ev.SubTick / 60.0)
+                        let minutes = int (subTicksToSeconds defaultClock (ev.SubTick * 1<subtick>) / 60.0)
 
                         gs.Players
                         |> Map.tryFind ev.PlayerId

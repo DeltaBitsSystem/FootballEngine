@@ -19,10 +19,10 @@ let setPieceFlowTests =
                       { Kind = SetPieceKind.KickOff
                         Team = HomeClub
                         Cause = InitialKickOff
-                        RemainingTicks = 0 }
+                        RemainingTicks = 0 * 1<tickDelta> }
 
               let result = MatchStepper.updateOne ctx defaultClock [||] state
-              shouldContainKickOff result.Events
+              shouldContainKickOff (result.Events |> Seq.toList)
           }
 
           test "After KickOff RestartDelay(0), flow becomes Live" {
@@ -33,7 +33,7 @@ let setPieceFlowTests =
                       { Kind = SetPieceKind.KickOff
                         Team = HomeClub
                         Cause = InitialKickOff
-                        RemainingTicks = 0 }
+                        RemainingTicks = 0 * 1<tickDelta> }
 
               let result = MatchStepper.updateOne ctx defaultClock [||] state
               Expect.equal result.State.Flow Live "Flow should be Live after kick-off"
@@ -47,11 +47,11 @@ let setPieceFlowTests =
                       { Kind = SetPieceKind.KickOff
                         Team = HomeClub
                         Cause = InitialKickOff
-                        RemainingTicks = 5 }
+                        RemainingTicks = 5 * 1<tickDelta> }
 
               let result = MatchStepper.updateOne ctx defaultClock [||] state
 
               match result.State.Flow with
-              | RestartDelay r -> Expect.equal r.RemainingTicks 4 "RemainingTicks must decrement by 1"
+              | RestartDelay r -> Expect.equal r.RemainingTicks (4 * 1<tickDelta>) "RemainingTicks must decrement by 1"
               | other -> failtestf $"Expected RestartDelay, got %A{other}"
           } ]

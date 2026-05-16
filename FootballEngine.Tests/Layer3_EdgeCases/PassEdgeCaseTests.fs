@@ -17,7 +17,7 @@ let passEdgeCaseTests =
               let home = [| makePlayer 1 MC 15 |]
               let ctx, state = buildSimState home [| 50.0, 34.0 |] [||] [||]
               state |> withBallAt 50.0 34.0 |> withBallControlledBy HomeClub 1 |> ignore
-              engineMustNotCrash (fun () -> PassAction.resolve 0 ctx state defaultClock |> ignore)
+              engineMustNotCrash (fun () -> PassAction.resolve 0 ctx state defaultClock home.[0] |> ignore)
           }
 
           test "PassAction.resolve returns BallUpdate in outputs when pass is attempted" {
@@ -25,9 +25,9 @@ let passEdgeCaseTests =
               let ctx, state =
                   buildSimState home [| 40.0, 34.0; 60.0, 34.0; 75.0, 34.0 |] [||] [||]
               state |> withBallAt 40.0 34.0 |> withBallControlledBy HomeClub 1 |> ignore
-              let _, outputs = PassAction.resolve 0 ctx state defaultClock home.[2]
+              let result = PassAction.resolve 0 ctx state defaultClock home.[2]
               // Pass may or may not fire depending on target availability,
               // but if it does fire, it must include a BallUpdate
-              if not (List.isEmpty outputs) then
-                  shouldContainBallUpdate outputs
+              if result.Events.Length > 0 then
+                  shouldContainBallUpdate result.Events
           } ]

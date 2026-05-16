@@ -56,7 +56,7 @@ module SnapshotBuilder =
     /// Takes a snapshot of the current sim state.
     /// Only called from runLoopFull — never from runLoopFast.
     let take (state: SimState) : SimSnapshot =
-        { SubTick = state.SubTick
+        { SubTick = int state.SubTick
           HomePositions = positionsFromFrame state.Home.Frame
           AwayPositions = positionsFromFrame state.Away.Frame
           BallX = state.Ball.Position.X

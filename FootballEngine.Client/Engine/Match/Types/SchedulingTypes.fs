@@ -2,6 +2,19 @@ namespace FootballEngine.Types
 
 open FootballEngine.Domain
 
+[<Struct>]
+type SemanticEventKind =
+    | BallSecured
+    | BallLost
+    | BallLoose
+    | PassLaunched
+    | ShotLaunched
+    | FoulOccurred
+    | GoalScored
+    | SetPieceAwarded
+    | PlayerConditionCritical
+    | RedCardIssued
+    | MomentumShifted
 
 type PlayerAction =
     | Shoot
@@ -15,6 +28,27 @@ type PlayerAction =
     | ThrowIn of side: ClubSide
     | Penalty of kicker: Player * side: ClubSide * kickNum: int
 
+type FlowMatcher =
+    | IsLive
+    | IsGoalPause
+    | IsHalfTime
+    | IsRestartDelay
+    | IsAnyPause
+    | IsMatchEnded
+
+type SystemFrequency =
+    | EverySubtick
+    | EveryN of int<tickDelta>
+    | EveryMinute of period: int<matchMin> * offset: int<matchMin>
+    | OnEvent of SemanticEventKind list
+    | OnEventOrEveryN of SemanticEventKind list * int<tickDelta>
+    | WhenFlow of FlowMatcher list * SystemFrequency
+
+type MatchTime =
+    { Subtick : int<subtick>
+      Minute  : int<matchMin>
+      Flow    : MatchFlow }
+
 module SchedulingTypes =
 
     type OnBallIntent =
@@ -25,41 +59,3 @@ module SchedulingTypes =
         | LongBall of target: PlayerId
         | Tackle of opponent: PlayerId
         | PassIntoSpace of targetCell: int
-
-    type PlayerResult =
-        { Events: MatchEvent list
-          Transition: MatchFlow option
-          PendingRefereeActions: RefereeAction list }
-
-    type BallResult =
-        { Events: MatchEvent list
-          Transition: MatchFlow option
-          PossessionChanged: bool
-          BallInFlight: bool
-          SetPieceAwarded: bool
-          ReceivedByPlayer: PlayerId option
-          GoalScored: ClubSide option }
-
-    module BallResult =
-        let empty =
-            { Events = []
-              Transition = None
-              PossessionChanged = false
-              BallInFlight = false
-              SetPieceAwarded = false
-              ReceivedByPlayer = None
-              GoalScored = None }
-
-        let ofPlayerResult (pr: PlayerResult) =
-            { Events = pr.Events
-              Transition = pr.Transition
-              PossessionChanged = false
-              BallInFlight = false
-              SetPieceAwarded = false
-              ReceivedByPlayer = None
-              GoalScored = None }
-
-    type RefereeResult =
-        { Actions: RefereeAction list
-          Restart: (SetPieceKind * ClubSide) option
-          Transition: MatchFlow option }

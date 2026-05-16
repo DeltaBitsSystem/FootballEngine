@@ -148,6 +148,31 @@ module MatchSpatial =
 
         bestIdx
 
+    /// Check if a pass lane between two positions is clear of defenders.
+    /// Returns true if no defender is blocking the lane segment.
+    let passLaneClear (bX: float32) (bY: float32) (tX: float32) (tY: float32) (defFrame: TeamFrame) : bool =
+        let tdx = tX - bX
+        let tdy = tY - bY
+        let lenSq = tdx * tdx + tdy * tdy
+        if lenSq < 0.01f then true
+        else
+            let invLenSq = 1.0f / lenSq
+            let radiusSq = 9.0f
+            let mutable blocked = false
+            let mutable i = 0
+            while not blocked && i < defFrame.SlotCount do
+                match defFrame.Physics.Occupancy[i] with
+                | OccupancyKind.Active _ ->
+                    let dpx = defFrame.Physics.PosX[i] - bX
+                    let dpy = defFrame.Physics.PosY[i] - bY
+                    let t = (dpx * tdx + dpy * tdy) * invLenSq
+                    if t >= 0.0f && t <= 1.0f then
+                        let crossSq = (dpx * tdy - dpy * tdx) * (dpx * tdy - dpy * tdx)
+                        if crossSq < radiusSq * lenSq then blocked <- true
+                | _ -> ()
+                i <- i + 1
+            not blocked
+
     let findBestPassTargetFrame
         (meIdx: int)
         (attFrame: TeamFrame)
@@ -168,38 +193,10 @@ module MatchSpatial =
             | LeftToRight -> float px < float bX - 10.0
             | RightToLeft -> float px > float bX + 10.0
 
-        let passLaneClear (targetIdx: int) =
+        let localPassLaneClear (targetIdx: int) =
             let tx = attFrame.Physics.PosX[targetIdx]
             let ty = attFrame.Physics.PosY[targetIdx]
-            let tdx = tx - bX
-            let tdy = ty - bY
-            let lenSq = tdx * tdx + tdy * tdy
-            let radiusSq = 9.0f
-
-            if lenSq < 0.01f then
-                true
-            else
-                let invLenSq = 1.0f / lenSq
-                let mutable blocked = false
-                let mutable i = 0
-
-                while not blocked && i < defFrame.SlotCount do
-                    match defFrame.Physics.Occupancy[i] with
-                    | OccupancyKind.Active _ ->
-                        let dpx = defFrame.Physics.PosX[i] - bX
-                        let dpy = defFrame.Physics.PosY[i] - bY
-                        let t = (dpx * tdx + dpy * tdy) * invLenSq
-
-                        if t >= 0.0f && t <= 1.0f then
-                            let crossSq = (dpx * tdy - dpy * tdx) * (dpx * tdy - dpy * tdx)
-
-                            if crossSq < radiusSq * lenSq then
-                                blocked <- true
-                    | _ -> ()
-
-                    i <- i + 1
-
-                not blocked
+            passLaneClear bX bY tx ty defFrame
 
         let visionWeight = float attRoster.Players[meIdx].Mental.Vision / 100.0
         let mutable bestIdx = ValueNone
@@ -216,7 +213,7 @@ module MatchSpatial =
                     let dist = sqrt (dx * dx + dy * dy)
                     let forwardBonus = if isForward px then 0.35 else 0.0
                     let backwardPenalty = if isBackward px then -0.25 else 0.0
-                    let laneBonus = if passLaneClear i then 0.2 else 0.0
+                    let laneBonus = if localPassLaneClear i then 0.2 else 0.0
 
                     let score =
                         (1.0 / (1.0 + float dist * 0.1))

@@ -1,12 +1,16 @@
 namespace FootballEngine
 
+open System
+open System.Collections.Generic
 open FootballEngine.Domain
 open FootballEngine.MatchSpatial
 open FootballEngine.Player.Actions
 open FootballEngine.Player.Decision
 open FootballEngine.Player.Intent
 open FootballEngine.Player.Perception
+open FootballEngine.Player
 open FootballEngine.Types
+open FootballEngine.Types.IntentPhaseTypes
 open FootballEngine.Types.PhysicsContract
 open SimStateOps
 
@@ -28,22 +32,9 @@ module CognitionSystem =
           RecoverBall = MovementScorer.recoverBallScore ctx
           MoveToSetPiecePos = 0.0 }
 
-    let run (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : SystemOutput[] =
+    let run (ctx: MatchContext) (state: SimState) (clock: SimulationClock) (time: MatchTime) : DomainEvent[] =
 
-        let outputs = ResizeArray<SystemOutput>()
-
-        let homeInf =
-            InfluenceFrame.compute (getFrame state HomeClub) (getFrame state AwayClub)
-
-        let awayInf =
-            InfluenceFrame.compute (getFrame state AwayClub) (getFrame state HomeClub)
-
-        let homeCF = CognitiveFrameModule.build ctx state HomeClub
-        let awayCF = CognitiveFrameModule.build ctx state AwayClub
-        outputs.Add(InfluenceFrameUpdate(HomeClub, homeInf))
-        outputs.Add(InfluenceFrameUpdate(AwayClub, awayInf))
-        outputs.Add(CognitiveFrameUpdate(HomeClub, homeCF))
-        outputs.Add(CognitiveFrameUpdate(AwayClub, awayCF))
+        let domainEvents = ResizeArray<DomainEvent>(4)
 
         let possessionHistory = state.PossessionHistory
 
@@ -51,9 +42,16 @@ module CognitionSystem =
             let team = buildTeamPerspective clubSide ctx state
             let frame = team.OwnFrame
             let roster = team.OwnRoster
-            let cFrame = if clubSide = HomeClub then homeCF else awayCF
-            let influence = if clubSide = HomeClub then homeInf else awayInf
-            let side = if clubSide = HomeClub then HomeFrame else AwayFrame
+            let cFrame =
+                if clubSide = HomeClub then
+                    state.HomeCognitiveFrame
+                else
+                    state.AwayCognitiveFrame
+            let influence =
+                if clubSide = HomeClub then
+                    state.HomeInfluenceFrame
+                else
+                    state.AwayInfluenceFrame
             let dir = team.AttackDir
             let ballXSmooth = state.BallXSmooth
             let phase = phaseFromBallZone dir ballXSmooth
@@ -63,77 +61,85 @@ module CognitionSystem =
             let tacticsCfg =
                 tacticsConfig (getTactics state clubSide) (getInstructions state clubSide)
 
-            let shapeTargetX = Array.zeroCreate<float32> frame.SlotCount
-            let shapeTargetY = Array.zeroCreate<float32> frame.SlotCount
-            ShapeEngine.computeShapeTargets basePositions dir phase ballXSmooth tacticsCfg shapeTargetX shapeTargetY
-
             let isSetPiece =
                 match state.Flow with
                 | RestartDelay _ -> true
                 | _ -> false
 
             let setPiecePositions =
-                if isSetPiece then
-                    SetPiecePositioning.computePositions ctx state clubSide
+                match (getTeam state clubSide).SetPiecePositions with
+                | Some positions -> positions
+                | None -> Array.empty
+
+            let teamState = SimStateOps.getTeam state clubSide
+            let shapeTargetX = teamState.ShapeTargetX
+            let shapeTargetY = teamState.ShapeTargetY
+
+            let activeRunByPlayer = teamState.ActiveRunLookup
+            activeRunByPlayer.Clear()
+            for run in getActiveRuns state clubSide do
+                if RunAssignment.isActive time.Subtick run && not (activeRunByPlayer.ContainsKey run.PlayerId) then
+                    activeRunByPlayer.Add(run.PlayerId, run)
+
+            let ownCount = frame.SlotCount
+            let oppCount = team.OppFrame.SlotCount
+            let visCanSeeTM =
+                if teamState.VisCanSeeTM.Length >= ownCount then
+                    teamState.VisCanSeeTM
                 else
-                    Array.empty
+                    teamState.VisCanSeeTM <- Array.zeroCreate ownCount
+                    teamState.VisCanSeeTM
+            let visCanSeeOpp =
+                if teamState.VisCanSeeOpp.Length >= oppCount then
+                    teamState.VisCanSeeOpp
+                else
+                    teamState.VisCanSeeOpp <- Array.zeroCreate oppCount
+                    teamState.VisCanSeeOpp
 
             for i = 0 to frame.SlotCount - 1 do
                 match frame.Physics.Occupancy[i] with
                 | OccupancyKind.Sidelined _ -> ()
                 | OccupancyKind.Active rosterIdx ->
-                    if not (IntentPhase.shouldRecalculate frame.Intent i subTick possessionHistory) then
+                    if not (IntentPhase.shouldRecalculate frame.Intent i time.Subtick possessionHistory) then
                         ()
                     else
                         let player = roster.Players[rosterIdx]
                         let profile = roster.Profiles[rosterIdx]
-
-                        let previousIntent =
-                            match frame.Intent.Kind[i] with
-                            | IntentKind.Idle -> ValueNone
-                            | kind ->
-                                ValueSome(
-                                    IntentFrame.toMovementIntent
-                                        kind
-                                        frame.Intent.TargetX[i]
-                                        frame.Intent.TargetY[i]
-                                        frame.Intent.TargetPid[i]
-                                        (defaultSpatial
-                                            (float frame.Intent.TargetX[i] * 1.0<meter>)
-                                            (float frame.Intent.TargetY[i] * 1.0<meter>))
-                                )
 
                         let myX = float frame.Physics.PosX[i] * 1.0<meter>
                         let myY = float frame.Physics.PosY[i] * 1.0<meter>
                         let myVx = float frame.Physics.VelX[i] * 1.0<meter / second>
                         let myVy = float frame.Physics.VelY[i] * 1.0<meter / second>
 
-                        let visibilityMask =
-                            if isSetPiece then
-                                ValueNone
-                            else
-                                ValueSome(
-                                    Perception.computeVisibilityMask
-                                        i
-                                        { X = myX
-                                          Y = myY
-                                          Z = 0.0<meter>
-                                          Vx = myVx
-                                          Vy = myVy
-                                          Vz = 0.0<meter / second> }
-                                        myVx
-                                        myVy
-                                        frame.Intent.Kind[i]
-                                        frame.Intent.TargetX[i]
-                                        frame.Intent.TargetY[i]
-                                        player.Mental.Vision
-                                        player.Mental.Positioning
-                                        (player.Position = GK)
-                                        state.Ball.Position
-                                        frame
-                                        team.OppFrame
-                                        ctx.Config.Perception
-                                )
+                        let hasBall =
+                            match state.Ball.Control with
+                            | Controlled(_, pid) when pid = player.Id -> true
+                            | Receiving(_, pid, _) when pid = player.Id -> true
+                            | _ -> false
+
+                        if hasBall && not isSetPiece then
+                            Perception.computeVisibilityMaskInto
+                                visCanSeeTM visCanSeeOpp
+                                i
+                                { X = myX
+                                  Y = myY
+                                  Z = 0.0<meter>
+                                  Vx = myVx
+                                  Vy = myVy
+                                  Vz = 0.0<meter / second> }
+                                myVx
+                                myVy
+                                frame.Intent.Kind[i]
+                                frame.Intent.TargetX[i]
+                                frame.Intent.TargetY[i]
+                                player.Mental.Vision
+                                player.Mental.Positioning
+                                (player.Position = GK)
+                                state.Ball.Position
+                                frame
+                                team.OppFrame
+                                ctx.Config.Perception
+                            |> ignore
 
                         let actx =
                             AgentContext.build
@@ -141,14 +147,18 @@ module CognitionSystem =
                                 profile
                                 i
                                 team
-                                previousIntent
+                                ValueNone
+                                frame.Intent.Kind[i]
+                                frame.Intent.TargetX[i]
+                                frame.Intent.TargetY[i]
+                                frame.Intent.TargetPid[i]
                                 state
                                 clock
                                 ctx
                                 state.Config.Decision
                                 state.Config.BuildUp
                                 (Some cFrame)
-                                visibilityMask
+                                ValueNone
                                 influence
 
                         let individual = individualPipeline actx
@@ -156,7 +166,7 @@ module CognitionSystem =
                         let w = compliance player actx.MyCondition actx.Urgency
                         let merged = CollectiveIntent.merge individual collective w
 
-                        let rawIntent = MovementScorer.pickIntent subTick merged actx
+                        let rawIntent = MovementScorer.pickIntent (int time.Subtick) merged actx
 
                         let mutable finalIntent =
                             match rawIntent with
@@ -180,23 +190,20 @@ module CognitionSystem =
 
                             finalIntent <- MoveToSetPiecePos pos
 
-                        let activeRun =
-                            getActiveRuns state clubSide
-                            |> List.tryFind (fun r -> r.PlayerId = player.Id && RunAssignment.isActive subTick r)
-
                         let finalFinalIntent =
-                            match activeRun with
-                            | Some run -> ExecuteRun run
-                            | None -> finalIntent
+                            match activeRunByPlayer.TryGetValue player.Id with
+                            | true, run -> ExecuteRun run
+                            | false, _ -> finalIntent
 
                         let kind, tx, ty, pid = IntentFrame.fromMovementIntent finalFinalIntent
-                        outputs.Add(side (SetIntent(i, kind, tx, ty, pid)))
+                        FrameMutate.setIntent frame.Intent i kind tx ty pid
 
                         let dur, trigger = IntentPhase.duration clock finalFinalIntent
-                        outputs.Add(side (CommitIntent(i, subTick + dur, byte trigger)))
+                        FrameMutate.commitIntent frame.Intent i (time.Subtick + SimulationClock.deltaToSubtick dur) (LanguagePrimitives.EnumOfValue<byte, ExitTrigger> (byte trigger))
+                        frame.Intent.CommittedAt[i] <- int time.Subtick
 
                         match finalFinalIntent with
-                        | ExecuteRun run -> outputs.Add(RegisterRun(clubSide, run))
+                        | ExecuteRun run -> domainEvents.Add(RegisterRun(clubSide, run))
                         | _ -> ()
 
-        outputs.ToArray()
+        domainEvents.ToArray()

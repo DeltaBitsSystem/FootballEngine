@@ -7,7 +7,6 @@ open FootballEngine.Referee
 open FootballEngine.SimStateOps
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
-open FootballEngine.Types.SchedulingTypes
 
 
 
@@ -19,12 +18,14 @@ module SetPieceAgent =
         (ctx: MatchContext)
         (state: SimState)
         (clock: SimulationClock)
-        : PlayerResult =
+        : DomainEvent[] =
+        let events = ResizeArray<DomainEvent>(4)
+
         let result =
             match kind with
-            | SetPieceKind.FreeKick -> SetPlayAction.resolveFreeKick state.SubTick ctx state clock
-            | SetPieceKind.Corner -> SetPlayAction.resolveCorner state.SubTick ctx state clock
-            | SetPieceKind.ThrowIn -> SetPlayAction.resolveThrowIn state.SubTick ctx state clubSide clock
+            | SetPieceKind.FreeKick -> SetPlayAction.resolveFreeKick (int state.SubTick) ctx state clock
+            | SetPieceKind.Corner -> SetPlayAction.resolveCorner (int state.SubTick) ctx state clock
+            | SetPieceKind.ThrowIn -> SetPlayAction.resolveThrowIn (int state.SubTick) ctx state clubSide clock
             | SetPieceKind.GoalKick ->
                 let isHome = clubSide = HomeClub
                 let kickingClub = if isHome then HomeClub else AwayClub
@@ -103,7 +104,7 @@ module SetPieceAgent =
 
                     let arrivalSubTick =
                         state.SubTick
-                        + int (float (flightTime / 1.0<second>) * float clock.SubTicksPerSecond)
+                        + (int (float (flightTime / 1.0<second>) * float clock.SubTicksPerSecond) * 1<subtick>)
 
                     let trajectory =
                         { OriginX = gkXf
@@ -127,21 +128,22 @@ module SetPieceAgent =
                                     Vz = 0.0<meter / second> }
                             Trajectory = Some trajectory }
 
-                    ActionResult.ofEvents [ createEvent state.SubTick gk.Id kickingClubId MatchEventType.GoalKick ]
+                    { Events = [| Emit { SubTick = int state.SubTick; PlayerId = gk.Id; ClubId = kickingClubId; Type = MatchEventType.GoalKick; Context = EventContext.empty } |] }
 
             | SetPieceKind.Penalty ->
                 let roster = getRoster ctx clubSide
                 let kickerPlayer = roster.Players[0]
 
                 let penaltyScored =
-                    SetPlayAction.resolvePenalty state.SubTick ctx state kickerPlayer clubSide clock
+                    SetPlayAction.resolvePenalty (int state.SubTick) ctx state kickerPlayer clubSide clock
 
                 if penaltyScored then
-                    { Events = []
-                      PendingRefereeActions = [ConfirmGoal(clubSide, Some kickerPlayer.Id, false)]
-                      Outputs = [] }
+                    let clubId = if clubSide = HomeClub then ctx.Home.Id else ctx.Away.Id
+                    events.Add(DomainEvent.ScoreGoal(clubSide, Some kickerPlayer.Id, false))
                 else
-                    ActionResult.empty
+                    ()
+
+                ActionResult.empty
 
             | SetPieceKind.KickOff ->
                 let centerX = HalfwayLineX
@@ -227,13 +229,8 @@ module SetPieceAgent =
 
                     SimStateOps.emitSemantic SemanticEvent.BallLoose state
 
-                    ActionResult.ofEvents
-                        [ { SubTick = state.SubTick
-                            PlayerId = kicker.Id
-                            ClubId = kickingClubId
-                            Type = MatchEventType.KickOff
-                            Context = EventContext.empty } ]
+                    { Events = [| Emit { SubTick = int state.SubTick; PlayerId = kicker.Id; ClubId = kickingClubId; Type = MatchEventType.KickOff; Context = EventContext.empty } |] }
 
-        { Events = result.Events
-          Transition = Some MatchFlow.Live
-          PendingRefereeActions = [] }
+        for de in result.Events do events.Add(de)
+        events.Add(DomainEvent.FlowChange MatchFlow.Live)
+        events.ToArray()

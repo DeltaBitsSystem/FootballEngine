@@ -97,7 +97,7 @@
         <Compile Include="Engine\Match\Referee\PendingGoal.fs"/>
         <Compile Include="Engine\Match\Core\MatchFormulas.fs"/>
 
-        <Compile Include="Engine\Match\Core\EventRouter.fs"/>
+        <Compile Include="Engine\Match\Core\Scheduler.fs"/>
         <Compile Include="Engine\Match\Core\MatchCommands.fs"/>
 
         <Compile Include="Engine\Match\Player\FrameMutate.fs"/>
@@ -124,7 +124,6 @@
         <Compile Include="Engine\Match\Player\Steering\FatiguePipeline.fs"/>
         <Compile Include="Engine\Match\Player\Steering\OrganicDrift.fs"/>
         <Compile Include="Engine\Match\Player\Steering\PlayerSteering.fs"/>
-        <Compile Include="Engine\Match\Player\Steering\MovementEngine.fs"/>
         <Compile Include="Engine\Match\Player\Physics\PhysicsSystem.fs"/>
 
         <Compile Include="Engine\Match\Player\Actions\SetPiecePositioning.fs"/>

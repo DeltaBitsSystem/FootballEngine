@@ -345,10 +345,10 @@ type GKConfig =
       PuntSpeed: float<meter / second>
       DistributionAccuracyMult: float
       DistributionDecisionNoise: float
-      HoldTimeSubTicks: int
-      MaxHoldSubTicks: int
+      HoldTimeSubTicks: int<tickDelta>
+      MaxHoldSubTicks: int<tickDelta>
       BackPassHandlingPenalty: float
-      GKDecisionWindowSubTicks: int }
+      GKDecisionWindowSubTicks: int<tickDelta> }
 
 type TimingConfig =
     { DuelChainDelay: TickDelay
@@ -364,7 +364,7 @@ type TimingConfig =
       InjuryDelay: TickDelay
       ManagerReactDelay: TickDelay
       SubsDelay: TickDelay
-      StuckBallDelay: int
+      StuckBallDelay: int<tickDelta>
       EventWindowSubTicks: int }
 
 type MatchVolumeConfig =
@@ -757,10 +757,10 @@ module BalanceConfig =
               PuntSpeed = 25.0<meter / second>
               DistributionAccuracyMult = 1.0
               DistributionDecisionNoise = 0.08
-              HoldTimeSubTicks = 20
-              MaxHoldSubTicks = 240
+              HoldTimeSubTicks = 20<tickDelta>
+              MaxHoldSubTicks = 240<tickDelta>
               BackPassHandlingPenalty = 0.15
-              GKDecisionWindowSubTicks = 16 }
+              GKDecisionWindowSubTicks = 16<tickDelta> }
           HomeAdvantage =
             { Strength = 1.0
               DuelAttackBonus = 4.0
@@ -832,7 +832,7 @@ module BalanceConfig =
               InjuryDelay = TickDelay.ofSeconds clock 30.0 6.0 20.0 45.0
               ManagerReactDelay = TickDelay.ofSeconds clock 8.0 2.5 5.0 15.0
               SubsDelay = TickDelay.ofSeconds clock 22.0 3.0 14.0 30.0
-              StuckBallDelay = secondsToSubTicks clock 5.0
+              StuckBallDelay = secondsToSubTicks clock 5.0 |> int |> fun x -> x * 1<tickDelta>
               EventWindowSubTicks = 1800 }
           MatchVolume =
             { MaxChainLength = 6
@@ -844,9 +844,9 @@ module BalanceConfig =
               TargetLongBallsPerMatch = 40.0 }
           Manager =
             { FatigueReactionThreshold = 60
-              SustainedMomentumSubTicks = secondsToSubTicks clock 600
+              SustainedMomentumSubTicks = secondsToSubTicks clock 600 |> int
               MomentumThreshold = -2.0
-              FatigueCheckSubTicks = secondsToSubTicks clock 120
+              FatigueCheckSubTicks = secondsToSubTicks clock 120 |> int
               ConditionThresholdLosing = 75
               ConditionThresholdDrawing = 65
               ConditionThresholdWinning = 55

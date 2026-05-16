@@ -60,7 +60,7 @@ module private DirectiveResolver =
                 else
                     state.AwayScore - state.HomeScore
 
-            let justChanged = state.PossessionHistory.LastChangeTick > state.SubTick - 30
+            let justChanged = state.PossessionHistory.LastChangeTick > int state.SubTick - 30
 
             if justChanged && weHaveBall then JustWonBall
             elif justChanged && not weHaveBall then JustLostBall
@@ -76,7 +76,7 @@ module private DirectiveResolver =
         (currentDirective: TeamDirective)
         : DirectiveKind =
         let situation = classifySituation state clubSide pressingCoordination
-        let isCommitted = state.SubTick - currentDirective.ActiveSince < MinCommitmentTicks
+        let isCommitted = state.SubTick - currentDirective.ActiveSince < MinCommitmentTicks * 1<subtick>
 
         if situation = Scramble then
             ContestBall
@@ -103,18 +103,19 @@ module private DirectiveResolver =
 
 module BatchDecisionSupport =
 
-    let computeSupportPositions
+    let computeSupportPositionsInto
         (team: TeamPerspective)
-        (ballPos: Spatial)
+        (_ballPos: Spatial)
         (ballControl: BallControl)
-        (phase: MatchPhase)
-        (tactics: TacticsConfig)
+        (_phase: MatchPhase)
+        (_tactics: TacticsConfig)
         (desiredWidth: float)
         (basePositions: Spatial[])
-        : Spatial[] =
+        (targetX: float32[])
+        (targetY: float32[])
+        : unit =
         let frame = team.OwnFrame
         let n = frame.SlotCount
-        let result = Array.zeroCreate<Spatial> n
 
         let ballCarrierId =
             match ballControl with
@@ -134,20 +135,34 @@ module BatchDecisionSupport =
                     | None -> false
 
                 if isCarrier then
-                    result[i] <- defaultSpatial px py
+                    targetX[i] <- float32 px
+                    targetY[i] <- float32 py
                 else
                     let forwardX = if team.AttackDir = LeftToRight then 1.0 else -1.0
                     let baseX = px + 8.0<meter> * forwardX
                     let centerY = 34.0<meter>
                     let widthOffset = (py - centerY) * desiredWidth
+                    targetX[i] <- float32 (clamp baseX 2.0<meter> 98.0<meter>)
+                    targetY[i] <- float32 (clamp (centerY + widthOffset) 2.0<meter> 98.0<meter>)
+            | _ ->
+                targetX[i] <- 52.5f
+                targetY[i] <- 34.0f
 
-                    result[i] <-
-                        defaultSpatial
-                            (clamp baseX 2.0<meter> 98.0<meter>)
-                            (clamp (centerY + widthOffset) 2.0<meter> 98.0<meter>)
-            | _ -> result[i] <- defaultSpatial 52.5<meter> 34.0<meter>
-
-        result
+    let computeSupportPositions
+        (team: TeamPerspective)
+        (ballPos: Spatial)
+        (ballControl: BallControl)
+        (phase: MatchPhase)
+        (tactics: TacticsConfig)
+        (desiredWidth: float)
+        (basePositions: Spatial[])
+        : Spatial[] =
+        let frame = team.OwnFrame
+        let resultX = Array.zeroCreate<float32> frame.SlotCount
+        let resultY = Array.zeroCreate<float32> frame.SlotCount
+        computeSupportPositionsInto team ballPos ballControl phase tactics desiredWidth basePositions resultX resultY
+        Array.init frame.SlotCount (fun i ->
+            defaultSpatial (float resultX[i] * 1.0<meter>) (float resultY[i] * 1.0<meter>))
 
     let pickRunner
         (team: TeamPerspective)
@@ -387,20 +402,16 @@ module TeamOrchestrator =
         let supportPosX = Array.zeroCreate<float32> frame.SlotCount
         let supportPosY = Array.zeroCreate<float32> frame.SlotCount
 
-        let rawSupport =
-            BatchDecisionSupport.computeSupportPositions
-                team
-                ballPos
-                state.Ball.Control
-                phase
-                tacticsCfg
-                tacticsCfg.Width
-                basePositions
-
-        for i = 0 to frame.SlotCount - 1 do
-            if i < rawSupport.Length then
-                supportPosX[i] <- float32 rawSupport[i].X
-                supportPosY[i] <- float32 rawSupport[i].Y
+        BatchDecisionSupport.computeSupportPositionsInto
+            team
+            ballPos
+            state.Ball.Control
+            phase
+            tacticsCfg
+            tacticsCfg.Width
+            basePositions
+            supportPosX
+            supportPosY
 
         // 3c. Run assignment — quién hace el movimiento de ruptura
         let influence =
@@ -425,7 +436,7 @@ module TeamOrchestrator =
                 ballPos
                 cFrame
                 subTick
-                (getTeam state clubSide).TransitionPressExpiry
+                (int (getTeam state clubSide).TransitionPressExpiry)
 
         let defRoles = Array.map (fun (r: DefensiveRole) -> r) defRolesRaw
 
@@ -499,7 +510,7 @@ module TeamOrchestrator =
                 RunTarget = plan.RunTarget
                 ActiveSince =
                     if plan.Kind <> read.CurrentDirective.Kind then
-                        subTick
+                        subTick * 1<subtick>
                     else
                         read.CurrentDirective.ActiveSince }
 

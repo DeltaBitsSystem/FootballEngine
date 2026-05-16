@@ -3,7 +3,6 @@ namespace FootballEngine
 open FootballEngine.Domain
 open FootballEngine.Types
 open SimStateOps
-open SchedulingTypes
 open Stats
 open PhysicsContract
 
@@ -94,13 +93,13 @@ module RefereeAgent =
 
             let stuckBallIntent =
                 match state.Ball.StationarySinceSubTick with
-                | Some since when state.SubTick - since >= state.Config.Timing.StuckBallDelay ->
+                | Some since when state.SubTick - since >= SimulationClock.deltaToSubtick state.Config.Timing.StuckBallDelay ->
                     [ DropBall state.AttackingSide ]
                 | _ -> []
 
             let gkTimeWastingIntent =
                 match state.Ball.GKHoldSinceSubTick with
-                | Some since when state.SubTick - since >= state.Config.GK.MaxHoldSubTicks ->
+                | Some since when state.SubTick - since >= SimulationClock.deltaToSubtick state.Config.GK.MaxHoldSubTicks ->
                     match state.Ball.Control with
                     | Controlled(side, _)
                     | Receiving(side, _, _) -> [ AwardIndirectFreeKick(ClubSide.flip side) ]
@@ -137,18 +136,23 @@ module RefereeAgent =
             []
 
 
-    let agent ctx (state: SimState) (clock: SimulationClock) : RefereeResult =
+    let agent ctx (state: SimState) (clock: SimulationClock) : DomainEvent[] =
         let isLive =
             match state.Flow with
             | Live -> true
             | _ -> false
 
         if not isLive then
-            { Actions = []
-              Restart = None
-              Transition = None }
+            [||]
         else
+            let subTick = state.SubTick
             let refActions = decide None None ctx state
+
+            let events = ResizeArray<DomainEvent>(16)
+
+            for action in refActions do
+                let actionEvents = RefereeApplicator.apply (int subTick) action ctx state
+                for e in actionEvents do events.Add(e)
 
             let hasDropBall =
                 refActions
@@ -221,8 +225,8 @@ module RefereeAgent =
                         )
                     | _ -> None
 
-            { Actions = refActions
-              Restart = restart
-              Transition = transition }
+            match transition with
+            | Some flow -> events.Add(DomainEvent.FlowChange flow)
+            | None -> ()
 
-
+            events.ToArray()

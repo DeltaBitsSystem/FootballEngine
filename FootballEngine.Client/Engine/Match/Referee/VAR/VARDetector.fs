@@ -9,7 +9,7 @@ module VARDetector =
         (scoringClub: ClubSide)
         (scorerId: PlayerId option)
         (isOwnGoal: bool)
-        (subTick: int)
+        (subTick: int<subtick>)
         : VARReviewableIncident option =
         Some(GoalCheck(scoringClub, scorerId, isOwnGoal, subTick))
 

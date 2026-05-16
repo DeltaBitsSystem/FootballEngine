@@ -29,7 +29,7 @@ let runUntilEvent
         let result = MatchStepper.updateOne ctx defaultClock [||] s
         s <- result.State
         allEvents.AddRange(result.Events)
-        if result.Events |> List.exists predicate then found <- true
+        if result.Events |> Seq.exists predicate then found <- true
         i <- i + 1
     if found then Some(s, allEvents |> Seq.toList) else None
 
@@ -48,7 +48,7 @@ let runUntilFlow
         i <- i + 1
     if found then Some(s, allEvents |> Seq.toList) else None
 
-let applyOneOutput (output: SystemOutput) : SimState * MatchEvent list =
+let applyOneDomainEvent (domainEvent: DomainEvent) : SimState * MatchEvent list =
     let state = SimState()
     state.Config <- BalanceConfig.defaultConfig
     let n = 1
@@ -56,10 +56,14 @@ let applyOneOutput (output: SystemOutput) : SimState * MatchEvent list =
     homeFrame.Physics <- PhysicsFrame.init n [| { X = 0.0<meter>; Y = 0.0<meter>; Z = 0.0<meter>; Vx = 0.0<meter / second>; Vy = 0.0<meter / second>; Vz = 0.0<meter / second> } |]
     state.Home <- TeamSimState()
     state.Home.Frame <- homeFrame
+    state.Home.ShapeTargetX <- Array.zeroCreate homeFrame.SlotCount
+    state.Home.ShapeTargetY <- Array.zeroCreate homeFrame.SlotCount
     let awayFrame = TeamFrame()
     awayFrame.Physics <- PhysicsFrame.init n [| { X = 0.0<meter>; Y = 0.0<meter>; Z = 0.0<meter>; Vx = 0.0<meter / second>; Vy = 0.0<meter / second>; Vz = 0.0<meter / second> } |]
     state.Away <- TeamSimState()
     state.Away.Frame <- awayFrame
+    state.Away.ShapeTargetX <- Array.zeroCreate awayFrame.SlotCount
+    state.Away.ShapeTargetY <- Array.zeroCreate awayFrame.SlotCount
     let events = ResizeArray<MatchEvent>()
-    MatchStepper.applyOutput state events output
+    MatchStepper.applyDomainEvent state events domainEvent
     state, events |> Seq.toList

@@ -6,7 +6,6 @@ open FootballEngine.Stats
 
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
-open FootballEngine.Types.SchedulingTypes
 open FootballEngine.Types.SimulationClock
 open FootballEngine.Types.TacticsConfig
 open SimStateOps
@@ -265,7 +264,7 @@ module ManagerAgent =
               | None -> yield ManagerIdle ]
 
     let decide (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : ManagerAction list =
-        let elapsedSec = int (subTicksToSeconds clock subTick)
+        let elapsedSec = int (subTicksToSeconds clock (subTick * 1<subtick>))
 
         let isSubMinute =
             ctx.Config.Manager.SubWindowMinutes
@@ -279,9 +278,9 @@ module ManagerAgent =
         else
             [ ManagerIdle ]
 
-    let resolve (subTick: int) (action: ManagerAction) (ctx: MatchContext) (state: SimState) : MatchEvent list =
+    let resolve (subTick: int) (action: ManagerAction) (ctx: MatchContext) (state: SimState) : DomainEvent[] =
         match action with
-        | ManagerIdle -> []
+        | ManagerIdle -> [||]
 
         | MakeSubstitution(clubId, outIdx, incoming) ->
             let isHome = clubId = ctx.Home.Id
@@ -289,7 +288,7 @@ module ManagerAgent =
             let team = getTeam state side
 
             if team.SubsUsed >= maxSubs then
-                []
+                [||]
             else
                 let frame = team.Frame
                 let roster = getRoster ctx side
@@ -319,13 +318,12 @@ module ManagerAgent =
 
                     state.StoppageTime.Add(subTick, StoppageReason.SubstitutionDelay) |> ignore
 
-                    [ createEvent subTick playerOut.Id clubId SubstitutionOut
-                      createEvent subTick incoming.Id clubId SubstitutionIn ]
-                | _ -> []
+                    [| DomainEvent.Emit { SubTick = subTick; PlayerId = playerOut.Id; ClubId = clubId; Type = SubstitutionOut; Context = EventContext.empty }
+                       DomainEvent.Emit { SubTick = subTick; PlayerId = incoming.Id; ClubId = clubId; Type = SubstitutionIn; Context = EventContext.empty } |]
+                | _ -> [||]
 
         | AdjustTactics(clubId, newTactics) ->
             setTacticsByClubId clubId ctx state newTactics
-            // Phase 3: update directive kind when tactics change
             let side = if clubId = ctx.Home.Id then HomeClub else AwayClub
             let newKind = TeamDirectiveOps.kindFromTactics newTactics
 
@@ -355,18 +353,12 @@ module ManagerAgent =
                             ActiveSince = state.SubTick }
 
             SimStateOps.setDirective state side updated
-            []
+            [||]
 
-    let agent ctx (state: SimState) (clock: SimulationClock) : PlayerResult =
-        let actions = decide state.SubTick ctx state clock
+    let agent ctx (state: SimState) (clock: SimulationClock) : DomainEvent[] =
+        let actions = decide (int state.SubTick) ctx state clock
 
-        let events =
-            actions
-            |> List.fold
-                (fun accEvents action ->
-                    let evs = resolve state.SubTick action ctx state
-                    evs @ accEvents)
-                []
-            |> List.rev
-
-        { Events = events; Transition = None; PendingRefereeActions = [] }
+        actions
+        |> List.collect (fun action -> resolve (int state.SubTick) action ctx state |> Array.toList)
+        |> List.rev
+        |> Array.ofList

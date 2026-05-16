@@ -111,22 +111,6 @@ module BatchDecision =
                     let player = roster.Players[rosterIdx]
                     let profile = roster.Profiles[rosterIdx]
 
-                    let previousIntent =
-                        match frame.Intent.Kind[i] with
-                        | IntentKind.Idle -> ValueNone
-                        | kind ->
-                            let tx = float frame.Intent.TargetX[i] * 1.0<meter>
-                            let ty = float frame.Intent.TargetY[i] * 1.0<meter>
-
-                            ValueSome(
-                                IntentFrame.toMovementIntent
-                                    kind
-                                    frame.Intent.TargetX[i]
-                                    frame.Intent.TargetY[i]
-                                    frame.Intent.TargetPid[i]
-                                    (defaultSpatial tx ty)
-                            )
-
                     let myX = float frame.Physics.PosX[i] * 1.0<meter>
                     let myY = float frame.Physics.PosY[i] * 1.0<meter>
                     let myVx = float frame.Physics.VelX[i] * 1.0<meter / second>
@@ -165,7 +149,11 @@ module BatchDecision =
                             profile
                             i
                             team
-                            previousIntent
+                            ValueNone
+                            frame.Intent.Kind[i]
+                            frame.Intent.TargetX[i]
+                            frame.Intent.TargetY[i]
+                            frame.Intent.TargetPid[i]
                             state
                             clock
                             ctx

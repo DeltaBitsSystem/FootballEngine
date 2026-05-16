@@ -4,6 +4,7 @@ open FootballEngine
 open FootballEngine.Domain
 open FootballEngine.MatchSpatial
 open FootballEngine.Player.Decision
+open FootballEngine.Referee
 open FootballEngine.SimStateOps
 open FootballEngine.Stats
 open FootballEngine.Types
@@ -173,7 +174,7 @@ module GKAction =
         (ctx: MatchContext)
         (state: SimState)
         (clock: SimulationClock)
-        : MatchEvent list * SystemOutput list =
+        : ActionResult =
         let gkc = ctx.Config.GK
         let actx = ActionContext.build ctx state
 
@@ -193,15 +194,15 @@ module GKAction =
                 idx
 
             if gkIdx < 0 then
-                [], []
+                ActionResult.empty
             else
                 let shouldDistribute =
                     match state.Ball.GKHoldSinceSubTick with
-                    | Some since -> subTick - since >= gkc.GKDecisionWindowSubTicks
+                    | Some since -> subTick * 1<subtick> - since >= SimulationClock.deltaToSubtick gkc.GKDecisionWindowSubTicks
                     | None -> false
 
                 if not shouldDistribute then
-                    [], []
+                    ActionResult.empty
                 else
                     let target, targetSp, distType =
                         findBestDistributionTarget subTick ctx state gkIdx frame roster gkc
@@ -247,8 +248,8 @@ module GKAction =
                           OriginY = gkY
                           TargetX = targetSp.X
                           TargetY = targetSp.Y
-                          LaunchSubTick = subTick
-                          EstimatedArrivalSubTick = arrivalSubTick
+                          LaunchSubTick = subTick * 1<subtick>
+                          EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
                           KickerId = gkId
                           PeakHeight = peakHeight
                           Intent = Aimed(gkId, target.Id, 0.5, RegularPass) }
@@ -266,10 +267,12 @@ module GKAction =
                             PlayerHoldSinceSubTick = None
                             Trajectory = Some trajectory }
 
-                    [ createEvent
-                          subTick
-                          gkId
-                          (if side = HomeClub then ctx.Home.Id else ctx.Away.Id)
-                          (GKDistribution(gkId, target.Id)) ],
-                    [ BallUpdate gkBall ]
-        | _ -> [], []
+                    { Events = [|
+                        Emit { SubTick = subTick
+                               PlayerId = gkId
+                               ClubId = (if side = HomeClub then ctx.Home.Id else ctx.Away.Id)
+                               Type = GKDistribution(gkId, target.Id)
+                               Context = EventContext.empty }
+                        BallUpdate gkBall
+                    |] }
+        | _ -> ActionResult.empty

@@ -3,27 +3,22 @@ namespace FootballEngine
 open FootballEngine.Domain
 open FootballEngine.Player
 open FootballEngine.Player.Actions
+open FootballEngine.Player.Perception
 open FootballEngine.Types
 open FootballEngine.Types.IntentPhaseTypes
 open SimStateOps
-open SchedulingTypes
 
+[<Struct>]
 type StepResult =
     { State: SimState
-      Events: MatchEvent list }
+      Events: ResizeArray<MatchEvent> }
 
 module MatchStepper =
 
     let private bothSides = [| HomeClub; AwayClub |]
 
-    let private appendEvent (state: SimState) (events: ResizeArray<MatchEvent>) (e: MatchEvent) =
+    let private append_event (events: ResizeArray<MatchEvent>) (e: MatchEvent) =
         events.Add e
-        state.MatchEvents.Add e
-
-        if state.MatchEvents.Count > 1024 then
-            state.MatchEvents.RemoveRange(0, 512)
-
-    let private setFlow (state: SimState) (flow: MatchFlow) = state.Flow <- flow
 
     let private setPieceDelay (clock: SimulationClock) (config: BalanceConfig) (kind: SetPieceKind) =
         match kind with
@@ -47,78 +42,55 @@ module MatchStepper =
               Cause = cause
               RemainingTicks = setPieceDelay clock state.Config kind }
 
-
-
-
-    let private applyFrameWrite (subTick: int) (frame: TeamFrame) (write: FrameWrite) =
-        match write with
-        | SetPosition(i, x, y) -> FrameMutate.setPos frame.Physics i x y
-        | SetVelocity(i, vx, vy) -> FrameMutate.setVel frame.Physics i vx vy
-        | SetCondition(i, v) -> FrameMutate.setCondition frame i v
-        | SetIntent(i, k, tx, ty, pid) -> FrameMutate.setIntent frame.Intent i k tx ty pid
-        | CommitIntent(i, until, trig) ->
-            FrameMutate.commitIntent frame.Intent i until (LanguagePrimitives.EnumOfValue<byte, ExitTrigger> trig)
-            frame.Intent.CommittedAt[i] <- subTick
-        | SetSlotRole(i, r) -> frame.SlotRoles[i] <- r
-        | SetCollectiveIntent(i, ci) -> frame.CollectiveIntents[i] <- ci
-        | SetSupportPos(i, x, y) ->
-            frame.SupportPositionX[i] <- x
-            frame.SupportPositionY[i] <- y
-        | SetDefensiveRole(i, r) -> frame.DefensiveRole[i] <- byte r
-        | SetMentalState(i, comp, conf, agg, foc, risk) -> FrameMutate.setMental frame i comp conf agg foc risk
-
-    let applyOutput (state: SimState) (events: ResizeArray<MatchEvent>) (output: SystemOutput) =
-        match output with
-        | HomeFrame w -> applyFrameWrite state.SubTick state.Home.Frame w
-        | AwayFrame w -> applyFrameWrite state.SubTick state.Away.Frame w
-        | BallUpdate b -> state.Ball <- b
-        | FlowChange f -> state.Flow <- f
-        | ScoreGoal(club, scorerId, isOwn) ->
-            if club = HomeClub then
-                state.HomeScore <- state.HomeScore + 1
-            else
-                state.AwayScore <- state.AwayScore + 1
-        | EmergentUpdate(club, s) -> SimStateOps.setEmergentState state club s
-        | AdaptiveUpdate(club, s) -> SimStateOps.setAdaptiveState state club s
-        | DirectiveUpdate(club, d) -> SimStateOps.setDirective state club d
-        | MemoryWrite(club, idx, w) ->
+    let applyDomainEvent (state: SimState) (events: ResizeArray<MatchEvent>) (e: DomainEvent) =
+        match e with
+        | DomainEvent.BallUpdate b -> state.Ball <- b
+        | DomainEvent.BallXSmooth v -> state.BallXSmooth <- v
+        | DomainEvent.FlowChange f -> state.Flow <- f
+        | DomainEvent.ScoreGoal(club, sid, own) ->
+            if club = HomeClub then state.HomeScore <- state.HomeScore + 1
+            else state.AwayScore <- state.AwayScore + 1
+        | DomainEvent.ScoreGoalAdjust(club, d) ->
+            if club = HomeClub then state.HomeScore <- max 0 (state.HomeScore + d)
+            else state.AwayScore <- max 0 (state.AwayScore + d)
+        | DomainEvent.MomentumDelta d ->
+            let prev = state.Momentum
+            state.Momentum <- PhysicsContract.clampFloat (state.Momentum + d) -10.0 10.0
+            let next = state.Momentum
+            if prev > 0.0 && next < -3.0 then
+                SimStateOps.emitSemantic (SemanticEvent.MomentumShifted AwayClub) state
+            elif prev < 0.0 && next > 3.0 then
+                SimStateOps.emitSemantic (SemanticEvent.MomentumShifted HomeClub) state
+        | DomainEvent.EmergentUpdate(club, s) -> SimStateOps.setEmergentState state club s
+        | DomainEvent.AdaptiveUpdate(club, s) -> SimStateOps.setAdaptiveState state club s
+        | DomainEvent.DirectiveUpdate(club, d) -> SimStateOps.setDirective state club d
+        | DomainEvent.MemoryWrite(club, idx, w) ->
             match w with
-            | PassFailure -> MatchMemory.recordPassFailure club idx state.MatchMemory
-            | PassSuccess -> MatchMemory.recordSuccess club idx state.MatchMemory
-            | DuelResult(won, opp) -> MatchMemory.recordDuel club idx opp (if won then Won else Lost) state.MatchMemory
-        | RegisterRun(club, run) ->
-            let current = SimStateOps.getActiveRuns state club
-            SimStateOps.setActiveRuns state club (run :: current)
-        | ExpireRun(club, pid) ->
-            let current = SimStateOps.getActiveRuns state club
-            SimStateOps.setActiveRuns state club (current |> List.filter (fun r -> r.PlayerId <> pid))
-        | Emit e ->
-            events.Add e
-            state.MatchEvents.Add e
-        | EmitSemantic s -> SimStateOps.emitSemantic s state
-        | PossessionHistoryUpdate delta ->
+            | MemoryWriteKind.PassFailure -> MatchMemory.recordPassFailure club idx state.MatchMemory
+            | MemoryWriteKind.PassSuccess -> MatchMemory.recordSuccess club idx state.MatchMemory
+            | MemoryWriteKind.DuelResult(won, opp) ->
+                MatchMemory.recordDuel club idx opp (if won then Won else Lost) state.MatchMemory
+        | DomainEvent.RegisterRun(club, run) ->
+            SimStateOps.setActiveRuns state club (run :: SimStateOps.getActiveRuns state club)
+        | DomainEvent.ExpireRun(club, pid) ->
+            SimStateOps.setActiveRuns state club
+                (SimStateOps.getActiveRuns state club |> List.filter (fun r -> r.PlayerId <> pid))
+        | DomainEvent.PossessionHistoryUpdate delta ->
             let h = state.PossessionHistory
-
             state.PossessionHistory <-
                 { h with
                     LastChangeTick =
-                        if delta.PossessionChanged then
-                            state.SubTick
-                        else
-                            h.LastChangeTick
+                        if delta.PossessionChanged then int state.SubTick
+                        else h.LastChangeTick
                     LastBallInFlightTick =
-                        if delta.BallInFlight then
-                            state.SubTick
-                        else
-                            h.LastBallInFlightTick
+                        if delta.BallInFlight then int state.SubTick
+                        else h.LastBallInFlightTick
                     LastSetPieceTick =
-                        if delta.SetPieceAwarded then
-                            state.SubTick
-                        else
-                            h.LastSetPieceTick
+                        if delta.SetPieceAwarded then int state.SubTick
+                        else h.LastSetPieceTick
                     LastBallReceivedTick =
                         match delta.ReceivedByPlayer with
-                        | Some _ -> state.SubTick
+                        | Some _ -> int state.SubTick
                         | None -> h.LastBallReceivedTick
                     ChangedToSide =
                         if delta.PossessionChanged then
@@ -126,54 +98,29 @@ module MatchStepper =
                             | Controlled(side, _)
                             | Receiving(side, _, _) -> Some side
                             | _ -> h.ChangedToSide
-                        else
-                            h.ChangedToSide }
-        | InfluenceFrameUpdate(HomeClub, f) -> state.HomeInfluenceFrame <- f
-        | InfluenceFrameUpdate(AwayClub, f) -> state.AwayInfluenceFrame <- f
-        | CognitiveFrameUpdate(HomeClub, f) ->
-            CognitiveFrameBuffers.copyIntoCFrameBuffers state.HomeCFrameBuffers f
-            state.HomeCognitiveFrame <- f
-        | CognitiveFrameUpdate(AwayClub, f) ->
-            CognitiveFrameBuffers.copyIntoCFrameBuffers state.AwayCFrameBuffers f
-            state.AwayCognitiveFrame <- f
-        | BallXSmoothUpdate v -> state.BallXSmooth <- v
-        | MomentumUpdate delta ->
-            let prev = state.Momentum
-            state.Momentum <- PhysicsContract.clampFloat (state.Momentum + delta) -10.0 10.0
-            let next = state.Momentum
+                        else h.ChangedToSide }
+        | DomainEvent.EmitSemantic s -> SimStateOps.emitSemantic s state
+        | DomainEvent.Emit e ->
+            events.Add e
+            state.MatchEvents.Add e
+            if state.MatchEvents.Count > 1024 then
+                state.MatchEvents.RemoveRange(0, 512)
+        | DomainEvent.StoppageTimeAdd(t, r) -> state.StoppageTime.Add(t, r) |> ignore
+        | DomainEvent.SidelinedWrite(c, p, s) ->
+            SimStateOps.setSidelined state c (Map.add p s (SimStateOps.getSidelined state c))
+        | DomainEvent.YellowsWrite(c, p, n) ->
+            SimStateOps.setYellows state c (Map.add p n (SimStateOps.getYellows state c))
+        | DomainEvent.LastAttackingClubSet c -> state.LastAttackingClub <- c
+        | DomainEvent.MatchStatIncrement(c, f, d) ->
+            let current = SimStateOps.getMatchStats state c
+            let updated = match f with | PassAttempts -> { current with PassAttempts = current.PassAttempts + d }
+            SimStateOps.setMatchStats state c updated
 
-            if prev > 0.0 && next < -3.0 then
-                SimStateOps.emitSemantic (SemanticEvent.MomentumShifted AwayClub) state
-            elif prev < 0.0 && next > 3.0 then
-                SimStateOps.emitSemantic (SemanticEvent.MomentumShifted HomeClub) state
-        | StoppageTimeAdd(t, r) -> state.StoppageTime.Add(t, r) |> ignore
-        | SidelinedWrite(club, pid, st) ->
-            SimStateOps.setSidelined state club (Map.add pid st (SimStateOps.getSidelined state club))
-        | YellowsWrite(club, pid, n) ->
-            SimStateOps.setYellows state club (Map.add pid n (SimStateOps.getYellows state club))
-        | LastAttackingClubSet c -> state.LastAttackingClub <- c
-        | ScoreGoalAdjust(club, d) ->
-            if club = HomeClub then
-                state.HomeScore <- max 0 (state.HomeScore + d)
-            else
-                state.AwayScore <- max 0 (state.AwayScore + d)
-        | MatchStatIncrement(club, field, delta) ->
-            let current = SimStateOps.getMatchStats state club
-
-            let updated =
-                match field with
-                | PassAttempts ->
-                    { current with
-                        PassAttempts = current.PassAttempts + delta }
-
-            SimStateOps.setMatchStats state club updated
-
-    let applyOutputs (state: SimState) (events: ResizeArray<MatchEvent>) (outputs: SystemOutput[]) =
+    let private applyDomainEvents (state: SimState) (events: ResizeArray<MatchEvent>) (outputs: DomainEvent[]) =
         for i = 0 to outputs.Length - 1 do
-            applyOutput state events outputs[i]
+            applyDomainEvent state events outputs[i]
 
     let private applyVARDecision
-        (subTick: int)
         (ctx: MatchContext)
         (clock: SimulationClock)
         (state: SimState)
@@ -182,33 +129,30 @@ module MatchStepper =
         =
         let decision = VARReview.evaluate state review.Incident
 
-        let varEvents, varOutputs =
+        let varEvents =
             match decision with
-            | Overturn -> VARApplicator.applyOverturn subTick review.Incident ctx state
-            | CheckComplete -> VARApplicator.applyCheckComplete subTick review.Incident ctx state
-            | _ -> [], []
+            | Overturn -> VARApplicator.applyOverturn (int state.SubTick) review.Incident ctx state
+            | CheckComplete -> VARApplicator.applyCheckComplete (int state.SubTick) review.Incident ctx state
+            | _ -> [||]
 
-        varEvents |> List.iter (appendEvent state events)
-        varOutputs |> List.iter (applyOutput state events)
+        applyDomainEvents state events varEvents
 
         match review.Incident with
         | GoalCheck(scoringClub, _, _, _) ->
             let receiving = ClubSide.flip scoringClub
-            setFlow state (restartFromSetPiece state clock SetPieceKind.KickOff receiving AfterVAR)
+            state.Flow <- restartFromSetPiece state clock SetPieceKind.KickOff receiving AfterVAR
         | PenaltyCheck(team, _, _) ->
             let kind =
                 if decision = Overturn then
                     SetPieceKind.FreeKick
                 else
                     SetPieceKind.Penalty
-
-            setFlow state (restartFromSetPiece state clock kind team AfterVAR)
+            state.Flow <- restartFromSetPiece state clock kind team AfterVAR
         | RedCardCheck _
         | OffsideCheck _ ->
-            setFlow state (restartFromSetPiece state clock SetPieceKind.FreeKick state.AttackingSide AfterVAR)
+            state.Flow <- restartFromSetPiece state clock SetPieceKind.FreeKick state.AttackingSide AfterVAR
 
     let private startGoalFlow
-        (subTick: int)
         (ctx: MatchContext)
         (state: SimState)
         (clock: SimulationClock)
@@ -217,27 +161,22 @@ module MatchStepper =
         let scoringClub = state.AttackingSide
         let scorerId, isOwnGoal = GoalDetector.scorer scoringClub state.Ball ctx state
 
-        let goalEvents, goalOutputs =
-            RefereeApplicator.apply subTick (ConfirmGoal(scoringClub, scorerId, isOwnGoal)) ctx state
+        let goalEvents = RefereeApplicator.apply (int state.SubTick) (ConfirmGoal(scoringClub, scorerId, isOwnGoal)) ctx state
+        applyDomainEvents state events goalEvents
 
-        goalEvents |> List.iter (appendEvent state events)
-        goalOutputs |> List.iter (applyOutput state events)
-
-        match VARDetector.detectGoalCheck scoringClub scorerId isOwnGoal subTick with
+        match VARDetector.detectGoalCheck scoringClub scorerId isOwnGoal state.SubTick with
         | Some incident ->
-            applyOutput state events (StoppageTimeAdd(subTick, StoppageReason.VARReviewDelay))
-            let duration = VARReview.reviewDuration subTick
+            applyDomainEvent state events (DomainEvent.StoppageTimeAdd(int state.SubTick, StoppageReason.VARReviewDelay))
+            let duration = VARReview.reviewDuration (int state.SubTick)
 
-            setFlow
-                state
+            state.Flow <-
                 (VARReview
                     { Incident = incident
                       Phase = CheckingIncident
                       RemainingTicks = duration
                       TotalTicks = duration })
         | None ->
-            setFlow
-                state
+            state.Flow <-
                 (GoalPause
                     { ScoringTeam = scoringClub
                       ScorerId = scorerId
@@ -263,30 +202,30 @@ module MatchStepper =
             state.AwayPendingSubstitutions <- requests
 
     let private tryApplySubstitution
-        (subTick: int)
         (ctx: MatchContext)
         (state: SimState)
+        (events: ResizeArray<MatchEvent>)
         (request: SubstitutionRequest)
         =
         match sideByClubId ctx request.ClubId with
-        | None -> []
+        | None -> ()
         | Some side ->
             let team = getTeam state side
             let frame = team.Frame
             let roster = getRoster ctx side
 
             match findIdxByPid request.OutPlayerId frame roster with
-            | ValueNone -> []
+            | ValueNone -> ()
             | ValueSome outIdx ->
                 let squad = if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers
 
                 match squad |> Array.tryFind (fun p -> p.Id = request.InPlayerId) with
-                | None -> []
+                | None -> ()
                 | Some incoming ->
-                    ManagerAgent.resolve subTick (MakeSubstitution(request.ClubId, outIdx, incoming)) ctx state
+                    let evs = ManagerAgent.resolve (int state.SubTick) (MakeSubstitution(request.ClubId, outIdx, incoming)) ctx state
+                    applyDomainEvents state events evs
 
     let private flushPendingSubstitutions
-        (subTick: int)
         (ctx: MatchContext)
         (state: SimState)
         (events: ResizeArray<MatchEvent>)
@@ -300,11 +239,11 @@ module MatchStepper =
                 let applied = ResizeArray<SubstitutionRequest>()
 
                 for request in requests do
-                    let evs = tryApplySubstitution subTick ctx state request
+                    let beforeCount = events.Count
+                    tryApplySubstitution ctx state events request
 
-                    if not (List.isEmpty evs) then
+                    if events.Count > beforeCount then
                         applied.Add request
-                        evs |> List.iter (appendEvent state events)
 
                 if applied.Count > 0 then
                     let appliedIds =
@@ -325,17 +264,16 @@ module MatchStepper =
         match command.Command with
         | PauseSimulation ->
             if state.Flow = Live then
-                setFlow
-                    state
+                state.Flow <-
                     (RestartDelay
                         { Kind = SetPieceKind.KickOff
                           Team = state.AttackingSide
                           Cause = AfterBallOut
-                          RemainingTicks = 1 })
+                          RemainingTicks = 1<tickDelta> })
 
         | ResumeSimulation ->
             match state.Flow with
-            | RestartDelay r when r.RemainingTicks <= 1 -> setFlow state Live
+            | RestartDelay r when r.RemainingTicks <= 1<tickDelta> -> state.Flow <- Live
             | _ -> ()
 
         | ChangeTactics(clubId, tactics) -> setTacticsByClubId clubId ctx state tactics
@@ -360,12 +298,11 @@ module MatchStepper =
                 match state.Flow with
                 | Live -> request :: pendingSubs state side |> setPendingSubs state side
                 | _ ->
-                    let evs = tryApplySubstitution state.SubTick ctx state request
+                    let beforeCount = events.Count
+                    tryApplySubstitution ctx state events request
 
-                    if List.isEmpty evs then
+                    if events.Count = beforeCount then
                         request :: pendingSubs state side |> setPendingSubs state side
-                    else
-                        evs |> List.iter (appendEvent state events)
 
     let private applyCommands
         (ctx: MatchContext)
@@ -373,13 +310,8 @@ module MatchStepper =
         (events: ResizeArray<MatchEvent>)
         (commands: MatchCommandEnvelope[])
         =
-        MatchCommands.orderForTick state.SubTick commands
+        MatchCommands.orderForTick (int state.SubTick) commands
         |> Array.iter (applyCommand ctx state events)
-
-    let private processTransition (state: SimState) (transition: MatchFlow option) =
-        match transition with
-        | None -> ()
-        | Some f -> setFlow state f
 
     let private runSetPiece
         (ctx: MatchContext)
@@ -389,41 +321,7 @@ module MatchStepper =
         (restart: RestartPlan)
         =
         let result = SetPieceAgent.run restart.Kind restart.Team ctx state clock
-        result.Events |> List.iter (appendEvent state events)
-        processTransition state result.Transition
-
-    let private updatePossessionHistory (result: BallResult) (subTick: int) (state: SimState) =
-        let h = state.PossessionHistory
-
-        state.PossessionHistory <-
-            { h with
-                LastChangeTick =
-                    if result.PossessionChanged then
-                        subTick
-                    else
-                        h.LastChangeTick
-                LastBallInFlightTick =
-                    if result.BallInFlight then
-                        subTick
-                    else
-                        h.LastBallInFlightTick
-                LastSetPieceTick =
-                    if result.SetPieceAwarded then
-                        subTick
-                    else
-                        h.LastSetPieceTick
-                LastBallReceivedTick =
-                    match result.ReceivedByPlayer with
-                    | Some _ -> subTick
-                    | None -> h.LastBallReceivedTick
-                ChangedToSide =
-                    if result.PossessionChanged then
-                        match state.Ball.Control with
-                        | Controlled(side, _)
-                        | Receiving(side, _, _) -> Some side
-                        | _ -> h.ChangedToSide
-                    else
-                        h.ChangedToSide }
+        applyDomainEvents state events result
 
     let private updateFlow
         (ctx: MatchContext)
@@ -434,57 +332,57 @@ module MatchStepper =
         let wasLive = state.Flow = Live
 
         match state.Flow with
-        | GoalPause goal when goal.RemainingTicks > 0 ->
-            setFlow
-                state
+        | GoalPause goal when goal.RemainingTicks > 0<tickDelta> ->
+            state.Flow <-
                 (GoalPause
                     { goal with
-                        RemainingTicks = goal.RemainingTicks - 1 })
+                        RemainingTicks = goal.RemainingTicks - 1<tickDelta> })
 
         | GoalPause goal ->
-            setFlow
-                state
+            state.Flow <-
                 (restartFromSetPiece state clock SetPieceKind.KickOff (ClubSide.flip goal.ScoringTeam) AfterGoal)
 
-        | VARReview review when review.RemainingTicks > 0 ->
-            setFlow
-                state
+        | VARReview review when review.RemainingTicks > 0<tickDelta> ->
+            state.Flow <-
                 (VARReview
                     { review with
-                        RemainingTicks = review.RemainingTicks - 1 })
+                        RemainingTicks = review.RemainingTicks - 1<tickDelta> })
 
-        | VARReview review -> applyVARDecision state.SubTick ctx clock state events review
+        | VARReview review -> applyVARDecision ctx clock state events review
 
-        | InjuryPause injury when injury.RemainingTicks > 0 ->
-            setFlow
-                state
+        | InjuryPause injury when injury.RemainingTicks > 0<tickDelta> ->
+            state.Flow <-
                 (InjuryPause
                     { injury with
-                        RemainingTicks = injury.RemainingTicks - 1 })
+                        RemainingTicks = injury.RemainingTicks - 1<tickDelta> })
 
         | InjuryPause _ ->
-            setFlow state (restartFromSetPiece state clock SetPieceKind.FreeKick state.AttackingSide AfterInjury)
+            state.Flow <- (restartFromSetPiece state clock SetPieceKind.FreeKick state.AttackingSide AfterInjury)
 
-        | RestartDelay restart when restart.RemainingTicks > 0 ->
-            setFlow
-                state
+        | RestartDelay restart when restart.RemainingTicks > 0<tickDelta> ->
+            let team = getTeam state restart.Team
+            if team.SetPiecePositions.IsNone then
+                team.SetPiecePositions <- Some(SetPiecePositioning.computePositions ctx state restart.Team)
+            state.Flow <-
                 (RestartDelay
                     { restart with
-                        RemainingTicks = restart.RemainingTicks - 1 })
+                        RemainingTicks = restart.RemainingTicks - 1<tickDelta> })
 
-        | RestartDelay restart -> runSetPiece ctx state clock events restart
+        | RestartDelay restart ->
+            let team = getTeam state restart.Team
+            team.SetPiecePositions <- None
+            runSetPiece ctx state clock events restart
 
-        | HalfTimePause remaining when remaining > 0 -> setFlow state (HalfTimePause(remaining - 1))
+        | HalfTimePause remaining when remaining > 0<tickDelta> -> state.Flow <- (HalfTimePause(remaining - 1<tickDelta>))
 
         | HalfTimePause _ ->
-            setFlow state (restartFromSetPiece state clock SetPieceKind.KickOff AwayClub InitialKickOff)
+            state.Flow <- (restartFromSetPiece state clock SetPieceKind.KickOff AwayClub InitialKickOff)
 
-        | FullTimeReview -> setFlow state MatchEnded
+        | FullTimeReview -> state.Flow <- MatchEnded
 
         | Live
         | MatchEnded -> ()
 
-        // Phase 4: suspend/resume directives on Live<->pause transitions
         let isNowLive = state.Flow = Live
 
         if wasLive && not isNowLive then
@@ -494,83 +392,61 @@ module MatchStepper =
             resumeDirective state HomeClub
             resumeDirective state AwayClub
 
-    let private maybeRunManagerWindow
-        (subTick: int)
-        (ctx: MatchContext)
-        (state: SimState)
-        (clock: SimulationClock)
-        (events: ResizeArray<MatchEvent>)
-        =
-        let elapsedSec = int (SimulationClock.subTicksToSeconds clock subTick)
-
-        let shouldRun =
-            subTick % clock.SubTicksPerSecond = 0
-            && (ctx.Config.Manager.SubWindowMinutes
-                |> Array.exists (fun m -> elapsedSec = m * 60))
-
-        if shouldRun then
-            let result = ManagerAgent.agent ctx state clock
-            result.Events |> List.iter (appendEvent state events)
-            processTransition state result.Transition
-
     let private runLiveSystems
         (ctx: MatchContext)
         (clock: SimulationClock)
         (state: SimState)
         (events: ResizeArray<MatchEvent>)
+        (time: MatchTime)
+        (semanticEvents: ResizeArray<SemanticEvent>)
         =
-        match state.Flow with
-        | Live ->
-            let subTick = state.SubTick
+        let influenceFreq = WhenFlow([IsLive], EveryN 10<tickDelta>)
+        let cognitiveFrameFreq = WhenFlow([IsLive], EveryN 20<tickDelta>)
+        let cognitionFreq = WhenFlow([IsLive], OnEventOrEveryN([SemanticEventKind.BallSecured; SemanticEventKind.BallLost; SemanticEventKind.BallLoose], 20<tickDelta>))
+        let actionFreq = WhenFlow([IsLive], OnEventOrEveryN([SemanticEventKind.BallSecured], 20<tickDelta>))
+        let refereeFreq = OnEvent([SemanticEventKind.BallLoose; SemanticEventKind.FoulOccurred; SemanticEventKind.GoalScored])
+        let teamFreq = WhenFlow([IsLive], OnEventOrEveryN([SemanticEventKind.BallSecured; SemanticEventKind.BallLost; SemanticEventKind.BallLoose; SemanticEventKind.SetPieceAwarded], 40<tickDelta>))
+        let adaptiveFreq = WhenFlow([IsLive], EveryN 200<tickDelta>)
+        let managerFreq = EveryMinute(period = 1<matchMin>, offset = 0<matchMin>)
 
-            // Física: siempre corre
-            SimStateOps.expireReceiving subTick ctx.Config.Physics.ReceivingGraceSubTicks state
-            PhysicsSystem.run subTick ctx state clock |> applyOutputs state events
+        if Scheduler.shouldRun influenceFreq time semanticEvents then
+            InfluenceFrame.computeInto (getFrame state HomeClub) (getFrame state AwayClub) state.HomeInfluenceFrame
+            InfluenceFrame.computeInto (getFrame state AwayClub) (getFrame state HomeClub) state.AwayInfluenceFrame
 
-            FootballEngine.BallSystem.run ctx state clock |> applyOutputs state events
+        if Scheduler.shouldRun cognitiveFrameFreq time semanticEvents then
+            state.HomeCognitiveFrame <- CognitiveFrameModule.build ctx state HomeClub
+            state.AwayCognitiveFrame <- CognitiveFrameModule.build ctx state AwayClub
 
-            // Drenar semánticos acumulados por BallAgent y RefereeApplicator
-            let semanticEvents = SimStateOps.drainSemanticEvents state
+        if Scheduler.shouldRun cognitionFreq time semanticEvents then
+            CognitionSystem.run ctx state clock time
+            |> applyDomainEvents state events
 
-            // Router decide qué agentes corren
-            let activations = EventRouter.route semanticEvents subTick clock
+        if Scheduler.shouldRun actionFreq time semanticEvents then
+            if
+                getFrame state HomeClub |> _.SlotCount > 0
+                && getFrame state AwayClub |> _.SlotCount > 0
+            then
+                ActionSystem.run (int time.Subtick) ctx state clock
+                |> applyDomainEvents state events
 
-            for activation in activations do
-                match activation with
-                | ActivatePhysics -> ()
+        if Scheduler.shouldRun refereeFreq time semanticEvents then
+            RefereeAgent.agent ctx state clock
+            |> applyDomainEvents state events
 
-                | ActivateCognition -> CognitionSystem.run subTick ctx state clock |> applyOutputs state events
+        if Scheduler.shouldRun teamFreq time semanticEvents then
+            TeamSystem.run ctx state clock time
+            |> applyDomainEvents state events
 
-                | ActivateAction _ ->
-                    if
-                        getFrame state HomeClub |> _.SlotCount > 0
-                        && getFrame state AwayClub |> _.SlotCount > 0
-                    then
-                        ActionSystem.run subTick ctx state clock |> applyOutputs state events
+        if Scheduler.shouldRun managerFreq time semanticEvents then
+            let result = ManagerAgent.agent ctx state clock
+            applyDomainEvents state events result
 
-                | ActivateReferee _ ->
-                    let refResult = RefereeAgent.agent ctx state clock
-                    let refOutputs = ResizeArray<SystemOutput>(8)
-
-                    refResult.Actions
-                    |> List.iter (fun a ->
-                        let evs, outs = RefereeApplicator.apply subTick a ctx state
-                        evs |> List.iter (fun e -> refOutputs.Add(Emit e))
-                        outs |> List.iter refOutputs.Add)
-
-                    refOutputs.ToArray() |> applyOutputs state events
-                    processTransition state refResult.Transition
-
-                | ActivateTeam _ -> TeamSystem.run subTick ctx state clock |> applyOutputs state events
-
-                | ActivateManager _ -> maybeRunManagerWindow subTick ctx state clock events
-
-            AdaptiveSystem.run subTick clock state |> applyOutputs state events
-        | _ -> () // Si es VAR, Pausa, Gol, etc., los sistemas de juego no corren
-
+        if Scheduler.shouldRun adaptiveFreq time semanticEvents then
+            AdaptiveSystem.run clock state time
+            |> applyDomainEvents state events
 
     let private updateMatchClock (clock: SimulationClock) (state: SimState) =
-        if state.EffectiveFullTimeSubTick = 0 then
+        if state.EffectiveFullTimeSubTick = 0<subtick> then
             state.EffectiveFullTimeSubTick <- SimulationClock.fullTime clock
 
         let ht = SimulationClock.halfTime clock
@@ -580,9 +456,9 @@ module MatchStepper =
             let halfAdded = state.StoppageTime.DecideHalfTime()
 
             state.EffectiveFullTimeSubTick <-
-                max state.EffectiveFullTimeSubTick (ht + halfAdded * clock.SubTicksPerSecond)
+                max state.EffectiveFullTimeSubTick (ht + halfAdded * int clock.SubTicksPerSecond * 1<subtick>)
 
-            setFlow state (HalfTimePause(TickDelay.delayFrom clock state.Config.Timing.KickOffDelay))
+            state.Flow <- (HalfTimePause(TickDelay.delayFrom clock state.Config.Timing.KickOffDelay))
 
         if not state.FullTimeHandled && state.SubTick >= state.EffectiveFullTimeSubTick then
             state.FullTimeHandled <- true
@@ -591,38 +467,47 @@ module MatchStepper =
             let newFull =
                 max
                     state.EffectiveFullTimeSubTick
-                    (SimulationClock.fullTime clock + fullAdded * clock.SubTicksPerSecond)
+                    (SimulationClock.fullTime clock + fullAdded * int clock.SubTicksPerSecond * 1<subtick>)
 
             state.EffectiveFullTimeSubTick <- newFull
 
             if state.SubTick >= newFull then
-                setFlow state MatchEnded
-
-
+                state.Flow <- MatchEnded
 
 
 
     let updateOne (ctx: MatchContext) (clock: SimulationClock) (commands: MatchCommandEnvelope[]) (state: SimState) =
-        let events = ResizeArray<MatchEvent>()
+        let events = state.TickEvents
+        events.Clear()
 
         applyCommands ctx state events commands
         updateFlow ctx clock state events
 
         if state.Flow = Live then
-            runLiveSystems ctx clock state events
+            let time = Scheduler.buildMatchTime state clock
+            let semanticEvents = SimStateOps.drainSemanticEvents state
+
+            SimStateOps.expireReceiving state.SubTick (state.Config.Physics.ReceivingGraceSubTicks * 1<tickDelta>) state
+            PhysicsSystem.run (int state.SubTick) ctx state clock
+
+            BallSystem.run ctx state clock |> applyDomainEvents state events
+
+            state.PendingSemanticEvents.Clear()
+
+            runLiveSystems ctx clock state events time semanticEvents
 
         if
-            state.SubTick - state.LastMemoryDecaySubTick
+            int state.SubTick - int state.LastMemoryDecaySubTick
             >= MatchMemory.DecayIntervalSubTicks
         then
             MatchMemory.decay state.MatchMemory
             state.LastMemoryDecaySubTick <- state.SubTick
 
-        flushPendingSubstitutions state.SubTick ctx state events
+        flushPendingSubstitutions ctx state events
         updateMatchClock clock state
 
         if state.Flow <> MatchEnded then
-            state.SubTick <- state.SubTick + 1
+            state.SubTick <- state.SubTick + 1<subtick>
 
         { State = state
-          Events = events |> Seq.toList }
+          Events = events }

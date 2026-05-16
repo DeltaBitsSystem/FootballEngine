@@ -17,9 +17,15 @@ type TeamSimState() =
     member val EmergentState: EmergentState = EmergentState.initial with get, set
     member val AdaptiveState: AdaptiveState = AdaptiveTactics.initial with get, set
     member val MatchStats: MatchStats = MatchStats.empty with get, set
-    member val TransitionPressExpiry: int = 0 with get, set
+    member val TransitionPressExpiry: int<subtick> = 0<subtick> with get, set
+    member val ShapeTargetX: float32[] = Array.empty with get, set
+    member val ShapeTargetY: float32[] = Array.empty with get, set
+    member val SetPiecePositions: Spatial[] option = None with get, set
+    member val VisCanSeeTM: bool[] = Array.empty with get, set
+    member val VisCanSeeOpp: bool[] = Array.empty with get, set
+    member val ActiveRunLookup: System.Collections.Generic.Dictionary<PlayerId, RunAssignment> = System.Collections.Generic.Dictionary() with get, set
 
-    member val Directive: TeamDirectiveState = TeamDirectiveState.Active(TeamDirectiveOps.empty 0) with get, set
+    member val Directive: TeamDirectiveState = TeamDirectiveState.Active(TeamDirectiveOps.empty 0<subtick>) with get, set
 
 
 module TeamSimState =
@@ -38,7 +44,7 @@ type SubstitutionRequest =
     { ClubId: ClubId
       OutPlayerId: PlayerId
       InPlayerId: PlayerId
-      RequestedSubTick: int
+      RequestedSubTick: int<subtick>
       CommandId: int64 option }
 
 type PenaltyShootout =
@@ -48,7 +54,7 @@ type PenaltyShootout =
       IsComplete: bool }
 
 type SimState() =
-    member val SubTick = 0 with get, set
+    member val SubTick = 0<subtick> with get, set
     member val HomeScore = 0 with get, set
     member val AwayScore = 0 with get, set
 
@@ -57,14 +63,14 @@ type SimState() =
             { Kind = SetPieceKind.KickOff
               Team = HomeClub
               Cause = InitialKickOff
-              RemainingTicks = 0 } with get, set
+              RemainingTicks = 0<tickDelta> } with get, set
 
     member val Config = BalanceConfig.defaultConfig with get, set
     member val MatchMemory: MatchMemory = MatchMemory.empty with get, set
     member val MatchEvents: ResizeArray<MatchEvent> = ResizeArray<MatchEvent>(512) with get, set
-    member val LastMemoryDecaySubTick = 0 with get, set
+    member val LastMemoryDecaySubTick = 0<subtick> with get, set
     member val HalfTimeHandled = false with get, set
-    member val EffectiveFullTimeSubTick = 0 with get, set
+    member val EffectiveFullTimeSubTick = 0<subtick> with get, set
     member val FullTimeHandled = false with get, set
 
     member val Ball: BallPhysicsState =
@@ -121,4 +127,5 @@ type SimState() =
     member val StoppageTime: StoppageTimeTracker = StoppageTimeTracker() with get, set
     member val HomePendingSubstitutions: SubstitutionRequest list = [] with get, set
     member val AwayPendingSubstitutions: SubstitutionRequest list = [] with get, set
-    member val PendingSemanticEvents: SemanticEvent list = [] with get, set
+    member val PendingSemanticEvents: ResizeArray<SemanticEvent> = ResizeArray(8) with get, set
+    member val TickEvents: ResizeArray<MatchEvent> = ResizeArray<MatchEvent>(64) with get, set

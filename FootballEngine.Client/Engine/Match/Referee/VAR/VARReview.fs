@@ -8,7 +8,7 @@ open Stats
 
 module VARReview =
 
-    let reviewDuration (subTick: int) : int = normalInt 45.0 10.0 30 60
+    let reviewDuration (subTick: int) : int<tickDelta> = normalInt 45.0 10.0 30 60 |> fun x -> x * 1<tickDelta>
 
     let evaluateGoal
         (state: SimState)

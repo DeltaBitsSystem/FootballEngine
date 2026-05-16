@@ -6,6 +6,7 @@ open FootballEngine.Types.PhysicsContract
 
 module IntentFrame =
 
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
     let fromMovementIntent (intent: MovementIntent) : IntentKind * float32 * float32 * int =
         match intent with
         | MaintainShape sp -> (IntentKind.MaintainShape, float32 sp.X, float32 sp.Y, 0)

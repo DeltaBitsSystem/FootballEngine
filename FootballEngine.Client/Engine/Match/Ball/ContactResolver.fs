@@ -65,7 +65,7 @@ module ContactResolver =
 
                 let isKicker =
                     match traj with
-                    | Some t -> t.KickerId = player.Id && (currentSubTick - t.LaunchSubTick < 10)
+                    | Some t -> t.KickerId = player.Id && (currentSubTick - int t.LaunchSubTick < 10)
                     | None -> false
 
                 if not isKicker then
@@ -113,7 +113,7 @@ module ContactResolver =
         let competitionRadius = ctx.PhysicsCfg.ArrivalCompetitionRadius
         let convergenceThreshold = ctx.PhysicsCfg.ArrivalConvergenceThreshold
         let contestThreshold = ctx.PhysicsCfg.ArrivalContestThreshold
-        let competitors = ResizeArray<Player * ClubSide * float>()
+        let competitors = ResizeArray<Player * ClubSide * float>(8)
 
         let checkPlayer (frame: TeamFrame) (roster: PlayerRoster) (side: ClubSide) =
             for i = 0 to frame.SlotCount - 1 do

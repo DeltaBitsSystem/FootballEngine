@@ -84,8 +84,8 @@ module SetPlayAction =
                   OriginY = bY
                   TargetX = goalX
                   TargetY = targetY
-                  LaunchSubTick = subTick
-                  EstimatedArrivalSubTick = arrivalSubTick
+                  LaunchSubTick = subTick * 1<subtick>
+                  EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
                   KickerId = kicker.Id
                   PeakHeight = vz * vz / (2.0 * 9.80665<meter / second^2>)
                   Intent = Struck(kicker.Id, quality / 2.0) }
@@ -104,7 +104,7 @@ module SetPlayAction =
                     LastTouchBy = Some kicker.Id
                     Trajectory = Some trajectory }
 
-            ActionResult.ofEvents [ createEvent subTick kicker.Id clubId (MatchEventType.FreeKick false) ]
+            { Events = [| Emit { SubTick = subTick; PlayerId = kicker.Id; ClubId = clubId; Type = MatchEventType.FreeKick false; Context = EventContext.empty } |] }
 
     let resolveCorner (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : ActionResult =
         let actx = ActionContext.build ctx state
@@ -185,7 +185,7 @@ module SetPlayAction =
                     state
 
                 state.Ball <- { state.Ball with Control = Airborne }
-                ActionResult.ofEvents [ createEvent subTick taker.Id attClubId MatchEventType.Corner ]
+                { Events = [| Emit { SubTick = subTick; PlayerId = taker.Id; ClubId = attClubId; Type = MatchEventType.Corner; Context = EventContext.empty } |] }
             else
                 let bestAttacker, bestAttackerSp, _ =
                     attackersInBox
@@ -237,8 +237,8 @@ module SetPlayAction =
                       OriginY = state.Ball.Position.Y
                       TargetX = targetX
                       TargetY = targetY
-                      LaunchSubTick = subTick
-                      EstimatedArrivalSubTick = arrivalSubTick
+                      LaunchSubTick = subTick * 1<subtick>
+                      EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
                       KickerId = taker.Id
                       PeakHeight = spc.CornerVz * spc.CornerVz / (2.0 * 9.80665<meter / second^2>)
                       Intent = Aimed(taker.Id, bestAttacker.Id, crossQuality, AimedKind.Cross) }
@@ -258,7 +258,7 @@ module SetPlayAction =
                         LastTouchBy = Some taker.Id
                         Trajectory = Some trajectory }
 
-                ActionResult.ofEvents [ createEvent subTick taker.Id attClubId MatchEventType.Corner ]
+                { Events = [| Emit { SubTick = subTick; PlayerId = taker.Id; ClubId = attClubId; Type = MatchEventType.Corner; Context = EventContext.empty } |] }
 
     let resolveThrowIn
         (subTick: int)
@@ -318,7 +318,7 @@ module SetPlayAction =
                 let tY = float throwFrame.Physics.PosY[tmIdx] * 1.0<meter>
                 ballTowards state.Ball.Position.X state.Ball.Position.Y tX tY spc.ThrowInSpeed spc.ThrowInVz state
                 adjustMomentum actx.Att.AttackDir spc.ThrowInMomentum state
-                ActionResult.ofEvents [ createEvent subTick teammate.Id clubId (MatchEventType.PassLaunched(thrower.Id, teammate.Id)) ]
+                { Events = [| Emit { SubTick = subTick; PlayerId = teammate.Id; ClubId = clubId; Type = MatchEventType.PassLaunched(thrower.Id, teammate.Id); Context = EventContext.empty } |] }
 
     let resolvePenalty
         (subTick: int)
@@ -430,8 +430,8 @@ module SetPlayAction =
               OriginY = state.Ball.Position.Y
               TargetX = goalX
               TargetY = state.Ball.Position.Y + (vy / (dirSign * float speed)) * (goalX - bX)
-              LaunchSubTick = subTick
-              EstimatedArrivalSubTick = arrivalSubTick
+              LaunchSubTick = subTick * 1<subtick>
+              EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
               KickerId = kicker.Id
               PeakHeight = vz * vz / (2.0 * 9.80665<meter / second^2>)
               Intent = Struck(kicker.Id, kickerPower) }

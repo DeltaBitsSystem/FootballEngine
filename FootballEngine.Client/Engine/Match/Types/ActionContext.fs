@@ -36,6 +36,10 @@ type AgentContext =
       BuildUp: BuildUpConfig
       Dribble: DribbleConfig
       PreviousIntent: MovementIntent voption
+      PreviousIntentKind: IntentKind
+      PreviousIntentTargetX: float32
+      PreviousIntentTargetY: float32
+      PreviousIntentTargetPid: int
       VisibilityMask: VisibilityMask voption
       CurrentSubTick: int
       TransitionPressExpiry: int

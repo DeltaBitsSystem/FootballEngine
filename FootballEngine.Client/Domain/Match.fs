@@ -58,10 +58,7 @@ type MatchEventType =
     | KickOff
 
 
-type PitchPos = {
-    X: float
-    Y: float
-}
+type PitchPos = { X: float; Y: float }
 
 type EventSecondary =
     | Deflected
@@ -70,24 +67,25 @@ type EventSecondary =
     | DeflectedOffPost
     | KeeperParried
 
-type EventContext = {
-    Position: PitchPos option
-    Quality: float option
-    ExpectedGoal: float option
-    AssistId: PlayerId option
-    SecondaryResult: EventSecondary option
-}
+type EventContext =
+    { Position: PitchPos option
+      Quality: float option
+      ExpectedGoal: float option
+      AssistId: PlayerId option
+      SecondaryResult: EventSecondary option }
 
 module EventContext =
-    let empty = {
-        Position = None
-        Quality = None
-        ExpectedGoal = None
-        AssistId = None
-        SecondaryResult = None
-    }
+    let empty =
+        { Position = None
+          Quality = None
+          ExpectedGoal = None
+          AssistId = None
+          SecondaryResult = None }
 
-    let at x y = { empty with Position = Some { X = x; Y = y } }
+    let at x y =
+        { empty with
+            Position = Some { X = x; Y = y } }
+
 
 type MatchEvent =
     { SubTick: int

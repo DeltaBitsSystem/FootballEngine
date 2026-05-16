@@ -7,7 +7,7 @@ open OutcomeResolver
 
 module BallSystem =
 
-    let run (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : SystemOutput[] =
+    let run (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : DomainEvent[] =
         let pcfg = ctx.Config.Physics
         let dt = SimulationClock.dt clock
         let homeFrame = SimStateOps.getFrame state HomeClub
@@ -19,11 +19,9 @@ module BallSystem =
         let attDir = MatchSpatial.attackDirFor state.AttackingSide state
         let defDir = MatchSpatial.attackDirFor (ClubSide.flip state.AttackingSide) state
 
-        // 1. Update ball physics
         let trajectoryBefore = state.Ball.Trajectory
         let withStationary = BallPhysics.update pcfg dt state.Ball
 
-        // 2. Check if ball is stopped
         let wasStationary = state.Ball.StationarySinceSubTick.IsSome
 
         let isNowStopped =
@@ -44,7 +42,6 @@ module BallSystem =
             else
                 withStationary
 
-        // 3. Find contact
         let contact =
             ContactResolver.find
                 withStationary
@@ -54,24 +51,21 @@ module BallSystem =
                 awayRoster
                 pcfg
                 withStationary.Trajectory
-                subTick
+                (int subTick)
 
-        // 4. Resolve outcome
         let (outcome, updatedBall) =
-            OutcomeResolver.resolve contact withStationary subTick attDir defDir homeRoster awayRoster ctx clock
+            OutcomeResolver.resolve contact withStationary (int subTick) attDir defDir homeRoster awayRoster ctx clock
 
-        // 5. Check launch detected
         let trajectoryAfter = updatedBall.Trajectory
 
         let launchDetected =
             match trajectoryBefore, trajectoryAfter with
             | None, Some _ -> true
-            | Some t1, Some t2 -> t1.LaunchSubTick <> t2.LaunchSubTick
+            | Some t1, Some t2 -> int t1.LaunchSubTick <> int t2.LaunchSubTick
             | _ -> false
 
-        // 6. Build outputs
-        let outputs = ResizeArray<SystemOutput>()
-        outputs.Add(BallUpdate updatedBall)
+        let outputs = ResizeArray<DomainEvent>(8)
+        outputs.Add(DomainEvent.BallUpdate updatedBall)
 
         let delta =
             { PossessionChanged =
@@ -93,22 +87,21 @@ module BallSystem =
                 | _ -> None }
 
         if delta.PossessionChanged || delta.BallInFlight || delta.SetPieceAwarded then
-            outputs.Add(PossessionHistoryUpdate delta)
+            outputs.Add(DomainEvent.PossessionHistoryUpdate delta)
 
         match outcome with
         | PossessionGained(club, player, events) ->
-            events |> List.iter (fun e -> outputs.Add(Emit e))
-            outputs.Add(EmitSemantic(SemanticEvent.BallSecured(club, player.Id)))
+            events |> List.iter (fun e -> outputs.Add(DomainEvent.Emit e))
+            outputs.Add(DomainEvent.EmitSemantic(SemanticEvent.BallSecured(club, player.Id)))
         | BallLoose events ->
-            events |> List.iter (fun e -> outputs.Add(Emit e))
-            outputs.Add(EmitSemantic SemanticEvent.BallLoose)
+            events |> List.iter (fun e -> outputs.Add(DomainEvent.Emit e))
+            outputs.Add(DomainEvent.EmitSemantic SemanticEvent.BallLoose)
         | BallContested club -> ()
-        | GoalScored(club, scorerId) ->
-            outputs.Add(EmitSemantic(SemanticEvent.GoalScored(club, scorerId)))
-        | SetPieceAwarded flow -> outputs.Add(FlowChange flow)
+        | GoalScored(club, scorerId) -> outputs.Add(DomainEvent.EmitSemantic(SemanticEvent.GoalScored(club, scorerId)))
+        | SetPieceAwarded flow -> outputs.Add(DomainEvent.FlowChange flow)
         | BallInFlight ->
             if launchDetected then
-                outputs.Add(PossessionHistoryUpdate { delta with BallInFlight = true })
+                outputs.Add(DomainEvent.PossessionHistoryUpdate { delta with BallInFlight = true })
         | NoChange -> ()
 
         outputs.ToArray()

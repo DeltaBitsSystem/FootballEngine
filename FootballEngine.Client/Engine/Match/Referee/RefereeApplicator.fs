@@ -26,47 +26,48 @@ module RefereeApplicator =
         (subTick: int)
         (ctx: MatchContext)
         (state: SimState)
-        : MatchEvent list * SystemOutput list =
+        : DomainEvent[] =
         let clubId = if scoringClub = HomeClub then ctx.Home.Id else ctx.Away.Id
         let momentumDelta = if scoringClub = HomeClub then 3.0 else -3.0
         let kickOffBall = goalKickOff (ClubSide.flip scoringClub)
-        let scoreOutputs =
-            [ ScoreGoal(scoringClub, scorerId, false)
-              MomentumUpdate momentumDelta
-              BallUpdate kickOffBall
-              LastAttackingClubSet (ClubSide.flip scoringClub)
-              StoppageTimeAdd(subTick, StoppageReason.GoalDelay) ]
 
-        let events =
-            match scorerId with
-            | Some pid ->
-                [ { SubTick = subTick
-                    PlayerId = pid
-                    ClubId = clubId
-                    Type = Goal
-                    Context = EventContext.empty } ]
-            | None -> []
+        let events = ResizeArray<DomainEvent>(8)
+        events.Add(DomainEvent.ScoreGoal(scoringClub, scorerId, false))
+        events.Add(DomainEvent.MomentumDelta momentumDelta)
+        events.Add(DomainEvent.BallUpdate kickOffBall)
+        events.Add(DomainEvent.LastAttackingClubSet (ClubSide.flip scoringClub))
+        events.Add(DomainEvent.StoppageTimeAdd(subTick, StoppageReason.GoalDelay))
 
-        events, scoreOutputs
+        match scorerId with
+        | Some pid ->
+            events.Add(DomainEvent.Emit { SubTick = subTick; PlayerId = pid; ClubId = clubId; Type = Goal; Context = EventContext.empty })
+        | None -> ()
+
+        events.ToArray()
 
     let apply
         (subTick: int)
         (action: RefereeAction)
         (ctx: MatchContext)
         (state: SimState)
-        : MatchEvent list * SystemOutput list =
+        : DomainEvent[] =
         match action with
-        | RefereeIdle -> [], []
+        | RefereeIdle -> [||]
 
         | ConfirmGoal(scoringClub, scorerId, isOwnGoal) ->
-            let events, goalOutputs = awardGoal scoringClub scorerId subTick ctx state
-            let semantic = EmitSemantic(GoalScored(scoringClub, scorerId))
-            let outputs = semantic :: goalOutputs
+            let goalEvents = awardGoal scoringClub scorerId subTick ctx state
+            let events = ResizeArray<DomainEvent>(goalEvents.Length + 1)
+            events.Add(DomainEvent.EmitSemantic(GoalScored(scoringClub, scorerId)))
+            for e in goalEvents do events.Add(e)
 
             if isOwnGoal then
-                events |> List.map (fun e -> { e with Type = OwnGoal }), outputs
-            else
-                events, outputs
+                // Replace the Goal event with OwnGoal
+                for i = 0 to events.Count - 1 do
+                    match events[i] with
+                    | DomainEvent.Emit e when e.Type = Goal ->
+                        events[i] <- DomainEvent.Emit { e with Type = OwnGoal }
+                    | _ -> ()
+            events.ToArray()
 
         | AnnulGoal ->
             let resetX =
@@ -80,7 +81,7 @@ module RefereeApplicator =
                     LastTouchBy = None
                     Control = Free
                     PendingOffsideSnapshot = None }
-            [], [ BallUpdate resetBall ]
+            [| DomainEvent.BallUpdate resetBall |]
 
         | AwardThrowIn team ->
             let throwX =
@@ -100,8 +101,8 @@ module RefereeApplicator =
                     Spin = Spin.zero
                     LastTouchBy = None
                     Control = Free }
-            [], [ EmitSemantic(SetPieceAwarded(SetPieceKind.ThrowIn, team))
-                  BallUpdate throwBall ]
+            [| DomainEvent.EmitSemantic(SetPieceAwarded(SetPieceKind.ThrowIn, team))
+               DomainEvent.BallUpdate throwBall |]
 
         | AwardCorner team ->
             let cornerX =
@@ -122,13 +123,9 @@ module RefereeApplicator =
                     LastTouchBy = None
                     Control = Free }
             let clubId = if team = HomeClub then ctx.Home.Id else ctx.Away.Id
-            [ { SubTick = subTick
-                PlayerId = 0
-                ClubId = clubId
-                Type = MatchEventType.Corner
-                Context = EventContext.empty } ],
-            [ EmitSemantic(SetPieceAwarded(SetPieceKind.Corner, team))
-              BallUpdate cornerBall ]
+            [| DomainEvent.Emit { SubTick = subTick; PlayerId = 0; ClubId = clubId; Type = MatchEventType.Corner; Context = EventContext.empty }
+               DomainEvent.EmitSemantic(SetPieceAwarded(SetPieceKind.Corner, team))
+               DomainEvent.BallUpdate cornerBall |]
 
         | AwardGoalKick team ->
             let gkX =
@@ -141,8 +138,8 @@ module RefereeApplicator =
                     Spin = Spin.zero
                     LastTouchBy = None
                     Control = Free }
-            [], [ EmitSemantic(SetPieceAwarded(SetPieceKind.GoalKick, team))
-                  BallUpdate gkBall ]
+            [| DomainEvent.EmitSemantic(SetPieceAwarded(SetPieceKind.GoalKick, team))
+               DomainEvent.BallUpdate gkBall |]
 
         | AwardIndirectFreeKick team ->
             let fkBall =
@@ -156,13 +153,9 @@ module RefereeApplicator =
                     LastTouchBy = None
                     Control = Free }
             let clubId = if team = HomeClub then ctx.Home.Id else ctx.Away.Id
-            [ { SubTick = subTick
-                PlayerId = 0
-                ClubId = clubId
-                Type = MatchEventType.IndirectFreeKickAwarded team
-                Context = EventContext.empty } ],
-            [ EmitSemantic(SetPieceAwarded(SetPieceKind.FreeKick, team))
-              BallUpdate fkBall ]
+            [| DomainEvent.Emit { SubTick = subTick; PlayerId = 0; ClubId = clubId; Type = MatchEventType.IndirectFreeKickAwarded team; Context = EventContext.empty }
+               DomainEvent.EmitSemantic(SetPieceAwarded(SetPieceKind.FreeKick, team))
+               DomainEvent.BallUpdate fkBall |]
 
         | DropBall _ ->
             let dropBall =
@@ -175,39 +168,40 @@ module RefereeApplicator =
                             Vz = 0.0<meter / second> }
                     Spin = Spin.zero
                     Control = Free }
-            [], [ BallUpdate dropBall ]
+            [| DomainEvent.BallUpdate dropBall |]
 
         | IssueYellow(player, clubId) ->
             let isHome = clubId = ctx.Home.Id
             let side = if isHome then HomeClub else AwayClub
             let currentYellows = getYellows state side |> Map.tryFind player.Id |> Option.defaultValue 0
             let newCount = currentYellows + 1
-            let yellowOutputs =
-                [ YellowsWrite(side, player.Id, newCount)
-                  StoppageTimeAdd(subTick, StoppageReason.CardDelay) ]
+            let events = ResizeArray<DomainEvent>(4)
 
             if currentYellows >= 1 then
-                let events =
-                    [ createEvent subTick player.Id clubId YellowCard
-                      createEvent subTick player.Id clubId RedCard ]
-                events,
-                yellowOutputs
-                @ [ SidelinedWrite(side, player.Id, SidelinedByRedCard)
-                    EmitSemantic(RedCardIssued player.Id) ]
+                events.Add(DomainEvent.Emit { SubTick = subTick; PlayerId = player.Id; ClubId = clubId; Type = YellowCard; Context = EventContext.empty })
+                events.Add(DomainEvent.Emit { SubTick = subTick; PlayerId = player.Id; ClubId = clubId; Type = RedCard; Context = EventContext.empty })
+                events.Add(DomainEvent.YellowsWrite(side, player.Id, newCount))
+                events.Add(DomainEvent.SidelinedWrite(side, player.Id, SidelinedByRedCard))
+                events.Add(DomainEvent.EmitSemantic(RedCardIssued player.Id))
+                events.Add(DomainEvent.StoppageTimeAdd(subTick, StoppageReason.CardDelay))
             else
-                [ createEvent subTick player.Id clubId YellowCard ], yellowOutputs
+                events.Add(DomainEvent.Emit { SubTick = subTick; PlayerId = player.Id; ClubId = clubId; Type = YellowCard; Context = EventContext.empty })
+                events.Add(DomainEvent.YellowsWrite(side, player.Id, newCount))
+                events.Add(DomainEvent.StoppageTimeAdd(subTick, StoppageReason.CardDelay))
+
+            events.ToArray()
 
         | IssueRed(player, clubId) ->
             let isHome = clubId = ctx.Home.Id
             let side = if isHome then HomeClub else AwayClub
-            [ createEvent subTick player.Id clubId RedCard ],
-            [ EmitSemantic(RedCardIssued player.Id)
-              SidelinedWrite(side, player.Id, SidelinedByRedCard)
-              StoppageTimeAdd(subTick, StoppageReason.CardDelay) ]
+            [| DomainEvent.Emit { SubTick = subTick; PlayerId = player.Id; ClubId = clubId; Type = RedCard; Context = EventContext.empty }
+               DomainEvent.EmitSemantic(RedCardIssued player.Id)
+               DomainEvent.SidelinedWrite(side, player.Id, SidelinedByRedCard)
+               DomainEvent.StoppageTimeAdd(subTick, StoppageReason.CardDelay) |]
 
         | IssueInjury(player, clubId) ->
             let isHome = clubId = ctx.Home.Id
             let side = if isHome then HomeClub else AwayClub
-            [ createEvent subTick player.Id clubId (MatchEventType.Injury "match") ],
-            [ SidelinedWrite(side, player.Id, SidelinedByInjury)
-              StoppageTimeAdd(subTick, StoppageReason.InjuryDelay 1) ]
+            [| DomainEvent.Emit { SubTick = subTick; PlayerId = player.Id; ClubId = clubId; Type = MatchEventType.Injury "match"; Context = EventContext.empty }
+               DomainEvent.SidelinedWrite(side, player.Id, SidelinedByInjury)
+               DomainEvent.StoppageTimeAdd(subTick, StoppageReason.InjuryDelay 1) |]

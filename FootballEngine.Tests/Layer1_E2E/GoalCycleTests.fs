@@ -12,20 +12,20 @@ let goalCycleTests =
     testList
         "GoalCycle"
         [ test "ScoreGoal output increments HomeScore from 0 to 1" {
-              let state, _ = applyOneOutput (ScoreGoal(HomeClub, Some 1, false))
+              let state, _ = applyOneDomainEvent (DomainEvent.ScoreGoal(HomeClub, Some 1, false))
               shouldHaveScore 1 0 state
           }
 
           test "ScoreGoal output increments AwayScore from 0 to 1" {
-              let state, _ = applyOneOutput (ScoreGoal(AwayClub, None, false))
+              let state, _ = applyOneDomainEvent (DomainEvent.ScoreGoal(AwayClub, None, false))
               shouldHaveScore 0 1 state
           }
 
           test "GoalPause with 5 ticks → RestartDelay → Live cycle completes within 300 ticks" {
               let ctx, state = buildStandardMatch ()
               state.Flow <-
-                  GoalPause { ScoringTeam = HomeClub; ScorerId = None
-                              IsOwnGoal = false; RemainingTicks = 5; VARRequested = false }
+                   GoalPause { ScoringTeam = HomeClub; ScorerId = None;
+                               IsOwnGoal = false; RemainingTicks = 5 * 1<tickDelta>; VARRequested = false }
               let phase1 =
                   runUntilFlow (fun f -> match f with RestartDelay _ -> true | _ -> false) 50 ctx state
               Expect.isSome phase1 "Should reach RestartDelay after GoalPause"

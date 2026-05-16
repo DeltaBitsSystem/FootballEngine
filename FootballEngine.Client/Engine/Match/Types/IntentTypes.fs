@@ -17,6 +17,7 @@ module IntentPhaseTypes =
         | BallReceived = 3uy
         | SetPieceAwarded = 4uy
 
+[<Struct>]
 type MovementIntent =
     | MaintainShape of target: Spatial
     | MarkMan of targetPlayerId: PlayerId * targetPos: Spatial
@@ -83,7 +84,8 @@ type CognitiveFrameBuffers =
       NearestOpponentDistSq: float32[]
       BestPassTargetIdx: int16[]
       BestPassTargetPos: Spatial voption[]
-      PressureOnPlayer: float32[] }
+      PressureOnPlayer: float32[]
+      LaneClear: bool[] }
 
 module CognitiveFrameBuffers =
     let create n =
@@ -93,7 +95,8 @@ module CognitiveFrameBuffers =
           NearestOpponentDistSq = Array.create<float32> n System.Single.MaxValue
           BestPassTargetIdx = Array.create<int16> n -1s
           BestPassTargetPos = Array.create<Spatial voption> n ValueNone
-          PressureOnPlayer = Array.create<float32> n System.Single.MaxValue }
+          PressureOnPlayer = Array.create<float32> n System.Single.MaxValue
+          LaneClear = Array.create<bool> (n * n) true }
 
 
     let copyIntoCFrameBuffers (buffers: CognitiveFrameBuffers option) (frame: CognitiveFrame) =
@@ -121,6 +124,9 @@ type IntentKind =
     | MoveToSetPiecePos = 8uy
     | TackleAttempt = 9uy
 
+// INVARIANT: CommittedUntil and CommittedAt store int<subtick> without measure.
+// The contract is enforced by the signatures of commitIntent and shouldRecalculate,
+// not by the array type itself.
 type IntentDataFrame =
     { Kind: IntentKind[]
       TargetX: float32[]

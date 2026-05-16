@@ -18,11 +18,11 @@ let loadData () =
 let runOneSim (ctx: MatchContext) (state: SimState) =
     sw.Restart()
 
-    let final, _events =
-        MatchSimulator.runLoopFast ctx state SimulationClock.defaultClock
+    let replay =
+        MatchSimulator.runLoopFull ctx state SimulationClock.defaultClock
 
     sw.Stop()
-    final.HomeScore, final.AwayScore, sw.ElapsedMilliseconds
+    replay.Final.HomeScore, replay.Final.AwayScore, sw.ElapsedMilliseconds
 
 [<EntryPoint>]
 let main _args =

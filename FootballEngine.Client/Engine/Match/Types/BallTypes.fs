@@ -20,8 +20,8 @@ type BallTrajectory =
       OriginY: float<meter>
       TargetX: float<meter>
       TargetY: float<meter>
-      LaunchSubTick: int
-      EstimatedArrivalSubTick: int
+      LaunchSubTick: int<subtick>
+      EstimatedArrivalSubTick: int<subtick>
       KickerId: PlayerId
       PeakHeight: float<meter>
       Intent: InFlightIntent }
@@ -39,9 +39,9 @@ type BallPhysicsState =
       Control: BallControl
       LastTouchBy: PlayerId option
       PendingOffsideSnapshot: OffsideSnapshot option
-      StationarySinceSubTick: int option
-      GKHoldSinceSubTick: int option
-      PlayerHoldSinceSubTick: int option
+      StationarySinceSubTick: int<subtick> option
+      GKHoldSinceSubTick: int<subtick> option
+      PlayerHoldSinceSubTick: int<subtick> option
       Trajectory: BallTrajectory option }
 
 type ArrivalContext =

@@ -55,7 +55,7 @@ module FrameMutate =
         frame.FocusLevel[idx] <- float32 focus
         frame.RiskTolerance[idx] <- float32 riskTolerance
 
-    let commitIntent (frame: IntentDataFrame) (i: int) (until: int) (trigger: ExitTrigger) : unit =
+    let commitIntent (frame: IntentDataFrame) (i: int) (until: int<subtick>) (trigger: ExitTrigger) : unit =
         frame.Phase[i] <- Executing
-        frame.CommittedUntil[i] <- until
+        frame.CommittedUntil[i] <- int until
         frame.ExitTrigger[i] <- byte trigger

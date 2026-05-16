@@ -112,6 +112,10 @@ module ActionResolver =
                 meIdx
                 team
                 ValueNone
+                IntentKind.Idle
+                0.0f
+                0.0f
+                0
                 state
                 clock
                 ctx
@@ -134,37 +138,37 @@ module ActionResolver =
         : ActionResult * RefereeAction list =
         match intent with
         | OnBallIntent.Shoot ->
-            let events, outputs = ShotAction.resolve subTick ctx state clock
-            ActionResult.withOutputs events outputs, []
+            let result = ShotAction.resolve subTick ctx state clock
+            result, []
 
         | OnBallIntent.Pass targetPid ->
             match findActivePlayer ctx state targetPid with
             | Some target ->
-                let events, outputs = PassAction.resolve subTick ctx state clock target
-                ActionResult.withOutputs events outputs, []
+                let result = PassAction.resolve subTick ctx state clock target
+                result, []
             | None -> ActionResult.empty, []
 
         | OnBallIntent.Dribble ->
-            let events, actions, outputs = DuelAction.resolve subTick ctx state clock
-            { ActionResult.ofEvents events with PendingRefereeActions = actions; Outputs = outputs }, []
+            let result, refActions = DuelAction.resolve subTick ctx state clock
+            result, refActions
 
         | OnBallIntent.Cross ->
             let result = CrossAction.resolve subTick ctx state clock
             result, []
 
         | OnBallIntent.LongBall _ ->
-            let events, outputs = PassAction.resolveLong subTick ctx state clock
-            ActionResult.withOutputs events outputs, []
+            let result = PassAction.resolveLong subTick ctx state clock
+            result, []
 
         | OnBallIntent.PassIntoSpace targetCell ->
-            let events, outputs = PassAction.resolveIntoSpace subTick ctx state clock targetCell
-            ActionResult.withOutputs events outputs, []
+            let result = PassAction.resolveIntoSpace subTick ctx state clock targetCell
+            result, []
 
         | OnBallIntent.Tackle oppPid ->
             match findActivePlayer ctx state oppPid with
             | Some opponent ->
-                let events, actions, outputs = DuelAction.resolveTackle subTick ctx state opponent
-                { ActionResult.ofEvents events with PendingRefereeActions = actions; Outputs = outputs }, []
+                let result, refActions = DuelAction.resolveTackle subTick ctx state opponent
+                result, refActions
             | None -> ActionResult.empty, []
 
     let run (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : ActionResult * RefereeAction list =
@@ -178,8 +182,8 @@ module ActionResolver =
                     if ctrl.Position = GK then
                         match state.Ball.Control with
                         | Controlled(side, gkId) when gkId = ctrl.Id ->
-                            let events, outputs = GKAction.resolve subTick ctx state clock
-                            ActionResult.withOutputs events outputs, []
+                            let result = GKAction.resolve subTick ctx state clock
+                            result, []
                         | _ ->
                             let meIdx = roster.Players |> Array.findIndex (fun p -> p.Id = ctrl.Id)
                             let profile = roster.Profiles[meIdx]
@@ -199,7 +203,7 @@ module ActionResolver =
                             | Receiving _ ->
                                 let holdTimeout =
                                     match state.Ball.PlayerHoldSinceSubTick with
-                                    | Some since -> subTick - since >= 12
+                                    | Some since -> subTick * 1<subtick> - since >= SimulationClock.deltaToSubtick 12<tickDelta>
                                     | None -> true
 
                                 if holdTimeout then

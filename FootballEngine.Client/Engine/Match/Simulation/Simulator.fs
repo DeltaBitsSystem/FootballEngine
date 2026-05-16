@@ -26,15 +26,15 @@ module MatchSimulator =
         let events = ResizeArray<MatchEvent>()
 
         state.EffectiveFullTimeSubTick <-
-            fullTime clock + state.StoppageTime.AccumulatedSeconds * clock.SubTicksPerSecond
+            fullTime clock + state.StoppageTime.AccumulatedSeconds * clock.SubTicksPerSecond * 1<subtick>
 
-        let maxSeguridad = fullTime clock + clock.SubTicksPerSecond * 60 * 10 // +10 min extra
+        let maxSeguridad = fullTime clock + clock.SubTicksPerSecond * 60 * 10 * 1<subtick> // +10 min extra
 
         while state.Flow <> MatchEnded && state.SubTick < maxSeguridad do
             let snapshotSubTick = state.SubTick
             let result = MatchStepper.updateOne ctx clock [||] state
-            result.Events |> List.iter events.Add
-            takeSnapshot state snapshotSubTick
+            for e in result.Events do events.Add(e)
+            takeSnapshot state (int snapshotSubTick)
 
         state, events |> Seq.toList
 
@@ -55,15 +55,18 @@ module MatchSimulator =
 
     let runLoopFull (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : MatchReplay =
         let snapshots = System.Collections.Generic.List<SimSnapshot>()
-        let snapshotInterval = clock.SubTicksPerSecond / 8
-        let mutable lastSnapshotAt = 0
+        let snapshotInterval = clock.SubTicksPerSecond / 8 * 1<subtick>
+        let mutable lastSnapshotAt = 0<subtick>
 
         let takeSnapshot st subTick =
             if subTick >= lastSnapshotAt + snapshotInterval then
                 snapshots.Add(SnapshotBuilder.take st)
                 lastSnapshotAt <- subTick + snapshotInterval
 
-        let finalState, events = runLoop ctx state clock takeSnapshot
+        let takeSnapshotInt st subTick =
+            takeSnapshot st (subTick * 1<subtick>)
+
+        let finalState, events = runLoop ctx state clock takeSnapshotInt
 
         { Context = ctx
           Final = finalState
@@ -214,7 +217,7 @@ module MatchSimulator =
               AwayRoster = awayRoster }
 
         let state = SimState()
-        state.SubTick <- 0
+        state.SubTick <- 0<subtick>
         state.HomeScore <- 0
         state.AwayScore <- 0
         state.Config <- BalanceCalibrator.getConfig ()
@@ -229,12 +232,16 @@ module MatchSimulator =
 
         let homeTeam = TeamSimState.empty ()
         homeTeam.Frame <- homeFrame
+        homeTeam.ShapeTargetX <- Array.zeroCreate homeFrame.SlotCount
+        homeTeam.ShapeTargetY <- Array.zeroCreate homeFrame.SlotCount
         homeTeam.Tactics <- homeTactics
         homeTeam.Instructions <- homeInstructions |> Option.orElse (Some defaultInstr)
         state.Home <- homeTeam
 
         let awayTeam = TeamSimState.empty ()
         awayTeam.Frame <- awayFrame
+        awayTeam.ShapeTargetX <- Array.zeroCreate awayFrame.SlotCount
+        awayTeam.ShapeTargetY <- Array.zeroCreate awayFrame.SlotCount
         awayTeam.Tactics <- awayTactics
         awayTeam.Instructions <- awayInstructions |> Option.orElse (Some defaultInstr)
         state.Away <- awayTeam
@@ -262,7 +269,7 @@ module MatchSimulator =
                 let homeKicker = homePlayers |> List.item ((kickNum - 1) % homePlayers.Length)
                 let awayKicker = awayPlayers |> List.item ((kickNum - 1) % awayPlayers.Length)
 
-                let homeSubTick = fullTime clock + kickNum * clock.SubTicksPerSecond * 2
+                let homeSubTick = int (fullTime clock) + kickNum * clock.SubTicksPerSecond * 2
                 let awaySubTick = homeSubTick + clock.SubTicksPerSecond
 
                 let homeScored =
@@ -311,7 +318,7 @@ module MatchSimulator =
 
             let shootout = simulateKicks [] [] 1
 
-            let baseSubTick = fullTime clock
+            let baseSubTick = int (fullTime clock)
 
             let events =
                 [ for pid, scored, k in shootout.HomeKicks ->

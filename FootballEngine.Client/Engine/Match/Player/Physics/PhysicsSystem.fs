@@ -5,17 +5,16 @@ open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
 open FootballEngine.Player.Steering
 open FootballEngine.Player.Decision
+open FootballEngine.Player
 
 module PhysicsSystem =
 
-    let run (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock)         : SystemOutput[] =
-
-        let outputs = ResizeArray<SystemOutput>()
+    let run (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : unit =
 
         // BallXSmooth — exponential moving average de posición X del balón
         let smoothing = 0.92
         let clampedX = clamp state.Ball.Position.X 0.0<meter> PitchLength
-        outputs.Add(BallXSmoothUpdate(smoothing * state.BallXSmooth + (1.0 - smoothing) * clampedX))
+        state.BallXSmooth <- smoothing * state.BallXSmooth + (1.0 - smoothing) * clampedX
 
         for clubSide in [| HomeClub; AwayClub |] do
             let roster = SimStateOps.getRoster ctx clubSide
@@ -51,17 +50,16 @@ module PhysicsSystem =
                             | TackleAttempt oppSlotIdx ->
                                 let ttx = float32 oppFrame.Physics.PosX[oppSlotIdx]
                                 let tty = float32 oppFrame.Physics.PosY[oppSlotIdx]
-                                Some(SetIntent(i, IntentKind.TackleAttempt, ttx, tty, oppSlotIdx))
-                            | ReactiveIntent.PressBall(tx, ty) -> Some(SetIntent(i, IntentKind.PressBall, tx, ty, 0))
-                            | InterceptLane(tx, ty) -> Some(SetIntent(i, IntentKind.CoverSpace, tx, ty, 0))
+                                Some(IntentKind.TackleAttempt, ttx, tty, oppSlotIdx)
+                            | ReactiveIntent.PressBall(tx, ty) -> Some(IntentKind.PressBall, tx, ty, 0)
+                            | InterceptLane(tx, ty) -> Some(IntentKind.CoverSpace, tx, ty, 0)
                             | NoReaction -> None
                         else
                             None
 
                     match reactiveWrite with
-                    | Some w ->
-                        let side = if clubSide = HomeClub then HomeFrame else AwayFrame
-                        outputs.Add(side w)
+                    | Some(kind, tx, ty, pid) ->
+                        FrameMutate.setIntent frame.Intent i kind tx ty pid
                     | None -> ()
 
                     // Steering — física pura
@@ -69,9 +67,9 @@ module PhysicsSystem =
                         match frame.Intent.Kind[i] with
                         | IntentKind.ExecuteRun ->
                             SimStateOps.getActiveRuns state clubSide
-                            |> List.tryFind (fun r -> r.PlayerId = player.Id && RunAssignment.isActive subTick r)
+                            |> List.tryFind (fun r -> r.PlayerId = player.Id && RunAssignment.isActive (subTick * 1<subtick>) r)
                             |> Option.map (fun run ->
-                                let t = RunAssignment.progress subTick run
+                                let t = RunAssignment.progress (subTick * 1<subtick>) run
                                 let tx, ty = RunAssignment.evaluateTrajectory t run.Trajectory
                                 float32 tx, float32 ty)
                             |> Option.defaultWith (fun () -> frame.Intent.TargetX[i], frame.Intent.TargetY[i])
@@ -124,13 +122,12 @@ module PhysicsSystem =
                             chasingBall
                             dt
 
-                    let side = if clubSide = HomeClub then HomeFrame else AwayFrame
-                    outputs.Add(side (SetPosition(i, newPos.X, newPos.Y)))
-                    outputs.Add(side (SetVelocity(i, newPos.Vx, newPos.Vy)))
+                    FrameMutate.setPos frame.Physics i newPos.X newPos.Y
+                    FrameMutate.setVel frame.Physics i newPos.Vx newPos.Vy
 
                     // Degradación de condición — 1 vez por segundo
                     if subTick % clock.SubTicksPerSecond = 0 then
-                        let matchMinute = SimulationClock.subTicksToSeconds clock subTick / 60.0
+                        let matchMinute = SimulationClock.subTicksToSeconds clock (subTick * 1<subtick>) / 60.0
 
                         let isPressing =
                             frame.Intent.Kind[i] = IntentKind.PressBall
@@ -139,6 +136,4 @@ module PhysicsSystem =
                         let newCond =
                             FatiguePipeline.degradeCondition player condition isPressing matchMinute
 
-                        outputs.Add(side (SetCondition(i, newCond)))
-
-        outputs.ToArray()
+                        FrameMutate.setCondition frame i newCond

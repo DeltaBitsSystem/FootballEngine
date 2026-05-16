@@ -71,7 +71,9 @@ module Perception =
 
             normalizedDiff <= coneAngle / 2.0
 
-    let computeVisibilityMask
+    let computeVisibilityMaskInto
+        (canSeeTM: bool[])
+        (canSeeOpp: bool[])
         (playerIdx: int)
         (playerPos: Spatial)
         (playerVx: float<meter / second>)
@@ -101,8 +103,8 @@ module Perception =
 
         let ownCount = ownFrame.SlotCount
         let oppCount = oppFrame.SlotCount
-        let canSeeTeammates = Array.zeroCreate<bool> ownCount
-        let canSeeOpponents = Array.zeroCreate<bool> oppCount
+        System.Array.Clear(canSeeTM, 0, canSeeTM.Length)
+        System.Array.Clear(canSeeOpp, 0, canSeeOpp.Length)
         let mutable visibleTM = 0
         let mutable visibleOPP = 0
 
@@ -134,7 +136,7 @@ module Perception =
                             false
 
                     if inFloor || (inRadius && inCone) || inPeripheral then
-                        canSeeTeammates[i] <- true
+                        canSeeTM[i] <- true
                         visibleTM <- visibleTM + 1
                 | _ -> ()
 
@@ -165,7 +167,7 @@ module Perception =
                         false
 
                 if inFloor || (inRadius && inCone) || inPeripheral then
-                    canSeeOpponents[i] <- true
+                    canSeeOpp[i] <- true
                     visibleOPP <- visibleOPP + 1
             | _ -> ()
 
@@ -174,8 +176,8 @@ module Perception =
         let canSeeBall =
             ballDist <= visionRadius || ballDist <= config.MinimumAwarenessFloor
 
-        { CanSeeTeammates = canSeeTeammates
-          CanSeeOpponents = canSeeOpponents
+        { CanSeeTeammates = canSeeTM
+          CanSeeOpponents = canSeeOpp
           CanSeeBall = canSeeBall
           VisibleTeammateCount = visibleTM
           VisibleOpponentCount = visibleOPP }

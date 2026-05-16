@@ -39,7 +39,7 @@ type TeamDirective =
       TargetRunner: PlayerId option
       RunType: RunType option
       RunTarget: Spatial option
-      ActiveSince: int }
+      ActiveSince: int<subtick> }
 
 type TeamDirectiveState =
     | Active of TeamDirective
@@ -73,7 +73,7 @@ module TeamDirectiveOps =
         | TeamDirectiveState.Transitioning(_, d, _) -> Some d
         | TeamDirectiveState.Suspended d -> Some d
 
-    let empty (subTick: int) : TeamDirective =
+    let empty (subTick: int<subtick>) : TeamDirective =
         { Kind = Structured
           Params =
             { Press =

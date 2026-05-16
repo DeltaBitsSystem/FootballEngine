@@ -17,8 +17,12 @@ let private countShotLaunched skill =
         let away = [| makeGk 2 1 1 1 |]
         let ctx, state = buildSimState home [| 88.0, 34.0 |] away [| 101.0, 34.0 |]
         state |> withBallAt 88.0 34.0 |> withBallControlledBy HomeClub 1 |> ignore
-        let events, _ = ShotAction.resolve 0 ctx state defaultClock
-        if events |> List.exists (fun e -> e.Type = MatchEventType.ShotLaunched) then
+        let result = ShotAction.resolve 0 ctx state defaultClock
+        let isShotLaunched (e: DomainEvent) =
+            match e with
+            | DomainEvent.Emit me -> me.Type = MatchEventType.ShotLaunched
+            | _ -> false
+        if result.Events |> Array.exists isShotLaunched then
             count <- count + 1
     count
 
@@ -47,9 +51,9 @@ let shotEdgeCaseTests =
               for _ in 1..20 do
                   let ctx, state = buildSimState home [| 88.0, 34.0 |] away [| 101.0, 34.0 |]
                   state |> withBallAt 88.0 34.0 |> withBallControlledBy HomeClub 1 |> ignore
-                  let _, outputs = ShotAction.resolve 0 ctx state defaultClock
-                  if not (List.isEmpty outputs) then
-                      shouldContainBallUpdate outputs
+                  let result = ShotAction.resolve 0 ctx state defaultClock
+                  if result.Events.Length > 0 then
+                      shouldContainBallUpdate result.Events
           }
 
           test "Elite attacker produces more ShotLaunched than worst attacker (100 trials)" {

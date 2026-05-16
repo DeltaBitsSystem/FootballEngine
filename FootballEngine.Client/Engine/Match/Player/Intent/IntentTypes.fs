@@ -83,7 +83,8 @@ type CognitiveFrameBuffers =
       NearestOpponentDistSq: float32[]
       BestPassTargetIdx: int16[]
       BestPassTargetPos: Spatial voption[]
-      PressureOnPlayer: float32[] }
+      PressureOnPlayer: float32[]
+      LaneClear: bool[] }
 
 module CognitiveFrameBuffers =
     let create n =
@@ -93,4 +94,5 @@ module CognitiveFrameBuffers =
           NearestOpponentDistSq = Array.create<float32> n System.Single.MaxValue
           BestPassTargetIdx = Array.create<int16> n -1s
           BestPassTargetPos = Array.create<Spatial voption> n ValueNone
-          PressureOnPlayer = Array.create<float32> n System.Single.MaxValue }
+          PressureOnPlayer = Array.create<float32> n System.Single.MaxValue
+          LaneClear = Array.create<bool> (n * n) true }

@@ -2,13 +2,15 @@ namespace FootballEngine.Player.Intent
 
 open FootballEngine.Types
 open FootballEngine.Types.IntentPhaseTypes
+open FootballEngine.Types.SimulationClock
 
 
 module IntentPhase =
 
-    let duration (clock: SimulationClock) (intent: MovementIntent) : int * ExitTrigger =
+    [<System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)>]
+    let duration (clock: SimulationClock) (intent: MovementIntent) : int<tickDelta> * ExitTrigger =
         let secs s =
-            SimulationClock.secondsToSubTicks clock s
+            SimulationClock.secondsToSubTicks clock s |> int |> fun x -> x * 1<tickDelta>
 
         match intent with
         | MaintainShape _ -> secs 1.0, ExitTrigger.PossessionChanged
@@ -28,10 +30,10 @@ module IntentPhase =
         | ExitTrigger.SetPieceAwarded -> history.LastSetPieceTick > committedAt
         | _ -> false
 
-    let shouldRecalculate (frame: IntentDataFrame) (i: int) (subTick: int) (history: PossessionHistory) : bool =
+    let shouldRecalculate (frame: IntentDataFrame) (i: int) (subTick: int<subtick>) (history: PossessionHistory) : bool =
         let phase = frame.Phase[i]
 
-        if phase = Executing && subTick < frame.CommittedUntil[i] then
+        if phase = Executing && int subTick < frame.CommittedUntil[i] then
             let trigger: ExitTrigger = LanguagePrimitives.EnumOfValue frame.ExitTrigger[i]
 
             not (triggerFired trigger frame.CommittedAt[i] history)

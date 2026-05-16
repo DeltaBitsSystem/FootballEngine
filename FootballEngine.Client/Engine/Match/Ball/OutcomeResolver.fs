@@ -136,9 +136,9 @@ module OutcomeResolver =
 
                     let passEvent success =
                         if isLongBall then
-                            [ createEvent subTick passerId attClubId (MatchEventType.LongBall success) ]
+                            [ createEvent (subTick * 1<subtick>) passerId attClubId (MatchEventType.LongBall success) ]
                         else
-                            [ createEvent subTick passerId attClubId (PassCompleted(passerId, targetId)) ]
+                            [ createEvent (subTick * 1<subtick>) passerId attClubId (PassCompleted(passerId, targetId)) ]
 
                     let controlProb =
                         normaliseAttr player.Technical.BallControl
@@ -193,7 +193,7 @@ module OutcomeResolver =
                     PossessionGained(
                         club,
                         player,
-                        [ createEvent subTick passerId passerClubId (PassIntercepted(passerId, player.Id)) ]
+                        [ createEvent (subTick * 1<subtick>) passerId passerClubId (PassIntercepted(passerId, player.Id)) ]
                     ),
                     { ball with
                         Control = Controlled(club, player.Id)

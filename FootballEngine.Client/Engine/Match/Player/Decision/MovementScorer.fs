@@ -349,14 +349,8 @@ module MovementScorer =
             0.0
         else
             let frame = ctx.Team.OwnFrame
-
-            let assignments =
-                Array.init frame.SlotCount (fun i ->
-                    LanguagePrimitives.EnumOfValue<byte, DefensiveRole> frame.DefensiveRole[i])
-
-            match assignments with
-            | assignments when assignments.Length > ctx.MeIdx ->
-                match assignments[ctx.MeIdx] with
+            if ctx.MeIdx < frame.SlotCount then
+                match LanguagePrimitives.EnumOfValue<byte, DefensiveRole> frame.DefensiveRole[ctx.MeIdx] with
                 | DefensiveRole.Marker ->
                     let myX = ctx.MyPos.X
                     let myY = ctx.MyPos.Y
@@ -400,7 +394,8 @@ module MovementScorer =
                     else
                         0.0
                 | _ -> 0.0
-            | _ -> 0.0
+            else
+                0.0
 
     let private applyRoleModifiers (ctx: AgentContext) (scores: MovementScores) : MovementScores =
         if not ctx.TeamHasBall && ctx.MeIdx < ctx.Team.OwnFrame.SlotCount then
@@ -460,6 +455,40 @@ module MovementScorer =
         | ExecuteRun _ -> scores.SupportAttack * 0.8
         | MoveToSetPiecePos _ -> scores.MoveToSetPiecePos
 
+    let private scoreForIntentKind (scores: MovementScores) (kind: IntentKind) : float =
+        match kind with
+        | IntentKind.MaintainShape -> scores.MaintainShape
+        | IntentKind.MarkMan -> scores.MarkMan
+        | IntentKind.PressBall -> scores.PressBall
+        | IntentKind.CoverSpace -> scores.CoverSpace
+        | IntentKind.SupportAttack -> scores.SupportAttack
+        | IntentKind.RecoverBall -> scores.RecoverBall
+        | IntentKind.ExecuteRun -> scores.SupportAttack * 0.8
+        | IntentKind.MoveToSetPiecePos -> scores.MoveToSetPiecePos
+        | IntentKind.TackleAttempt -> scores.PressBall
+        | _ -> System.Double.MinValue
+
+    let private previousIntentFromContext (ctx: AgentContext) : MovementIntent =
+        let sp =
+            { X = float ctx.PreviousIntentTargetX * 1.0<meter>
+              Y = float ctx.PreviousIntentTargetY * 1.0<meter>
+              Z = 0.0<meter>
+              Vx = 0.0<meter / second>
+              Vy = 0.0<meter / second>
+              Vz = 0.0<meter / second> }
+
+        match ctx.PreviousIntentKind with
+        | IntentKind.MaintainShape -> MaintainShape sp
+        | IntentKind.MarkMan -> MarkMan(ctx.PreviousIntentTargetPid, sp)
+        | IntentKind.PressBall -> PressBall sp
+        | IntentKind.ExecuteRun -> MaintainShape sp
+        | IntentKind.CoverSpace -> CoverSpace sp
+        | IntentKind.SupportAttack -> SupportAttack sp
+        | IntentKind.RecoverBall -> RecoverBall sp
+        | IntentKind.MoveToSetPiecePos -> MoveToSetPiecePos sp
+        | IntentKind.TackleAttempt -> PressBall sp
+        | _ -> MaintainShape sp
+
     let private isInPenaltyArea (x: float<meter>) (y: float<meter>) (dir: AttackDir) : bool =
         let penX = PitchLength - PenaltyAreaDepth
 
@@ -502,164 +531,145 @@ module MovementScorer =
                 MaintainShape shapeTarget
         else
             let frame = ctx.Team.OwnFrame
-
-            let shapeTarget =
+            let supportPosition =
                 if ctx.MeIdx < frame.SlotCount then
                     let spX = float frame.SupportPositionX[ctx.MeIdx] * 1.0<meter>
                     let spY = float frame.SupportPositionY[ctx.MeIdx] * 1.0<meter>
 
                     if spX <> 0.0<meter> || spY <> 0.0<meter> then
-                        { X = spX
-                          Y = spY
-                          Z = 0.0<meter>
-                          Vx = 0.0<meter / second>
-                          Vy = 0.0<meter / second>
-                          Vz = 0.0<meter / second> }
-                    else
-                        ctx.MyPos
-                else
-                    ctx.MyPos
-
-            let supportTarget =
-                if ctx.MeIdx < frame.SlotCount then
-                    let spX = float frame.SupportPositionX[ctx.MeIdx] * 1.0<meter>
-                    let spY = float frame.SupportPositionY[ctx.MeIdx] * 1.0<meter>
-
-                    if spX <> 0.0<meter> || spY <> 0.0<meter> then
-                        { X = spX
-                          Y = spY
-                          Z = 0.0<meter>
-                          Vx = 0.0<meter / second>
-                          Vy = 0.0<meter / second>
-                          Vz = 0.0<meter / second> }
-                    else
-                        match ctx.BestPassTargetPos with
-                        | ValueSome pos -> pos
-                        | ValueNone ->
-                            let forwardGoalX =
-                                if ctx.Team.AttackDir = LeftToRight then
-                                    min (ctx.MyPos.X + 10.0<meter>) 100.0<meter>
-                                else
-                                    max (ctx.MyPos.X - 10.0<meter>) 5.0<meter>
-
-                            { X = forwardGoalX
-                              Y = ctx.MyPos.Y
+                        ValueSome
+                            { X = spX
+                              Y = spY
                               Z = 0.0<meter>
                               Vx = 0.0<meter / second>
                               Vy = 0.0<meter / second>
                               Vz = 0.0<meter / second> }
+                    else
+                        ValueNone
                 else
-                    let forwardGoalX =
-                        if ctx.Team.AttackDir = LeftToRight then
-                            min (ctx.MyPos.X + 10.0<meter>) 100.0<meter>
-                        else
-                            max (ctx.MyPos.X - 10.0<meter>) 5.0<meter>
+                    ValueNone
 
-                    { X = forwardGoalX
-                      Y = ctx.MyPos.Y
-                      Z = 0.0<meter>
-                      Vx = 0.0<meter / second>
-                      Vy = 0.0<meter / second>
-                      Vz = 0.0<meter / second> }
-
-            let markTarget =
-                match ctx.NearestOpponentIdx with
-                | ValueSome oppIdx ->
-                    let oppX = float ctx.Team.OppFrame.Physics.PosX[oppIdx] * 1.0<meter>
-                    let oppY = float ctx.Team.OppFrame.Physics.PosY[oppIdx] * 1.0<meter>
-
-                    let oppPos =
-                        { X = oppX
-                          Y = oppY
-                          Z = 0.0<meter>
-                          Vx = 0.0<meter / second>
-                          Vy = 0.0<meter / second>
-                          Vz = 0.0<meter / second> }
-
-                    let oppPlayerId = ctx.Team.OppRoster.Players[oppIdx].Id
-                    MarkMan(oppPlayerId, oppPos)
-                | ValueNone -> MaintainShape shapeTarget
+            let shapeTarget =
+                match supportPosition with
+                | ValueSome pos -> pos
+                | ValueNone -> ctx.MyPos
 
             let mutable bestScore = -1.0
-            let mutable bestIntent = MaintainShape shapeTarget
+            let mutable bestKind = IntentKind.MaintainShape
 
             if scores.MaintainShape > 0.05 && scores.MaintainShape > bestScore then
                 bestScore <- scores.MaintainShape
-                bestIntent <- MaintainShape shapeTarget
+                bestKind <- IntentKind.MaintainShape
 
             if scores.MarkMan > 0.05 && scores.MarkMan > bestScore then
                 bestScore <- scores.MarkMan
-                bestIntent <- markTarget
+                bestKind <- IntentKind.MarkMan
 
             if scores.PressBall > 0.05 && scores.PressBall > bestScore then
                 bestScore <- scores.PressBall
-                bestIntent <- PressBall ctx.BallState.Position
+                bestKind <- IntentKind.PressBall
 
             if scores.CoverSpace > 0.05 && scores.CoverSpace > bestScore then
                 bestScore <- scores.CoverSpace
-                bestIntent <- CoverSpace shapeTarget
+                bestKind <- IntentKind.CoverSpace
 
             if scores.SupportAttack > 0.05 && scores.SupportAttack > bestScore then
                 bestScore <- scores.SupportAttack
-                bestIntent <- SupportAttack supportTarget
+                bestKind <- IntentKind.SupportAttack
 
             if scores.RecoverBall > 0.05 && scores.RecoverBall > bestScore then
                 bestScore <- scores.RecoverBall
-                bestIntent <- RecoverBall ctx.BallState.Position
+                bestKind <- IntentKind.RecoverBall
 
             if hasBall ctx.BallState ctx.Me.Id && scores.SupportAttack > 0.3 then
-                let forwardGoalX =
-                    if ctx.Team.AttackDir = LeftToRight then
-                        min (ctx.MyPos.X + 15.0<meter>) 100.0<meter>
-                    else
-                        max (ctx.MyPos.X - 15.0<meter>) 5.0<meter>
-
-                let runTarget =
-                    { X = forwardGoalX
-                      Y = ctx.MyPos.Y
-                      Z = 0.0<meter>
-                      Vx = 0.0<meter / second>
-                      Vy = 0.0<meter / second>
-                      Vz = 0.0<meter / second> }
-
                 let runScore = 1.5 + scores.SupportAttack
 
                 if runScore > bestScore then
-                    let assignment =
-                        RunAssignment.create
-                            RunType.DeepRun
-                            ctx.MyPos.X
-                            ctx.MyPos.Y
-                            runTarget.X
-                            runTarget.Y
-                            ctx.Me.Id
-                            currentSubTick
-                            120
-
                     bestScore <- runScore
-                    bestIntent <- ExecuteRun assignment
+                    bestKind <- IntentKind.ExecuteRun
 
             if bestScore < 0.15 then
                 if not ctx.TeamHasBall then
                     let distToBall = ctx.MyPos.DistTo2D ctx.BallState.Position
 
                     if distToBall < 12.0<meter> then
-                        bestIntent <- PressBall ctx.BallState.Position
+                        bestKind <- IntentKind.PressBall
                     elif distToBall < 25.0<meter> then
-                        bestIntent <- CoverSpace shapeTarget
+                        bestKind <- IntentKind.CoverSpace
                     elif distToBall < 45.0<meter> then
-                        bestIntent <- MaintainShape shapeTarget
+                        bestKind <- IntentKind.MaintainShape
                     else
-                        bestIntent <- MaintainShape shapeTarget
+                        bestKind <- IntentKind.MaintainShape
                 else
-                    bestIntent <- SupportAttack supportTarget
+                    bestKind <- IntentKind.SupportAttack
 
-            match ctx.PreviousIntent with
-            | ValueNone -> bestIntent
-            | ValueSome prev ->
-                let prevScore = scoreForIntent scores prev
+            let buildSupportTarget () =
+                match supportPosition with
+                | ValueSome pos -> pos
+                | ValueNone ->
+                    match ctx.BestPassTargetPos with
+                    | ValueSome pos -> pos
+                    | ValueNone ->
+                        let forwardGoalX =
+                            if ctx.Team.AttackDir = LeftToRight then
+                                min (ctx.MyPos.X + 10.0<meter>) 100.0<meter>
+                            else
+                                max (ctx.MyPos.X - 10.0<meter>) 5.0<meter>
+
+                        { X = forwardGoalX
+                          Y = ctx.MyPos.Y
+                          Z = 0.0<meter>
+                          Vx = 0.0<meter / second>
+                          Vy = 0.0<meter / second>
+                          Vz = 0.0<meter / second> }
+
+            let buildBestIntent () =
+                match bestKind with
+                | IntentKind.MarkMan ->
+                    match ctx.NearestOpponentIdx with
+                    | ValueSome oppIdx ->
+                        let oppX = float ctx.Team.OppFrame.Physics.PosX[oppIdx] * 1.0<meter>
+                        let oppY = float ctx.Team.OppFrame.Physics.PosY[oppIdx] * 1.0<meter>
+                        let oppPos =
+                            { X = oppX
+                              Y = oppY
+                              Z = 0.0<meter>
+                              Vx = 0.0<meter / second>
+                              Vy = 0.0<meter / second>
+                              Vz = 0.0<meter / second> }
+
+                        MarkMan(ctx.Team.OppRoster.Players[oppIdx].Id, oppPos)
+                    | ValueNone -> MaintainShape shapeTarget
+                | IntentKind.PressBall -> PressBall ctx.BallState.Position
+                | IntentKind.CoverSpace -> CoverSpace shapeTarget
+                | IntentKind.SupportAttack -> SupportAttack(buildSupportTarget ())
+                | IntentKind.RecoverBall -> RecoverBall ctx.BallState.Position
+                | IntentKind.ExecuteRun ->
+                    let forwardGoalX =
+                        if ctx.Team.AttackDir = LeftToRight then
+                            min (ctx.MyPos.X + 15.0<meter>) 100.0<meter>
+                        else
+                            max (ctx.MyPos.X - 15.0<meter>) 5.0<meter>
+
+                    ExecuteRun(
+                        RunAssignment.create
+                            RunType.DeepRun
+                            ctx.MyPos.X
+                            ctx.MyPos.Y
+                            forwardGoalX
+                            ctx.MyPos.Y
+                            ctx.Me.Id
+                            (currentSubTick * 1<subtick>)
+                            (120 * 1<tickDelta>)
+                    )
+                | _ -> MaintainShape shapeTarget
+
+            if ctx.PreviousIntentKind = IntentKind.Idle then
+                buildBestIntent ()
+            else
+                let prevScore = scoreForIntentKind scores ctx.PreviousIntentKind
                 // Threshold increased to 0.40 and a small persistence bonus (0.05) to current intent
-                if bestScore > prevScore + 0.40 then bestIntent else prev
+                if bestScore > prevScore + 0.40 then buildBestIntent () else previousIntentFromContext ctx
 
     let pickIntent (currentSubTick: int) (scores: MovementScores) (ctx: AgentContext) : MovementIntent =
         match ctx.BallState.Control with

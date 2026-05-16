@@ -3,74 +3,49 @@ namespace FootballEngine
 open FootballEngine.Domain
 open FootballEngine.Types
 
-type AgentActivation =
-    | ActivatePhysics
-    | ActivateCognition
-    | ActivateAction of triggeredBy: SemanticEvent
-    | ActivateReferee of triggeredBy: SemanticEvent
-    | ActivateTeam of triggeredBy: SemanticEvent
-    | ActivateManager of triggeredBy: SemanticEvent
+[<Struct>]
+type ActivationSet =
+    { RunCognition: bool
+      RunAction: bool
+      RunReferee: bool
+      RunTeam: bool
+      RunManager: bool }
 
 module EventRouter =
 
-    let route (events: SemanticEvent list) (subTick: int) (clock: SimulationClock) : AgentActivation list =
+    let route (events: ResizeArray<SemanticEvent>) (subTick: int) (clock: SimulationClock) : ActivationSet =
 
-        let cognition =
-            let triggered =
-                events
-                |> List.exists (function
-                    | BallSecured _
-                    | BallLost _
-                    | BallLoose -> true
-                    | _ -> false)
+        let mutable cognitionTriggered = false
+        let mutable actionTriggered = false
+        let mutable runReferee = false
+        let mutable runTeam = false
+        let mutable runManager = false
 
-            if triggered then
-                [ ActivateCognition ]
-            elif subTick % (clock.SubTicksPerSecond / 2) = 0 then
-                [ ActivateCognition ]
-            else
-                []
+        for i = 0 to events.Count - 1 do
+            match events[i] with
+            | BallSecured _ ->
+                cognitionTriggered <- true
+                actionTriggered <- true
+                runTeam <- true
+            | BallLost _ ->
+                cognitionTriggered <- true
+                runTeam <- true
+            | BallLoose ->
+                cognitionTriggered <- true
+                runReferee <- true
+                runTeam <- true
+            | FoulOccurred _ -> runReferee <- true
+            | GoalScored _ -> runReferee <- true
+            | SetPieceAwarded _ -> runTeam <- true
+            | RedCardIssued _ -> runManager <- true
+            | MomentumShifted _ -> runManager <- true
+            | PlayerConditionCritical _ -> runManager <- true
+            | _ -> ()
 
-        let action =
-            let triggered =
-                events
-                |> List.exists (function
-                    | BallSecured _ -> true
-                    | _ -> false)
+        let periodic = subTick % (clock.SubTicksPerSecond / 2) = 0
 
-            if triggered then
-                events
-                |> List.choose (function
-                    | BallSecured _ as e -> Some(ActivateAction e)
-                    | _ -> None)
-            elif subTick % (clock.SubTicksPerSecond / 2) = 0 then
-                [ ActivateAction(BallSecured(HomeClub, 0)) ]
-            else
-                []
-
-        let referee =
-            events
-            |> List.choose (function
-                | FoulOccurred _ as e -> Some(ActivateReferee e)
-                | GoalScored _ as e -> Some(ActivateReferee e)
-                | BallLoose as e -> Some(ActivateReferee e)
-                | _ -> None)
-
-        let team =
-            events
-            |> List.choose (function
-                | BallSecured _ as e -> Some(ActivateTeam e)
-                | BallLost _ as e -> Some(ActivateTeam e)
-                | BallLoose as e -> Some(ActivateTeam e)
-                | SetPieceAwarded _ as e -> Some(ActivateTeam e)
-                | _ -> None)
-
-        let manager =
-            events
-            |> List.choose (function
-                | RedCardIssued _ as e -> Some(ActivateManager e)
-                | MomentumShifted _ as e -> Some(ActivateManager e)
-                | PlayerConditionCritical _ as e -> Some(ActivateManager e)
-                | _ -> None)
-
-        [ ActivatePhysics ] @ cognition @ action @ referee @ team @ manager
+        { RunCognition = cognitionTriggered || periodic
+          RunAction = actionTriggered || periodic
+          RunReferee = runReferee
+          RunTeam = runTeam
+          RunManager = runManager }

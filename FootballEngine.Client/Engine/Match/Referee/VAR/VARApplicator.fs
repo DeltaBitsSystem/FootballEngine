@@ -14,7 +14,7 @@ module VARApplicator =
         (incident: VARReviewableIncident)
         (ctx: MatchContext)
         (state: SimState)
-        : MatchEvent list * SystemOutput list =
+        : DomainEvent[] =
         match incident with
         | GoalCheck(scoringClub, _, _, _) ->
             let resetBall =
@@ -28,7 +28,8 @@ module VARApplicator =
                     GKHoldSinceSubTick = None
                     PlayerHoldSinceSubTick = None
                     Trajectory = None }
-            [], [ ScoreGoalAdjust(scoringClub, -1); BallUpdate resetBall ]
+            [| DomainEvent.ScoreGoalAdjust(scoringClub, -1)
+               DomainEvent.BallUpdate resetBall |]
 
         | PenaltyCheck(_, _, _) ->
             let resetBall =
@@ -46,25 +47,21 @@ module VARApplicator =
                     GKHoldSinceSubTick = None
                     PlayerHoldSinceSubTick = None
                     Trajectory = None }
-            [], [ BallUpdate resetBall ]
+            [| DomainEvent.BallUpdate resetBall |]
 
         | RedCardCheck(playerId, _) ->
             let side = clubSideOf ctx state playerId |> Option.defaultValue HomeClub
             let clubId = if side = HomeClub then ctx.Home.Id else ctx.Away.Id
-            [ { SubTick = subTick
-                PlayerId = playerId
-                ClubId = clubId
-                Type = MatchEventType.RedCard
-                Context = EventContext.empty } ],
-            [ SidelinedWrite(side, playerId, SidelinedByRedCard) ]
+            [| DomainEvent.Emit { SubTick = subTick; PlayerId = playerId; ClubId = clubId; Type = MatchEventType.RedCard; Context = EventContext.empty }
+               DomainEvent.SidelinedWrite(side, playerId, SidelinedByRedCard) |]
 
         | OffsideCheck _ ->
-            [], [ BallUpdate { state.Ball with Control = Free; PendingOffsideSnapshot = None } ]
+            [| DomainEvent.BallUpdate { state.Ball with Control = Free; PendingOffsideSnapshot = None } |]
 
     let applyCheckComplete
         (subTick: int)
         (incident: VARReviewableIncident)
         (ctx: MatchContext)
         (state: SimState)
-        : MatchEvent list * SystemOutput list =
-        [], []
+        : DomainEvent[] =
+        [||]

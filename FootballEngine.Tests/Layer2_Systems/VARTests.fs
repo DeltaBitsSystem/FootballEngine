@@ -10,7 +10,7 @@ let varTests =
         "VAR"
         [ test "AddReview sets CurrentReview and IsChecking" {
               let varState = VARState()
-              varState.AddReview(VARReviewableIncident.GoalCheck(HomeClub, None, false, 0), 0, 100)
+              varState.AddReview(VARReviewableIncident.GoalCheck(HomeClub, None, false, 0<subtick>), 0<subtick>, 100 * 1<tickDelta>)
               Expect.isTrue varState.IsChecking "IsChecking should be true"
 
               match varState.CurrentReview with
@@ -20,8 +20,8 @@ let varTests =
 
           test "CompleteReview saves to history and clears IsChecking" {
               let varState = VARState()
-              let incident = VARReviewableIncident.GoalCheck(HomeClub, None, false, 0)
-              varState.AddReview(incident, 0, 100)
+              let incident = VARReviewableIncident.GoalCheck(HomeClub, None, false, 0<subtick>)
+              varState.AddReview(incident, 0<subtick>, 100 * 1<tickDelta>)
               varState.CompleteReview(VARDecision.CheckComplete)
               Expect.isFalse varState.IsChecking "IsChecking should be false after completion"
               Expect.equal varState.History.Length 1 "history should have one entry"
@@ -32,16 +32,16 @@ let varTests =
 
               let incidents =
                   [ 1..5 ]
-                  |> List.map (fun i -> VARReviewableIncident.GoalCheck(HomeClub, None, false, i * 100))
+                  |> List.map (fun i -> VARReviewableIncident.GoalCheck(HomeClub, None, false, (i * 100) * 1<subtick>))
 
               incidents
               |> List.iter (fun incident ->
                   let startSubTick =
                       match incident with
                       | VARReviewableIncident.GoalCheck(_, _, _, st) -> st
-                      | _ -> 0
+                      | _ -> 0<subtick>
 
-                  varState.AddReview(incident, startSubTick, 100)
+                  varState.AddReview(incident, startSubTick, 100 * 1<tickDelta>)
                   varState.CompleteReview(VARDecision.CheckComplete))
 
               Expect.equal varState.History.Length 5 "should have 5 reviews in history"
@@ -49,22 +49,22 @@ let varTests =
 
           test "Clear resets state" {
               let varState = VARState()
-              let incident = VARReviewableIncident.GoalCheck(HomeClub, None, false, 0)
-              varState.AddReview(incident, 0, 100)
+              let incident = VARReviewableIncident.GoalCheck(HomeClub, None, false, 0<subtick>)
+              varState.AddReview(incident, 0<subtick>, 100 * 1<tickDelta>)
               varState.Clear()
               Expect.isFalse varState.IsChecking "IsChecking should be false"
               Expect.isNone varState.CurrentReview "CurrentReview should be None"
           }
 
           test "GoalCheck incident is correctly structured" {
-              let incident = VARReviewableIncident.GoalCheck(HomeClub, Some 1, false, 1000)
+              let incident = VARReviewableIncident.GoalCheck(HomeClub, Some 1, false, 1000<subtick>)
 
               match incident with
               | VARReviewableIncident.GoalCheck(club, Some pid, isOG, subTick) ->
                   Expect.equal club HomeClub ""
                   Expect.equal pid 1 ""
                   Expect.isFalse isOG ""
-                  Expect.equal subTick 1000 ""
+                  Expect.equal subTick 1000<subtick> ""
               | _ -> failwith "unexpected incident type"
           }
 

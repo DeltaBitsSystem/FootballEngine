@@ -84,11 +84,15 @@ let buildSimState
 
     let homeTeam = TeamSimState()
     homeTeam.Frame <- homeFrame
+    homeTeam.ShapeTargetX <- Array.zeroCreate homeFrame.SlotCount
+    homeTeam.ShapeTargetY <- Array.zeroCreate homeFrame.SlotCount
     homeTeam.Tactics <- TeamTactics.Balanced
     homeTeam.Instructions <- Some TacticalInstructions.defaultInstructions
 
     let awayTeam = TeamSimState()
     awayTeam.Frame <- awayFrame
+    awayTeam.ShapeTargetX <- Array.zeroCreate awayFrame.SlotCount
+    awayTeam.ShapeTargetY <- Array.zeroCreate awayFrame.SlotCount
     awayTeam.Tactics <- TeamTactics.Balanced
     awayTeam.Instructions <- Some TacticalInstructions.defaultInstructions
 
@@ -117,7 +121,7 @@ let withBallFree (state: SimState) : SimState =
     state
 
 let withGKHoldingSince (sinceSubTick: int) (state: SimState) : SimState =
-    state.Ball <- { state.Ball with GKHoldSinceSubTick = Some sinceSubTick }
+    state.Ball <- { state.Ball with GKHoldSinceSubTick = Some(sinceSubTick * 1<subtick>) }
     state
 
 let withFlow (flow: MatchFlow) (state: SimState) : SimState =
@@ -125,7 +129,7 @@ let withFlow (flow: MatchFlow) (state: SimState) : SimState =
     state
 
 let withKickOffPending (team: ClubSide) (state: SimState) : SimState =
-    state.Flow <- RestartDelay { Kind = SetPieceKind.KickOff; Team = team; Cause = InitialKickOff; RemainingTicks = 3 }
+    state.Flow <- RestartDelay { Kind = SetPieceKind.KickOff; Team = team; Cause = InitialKickOff; RemainingTicks = 3 * 1<tickDelta> }
     state
 
 let withLive (state: SimState) : SimState = state |> withFlow Live

@@ -5,6 +5,7 @@ open FootballEngine
 open FootballEngine.Domain
 open FootballEngine.Player.Actions
 open FootballEngine.Player.Decision
+open FootballEngine.Referee
 open FootballEngine.Stats
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
@@ -46,7 +47,7 @@ module ShotAction =
         (ctx: MatchContext)
         (state: SimState)
         (clock: SimulationClock)
-        : MatchEvent list * SystemOutput list =
+        : ActionResult =
         let actx = ActionContext.build ctx state
         let sc = ctx.Config.Shot
         let attClubId = actx.Att.ClubId
@@ -59,14 +60,14 @@ module ShotAction =
         let inChance = actx.Zone = AttackingZone || actx.Zone = MidfieldZone
 
         match nearestActiveSlotInFrame attFrame bX bY with
-        | ValueNone -> [], []
+        | ValueNone -> ActionResult.empty
         | ValueSome shooterIdx ->
             let shooter = attRoster.Players[shooterIdx]
             let shooterCond = int attFrame.Condition[shooterIdx]
             let shooterProfile = attRoster.Profiles[shooterIdx]
 
             if not inChance then
-                [ createEvent subTick shooter.Id attClubId ShotOffTarget ], []
+                { Events = [| Emit { SubTick = subTick; PlayerId = shooter.Id; ClubId = attClubId; Type = ShotOffTarget; Context = EventContext.empty } |] }
             else
                 let quality =
                     let distToGoal = PhysicsContract.distToGoal bX actx.Att.AttackDir
@@ -80,7 +81,7 @@ module ShotAction =
                     (1.0 - distNorm) * sc.DistNormWeight + positionBonus * sc.PositionBonusWeight
 
                 if quality < sc.QualityGate then
-                    [ createEvent subTick shooter.Id attClubId ShotOffTarget ], []
+                    { Events = [| Emit { SubTick = subTick; PlayerId = shooter.Id; ClubId = attClubId; Type = ShotOffTarget; Context = EventContext.empty } |] }
                 else
                     let attTactics = getTactics state actx.Att.ClubSide
                     let attInstructions = getInstructions state actx.Att.ClubSide
@@ -149,8 +150,8 @@ module ShotAction =
                           OriginY = bY
                           TargetX = goalX
                           TargetY = targetY
-                          LaunchSubTick = subTick
-                          EstimatedArrivalSubTick = arrivalSubTick
+                          LaunchSubTick = subTick * 1<subtick>
+                          EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
                           KickerId = shooter.Id
                           PeakHeight = peakHeight
                           Intent = Struck(shooter.Id, quality) }
@@ -192,13 +193,15 @@ module ShotAction =
 
                     let momentumDelta = forwardX actx.Att.AttackDir * ctx.Config.Duel.MomentumBonus
 
-                    [ { SubTick = subTick
-                        PlayerId = shooter.Id
-                        ClubId = attClubId
-                        Type = MatchEventType.ShotLaunched
-                        Context =
-                          EventContext.at (float bX) (float bY)
-                          |> fun c -> { c with ExpectedGoal = Some xgValue } } ],
-                    [ BallUpdate newBall
-                      MomentumUpdate momentumDelta
-                      EmitSemantic(SemanticEvent.ShotLaunched shooter.Id) ]
+                    { Events = [|
+                        Emit { SubTick = subTick
+                               PlayerId = shooter.Id
+                               ClubId = attClubId
+                               Type = MatchEventType.ShotLaunched
+                               Context =
+                                 EventContext.at (float bX) (float bY)
+                                 |> fun c -> { c with ExpectedGoal = Some xgValue } }
+                        BallUpdate newBall
+                        MomentumDelta momentumDelta
+                        EmitSemantic(SemanticEvent.ShotLaunched shooter.Id)
+                    |] }

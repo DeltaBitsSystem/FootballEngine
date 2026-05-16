@@ -1,13 +1,9 @@
 namespace FootballEngine
 
+open FootballEngine.Referee
 open FootballEngine.Types
-open FootballEngine.Types.SchedulingTypes
 
 module PlayerAgent =
 
-    let agent (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : PlayerResult =
-        let actionResult, pendingRefereeActions = ActionResolver.run state.SubTick ctx state clock
-
-        { Events = actionResult.Events
-          Transition = None
-          PendingRefereeActions = pendingRefereeActions }
+    let agent (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : ActionResult * RefereeAction list =
+        ActionResolver.run (int state.SubTick) ctx state clock

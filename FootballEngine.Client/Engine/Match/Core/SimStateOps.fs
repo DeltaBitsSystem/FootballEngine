@@ -40,7 +40,6 @@ module SimStateOps =
 
 
 
-
     let getTeam (state: SimState) (side: ClubSide) =
         if side = HomeClub then state.Home else state.Away
 
@@ -215,19 +214,17 @@ module SimStateOps =
         | _ -> false
 
     let emitSemantic (event: SemanticEvent) (state: SimState) =
-        state.PendingSemanticEvents <- event :: state.PendingSemanticEvents
+        state.PendingSemanticEvents.Add(event)
 
-    let drainSemanticEvents (state: SimState) : SemanticEvent list =
-        let events = state.PendingSemanticEvents
-        state.PendingSemanticEvents <- []
-        events
+    let drainSemanticEvents (state: SimState) : ResizeArray<SemanticEvent> =
+        state.PendingSemanticEvents
 
     let losePossession (state: SimState) =
         match state.Ball.Control with
-        | Controlled(side, pid)
-        | Receiving(side, pid, _) ->
-            emitSemantic (BallLost(side, pid)) state
-            (getTeam state side).ActiveRuns <- []
+        | Controlled(losingClub, losingPid)
+        | Receiving(losingClub, losingPid, _) ->
+            emitSemantic (BallLost(losingClub, losingPid)) state
+            (getTeam state losingClub).ActiveRuns <- []
         | _ -> ()
 
         state.Ball <-
@@ -238,31 +235,11 @@ module SimStateOps =
                 PlayerHoldSinceSubTick = None
                 Trajectory = None }
 
-    let losePossessionOutputs (state: SimState) : SystemOutput list =
-        let looseBall =
-            { state.Ball with
-                Control = Free
-                PendingOffsideSnapshot = None
-                GKHoldSinceSubTick = None
-                PlayerHoldSinceSubTick = None
-                Trajectory = None }
-
-        let semantics =
-            match state.Ball.Control with
-            | Controlled(side, pid)
-            | Receiving(side, pid, _) ->
-                [ EmitSemantic(SemanticEvent.BallLost(side, pid))
-                  for run in getActiveRuns state side do
-                      yield ExpireRun(side, run.PlayerId) ]
-            | _ -> []
-
-        BallUpdate looseBall :: semantics
-
     let givePossessionTo
         (club: ClubSide)
         (pid: PlayerId)
         (isGk: bool)
-        (subTick: int)
+        (subTick: int<subtick>)
         (ballBase: BallPhysicsState)
         (state: SimState)
         =
@@ -281,7 +258,7 @@ module SimStateOps =
                     if isGk then
                         Controlled(club, pid)
                     else
-                        Receiving(club, pid, subTick)
+                        Receiving(club, pid, int subTick)
                 LastTouchBy = Some pid
                 PendingOffsideSnapshot = None
                 GKHoldSinceSubTick = if isGk then Some subTick else None
@@ -374,15 +351,15 @@ module SimStateOps =
     let activeRunsFilter currentSubTick (runs: RunAssignment list) =
         runs |> List.filter (RunAssignment.isActive currentSubTick)
 
-    let createEvent subTick playerId clubId t : MatchEvent =
-        { SubTick = subTick
+    let createEvent (subTick: int<subtick>) playerId clubId t : MatchEvent =
+        { SubTick = int subTick
           PlayerId = playerId
           ClubId = clubId
           Type = t
           Context = EventContext.empty }
 
-    let createEventAt subTick playerId clubId t (pos: Spatial) : MatchEvent =
-        { SubTick = subTick
+    let createEventAt (subTick: int<subtick>) playerId clubId t (pos: Spatial) : MatchEvent =
+        { SubTick = int subTick
           PlayerId = playerId
           ClubId = clubId
           Type = t
@@ -460,11 +437,11 @@ module SimStateOps =
         | TeamDirectiveState.Active d -> setDirective state side (TeamDirectiveState.Active { d with Kind = kind })
         | TeamDirectiveState.Suspended d ->
             setDirective state side (TeamDirectiveState.Suspended { d with Kind = kind })
-        | _ -> () // Transitioning or other states — don't interrupt
+        | _ -> ()
 
-    let expireReceiving (subTick: int) (graceTicks: int) (state: SimState) =
+    let expireReceiving (subTick: int<subtick>) (graceTicks: int<tickDelta>) (state: SimState) =
         match state.Ball.Control with
-        | Receiving(club, pid, since) when subTick - since >= graceTicks ->
+        | Receiving(club, pid, since) when int subTick - since >= int graceTicks ->
             state.Ball <-
                 { state.Ball with
                     Control = Controlled(club, pid) }

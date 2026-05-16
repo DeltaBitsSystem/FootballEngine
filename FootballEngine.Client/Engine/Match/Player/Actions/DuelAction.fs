@@ -5,6 +5,7 @@ open FootballEngine
 open FootballEngine.Domain
 open FootballEngine.Player.Decision
 
+open FootballEngine.Referee
 open FootballEngine.SimStateOps
 open FootballEngine.Stats
 open FootballEngine.Types
@@ -29,7 +30,7 @@ module DuelAction =
         (ctx: MatchContext)
         (state: SimState)
         (clock: SimulationClock)
-        : MatchEvent list * RefereeAction list * SystemOutput list =
+        : ActionResult * RefereeAction list =
         let actx = ActionContext.build ctx state
         let attClubId = actx.Att.ClubId
         let defClubId = actx.Def.ClubId
@@ -42,7 +43,7 @@ module DuelAction =
         let defRoster = getRoster ctx actx.Def.ClubSide
 
         match state.Ball.Control with
-        | Receiving _ -> [], [], []
+        | Receiving _ -> ActionResult.empty, []
         | _ ->
 
             match nearestActiveSlotInFrame attFrame bX bY, nearestActiveSlotInFrame defFrame bX bY with
@@ -104,18 +105,22 @@ module DuelAction =
                     let side = actx.Def.ClubSide
                     let clubId = if side = HomeClub then ctx.Home.Id else ctx.Away.Id
 
-                    let cardActions, cardOutputs =
+                    let cardActions, cardDomainEvents =
                         match FoulAnalysis.decideCard severity yellows with
                         | Some FoulAnalysis.CardDecision.Yellow ->
                             [ IssueYellow(defP, clubId) ],
-                            [ EmitSemantic(SemanticEvent.FoulOccurred(defP.Id, attP.Id)) ]
+                            [ DomainEvent.EmitSemantic(SemanticEvent.FoulOccurred(defP.Id, attP.Id)) ]
                         | Some FoulAnalysis.CardDecision.Red ->
-                            [ IssueRed(defP, clubId) ], [ EmitSemantic(SemanticEvent.FoulOccurred(defP.Id, attP.Id)) ]
+                            [ IssueRed(defP, clubId) ],
+                            [ DomainEvent.EmitSemantic(SemanticEvent.FoulOccurred(defP.Id, attP.Id)) ]
                         | None -> [], []
 
-                    [ createEvent subTick defP.Id defClubId FoulCommitted ],
-                    cardActions,
-                    BallUpdate contestBall :: MomentumUpdate mDelta :: cardOutputs
+                    let events = ResizeArray<DomainEvent>(8)
+                    events.Add(DomainEvent.BallUpdate contestBall)
+                    events.Add(DomainEvent.MomentumDelta mDelta)
+                    for de in cardDomainEvents do events.Add(de)
+                    events.Add(DomainEvent.Emit { SubTick = subTick; PlayerId = defP.Id; ClubId = defClubId; Type = FoulCommitted; Context = EventContext.empty })
+                    { Events = events.ToArray() }, cardActions
                 else
                     let diff = float attScore - float defScore
                     let aX = float attFrame.Physics.PosX[attIdx] * 1.0<meter>
@@ -135,19 +140,20 @@ module DuelAction =
                                 Control = Controlled(actx.Att.ClubSide, attP.Id)
                                 LastTouchBy = Some attP.Id
                                 PendingOffsideSnapshot = None
-                                GKHoldSinceSubTick = if attP.Position = GK then Some subTick else None
-                                PlayerHoldSinceSubTick = if attP.Position <> GK then Some subTick else None
+                                GKHoldSinceSubTick = if attP.Position = GK then Some(subTick * 1<subtick>) else None
+                                PlayerHoldSinceSubTick = if attP.Position <> GK then Some(subTick * 1<subtick>) else None
                                 Trajectory = None }
 
                         let mDelta = forwardX actx.Att.AttackDir * cfg.MomentumBonus
 
-                        [ createEvent subTick attP.Id attClubId DribbleSuccess ],
-                        [],
-                        [ BallUpdate newControl
-                          MomentumUpdate mDelta
-                          MemoryWrite(actx.Att.ClubSide, attIdx, DuelResult(true, defIdx))
-                          MemoryWrite(actx.Att.ClubSide, attIdx, PassSuccess)
-                          EmitSemantic(SemanticEvent.BallSecured(actx.Att.ClubSide, attP.Id)) ]
+                        let events = ResizeArray<DomainEvent>(8)
+                        events.Add(DomainEvent.Emit { SubTick = subTick; PlayerId = attP.Id; ClubId = attClubId; Type = DribbleSuccess; Context = EventContext.empty })
+                        events.Add(DomainEvent.BallUpdate newControl)
+                        events.Add(DomainEvent.MomentumDelta mDelta)
+                        events.Add(DomainEvent.MemoryWrite(actx.Att.ClubSide, attIdx, MemoryWriteKind.DuelResult(true, defIdx)))
+                        events.Add(DomainEvent.MemoryWrite(actx.Att.ClubSide, attIdx, MemoryWriteKind.PassSuccess))
+                        events.Add(DomainEvent.EmitSemantic(SemanticEvent.BallSecured(actx.Att.ClubSide, attP.Id)))
+                        { Events = events.ToArray() }, []
                     elif logisticBernoulli (-diff) cfg.DuelSteepness then
                         let nx, ny = PitchMath.jitter bX bY dX dY 0.5 cfg.JitterRecover cfg.JitterRecover
 
@@ -163,21 +169,21 @@ module DuelAction =
                                 PlayerHoldSinceSubTick = None
                                 Trajectory = None }
 
-                        let loseOutputs =
-                            match state.Ball.Control with
-                            | Controlled(side, pid)
-                            | Receiving(side, pid, _) ->
-                                [ EmitSemantic(SemanticEvent.BallLost(side, pid))
-                                  for run in SimStateOps.getActiveRuns state side do
-                                      yield ExpireRun(side, run.PlayerId) ]
-                            | _ -> []
+                        let events = ResizeArray<DomainEvent>(8)
+                        events.Add(DomainEvent.Emit { SubTick = subTick; PlayerId = attP.Id; ClubId = attClubId; Type = DribbleFail; Context = EventContext.empty })
+                        events.Add(DomainEvent.BallUpdate looseBallJittered)
+                        events.Add(DomainEvent.MomentumDelta -1.0)
+                        events.Add(DomainEvent.MemoryWrite(actx.Att.ClubSide, attIdx, MemoryWriteKind.DuelResult(false, defIdx)))
 
-                        [ createEvent subTick attP.Id attClubId DribbleFail ],
-                        [],
-                        BallUpdate looseBallJittered
-                        :: MomentumUpdate -1.0
-                        :: MemoryWrite(actx.Att.ClubSide, attIdx, DuelResult(false, defIdx))
-                        :: loseOutputs
+                        match state.Ball.Control with
+                        | Controlled(side, pid)
+                        | Receiving(side, pid, _) ->
+                            events.Add(DomainEvent.EmitSemantic(SemanticEvent.BallLost(side, pid)))
+                            for run in SimStateOps.getActiveRuns state side do
+                                events.Add(DomainEvent.ExpireRun(side, run.PlayerId))
+                        | _ -> ()
+
+                        { Events = events.ToArray() }, []
                     else
                         let nx, ny = PitchMath.jitter bX bY bX bY 0.0 cfg.JitterKeep cfg.JitterKeep
                         let dx = (nx - bX) / 1.0<meter> * cfg.SpeedKeep
@@ -191,15 +197,18 @@ module DuelAction =
                                         Vy = dy
                                         Vz = cfg.SpeedKeepVz } }
 
-                        [ createEvent subTick attP.Id attClubId DribbleKeep ], [], [ BallUpdate velBall ]
-            | _ -> [], [], []
+                        { Events = [|
+                            DomainEvent.Emit { SubTick = subTick; PlayerId = attP.Id; ClubId = attClubId; Type = DribbleKeep; Context = EventContext.empty }
+                            DomainEvent.BallUpdate velBall
+                        |] }, []
+            | _ -> ActionResult.empty, []
 
     let resolveTackle
         (subTick: int)
         (ctx: MatchContext)
         (state: SimState)
         (defender: Player)
-        : MatchEvent list * RefereeAction list * SystemOutput list =
+        : ActionResult * RefereeAction list =
         let actx = ActionContext.build ctx state
         let defFrame = actx.Def.OwnFrame
         let attFrame = actx.Att.OwnFrame
@@ -220,7 +229,7 @@ module DuelAction =
             | ValueNone -> -1
 
         if defIdx < 0 then
-            [], [], []
+            ActionResult.empty, []
         else
             let condNorm = normaliseCondition defFrame.Condition[defIdx]
             let tCfg = ctx.Config.Tackle
@@ -323,22 +332,28 @@ module DuelAction =
                         |> Map.tryFind defender.Id
                         |> Option.defaultValue 0
 
-                    let cardActions, cardOutputs =
+                    let cardActions, cardDomainEvents =
                         match FoulAnalysis.decideCard severity yellows with
                         | Some FoulAnalysis.CardDecision.Yellow ->
                             [ IssueYellow(defender, actx.Def.ClubId) ],
-                            [ EmitSemantic(SemanticEvent.FoulOccurred(defender.Id, attacker.Id)) ]
+                            [ DomainEvent.EmitSemantic(SemanticEvent.FoulOccurred(defender.Id, attacker.Id)) ]
                         | Some FoulAnalysis.CardDecision.Red ->
                             [ IssueRed(defender, actx.Def.ClubId) ],
-                            [ EmitSemantic(SemanticEvent.FoulOccurred(defender.Id, attacker.Id)) ]
+                            [ DomainEvent.EmitSemantic(SemanticEvent.FoulOccurred(defender.Id, attacker.Id)) ]
                         | None -> [], []
 
-                    [ createEvent subTick defender.Id defClubId FoulCommitted ],
-                    cardActions,
-                    [ BallUpdate freeBall; MomentumUpdate mDelta ] @ cardOutputs
+                    let events = ResizeArray<DomainEvent>(8)
+                    events.Add(DomainEvent.Emit { SubTick = subTick; PlayerId = defender.Id; ClubId = defClubId; Type = FoulCommitted; Context = EventContext.empty })
+                    events.Add(DomainEvent.BallUpdate freeBall)
+                    events.Add(DomainEvent.MomentumDelta mDelta)
+                    for de in cardDomainEvents do events.Add(de)
+                    { Events = events.ToArray() }, cardActions
                 else
                     let mDelta = forwardX actx.Att.AttackDir * tCfg.SuccessMomentum
-                    [ createEvent subTick defender.Id defClubId TackleSuccess ], [], [ MomentumUpdate mDelta ]
+                    { Events = [|
+                        DomainEvent.Emit { SubTick = subTick; PlayerId = defender.Id; ClubId = defClubId; Type = TackleSuccess; Context = EventContext.empty }
+                        DomainEvent.MomentumDelta mDelta
+                    |] }, []
             else
                 let mDelta = forwardX actx.Att.AttackDir * (-tCfg.FailMomentum)
 
@@ -346,6 +361,8 @@ module DuelAction =
                     { state.Ball with
                         PendingOffsideSnapshot = None }
 
-                [ createEvent subTick defender.Id defClubId TackleFail ],
-                [],
-                [ MomentumUpdate mDelta; BallUpdate clearBall ]
+                { Events = [|
+                    DomainEvent.Emit { SubTick = subTick; PlayerId = defender.Id; ClubId = defClubId; Type = TackleFail; Context = EventContext.empty }
+                    DomainEvent.MomentumDelta mDelta
+                    DomainEvent.BallUpdate clearBall
+                |] }, []

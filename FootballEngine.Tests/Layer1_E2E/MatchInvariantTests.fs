@@ -36,7 +36,7 @@ let matchInvariantTests =
               let ctx, state = buildStandardMatch ()
               state |> withKickOffPending HomeClub |> ignore
               let mutable s = state
-              let mutable prev = -1
+              let mutable prev = -1<subtick>
               for _ in 1..100 do
                   if s.Flow <> MatchEnded then
                       let result = MatchStepper.updateOne ctx defaultClock [||] s

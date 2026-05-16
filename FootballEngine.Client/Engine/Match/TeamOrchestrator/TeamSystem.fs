@@ -68,8 +68,8 @@ module TeamSystem =
           SupportAttack = baseRecord.SupportAttack * emergent.RiskAppetite * SlotRole.supportAttackBias role
           RecoverBall = baseRecord.RecoverBall * SlotRole.recoverBallBias role }
 
-    let run (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : SystemOutput[] =
-        let outputs = ResizeArray<SystemOutput>()
+    let run (ctx: MatchContext) (state: SimState) (clock: SimulationClock) (time: MatchTime) : DomainEvent[] =
+        let events = ResizeArray<DomainEvent>(4)
         for clubSide in [| HomeClub; AwayClub |] do
             let frame   = getFrame state clubSide
             let roster  = getRoster ctx clubSide
@@ -84,24 +84,42 @@ module TeamSystem =
             let by = float32 state.Ball.Position.Y
             let slotRoles = SlotRoleAssigner.assign frame roster kind tacticsCfg bx by
             let basePositions = getBasePositions state clubSide
-            let phase = phaseFromBallZone (attackDirFor clubSide state) state.Ball.Position.X
+            let dir = attackDirFor clubSide state
+            let phase = phaseFromBallZone dir state.Ball.Position.X
             let team1 = buildTeamPerspective clubSide ctx state
-            let supportArr = BatchDecisionSupport.computeSupportPositions team1 state.Ball.Position state.Ball.Control phase tacticsCfg tacticsCfg.Width basePositions
-            let supportPx = Array.map (fun (s: Spatial) -> float32 s.X) supportArr
-            let supportPy = Array.map (fun (s: Spatial) -> float32 s.Y) supportArr
+            BatchDecisionSupport.computeSupportPositionsInto
+                team1
+                state.Ball.Position
+                state.Ball.Control
+                phase
+                tacticsCfg
+                tacticsCfg.Width
+                basePositions
+                frame.SupportPositionX
+                frame.SupportPositionY
+
+            let teamState = getTeam state clubSide
+            if teamState.ShapeTargetX.Length <> frame.SlotCount then
+                teamState.ShapeTargetX <- Array.zeroCreate frame.SlotCount
+                teamState.ShapeTargetY <- Array.zeroCreate frame.SlotCount
+            else
+                System.Array.Clear(teamState.ShapeTargetX, 0, frame.SlotCount)
+                System.Array.Clear(teamState.ShapeTargetY, 0, frame.SlotCount)
+            let shapeTargetX = teamState.ShapeTargetX
+            let shapeTargetY = teamState.ShapeTargetY
+            ShapeEngine.computeShapeTargets basePositions dir phase state.Ball.Position.X tacticsCfg shapeTargetX shapeTargetY
+
             let cFrame = if clubSide = HomeClub then state.HomeCognitiveFrame else state.AwayCognitiveFrame
             let team2 = buildTeamPerspective clubSide ctx state
-            let defRoles = BatchDecisionSupport.computeDefensiveShape team2 state.Ball.Position cFrame subTick (getTeam state clubSide).TransitionPressExpiry
-            let side = if clubSide = HomeClub then HomeFrame else AwayFrame
+            let defRoles = BatchDecisionSupport.computeDefensiveShape team2 state.Ball.Position cFrame (int time.Subtick) (int (getTeam state clubSide).TransitionPressExpiry)
             for i = 0 to frame.SlotCount - 1 do
-                outputs.Add(side (SetSlotRole(i, slotRoles[i])))
-                outputs.Add(side (SetSupportPos(i, supportPx[i], supportPy[i])))
-                outputs.Add(side (SetDefensiveRole(i, defRoles[i])))
-                outputs.Add(side (SetCollectiveIntent(i, buildCollectiveIntent kind emergent slotRoles[i] defRoles[i])))
+                frame.SlotRoles[i] <- slotRoles[i]
+                frame.DefensiveRole[i] <- byte defRoles[i]
+                frame.CollectiveIntents[i] <- buildCollectiveIntent kind emergent slotRoles[i] defRoles[i]
             let currentDir =
                 match TeamDirectiveOps.currentDirective directive with
                 | Some d -> d
-                | None -> TeamDirectiveOps.empty subTick
-            let newDirective = { currentDir with Kind = kind; ActiveSince = if kind <> currentDir.Kind then subTick else currentDir.ActiveSince }
-            outputs.Add(DirectiveUpdate(clubSide, TeamDirectiveState.Active newDirective))
-        outputs.ToArray()
+                | None -> TeamDirectiveOps.empty time.Subtick
+            let newDirective = { currentDir with Kind = kind; ActiveSince = if kind <> currentDir.Kind then time.Subtick else currentDir.ActiveSince }
+            events.Add(DirectiveUpdate(clubSide, TeamDirectiveState.Active newDirective))
+        events.ToArray()

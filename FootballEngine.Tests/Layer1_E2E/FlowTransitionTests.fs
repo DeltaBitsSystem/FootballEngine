@@ -25,7 +25,7 @@ let flowTransitionTests =
                       { ScoringTeam = HomeClub
                         ScorerId = None
                         IsOwnGoal = false
-                        RemainingTicks = 3
+                        RemainingTicks = 3 * 1<tickDelta>
                         VARRequested = false }
 
               let result =
@@ -48,7 +48,7 @@ let flowTransitionTests =
 
           test "HalfTimePause transitions to RestartDelay KickOff for AwayClub" {
               let ctx, state = buildStandardMatch ()
-              state.Flow <- HalfTimePause 2
+              state.Flow <- HalfTimePause(2 * 1<tickDelta>)
 
               let result =
                   runUntilFlow
@@ -75,7 +75,7 @@ let flowTransitionTests =
               state |> withLive |> ignore
               let before = state.SubTick
               let result = MatchStepper.updateOne ctx defaultClock [||] state
-              Expect.equal result.State.SubTick (before + 1) "SubTick must increment by 1"
+              Expect.equal result.State.SubTick (before + 1<subtick>) "SubTick must increment by 1"
           }
 
           test "SubTick does not increment when MatchEnded" {
@@ -94,7 +94,7 @@ let flowTransitionTests =
                       { PlayerId = 1
                         Team = HomeClub
                         Severity = 1
-                        RemainingTicks = 2
+                        RemainingTicks = 2 * 1<tickDelta>
                         CanContinue = None }
 
               let result =

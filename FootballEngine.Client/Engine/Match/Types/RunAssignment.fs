@@ -10,21 +10,22 @@ type RunAssignment =
       RunType: RunType
       Trigger: RunTrigger
       Trajectory: RunTrajectory
-      StartSubTick: int
-      DurationSubTicks: int
+      StartSubTick: int<subtick>
+      DurationSubTicks: int<tickDelta>
       Intensity: float
       Priority: int }
 
 module RunAssignment =
     let isActive currentSubTick (r: RunAssignment) =
         currentSubTick >= r.StartSubTick
-        && currentSubTick < r.StartSubTick + r.DurationSubTicks
+        && currentSubTick < r.StartSubTick + SimulationClock.deltaToSubtick r.DurationSubTicks
 
     let progress currentSubTick (r: RunAssignment) =
         if not (isActive currentSubTick r) then
             0.0
         else
-            min 1.0 (float (currentSubTick - r.StartSubTick) / float r.DurationSubTicks)
+            let dur = SimulationClock.deltaToSubtick r.DurationSubTicks
+            min 1.0 (float (currentSubTick - r.StartSubTick) / float dur)
 
     let evaluateTrajectory t trajectory =
         match trajectory with
@@ -50,8 +51,8 @@ module RunAssignment =
         (targetX: float<meter>)
         (targetY: float<meter>)
         (playerId: PlayerId)
-        (currentSubTick: int)
-        (durationSubTicks: int)
+        (currentSubTick: int<subtick>)
+        (durationSubTicks: int<tickDelta>)
         : RunAssignment =
         let trajectory =
             match runType with

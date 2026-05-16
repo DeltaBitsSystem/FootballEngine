@@ -26,8 +26,8 @@ let gkEdgeCaseTests =
               let away = [| makePlayer 2 ST 15 |]
               let ctx, state = buildSimState home [| 5.0, 34.0 |] away [| 88.0, 34.0 |]
               state |> withBallAt 88.0 34.0 |> withBallControlledBy AwayClub 2 |> ignore
-              let events, _ = GKAction.resolve 0 ctx state defaultClock
-              Expect.isEmpty events "GK should produce no events when ball is not theirs"
+              let result = GKAction.resolve 0 ctx state defaultClock
+              Expect.isEmpty result.Events "GK should produce no events when ball is not theirs"
           }
 
           test "GKAction.resolve with GKHoldSinceSubTick=0 at subTick=0 produces no distribution" {
@@ -35,8 +35,14 @@ let gkEdgeCaseTests =
               let away = [| makePlayer 4 ST 15 |]
               let ctx, state = buildSimState home [| 5.0, 34.0; 30.0, 34.0; 50.0, 34.0 |] away [| 80.0, 34.0 |]
               state |> withBallAt 5.0 34.0 |> withBallControlledBy HomeClub 1 |> withGKHoldingSince 0 |> ignore
-              let events, _ = GKAction.resolve 0 ctx state defaultClock
-              let hasDistribution =
-                  events |> List.exists (fun e -> match e.Type with MatchEventType.GKDistribution _ -> true | _ -> false)
+              let result = GKAction.resolve 0 ctx state defaultClock
+              let isGKDistribution (e: DomainEvent) =
+                  match e with
+                  | DomainEvent.Emit me ->
+                      match me.Type with
+                      | MatchEventType.GKDistribution _ -> true
+                      | _ -> false
+                  | _ -> false
+              let hasDistribution = result.Events |> Array.exists isGKDistribution
               Expect.isFalse hasDistribution "GK should not distribute at sub-tick 0 (window=16)"
           } ]

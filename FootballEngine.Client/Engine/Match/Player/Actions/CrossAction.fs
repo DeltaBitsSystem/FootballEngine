@@ -116,9 +116,10 @@ module CrossAction =
                         Control = Airborne
                         PendingOffsideSnapshot = None }
 
-                ActionResult.withOutputs
-                    [ createEvent subTick crosser.Id attClubId (CrossLaunched(crosser.Id, crosser.Id)) ]
-                    [ BallUpdate fallbackBall ]
+                { Events = [|
+                    Emit { SubTick = subTick; PlayerId = crosser.Id; ClubId = attClubId; Type = CrossLaunched(crosser.Id, crosser.Id); Context = EventContext.empty }
+                    BallUpdate fallbackBall
+                |] }
             else
                 let target, targetSp = targets[0]
                 let accuracyNoise = 0.15 * (1.0 - quality)
@@ -157,8 +158,8 @@ module CrossAction =
                       OriginY = crosserPos.Y
                       TargetX = targetX
                       TargetY = targetY
-                      LaunchSubTick = subTick
-                      EstimatedArrivalSubTick = arrivalSubTick
+                      LaunchSubTick = subTick * 1<subtick>
+                      EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
                       KickerId = crosser.Id
                       PeakHeight = cc.Vz * cc.Vz / (2.0 * 9.80665<meter / second^2>)
                       Intent = Aimed(crosser.Id, target.Id, quality, AimedKind.Cross) }
@@ -179,6 +180,7 @@ module CrossAction =
                         Trajectory = Some trajectory
                         PendingOffsideSnapshot = None }
 
-                ActionResult.withOutputs
-                    [ createEvent subTick crosser.Id attClubId (CrossLaunched(crosser.Id, target.Id)) ]
-                    [ BallUpdate crossBall ]
+                { Events = [|
+                    Emit { SubTick = subTick; PlayerId = crosser.Id; ClubId = attClubId; Type = CrossLaunched(crosser.Id, target.Id); Context = EventContext.empty }
+                    BallUpdate crossBall
+                |] }

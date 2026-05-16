@@ -26,19 +26,19 @@ let shouldContainEventType (predicate: MatchEventType -> bool) (label: string) (
 let shouldContainKickOff (events: MatchEvent list) =
     shouldContainEventType (fun t -> t = MatchEventType.KickOff) "KickOff" events
 
-let shouldContainOutput (predicate: SystemOutput -> bool) (label: string) (outputs: SystemOutput list) =
+let shouldContainDomainEvent (predicate: DomainEvent -> bool) (label: string) (events: DomainEvent list) =
     Expect.isTrue
-        (outputs |> List.exists predicate)
-        $"Expected output matching: {label}. Got: {outputs |> List.map (fun o -> o.GetType().Name)}"
+        (events |> List.exists predicate)
+        $"Expected domain event matching: {label}. Got: {events}"
 
-let shouldContainBallUpdate (outputs: SystemOutput list) =
-    shouldContainOutput
+let shouldContainBallUpdate (domainEvents: DomainEvent seq) =
+    shouldContainDomainEvent
         (fun o ->
             match o with
-            | BallUpdate _ -> true
+            | DomainEvent.BallUpdate _ -> true
             | _ -> false)
         "BallUpdate"
-        outputs
+        (domainEvents |> Seq.toList)
 
 let engineMustNotCrash (f: unit -> unit) =
     try

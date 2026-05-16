@@ -19,6 +19,10 @@ module AgentContext =
         (meIdx: int)
         (team: TeamPerspective)
         (previousIntent: MovementIntent voption)
+        (previousIntentKind: IntentKind)
+        (previousIntentTargetX: float32)
+        (previousIntentTargetY: float32)
+        (previousIntentTargetPid: int)
         (state: SimState)
         (clock: SimulationClock)
         (ctx: MatchContext)
@@ -193,7 +197,11 @@ module AgentContext =
           BuildUp = buildUp
           Dribble = state.Config.Dribble
           PreviousIntent = previousIntent
+          PreviousIntentKind = previousIntentKind
+          PreviousIntentTargetX = previousIntentTargetX
+          PreviousIntentTargetY = previousIntentTargetY
+          PreviousIntentTargetPid = previousIntentTargetPid
           VisibilityMask = visibilityMask
-          CurrentSubTick = state.SubTick
-          TransitionPressExpiry = (getTeam state team.ClubSide).TransitionPressExpiry
+          CurrentSubTick = int state.SubTick
+          TransitionPressExpiry = int (getTeam state team.ClubSide).TransitionPressExpiry
           Influence = influence }

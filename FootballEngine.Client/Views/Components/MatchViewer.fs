@@ -771,8 +771,8 @@ type MatchDrawOp
                 | Some traj ->
                     let progress =
                         if traj.EstimatedArrivalSubTick > traj.LaunchSubTick then
-                            float32 (snapshot.SubTick - traj.LaunchSubTick)
-                            / float32 (traj.EstimatedArrivalSubTick - traj.LaunchSubTick)
+                            float32 (snapshot.SubTick - int traj.LaunchSubTick)
+                            / float32 (int traj.EstimatedArrivalSubTick - int traj.LaunchSubTick)
                         else
                             1.0f
 
@@ -999,7 +999,7 @@ module MatchDayView =
                 let clock = defaultClock
 
                 let currFrame =
-                    MatchProjection.project ctx currSnap (subTicksToSeconds clock currSnap.SubTick)
+                    MatchProjection.project ctx currSnap (subTicksToSeconds clock (currSnap.SubTick * 1<subtick>))
 
                 let renderFrame =
                     let t = float32 state.InterpolationT
@@ -1008,7 +1008,7 @@ module MatchDayView =
                         let nextSnap = replay.Snapshots[snapIdx + 1]
 
                         let nextFrame =
-                            MatchProjection.project ctx nextSnap (subTicksToSeconds clock nextSnap.SubTick)
+                            MatchProjection.project ctx nextSnap (subTicksToSeconds clock (nextSnap.SubTick * 1<subtick>))
 
                         let actualDt =
                             float (nextSnap.SubTick - currSnap.SubTick) / float clock.SubTicksPerSecond

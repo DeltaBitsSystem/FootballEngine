@@ -25,20 +25,20 @@ type RestartPlan =
     { Kind: SetPieceKind
       Team: ClubSide
       Cause: RestartCause
-      RemainingTicks: int }
+      RemainingTicks: int<tickDelta> }
 
 type GoalPauseState =
     { ScoringTeam: ClubSide
       ScorerId: PlayerId option
       IsOwnGoal: bool
-      RemainingTicks: int
+      RemainingTicks: int<tickDelta>
       VARRequested: bool }
 
 type InjuryPauseState =
     { PlayerId: PlayerId
       Team: ClubSide
       Severity: int
-      RemainingTicks: int
+      RemainingTicks: int<tickDelta>
       CanContinue: bool option }
 
 type VARPhase =
@@ -50,8 +50,8 @@ type VARPhase =
 type VARFlowState =
     { Incident: VARReviewableIncident
       Phase: VARPhase
-      RemainingTicks: int
-      TotalTicks: int }
+      RemainingTicks: int<tickDelta>
+      TotalTicks: int<tickDelta> }
 
 type MatchFlow =
     | Live
@@ -59,7 +59,7 @@ type MatchFlow =
     | VARReview of VARFlowState
     | InjuryPause of InjuryPauseState
     | RestartDelay of RestartPlan
-    | HalfTimePause of remainingTicks: int
+    | HalfTimePause of remainingTicks: int<tickDelta>
     | FullTimeReview
     | MatchEnded
 
