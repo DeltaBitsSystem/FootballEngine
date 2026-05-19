@@ -415,6 +415,7 @@ type DecisionConfig =
       DribbleZoneBonusMidfield: float
       DribbleAttackPhaseBonus: float
       DribbleTempoPenalty: float
+      DribblePressurePenalty: float
       CrossCrossingWeight: float
       CrossLateralTendencyWeight: float
       CrossLateralTendencyBase: float
@@ -874,6 +875,7 @@ module BalanceConfig =
               DribbleZoneBonusMidfield = 0.05
               DribbleAttackPhaseBonus = 0.05
               DribbleTempoPenalty = 0.20
+              DribblePressurePenalty = 0.15
               CrossCrossingWeight = 0.60
               CrossLateralTendencyWeight = 0.60
               CrossLateralTendencyBase = 0.10

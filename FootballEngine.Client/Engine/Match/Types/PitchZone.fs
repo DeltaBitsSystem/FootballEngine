@@ -32,9 +32,3 @@ module PitchZoneOps =
         | LeftToRight, AttackingZone -> true
         | RightToLeft, DefensiveZone -> true
         | _ -> false
-
-    let flankOf (zone: PitchZone) : FlankZone =
-        match zone with
-        | AttackingZone -> CentralFlank
-        | MidfieldZone -> CentralFlank
-        | DefensiveZone -> CentralFlank

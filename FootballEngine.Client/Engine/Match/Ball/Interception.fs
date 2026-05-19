@@ -7,7 +7,7 @@ open FootballEngine.Player.Decision.ActionMath
 
 
 module Interception =
-    let estimateTimeToBall (config: PhysicsConfig) (player: Player) (pPos: Spatial) (ballPos: Spatial) : float =
+    let estimateTimeToBall (config: PhysicsConfig) (player: Player) (pPos: Spatial) (ballPos: Spatial) (intentKind: IntentKind) : float =
         let captureRadius =
             config.ContactRadius + (float player.Technical.BallControl / 20.0) * 0.20<meter>
 
@@ -21,7 +21,17 @@ module Interception =
             if maxSpeed <= 1e-6 then
                 System.Double.PositiveInfinity
             else
-                (dist - float captureRadius) / maxSpeed
+                let baseTime = (dist - float captureRadius) / maxSpeed
+
+                let intentFactor =
+                    match intentKind with
+                    | IntentKind.PressBall
+                    | IntentKind.RecoverBall -> 0.7
+                    | IntentKind.MaintainShape -> 1.4
+                    | IntentKind.CoverSpace -> 1.2
+                    | _ -> 1.0
+
+                baseTime * intentFactor
 
     let evaluateArrival (ctx: ArrivalContext) : ArrivalWinner =
         let anticipationBonus =
@@ -58,7 +68,8 @@ module Interception =
                     if distToBall > competitionRadius then
                         ()
                     elif ballSpeed < 0.5<meter / second> then
-                        let projectedTime = estimateTimeToBall ctx.PhysicsCfg player pPos ballPos
+                        let intentKind = frame.Intent.Kind[i]
+                        let projectedTime = estimateTimeToBall ctx.PhysicsCfg player pPos ballPos intentKind
 
                         let adjustedTime =
                             if player.Id = ctx.TargetId then
@@ -84,7 +95,8 @@ module Interception =
                             if convergenceSpeed > float convergenceThreshold then
                                 ()
                             else
-                                let projectedTime = estimateTimeToBall ctx.PhysicsCfg player pPos ballPos
+                                let intentKind = frame.Intent.Kind[i]
+                                let projectedTime = estimateTimeToBall ctx.PhysicsCfg player pPos ballPos intentKind
 
                                 let adjustedTime =
                                     if player.Id = ctx.TargetId then

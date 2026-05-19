@@ -19,13 +19,6 @@ module Transfers =
     let private pageSize = 100
     let roundToNearest (step: decimal) (v: decimal) = System.Math.Round(v / step) * step
 
-    let private formatValue (v: decimal) =
-        if v >= 1_000_000m then $"£{v / 1_000_000m:F1}M"
-        elif v >= 1_000m then $"£{v / 1_000m:F0}K"
-        else $"£{v:F0}"
-
-    let private formatSalary (v: decimal) = $"{formatValue v}/wk"
-
     let private positionLabel (f: TransferFilter) =
         match f with
         | AllPositions -> "All"
@@ -105,13 +98,13 @@ module Transfers =
         Button.create
             [ Button.horizontalAlignment HorizontalAlignment.Stretch
               Button.padding (16.0, 10.0)
-              Button.background (if isSelected then Theme.AccentLight else "Transparent")
+              Button.background (SelectionStyle.rowBg isSelected)
               Button.borderThickness (Avalonia.Thickness(0.0, 0.0, 0.0, 1.0))
               Button.borderBrush Theme.Border
               Button.onClick (fun _ -> onSelect ())
               Button.content (
                   Grid.create
-                      [ Grid.columnDefinitions "Auto, *, Auto, 70, 70, Auto"
+                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.transferListCols)
                         Grid.children
                             [ Border.create
                                   [ Grid.column 0
@@ -162,7 +155,7 @@ module Transfers =
                                           caBar p.CurrentSkill ] ]
                               TextBlock.create
                                   [ Grid.column 4
-                                    TextBlock.text (formatValue (Player.playerValue p.CurrentSkill))
+                                    TextBlock.text (Formatters.money (Player.playerValue p.CurrentSkill))
                                     TextBlock.fontSize 12.0
                                     TextBlock.fontWeight FontWeight.SemiBold
                                     TextBlock.foreground Theme.TextSub
@@ -277,9 +270,9 @@ module Transfers =
                 StackPanel.create
                     [ StackPanel.spacing 12.0
                       StackPanel.children
-                          [ infoRow "Offered Fee" (formatValue fee) Theme.Accent
-                            infoRow "Market Value" (formatValue (Player.playerValue p.CurrentSkill)) Theme.TextSub
-                            infoRow "Your Budget" (formatValue buyer.Budget) Theme.Accent
+                          [ infoRow "Offered Fee" (Formatters.money fee) Theme.Accent
+                            infoRow "Market Value" (Formatters.money (Player.playerValue p.CurrentSkill)) Theme.TextSub
+                            infoRow "Your Budget" (Formatters.money buyer.Budget) Theme.Accent
                             Border.create
                                 [ Border.height 1.0; Border.background Theme.Border; Border.margin (0.0, 4.0) ]
                             if not canAffordIt then
@@ -297,13 +290,13 @@ module Transfers =
                     [ StackPanel.spacing 12.0
                       StackPanel.children
                           [ UI.statusBanner Theme.Danger IconName.error reason
-                            infoRow "Market Value" (formatValue (Player.playerValue p.CurrentSkill)) Theme.TextSub
+                            infoRow "Market Value" (Formatters.money (Player.playerValue p.CurrentSkill)) Theme.TextSub
                             Grid.create
                                 [ Grid.columnDefinitions "*, Auto"
                                   Grid.margin 8.0
                                   Grid.children
-                                      [ UI.ghostButton "Give Up" None (fun _ -> dispatch (TransferMsg ClearNegotiation))
-                                        Border.create
+                                       [ UI.ghostButton "Give Up" None (fun _ -> dispatch (TransferMsg (ClearNegotiation neg.Id)))
+                                         Border.create
                                             [ Grid.column 1
                                               Border.child (
                                                   UI.primaryButton "Counter Offer" (Some IconName.add) (fun _ ->
@@ -317,15 +310,15 @@ module Transfers =
                 StackPanel.create
                     [ StackPanel.spacing 12.0
                       StackPanel.children
-                          [ UI.statusBanner Theme.Accent IconName.info $"Club counter-offered: {formatValue counter}"
-                            infoRow "Your Fee" (formatValue fee) Theme.TextSub
-                            infoRow "Counter" (formatValue counter) Theme.AccentAlt
+                          [ UI.statusBanner Theme.Accent IconName.info $"Club counter-offered: {Formatters.money counter}"
+                            infoRow "Your Fee" (Formatters.money fee) Theme.TextSub
+                            infoRow "Counter" (Formatters.money counter) Theme.AccentAlt
                             Grid.create
                                 [ Grid.columnDefinitions "*, Auto"
                                   Grid.margin 8.0
                                   Grid.children
-                                      [ UI.ghostButton "Reject" None (fun _ -> dispatch (TransferMsg ClearNegotiation))
-                                        Border.create
+                                       [ UI.ghostButton "Reject" None (fun _ -> dispatch (TransferMsg (ClearNegotiation neg.Id)))
+                                         Border.create
                                             [ Grid.column 1
                                               Border.child (
                                                   UI.primaryButton "Accept Counter" (Some IconName.success) (fun _ ->
@@ -342,9 +335,9 @@ module Transfers =
                     [ StackPanel.spacing 12.0
                       StackPanel.children
                           [ UI.statusBanner Theme.Accent IconName.hourglass "Club accepted — waiting for player response..."
-                            infoRow "Transfer Fee" (formatValue fee) Theme.Accent
-                            infoRow "Salary" (formatSalary salary) Theme.TextSub
-                            infoRow "Player's Current" (formatSalary currentSalary) Theme.TextMuted ] ]
+                            infoRow "Transfer Fee" (Formatters.money fee) Theme.Accent
+                            infoRow "Salary" (Formatters.salary salary) Theme.TextSub
+                            infoRow "Player's Current" (Formatters.salary currentSalary) Theme.TextMuted ] ]
                 :> IView
 
             | NegotiationStage.RejectedByPlayer(fee, salary, reason) ->
@@ -352,14 +345,14 @@ module Transfers =
                     [ StackPanel.spacing 12.0
                       StackPanel.children
                           [ UI.statusBanner Theme.Danger IconName.error reason
-                            infoRow "Fee" (formatValue fee) Theme.TextSub
-                            infoRow "Salary Offered" (formatSalary salary) Theme.Danger
+                            infoRow "Fee" (Formatters.money fee) Theme.TextSub
+                            infoRow "Salary Offered" (Formatters.salary salary) Theme.Danger
                             Grid.create
                                 [ Grid.columnDefinitions "*, Auto"
                                   Grid.margin 8.0
                                   Grid.children
-                                      [ UI.ghostButton "Abandon" None (fun _ -> dispatch (TransferMsg ClearNegotiation))
-                                        Border.create
+                                       [ UI.ghostButton "Abandon" None (fun _ -> dispatch (TransferMsg (ClearNegotiation neg.Id)))
+                                         Border.create
                                             [ Grid.column 1
                                               Border.child (
                                                   UI.primaryButton "Improve Salary" (Some IconName.add) (fun _ ->
@@ -373,8 +366,8 @@ module Transfers =
                     [ StackPanel.spacing 12.0
                       StackPanel.children
                           [ UI.statusBanner Theme.Accent IconName.success "Transfer agreed — processing..."
-                            infoRow "Transfer Fee" (formatValue fee) Theme.Accent
-                            infoRow "Salary" (formatSalary salary) Theme.TextSub
+                            infoRow "Transfer Fee" (Formatters.money fee) Theme.Accent
+                            infoRow "Salary" (Formatters.salary salary) Theme.TextSub
                             infoRow "Contract" $"{years} years" Theme.TextSub ] ]
                 :> IView
 
@@ -384,7 +377,7 @@ module Transfers =
                       StackPanel.children
                           [ UI.statusBanner Theme.Danger IconName.error $"Negotiation collapsed: {reason}"
                             UI.primaryButton "Dismiss" (Some IconName.close) (fun _ ->
-                                dispatch (TransferMsg ClearNegotiation)) ] ]
+                                dispatch (TransferMsg (ClearNegotiation neg.Id))) ] ]
                 :> IView
 
             | NegotiationStage.Approaching ->
@@ -510,7 +503,7 @@ module Transfers =
                                                                 TextBlock.lineSpacing 1.0 ]
                                                           TextBlock.create
                                                               [ TextBlock.text (
-                                                                    formatValue (Player.playerValue p.CurrentSkill)
+                                                                    Formatters.money (Player.playerValue p.CurrentSkill)
                                                                 )
                                                                 TextBlock.fontSize 15.0
                                                                 TextBlock.fontWeight FontWeight.Black
@@ -527,7 +520,7 @@ module Transfers =
                                                                 TextBlock.lineSpacing 1.0 ]
                                                           TextBlock.create
                                                               [ TextBlock.text (
-                                                                    formatSalary (
+                                                                    Formatters.salary (
                                                                         Player.contractOf p
                                                                         |> Option.map _.Salary
                                                                         |> Option.defaultValue 0m
@@ -643,7 +636,7 @@ module Transfers =
               Border.borderThickness (0.0, 0.0, 0.0, 1.0)
               Border.child (
                   Grid.create
-                      [ Grid.columnDefinitions "Auto, *, Auto, 70, 70, Auto"
+                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.transferListCols)
                         Grid.children
                             [ Border.create [ Grid.column 0; Border.width 48.0 ]
                               TextBlock.create
@@ -777,7 +770,7 @@ module Transfers =
                                                 TextBlock.foreground Theme.TextMuted ] ] ]
                               TextBlock.create
                                   [ Grid.column 1
-                                    TextBlock.text (formatValue offer.Fee)
+                                    TextBlock.text (Formatters.money offer.Fee)
                                     TextBlock.fontSize 12.0
                                     TextBlock.fontWeight FontWeight.SemiBold
                                     TextBlock.foreground Theme.TextSub
@@ -836,7 +829,7 @@ module Transfers =
                                                 TextBlock.foreground Theme.TextMuted ] ] ]
                               TextBlock.create
                                   [ Grid.column 1
-                                    TextBlock.text (formatValue r.Fee)
+                                    TextBlock.text (Formatters.money r.Fee)
                                     TextBlock.fontSize 12.0
                                     TextBlock.fontWeight FontWeight.SemiBold
                                     TextBlock.foreground Theme.Accent
@@ -886,7 +879,7 @@ module Transfers =
                                                         TextBlock.foreground Theme.TextMuted
                                                         TextBlock.verticalAlignment VerticalAlignment.Center ]
                                                   TextBlock.create
-                                                      [ TextBlock.text (formatValue userBudget)
+                                                      [ TextBlock.text (Formatters.money userBudget)
                                                         TextBlock.fontSize 14.0
                                                         TextBlock.fontWeight FontWeight.Black
                                                         TextBlock.foreground Theme.Accent
@@ -1250,7 +1243,7 @@ module Transfers =
                                                                                 TextBlock.create
                                                                                     [ Grid.column 1
                                                                                       TextBlock.text
-                                                                                          (formatValue (feeOf neg))
+                                                                                          (Formatters.money (feeOf neg))
                                                                                       TextBlock.fontSize 12.0
                                                                                       TextBlock.fontWeight
                                                                                           FontWeight.SemiBold

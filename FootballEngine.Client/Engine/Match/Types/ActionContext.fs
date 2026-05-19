@@ -24,6 +24,7 @@ type AgentContext =
       Zone: PitchZone
       NearestTeammateIdx: int voption
       NearestOpponentIdx: int voption
+      ImmediatePressure: float
       BestPassTargetIdx: int voption
       BestPassTargetPos: Spatial voption
       BallCarrierOppIdx: int16

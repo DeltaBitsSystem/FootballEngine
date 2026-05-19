@@ -397,12 +397,9 @@ module MovementScorer =
             else
                 0.0
 
-    let private applyRoleModifiers (ctx: AgentContext) (scores: MovementScores) : MovementScores =
-        if not ctx.TeamHasBall && ctx.MeIdx < ctx.Team.OwnFrame.SlotCount then
-            let role =
-                LanguagePrimitives.EnumOfValue<byte, DefensiveRole> ctx.Team.OwnFrame.DefensiveRole[ctx.MeIdx]
-
-            match role with
+    let applyRoleModifiersForRole (defRole: DefensiveRole) (teamHasBall: bool) (scores: MovementScores) : MovementScores =
+        if not teamHasBall then
+            match defRole with
             | DefensiveRole.FirstDefender ->
                 { scores with
                     PressBall = scores.PressBall * 2.0
@@ -420,6 +417,12 @@ module MovementScorer =
                     CoverSpace = scores.CoverSpace * 0.5 }
             | _ -> scores
         else
+            scores
+
+    let private applyRoleModifiers (ctx: AgentContext) (scores: MovementScores) : MovementScores =
+        applyRoleModifiersForRole
+            (LanguagePrimitives.EnumOfValue<byte, DefensiveRole> ctx.Team.OwnFrame.DefensiveRole[ctx.MeIdx])
+            ctx.TeamHasBall
             scores
 
     let computeAll (ctx: AgentContext) (emergent: EmergentState) : MovementScores =

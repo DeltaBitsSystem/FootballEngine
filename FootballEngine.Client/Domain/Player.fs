@@ -134,12 +134,22 @@ module Player =
             )
 
         let attackingDepth =
+            let posBase =
+                match p.Position with
+                | GK -> 0.0
+                | DC | DM -> 0.05
+                | DL | DR | WBL | WBR -> 0.25
+                | MC -> 0.35
+                | ML | MR | AML | AMR -> 0.55
+                | AMC -> 0.65
+                | ST -> 0.85
             clamp01 (
-                norm phys.Pace * 0.30
-                + norm phys.Acceleration * 0.25
-                + norm tech.Finishing * 0.15
-                + norm mental.Composure * 0.10
-                + norm phys.Stamina * 0.20
+                posBase * 0.50
+                + norm phys.Pace * 0.15
+                + norm phys.Acceleration * 0.12
+                + norm tech.Finishing * 0.08
+                + norm mental.Composure * 0.05
+                + norm phys.Stamina * 0.10
             )
 
         let lateralTendency =
@@ -163,13 +173,21 @@ module Player =
             Math.Clamp(baseFromPosition + norm tech.Crossing * 0.15 + norm phys.Pace * 0.10, -1.0, 1.0)
 
         let defensiveHeight =
+            let posBase =
+                match p.Position with
+                | GK -> 1.0
+                | DC -> 0.90
+                | DL | DR | WBL | WBR -> 0.75
+                | DM -> 0.70
+                | MC | ML | MR -> 0.45
+                | AML | AMR | AMC -> 0.25
+                | ST -> 0.10
             clamp01 (
-                norm phys.Pace * 0.20
-                + norm phys.Stamina * 0.15
-                + norm mental.Aggression * 0.15
-                + norm mental.WorkRate * 0.20
+                posBase * 0.55
+                + norm mental.WorkRate * 0.15
                 + norm tech.Tackling * 0.10
-                + norm mental.Positioning * 0.20
+                + norm mental.Positioning * 0.12
+                + norm phys.Stamina * 0.08
             )
 
         let pressingIntensity =

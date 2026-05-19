@@ -29,7 +29,7 @@ module Views =
     let private playbackTimer: Avalonia.Threading.DispatcherTimer option ref = ref None
 
     let mainView (state: State) dispatch =
-        match playbackTimer.Value, state.IsPlaying with
+        match playbackTimer.Value, state.Match.IsPlaying with
         | Some timer, true when timer.IsEnabled -> ()
         | Some timer, false ->
             timer.Stop()
@@ -38,7 +38,7 @@ module Views =
             let timer =
                 new Avalonia.Threading.DispatcherTimer(Interval = System.TimeSpan.FromMilliseconds 16.67)
 
-            timer.Tick.Add(fun _ -> dispatch TickInterpolation)
+            timer.Tick.Add(fun _ -> dispatch (MatchMsg MatchMsg.Tick))
             timer.Start()
             playbackTimer.Value <- Some timer
         | _ -> ()

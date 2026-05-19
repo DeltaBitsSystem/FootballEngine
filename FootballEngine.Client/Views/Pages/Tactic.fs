@@ -22,7 +22,7 @@ module Tactics =
 
     let private draggedId = ref<PlayerId option> None
 
-    let private startDrag (playerId: int) (_dispatch: Msg -> unit) (args: PointerPressedEventArgs) =
+    let private startDrag (playerId: int) (_dispatch: AppMsgs.Msg -> unit) (args: PointerPressedEventArgs) =
         draggedId.Value <- Some playerId
 
         task {
@@ -31,28 +31,6 @@ module Tactics =
         }
         |> ignore
 
-    let private fitnessColor v =
-        if v >= 80 then Theme.Success
-        elif v >= 55 then Theme.Warning
-        else Theme.Danger
-
-    let private positionSortKey (pos: Position) =
-        match pos with
-        | GK -> 0
-        | DR
-        | DC
-        | DL
-        | WBR
-        | WBL -> 1
-        | DM
-        | MC
-        | MR
-        | ML -> 2
-        | AMR
-        | AMC
-        | AML -> 3
-        | ST -> 4
-
     let private getCurrentLineup (gs: GameState) : Lineup option =
         gs
         |> GameState.headCoach gs.UserClubId
@@ -60,7 +38,7 @@ module Tactics =
 
     let benchRow (p: Player) dispatch : IView =
         let col = Theme.positionColor p.Position
-        let fitCol = fitnessColor p.MatchFitness
+        let fitCol = PlayerPresenter.fitnessColor p.MatchFitness
 
         Border.create
             [ Border.background "Transparent"
@@ -74,9 +52,9 @@ module Tactics =
                       e.Handled <- true
                       startDrag p.Id dispatch e)
               Border.child (
-                  Grid.create
-                      [ Grid.columnDefinitions "3, Auto, *, Auto"
-                        Grid.children
+                   Grid.create
+                       [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.playerListCols)
+                         Grid.children
                             [ Rectangle.create
                                   [ Grid.column 0
                                     Rectangle.width 3.0
@@ -123,7 +101,7 @@ module Tactics =
         |> View.withKey $"bench-{p.Id}-{p.MatchFitness}"
         :> IView
 
-    let playerNode (player: Player option) (slot: LineupSlot) (_state: State) (dispatch: Msg -> unit) =
+    let playerNode (player: Player option) (slot: LineupSlot) (_state: State) (dispatch: AppMsgs.Msg -> unit) =
         let pIdFijo = player |> Option.map _.Id |> Option.defaultValue -1
         let isEmpty = player.IsNone
 
@@ -158,7 +136,7 @@ module Tactics =
                   match draggedId.Value with
                   | Some pId ->
                       draggedId.Value <- None
-                      dispatch (DropPlayerInSlot(slot.Index, pId))
+                      dispatch (AppMsgs.TacticsMsg (TacticsMsg.DropPlayerInSlot(slot.Index, pId)))
                   | None -> ())
               if player.IsSome then
                   Border.onPointerPressed (fun e ->
@@ -251,7 +229,7 @@ module Tactics =
                                     ComboBox.selectedItem currentFormation
                                     ComboBox.onSelectedItemChanged (fun obj ->
                                         if obj <> null then
-                                            dispatch (SetTactics(obj :?> Formation)))
+                                            dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetFormation(obj :?> Formation))))
                                     ComboBox.horizontalAlignment HorizontalAlignment.Stretch
                                     ComboBox.fontSize 13.0
                                     ComboBox.fontWeight FontWeight.Bold ]
@@ -272,7 +250,7 @@ module Tactics =
                                     ComboBox.selectedItem currentTactics
                                     ComboBox.onSelectedItemChanged (fun obj ->
                                         if obj <> null then
-                                            dispatch (SetTeamTactics(obj :?> TeamTactics)))
+                                            dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetTeamTactics(obj :?> TeamTactics))))
                                     ComboBox.horizontalAlignment HorizontalAlignment.Stretch
                                     ComboBox.fontSize 13.0
                                     ComboBox.fontWeight FontWeight.Bold ]
@@ -340,34 +318,34 @@ module Tactics =
                                StackPanel.create
                                    [ StackPanel.spacing 14.0
                                      StackPanel.children
-                                         [ instructionSlider "Mentality" instructions.Mentality 0 4 "Def" "Att" (fun v ->
-                                               dispatch (SetMentality v))
-                                           instructionSlider
-                                               "Defensive Line"
-                                               instructions.DefensiveLine
-                                               0
-                                               4
-                                               "Low"
-                                               "High"
-                                               (fun v -> dispatch (SetDefensiveLine v))
-                                           instructionSlider
-                                               "Pressing"
-                                               instructions.PressingIntensity
-                                               0
-                                               4
-                                               "Low"
-                                               "High"
-                                               (fun v -> dispatch (SetPressingIntensity v))
-                                           instructionSlider "Width" instructions.Width 0 4 "Narrow" "Wide" (fun v ->
-                                               dispatch (SetWidth v))
-                                           instructionSlider "Tempo" instructions.Tempo 0 4 "Slow" "Fast" (fun v ->
-                                               dispatch (SetTempo v))
-                                           instructionSlider "Directness" instructions.Directness 0 4 "Elaborate" "Direct" (fun v ->
-                                               dispatch (SetDirectness v))
-                                           instructionSlider "Press Trigger" instructions.PressTriggerZone 0 2 "Own Half" "High Press" (fun v ->
-                                               dispatch (SetPressTriggerZone v))
-                                           instructionSlider "Defensive Shape" instructions.DefensiveShape 0 4 "Zonal" "Man" (fun v ->
-                                               dispatch (SetDefensiveShape v))
+                                          [ instructionSlider "Mentality" instructions.Mentality 0 4 "Def" "Att" (fun v ->
+                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with Mentality = v }))))
+                                            instructionSlider
+                                                "Defensive Line"
+                                                instructions.DefensiveLine
+                                                0
+                                                4
+                                                "Low"
+                                                "High"
+                                                 (fun v -> dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with DefensiveLine = v }))))
+                                            instructionSlider
+                                                "Pressing"
+                                                instructions.PressingIntensity
+                                                0
+                                                4
+                                                "Low"
+                                                "High"
+                                                 (fun v -> dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with PressingIntensity = v }))))
+                                            instructionSlider "Width" instructions.Width 0 4 "Narrow" "Wide" (fun v ->
+                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with Width = v }))))
+                                            instructionSlider "Tempo" instructions.Tempo 0 4 "Slow" "Fast" (fun v ->
+                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with Tempo = v }))))
+                                            instructionSlider "Directness" instructions.Directness 0 4 "Elaborate" "Direct" (fun v ->
+                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with Directness = v }))))
+                                            instructionSlider "Press Trigger" instructions.PressTriggerZone 0 2 "Own Half" "High Press" (fun v ->
+                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with PressTriggerZone = v }))))
+                                            instructionSlider "Defensive Shape" instructions.DefensiveShape 0 4 "Zonal" "Man" (fun v ->
+                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with DefensiveShape = v }))))
                                          ] ]
                           ) ] ] ]
 
@@ -401,7 +379,7 @@ module Tactics =
                                                           PlayerIcon.condition
                                                           "FITNESS"
                                                           $"{avgFitness}%%"
-                                                          (fitnessColor avgFitness)
+                                                           (PlayerPresenter.fitnessColor avgFitness)
                                                       Grid.create
                                                           [ Grid.column 2
                                                             Grid.children
@@ -434,7 +412,7 @@ module Tactics =
             let benchPlayers =
                 GameState.getSquad gs.UserClubId gs
                 |> List.filter (fun p -> not (starterIds.Contains p.Id))
-                |> List.sortBy (fun p -> positionSortKey p.Position, p.CurrentSkill * -1)
+                |> List.sortBy (fun p -> PlayerPresenter.positionSortKey p.Position, p.CurrentSkill * -1)
 
             let benchItems: IView list =
                 [ yield! benchPlayers |> Seq.map (fun p -> benchRow p dispatch)

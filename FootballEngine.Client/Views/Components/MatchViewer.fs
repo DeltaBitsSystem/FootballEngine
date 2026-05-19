@@ -983,7 +983,7 @@ module MatchDayView =
         :> IView
 
     let view (state: State) (dispatch: Msg -> unit) : IView =
-        match state.ActiveMatchReplay with
+        match state.Match.ActiveReplay with
         | None -> noMatchView ()
         | Some replay ->
             let snapCount = replay.Snapshots.Length
@@ -992,7 +992,7 @@ module MatchDayView =
                 noMatchView ()
             else
 
-                let snapIdx = min state.ActiveMatchSnapshot (snapCount - 1)
+                let snapIdx = min state.Match.Snapshot (snapCount - 1)
                 let currSnap = replay.Snapshots[snapIdx]
 
                 let ctx = replay.Context
@@ -1002,7 +1002,7 @@ module MatchDayView =
                     MatchProjection.project ctx currSnap (subTicksToSeconds clock (currSnap.SubTick * 1<subtick>))
 
                 let renderFrame =
-                    let t = float32 state.InterpolationT
+                    let t = float32 state.Match.InterpolationT
 
                     if snapIdx + 1 < snapCount && t > 0.0f then
                         let nextSnap = replay.Snapshots[snapIdx + 1]
@@ -1079,35 +1079,35 @@ module MatchDayView =
                                                   // Step back
                                                   Button.create
                                                       [ Button.content (Icons.iconMd Nav.skipFirst Theme.TextMain)
-                                                        Button.onClick (fun _ -> dispatch (StepActiveMatch -1)) ]
+                                                        Button.onClick (fun _ -> dispatch (MatchMsg (MatchMsg.Step -1))) ]
 
-                                                  // Play / pause
+                                                   // Play / pause
                                                   Button.create
-                                                      [ Button.content (
-                                                            if state.IsPlaying then
-                                                                Icons.iconMd Nav.pause Theme.TextMain
-                                                            else
-                                                                Icons.iconMd Nav.play Theme.TextMain
-                                                        )
-                                                        Button.onClick (fun _ -> dispatch TogglePlayback) ]
+                                                       [ Button.content (
+                                                             if state.Match.IsPlaying then
+                                                                 Icons.iconMd Nav.pause Theme.TextMain
+                                                             else
+                                                                 Icons.iconMd Nav.play Theme.TextMain
+                                                         )
+                                                         Button.onClick (fun _ -> dispatch (MatchMsg MatchMsg.TogglePlay)) ]
 
                                                   // Step forward
                                                   Button.create
                                                       [ Button.content (Icons.iconMd Nav.skipLast Theme.TextMain)
-                                                        Button.onClick (fun _ -> dispatch (StepActiveMatch 1)) ]
+                                                        Button.onClick (fun _ -> dispatch (MatchMsg (MatchMsg.Step 1))) ]
 
                                                   // Speed selector
                                                   ComboBox.create
                                                       [ ComboBox.width 80.0
                                                         ComboBox.selectedIndex (
-                                                            match state.PlaybackSpeed with
-                                                            | 1 -> 0
-                                                            | 5 -> 1
-                                                            | 10 -> 2
-                                                            | 20 -> 3
-                                                            | 50 -> 4
-                                                            | _ -> 3
-                                                        )
+                                                             match state.Match.PlaybackSpeed with
+                                                             | 1 -> 0
+                                                             | 5 -> 1
+                                                             | 10 -> 2
+                                                             | 20 -> 3
+                                                             | 50 -> 4
+                                                             | _ -> 3
+                                                         )
                                                         ComboBox.onSelectedIndexChanged (fun i ->
                                                             let speed =
                                                                 match i with
@@ -1118,7 +1118,7 @@ module MatchDayView =
                                                                 | 4 -> 50
                                                                 | _ -> 20
 
-                                                            dispatch (SetPlaybackSpeed speed))
+                                                            dispatch (MatchMsg (MatchMsg.SetSpeed speed)))
                                                         ComboBox.dataItems [ "1×"; "5×"; "10×"; "20×"; "50×" ] ]
 
                                                   // Snapshot counter
@@ -1138,7 +1138,7 @@ module MatchDayView =
                                                   // Close
                                                   Button.create
                                                       [ Button.content (Icons.iconMd IconName.close Theme.TextMain)
-                                                        Button.onClick (fun _ -> dispatch CloseActiveMatch) ] ] ]
+                                                        Button.onClick (fun _ -> dispatch (MatchMsg MatchMsg.Close)) ] ] ]
                                   ) ]
 
                             // ── Pitch ─────────────────────────────────────────

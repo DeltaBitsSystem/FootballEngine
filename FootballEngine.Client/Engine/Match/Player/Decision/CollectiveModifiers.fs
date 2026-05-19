@@ -1,6 +1,7 @@
 namespace FootballEngine
 
 open FootballEngine.Types
+open FootballEngine.Types.PhysicsContract
 
 module CollectiveModifiers =
 
@@ -9,12 +10,14 @@ module CollectiveModifiers =
 
     let private applyTransition
         (bb: TeamBlackboard)
-        (_ctx: AgentContext)
+        (ctx: AgentContext)
         (_defRole: DefensiveRole)
         (scores: MovementScores)
         : MovementScores =
         if bb.OurPhase = Transition && bb.JustLostBall then
-            { scores with PressBall = scores.PressBall * 2.5 }
+            let distToBall = ctx.MyPos.DistTo2D ctx.BallState.Position
+            let multiplier = if distToBall < 15.0<meter> then 2.5 else 0.7
+            { scores with PressBall = scores.PressBall * multiplier }
         else
             scores
 
@@ -26,7 +29,7 @@ module CollectiveModifiers =
         : MovementScores =
         let flankMatch =
             bb.WeaknessZones
-            |> Array.exists (fun z -> PitchZoneOps.flankOf z = myFlank)
+            |> Array.exists (fun z -> z = myFlank)
 
         if flankMatch then
             { scores with SupportAttack = scores.SupportAttack * 1.4 }
@@ -54,7 +57,7 @@ module CollectiveModifiers =
         : MovementScores =
         let threatMatch =
             bb.ThreatZones
-            |> Array.exists (fun z -> PitchZoneOps.flankOf z = myFlank)
+            |> Array.exists (fun z -> z = myFlank)
 
         if threatMatch then
             { scores with CoverSpace = scores.CoverSpace * 1.5 }

@@ -165,6 +165,17 @@ module AgentContext =
 
                     nTM, nOpp, bpIdx, bpPos
 
+        let immediatePressure =
+            match nearestOppIdx with
+            | ValueNone -> 0.0
+            | ValueSome oppIdx ->
+                let ox = float team.OppFrame.Physics.PosX[oppIdx] * 1.0<meter>
+                let oy = float team.OppFrame.Physics.PosY[oppIdx] * 1.0<meter>
+                let dx = myPos.X - ox
+                let dy = myPos.Y - oy
+                let dist = sqrt (dx * dx + dy * dy)
+                max 0.0 (1.0 - dist / 8.0<meter>)
+
         let goalX = if dir = LeftToRight then PitchLength else 0.0<meter>
 
         let dist = abs (myPos.X - goalX)
@@ -182,6 +193,7 @@ module AgentContext =
           Zone = zone
           NearestTeammateIdx = nearestTMIdx
           NearestOpponentIdx = nearestOppIdx
+          ImmediatePressure = immediatePressure
           BestPassTargetIdx = bestPassTargetIdx
           BestPassTargetPos = bestPassTargetPos
           BallCarrierOppIdx =

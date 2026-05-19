@@ -139,7 +139,7 @@ module private UtilityEvaluators =
                 | FlankRight -> FlankZone.RightFlank
 
             let hasWeakness =
-                bb.WeaknessZones |> Array.exists (fun z -> PitchZoneOps.flankOf z = targetFlank)
+                bb.WeaknessZones |> Array.exists (fun z -> z = targetFlank)
 
             let bonus = if hasWeakness then 0.4 else 0.1
             clamp (0.3 + bonus) 0.0 1.0

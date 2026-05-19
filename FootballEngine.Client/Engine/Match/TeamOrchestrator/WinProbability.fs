@@ -25,7 +25,7 @@ module WinProbability =
                 0.50
 
         // Ajustes desde BalanceConfig (TODO: leer pesos de config)
-        let xGFactor = 0.0 // TODO: leer xG acumulado del SimState
+        let xGFactor = (state.HomeXG - state.AwayXG) * 0.15
 
         let momentumFactor =
             if state.Momentum > 2.0 then 0.08

@@ -10,6 +10,7 @@ module ShapeEngine =
 
     let computeShapeTargets
         (basePositions: Spatial[])
+        (profiles: BehavioralProfile[])
         (dir: AttackDir)
         (phase: MatchPhase)
         (ballX: float<meter>)
@@ -21,12 +22,6 @@ module ShapeEngine =
         let forwardDir = forwardX dir
 
         let pressMod = tacticsCfg.PressingIntensity - 1.0
-
-        let phaseShift =
-            match phase with
-            | BuildUp -> (-4.0<meter> + pressMod * 2.0<meter>) * forwardDir
-            | Midfield -> (pressMod * 1.0<meter>) * forwardDir
-            | Attack -> (3.0<meter> + pressMod * 2.0<meter>) * forwardDir
 
         let n = basePositions.Length
 
@@ -41,15 +36,23 @@ module ShapeEngine =
 
         for i = 0 to n - 1 do
             let basePos = basePositions[i]
+            let profile = profiles[i]
+
+            let phaseShift =
+                match phase with
+                | BuildUp -> (-4.0<meter> + pressMod * 2.0<meter>) * forwardDir * profile.DefensiveHeight
+                | Midfield -> (pressMod * 1.0<meter>) * forwardDir * profile.PressingIntensity
+                | Attack -> (3.0<meter> + pressMod * 2.0<meter>) * forwardDir * profile.AttackingDepth
 
             let targetPullX =
                 clamp (ballPullBase * (float i / float (n - 1))) -6.0<meter> 6.0<meter>
 
-            let ballPullX = targetPullX * damping
+            let ballPullX = targetPullX * damping * profile.PositionalFreedom
 
             let compactShift = (basePos.Y - 34.0<meter>) * pressureCoeff
 
-            let widthShift = (basePos.Y - 34.0<meter>) * (widthSpread - 1.0)
+            let widthShift =
+                (basePos.Y - 34.0<meter>) * (widthSpread - 1.0) * (abs profile.LateralTendency + 0.5)
 
             let x = basePos.X + phaseShift + tacticalPush + defensiveDrop + ballPullX
             let y = basePos.Y + compactShift + widthShift

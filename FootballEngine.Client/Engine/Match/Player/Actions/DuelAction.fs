@@ -25,6 +25,43 @@ module DuelAction =
         else
             1.0
 
+    let private findBestContestant
+        (frame: TeamFrame)
+        (ballX: float<meter>)
+        (ballY: float<meter>)
+        (contestRadius: float<meter>)
+        : int voption =
+
+        let mutable bestIdx = ValueNone
+        let mutable bestScore = -1.0
+
+        for i = 0 to frame.SlotCount - 1 do
+            match frame.Physics.Occupancy[i] with
+            | OccupancyKind.Active _ ->
+                let px = float frame.Physics.PosX[i] * 1.0<meter>
+                let py = float frame.Physics.PosY[i] * 1.0<meter>
+                let dx = px - ballX
+                let dy = py - ballY
+                let dist = sqrt (dx * dx + dy * dy)
+
+                if dist <= contestRadius then
+                    let intentBonus =
+                        match frame.Intent.Kind[i] with
+                        | IntentKind.PressBall
+                        | IntentKind.RecoverBall -> 0.5
+                        | IntentKind.TackleAttempt -> 0.3
+                        | _ -> 0.0
+
+                    let distPenalty = float dist / float contestRadius
+                    let score = 1.0 - distPenalty + intentBonus
+
+                    if score > bestScore then
+                        bestScore <- score
+                        bestIdx <- ValueSome i
+            | _ -> ()
+
+        bestIdx
+
     let resolve
         (subTick: int)
         (ctx: MatchContext)
@@ -46,7 +83,10 @@ module DuelAction =
         | Receiving _ -> ActionResult.empty, []
         | _ ->
 
-            match nearestActiveSlotInFrame attFrame bX bY, nearestActiveSlotInFrame defFrame bX bY with
+            let contestRadius = 8.0<meter>
+
+            match findBestContestant attFrame bX bY contestRadius,
+                  findBestContestant defFrame bX bY contestRadius with
             | ValueSome attIdx, ValueSome defIdx ->
                 let attP = attRoster.Players[attIdx]
                 let defP = defRoster.Players[defIdx]

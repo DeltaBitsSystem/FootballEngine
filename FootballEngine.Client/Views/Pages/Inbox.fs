@@ -55,34 +55,26 @@ module InboxPresenter =
             | None -> None
         | _ -> None
 
-    let formatMessageDate (date: DateTime) (currentDate: DateTime) =
-        let daysAgo = int (currentDate - date).TotalDays
-
-        if daysAgo = 0 then "Today"
-        elif daysAgo = 1 then "Yesterday"
-        elif daysAgo < 7 then $"{daysAgo} days ago"
-        else date.ToString("dd MMM yyyy")
-
 module Inbox =
 
     let private messageListItem (message: InboxMessage) (isSelected: bool) (currentDate: DateTime) dispatch =
         let categoryColor = InboxPresenter.categoryColor message.Category
         let categoryIcon = InboxPresenter.categoryIcon message.Category
-        let dateStr = InboxPresenter.formatMessageDate message.Date currentDate
+        let dateStr = Formatters.relativeDate message.Date currentDate
 
         let hasAction =
             message.RequiresAction
             && (message.ActionTaken.IsNone || message.ActionTaken = Some false)
 
         Border.create
-            [ Border.background (if isSelected then categoryColor + "18" else "Transparent")
-              Border.borderBrush (if isSelected then categoryColor + "60" else Theme.Border)
+            [ Border.background (SelectionStyle.rowBgColor isSelected categoryColor)
+              Border.borderBrush (SelectionStyle.rowBorderColor isSelected (categoryColor + "60"))
               Border.borderThickness (2.0, 0.0, 0.0, 1.0)
               Border.cursor Avalonia.Input.Cursor.Default
-              Border.onPointerReleased (fun _ -> dispatch (InboxMsg(SelectMessage message.Id)))
+              Border.onPointerReleased (fun _ -> dispatch (InboxMsg(InboxMsg.SelectMessage message.Id)))
               Border.child (
                   Grid.create
-                      [ Grid.columnDefinitions "Auto, *, Auto"
+                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.inboxListCols)
                         Grid.rowDefinitions "Auto, Auto"
                         Grid.margin (12.0, 10.0)
                         Grid.children
@@ -281,7 +273,7 @@ module Inbox =
             let categoryColor = InboxPresenter.categoryColor msg.Category
             let categoryIcon = InboxPresenter.categoryIcon msg.Category
             let categoryLabel = InboxPresenter.categoryLabel msg.Category
-            let dateStr = InboxPresenter.formatMessageDate msg.Date currentDate
+            let dateStr = Formatters.relativeDate msg.Date currentDate
 
             let hasAction =
                 msg.RequiresAction && (msg.ActionTaken.IsNone || msg.ActionTaken = Some false)

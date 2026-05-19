@@ -36,9 +36,6 @@ type DirectiveKind =
 type TeamDirective =
     { Kind: DirectiveKind
       Params: DirectiveParams
-      TargetRunner: PlayerId option
-      RunType: RunType option
-      RunTarget: Spatial option
       ActiveSince: int<subtick> }
 
 type TeamDirectiveState =
@@ -90,7 +87,4 @@ module TeamDirectiveOps =
                   CounterTrigger = false
                   WingBias = 0.0
                   DirectnessBias = 0.0 } }
-          TargetRunner = None
-          RunType = None
-          RunTarget = None
           ActiveSince = subTick }

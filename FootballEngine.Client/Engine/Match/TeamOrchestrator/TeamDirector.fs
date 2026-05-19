@@ -10,20 +10,6 @@ open FootballEngine.Types.TeamDirectiveOps
 open SimStateOps
 
 
-// ── Pipeline colectivo por equipo ────────────────────────────────────────────
-//
-// TeamOrchestrator.tick corre a dos frecuencias distintas:
-//   strategic (~30s) — WinProbability + StrategicLoop + EmergentLoops
-//   reactive  (~3s)  — ReactiveLoop + UtilityActions + SlotRoles + Shape
-//
-// Output: escribe en TeamFrame. BatchDecision solo lee — no decide nada colectivo.
-//
-// Para agregar inteligencia colectiva nueva: identificar en qué paso del
-// pipeline vive y agregar ahí. El compilador verifica que el contrato no rompa.
-//
-// ─────────────────────────────────────────────────────────────────────────────
-
-
 module BatchDecisionSupport =
 
     let computeSupportPositionsInto
@@ -213,9 +199,8 @@ module BatchDecisionSupport =
 
         assignments
 
-module TeamOrchestrator =
+module TeamDirector =
     let private bothSides = [| HomeClub; AwayClub |]
-    // ── Helpers internos ─────────────────────────────────────────────────────
 
     let private avgCondition (frame: TeamFrame) : float =
         let mutable total = 0
@@ -229,10 +214,6 @@ module TeamOrchestrator =
             | _ -> ()
 
         if count > 0 then float total / float count else 50.0
-
-    // ── Paso 1 — Read ────────────────────────────────────────────────────────
-    // Lee todo lo que el orchestrator necesita saber antes de decidir.
-    // Puro — no muta nada.
 
     [<Struct>]
     type private OrchestratorRead =
@@ -286,107 +267,40 @@ module TeamOrchestrator =
     let private resolveKind (read: OrchestratorRead) : DirectiveKind =
         UtilityActions.toDirectiveKind read.CollectiveAction
 
-    // ── Paso 3 — Plan por slot ───────────────────────────────────────────────
-    // Dado el DirectiveKind, calcula qué hace cada jugador DENTRO del plan colectivo.
-    // SlotRole, posiciones de forma, posiciones de soporte, runs, shape defensivo.
-    //
-    // Para agregar inteligencia en cómo el equipo se posiciona: acá.
-    // Para cambiar cómo se asignan roles (pressing zonal, offside trap): SlotRoleAssigner.
-
-    [<Struct>]
-    type private TeamPlan =
-        { Kind: DirectiveKind
-          SlotRoles: SlotRole[]
-          SupportPosX: float32[]
-          SupportPosY: float32[]
-          DefRoles: DefensiveRole[]
-          RunnerTarget: PlayerId option
-          RunType: RunType option
-          RunTarget: Spatial option }
-
-    let private buildPlan
-        (subTick: int)
-        (clubSide: ClubSide)
-        (read: OrchestratorRead)
-        (kind: DirectiveKind)
-        (ctx: MatchContext)
+    let private updateDirective
         (state: SimState)
-        (clock: SimulationClock)
-        : TeamPlan =
+        (clubSide: ClubSide)
+        (kind: DirectiveKind)
+        (subTick: int)
+        : unit =
 
-        let team = SimStateOps.buildTeamPerspective clubSide ctx state
-        let frame = team.OwnFrame
-        let roster = team.OwnRoster
-        let ballPos = state.Ball.Position
-        let bx = float32 ballPos.X
-        let by = float32 ballPos.Y
-        let dir = team.AttackDir
-
+        let emergent = getEmergentState state clubSide
         let tacticsCfg =
             tacticsConfig (getTactics state clubSide) (getInstructions state clubSide)
 
-        // 3a. Roles por slot — inteligencia colectiva de pressing/defensa/ataque
-        let slotRoles = SlotRoleAssigner.assign frame roster kind tacticsCfg bx by
+        let currentDirective =
+            SimStateOps.getDirective state clubSide
+            |> TeamDirectiveOps.currentDirective
+            |> Option.defaultValue (TeamDirectiveOps.empty (subTick * 1<subtick>))
 
-        // 3b. Support positions — dónde quiere el equipo que estés cuando no tenés la pelota
-        let basePositions = getBasePositions state clubSide
-        let phase = phaseFromBallZone dir state.BallXSmooth
+        let newDirective =
+            { currentDirective with
+                Kind = kind
+                Params = defaultParams tacticsCfg emergent
+                ActiveSince =
+                    if kind <> currentDirective.Kind then
+                        subTick * 1<subtick>
+                    else
+                        currentDirective.ActiveSince }
 
-        let supportPosX = Array.zeroCreate<float32> frame.SlotCount
-        let supportPosY = Array.zeroCreate<float32> frame.SlotCount
+        let wrapped =
+            match SimStateOps.getDirective state clubSide with
+            | TeamDirectiveState.Suspended _ -> TeamDirectiveState.Suspended newDirective
+            | TeamDirectiveState.Transitioning(fromDir, _, progress) ->
+                TeamDirectiveState.Transitioning(fromDir, newDirective, progress)
+            | _ -> TeamDirectiveState.Active newDirective
 
-        BatchDecisionSupport.computeSupportPositionsInto
-            team
-            ballPos
-            state.Ball.Control
-            phase
-            tacticsCfg
-            tacticsCfg.Width
-            basePositions
-            supportPosX
-            supportPosY
-
-        // 3c. Run assignment — quién hace el movimiento de ruptura
-        let influence =
-            if clubSide = HomeClub then
-                state.HomeInfluenceFrame
-            else
-                state.AwayInfluenceFrame
-
-        let runnerId, runType, runTarget =
-            BatchDecisionSupport.pickRunner team ballPos state.Ball.Control (getEmergentState state clubSide) influence
-
-        // 3d. Defensive shape — FirstDefender, Cover, Marker por slot
-        let cFrame =
-            if clubSide = HomeClub then
-                state.HomeCognitiveFrame
-            else
-                state.AwayCognitiveFrame
-
-        let defRolesRaw =
-            BatchDecisionSupport.computeDefensiveShape
-                team
-                ballPos
-                cFrame
-                subTick
-                (int (getTeam state clubSide).TransitionPressExpiry)
-
-        let defRoles = Array.map (fun (r: DefensiveRole) -> r) defRolesRaw
-
-        { Kind = kind
-          SlotRoles = slotRoles
-          SupportPosX = supportPosX
-          SupportPosY = supportPosY
-          DefRoles = defRoles
-          RunnerTarget = runnerId
-          RunType = runType
-          RunTarget = runTarget }
-
-    // ── Paso 4 — Adapt (EmergentLoops) ──────────────────────────────────────
-    // Lee qué está pasando en el partido y actualiza el estado emergente del equipo.
-    // El EmergentState afecta los scores de MovementScorer en el próximo ciclo.
-    //
-    // Para que el equipo aprenda y ajuste más patrones: agregar funciones en EmergentLoops.
+        setDirective state clubSide wrapped
 
     let private adaptEmergent (clubSide: ClubSide) (read: OrchestratorRead) (state: SimState) : unit =
         let current = getEmergentState state clubSide
@@ -401,62 +315,6 @@ module TeamOrchestrator =
 
         setEmergentState state clubSide updated
 
-    // ── Paso 5 — Write ───────────────────────────────────────────────────────
-    // Única función que muta SimState. Escribe el TeamPlan en el TeamFrame
-    // y actualiza la TeamDirective.
-    // BatchDecision lee estos arrays — no los calcula.
-
-    let private writePlan
-        (subTick: int)
-        (clubSide: ClubSide)
-        (read: OrchestratorRead)
-        (plan: TeamPlan)
-        (state: SimState)
-        : unit =
-
-        let frame = getFrame state clubSide
-        let emergent = getEmergentState state clubSide
-
-        let tacticsCfg =
-            tacticsConfig (getTactics state clubSide) (getInstructions state clubSide)
-
-        // 5a. SlotRoles al frame — BatchDecision los lee para sesgar scores individuales
-        for i = 0 to frame.SlotCount - 1 do
-            frame.SlotRoles[i] <- plan.SlotRoles[i]
-
-        // 5b. Support positions al frame
-        for i = 0 to frame.SlotCount - 1 do
-            frame.SupportPositionX[i] <- plan.SupportPosX[i]
-            frame.SupportPositionY[i] <- plan.SupportPosY[i]
-
-        // 5c. Defensive roles al frame
-        for i = 0 to frame.SlotCount - 1 do
-            frame.DefensiveRole[i] <- byte plan.DefRoles[i]
-
-        // 5d. TeamDirective actualizada — Kind + Params frescos desde EmergentState
-        let newDirective =
-            { read.CurrentDirective with
-                Kind = plan.Kind
-                Params = defaultParams tacticsCfg emergent
-                TargetRunner = plan.RunnerTarget
-                RunType = plan.RunType
-                RunTarget = plan.RunTarget
-                ActiveSince =
-                    if plan.Kind <> read.CurrentDirective.Kind then
-                        subTick * 1<subtick>
-                    else
-                        read.CurrentDirective.ActiveSince }
-
-        setDirective state clubSide (TeamDirectiveState.Active newDirective)
-
-    // ── Tick principal ───────────────────────────────────────────────────────
-    //
-    // Frecuencias:
-    //   strategic (~30s): WinProbability + StrategicLoop + EmergentLoops + Plan completo
-    //   reactive  (~3s):  ReactiveLoop + Plan completo (sin recalcular WinProbability)
-    //
-    // El Stepper llama esto — no sabe qué loop corrió adentro.
-
     let tick (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : unit =
         let time = Scheduler.buildMatchTime state clock
         let strategicFreq = EveryMinute(30<matchMin>, 0<matchMin>)
@@ -469,7 +327,6 @@ module TeamOrchestrator =
 
             if isStrategicTick then
                 let mode = StrategicLoop.run ctx state clock
-
                 adaptEmergent clubSide read state
 
                 let kind =
@@ -477,8 +334,7 @@ module TeamOrchestrator =
                     | ExecutingPlan _ -> resolveKind read
                     | Recovering(_, target) -> target
 
-                let plan = buildPlan subTick clubSide read kind ctx state clock
-                writePlan subTick clubSide read plan state
+                updateDirective state clubSide kind subTick
 
             elif isReactiveTick then
                 let deviation = ReactiveLoop.run ctx state clock
@@ -487,11 +343,9 @@ module TeamOrchestrator =
                     match deviation with
                     | Critical _ ->
                         let mode = StrategicLoop.run ctx state clock
-
                         match mode with
                         | Recovering(_, target) -> target
                         | ExecutingPlan _ -> resolveKind read
                     | _ -> resolveKind read
 
-                let plan = buildPlan subTick clubSide read kind ctx state clock
-                writePlan subTick clubSide read plan state
+                updateDirective state clubSide kind subTick

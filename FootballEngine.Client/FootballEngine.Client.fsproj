@@ -153,8 +153,8 @@
         <Compile Include="Engine\Match\TeamOrchestrator\WinProbability.fs"/>
         <Compile Include="Engine\Match\TeamOrchestrator\ReactiveLoop.fs"/>
         <Compile Include="Engine\Match\TeamOrchestrator\StrategicLoop.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\TeamOrchestrator.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\TeamSystem.fs"/>
+        <Compile Include="Engine\Match\TeamOrchestrator\TeamDirector.fs"/>
+        <Compile Include="Engine\Match\TeamOrchestrator\TeamExecutor.fs"/>
         <Compile Include="Engine\Match\Systems\Cognition\CognitionSystem.fs"/>
         <Compile Include="Engine\Match\Systems\Adaptive\AdaptiveSystem.fs"/>
 
@@ -219,12 +219,21 @@
         <Compile Include="AppState\ModEditorTypes.fs"/>
         <Compile Include="AppState\Types.fs"/>
         <Compile Include="AppState\Msg.fs"/>
+        <Compile Include="Views\Theme.fs"/>
+        <Compile Include="Views\Shared\Formatters.fs"/>
+        <Compile Include="Views\Shared\PlayerPresenter.fs"/>
+        <Compile Include="Views\Shared\ColumnDefs.fs"/>
+        <Compile Include="Views\Shared\SelectionStyle.fs"/>
+        <Compile Include="AppState\Slices\SquadSlice.fs"/>
+        <Compile Include="AppState\Slices\TacticsSlice.fs"/>
+        <Compile Include="AppState\Slices\TrainingSlice.fs"/>
+        <Compile Include="AppState\Slices\InboxSlice.fs"/>
+        <Compile Include="AppState\Slices\MatchSlice.fs"/>
         <Compile Include="AppState\UpdateSetup.fs"/>
         <Compile Include="AppState\UpdateSim.fs"/>
         <Compile Include="AppState\UpdateTransfer.fs"/>
         <Compile Include="AppState\UpdateModEditor.fs"/>
         <Compile Include="AppState\AppState.fs"/>
-        <Compile Include="Views\Theme.fs"/>
         <Compile Include="Views\Components\UI.fs"/>
         <Compile Include="Views\Components\Sidebar.fs"/>
         <Compile Include="Views\Components\Header.fs"/>

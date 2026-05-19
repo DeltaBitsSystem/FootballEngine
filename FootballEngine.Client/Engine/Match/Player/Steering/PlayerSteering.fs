@@ -516,7 +516,14 @@ module PlayerSteering =
             let target = StaticPosition(targetX, targetY, 0.0<meter>)
             let ms = maxSpeed p condition
 
-            let arriveForce = Behaviours.arrive current target ms
+            let primaryForce =
+                if chasingBall then
+                    Behaviours.pursuit
+                        current
+                        (MovingPosition(ballPos.X, ballPos.Y, ballPos.Z, ballPos.Vx, ballPos.Vy, ballPos.Vz))
+                        ms
+                else
+                    Behaviours.arrive current target ms
 
             let sepDist =
                 if chasingBall then
@@ -539,7 +546,7 @@ module PlayerSteering =
                     Force.zero
 
             let totalForce =
-                Force.add arriveForce (Force.add sepForce ballForce)
+                Force.add primaryForce (Force.add sepForce ballForce)
                 |> Force.truncate config.PlayerMaxForce
                 |> Force.add boundaryForce
 

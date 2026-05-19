@@ -433,7 +433,7 @@ module UI =
               Border.padding 15.0
               Border.child (
                   Grid.create
-                      [ Grid.columnDefinitions "Auto, *, Auto"
+                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.inboxListCols)
                         Grid.children
                             [ TextBlock.create
                                   [ Grid.column 0
@@ -512,7 +512,7 @@ module PlayerView =
               Border.borderThickness (0.0, 0.0, 0.0, 1.0)
               Border.child (
                   Grid.create
-                      [ Grid.columnDefinitions "*, 55, 40, 100, 80"
+                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.playerListCols)
                         Grid.children [ col 0 "PLAYER"; col 1 "POS"; col 2 "AGE"; col 3 "CA / PA"; col 4 "VALUE" ] ]
               ) ]
 
@@ -536,7 +536,7 @@ module PlayerView =
             else "transparent"
 
         let bg =
-            if isSelected then Theme.AccentLight
+            if isSelected then SelectionStyle.rowBg true
             elif isDragged then Theme.DragOverlay
             else "transparent"
 
@@ -548,7 +548,7 @@ module PlayerView =
               Border.onTapped (fun _ -> onSelect ())
               Border.child (
                   Grid.create
-                      [ Grid.columnDefinitions "*, 55, 40, 100, 80"
+                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.playerListCols)
                         Grid.children
                             [ Grid.create
                                   [ Grid.column 0

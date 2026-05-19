@@ -137,7 +137,7 @@ module ContactResolver =
                         ()
                     elif ballSpeed < 0.5<meter / second> then
                         let projectedTime =
-                            Interception.estimateTimeToBall ctx.PhysicsCfg player pPos ballPos
+                            Interception.estimateTimeToBall ctx.PhysicsCfg player pPos ballPos frame.Intent.Kind[i]
 
                         let adjustedTime =
                             if player.Id = ctx.TargetId then
@@ -164,7 +164,7 @@ module ContactResolver =
                                 ()
                             else
                                 let projectedTime =
-                                    Interception.estimateTimeToBall ctx.PhysicsCfg player pPos ballPos
+                                    Interception.estimateTimeToBall ctx.PhysicsCfg player pPos ballPos frame.Intent.Kind[i]
 
                                 let adjustedTime =
                                     if player.Id = ctx.TargetId then

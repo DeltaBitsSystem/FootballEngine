@@ -43,7 +43,7 @@ module AppMsgs =
         | MakeOffer of playerId: PlayerId * fee: decimal * salary: decimal
         | SubmitOffer
         | WithdrawOffer of negotiationId: int
-        | ClearNegotiation
+        | ClearNegotiation of negotiationId: int
         | CounterOffer of negotiationId: int * newFee: decimal * newSalary: decimal option
 
     type NotificationMsg =
@@ -51,10 +51,38 @@ module AppMsgs =
         | DismissAll
         | PushNotification of Notification
 
+    type SquadMsg =
+        | SetSort      of SortField
+        | SelectPlayer of PlayerId
+        | ClearSelection
+        | StartDrag    of PlayerId
+        | EndDrag
+
+    type TacticsMsg =
+        | SetFormation     of Formation
+        | SetTeamTactics   of TeamTactics
+        | SetInstruction   of (TacticalInstructions -> TacticalInstructions)
+        | DropPlayerInSlot of slotIndex: int * playerId: PlayerId
+        | StartDrag        of PlayerId
+        | EndDrag
+
+    type TrainingMsg =
+        | SelectPlayer of PlayerId
+        | ClearSelection
+        | SetFocus     of playerId: PlayerId * TrainingFocus
+        | SetIntensity of playerId: PlayerId * TrainingIntensity
+
     type InboxMsg =
-        | SelectMessage of messageId: int
-        | MarkAsRead of messageId: int
+        | SelectMessage   of messageId: int
+        | MarkAsRead      of messageId: int
         | MarkActionTaken of messageId: int
+
+    type MatchMsg =
+        | Step       of delta: int
+        | Close
+        | TogglePlay
+        | SetSpeed   of int
+        | Tick
 
     type ModEditorMsg =
         | SetTab of ModEditorTypes.ModEditorTab
@@ -77,37 +105,23 @@ module AppMsgs =
         | SearchMod of string
 
     type Msg =
-        | SetupMsg of SetupMsg
-        | SimMsg of SimMsg
-        | TransferMsg of TransferMsg
+        | SetupMsg      of SetupMsg
+        | SimMsg        of SimMsg
+        | TransferMsg   of TransferMsg
         | NotificationMsg of NotificationMsg
-        | InboxMsg of InboxMsg
-        | ModEditorMsg of ModEditorMsg
-        | GameLoaded of (GameState * WorldClock) option
-        | ChangePage of Page
-        | SelectPlayer of PlayerId
-        | DropPlayerInSlot of slotIndex: int * playerId: int
-        | SortPlayersBy of string
-        | SetTactics of Formation
-        | SetTeamTactics of TeamTactics
-        | SetMentality of int
-        | SetDefensiveLine of int
-        | SetPressingIntensity of int
-        | SetWidth of int
-        | SetTempo of int
-        | SetDirectness of int
-        | SetPressTriggerZone of int
-        | SetDefensiveShape of int
-        | ChangeLeague of CompetitionId
+        | ModEditorMsg  of ModEditorMsg
+        | GameLoaded    of (GameState * WorldClock) option
+        | ChangePage    of Page
+        | ChangeLeague  of CompetitionId
         | SetProcessing of bool
         | NoOp
-        | StepActiveMatch of delta: int
-        | CloseActiveMatch
-        | SetPlayerTrainingSchedule of playerId: PlayerId * TrainingSchedule
-        | TogglePlayback
-        | SetPlaybackSpeed of int
-        | TickInterpolation
         | ReloadMods
+
+        | SquadMsg      of SquadMsg
+        | TacticsMsg    of TacticsMsg
+        | TrainingMsg   of TrainingMsg
+        | InboxMsg      of InboxMsg
+        | MatchMsg      of MatchMsg
 
 module SimHelpers =
     let primaryLeagueId (gs: GameState) =

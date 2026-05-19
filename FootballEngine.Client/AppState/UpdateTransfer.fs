@@ -268,12 +268,9 @@ module UpdateTransfer =
                     SimHelpers.saveCmd newGs state.WorldClock
                 | None -> state, Cmd.none)
 
-        | ClearNegotiation ->
+        | ClearNegotiation negotiationId ->
             withGame (fun gs ->
-                match
-                    t.ActiveNegotiationId
-                    |> Option.bind (fun id -> gs.PendingNegotiations |> Map.tryFind id)
-                with
+                match gs.PendingNegotiations |> Map.tryFind negotiationId with
                 | Some neg ->
                     match neg.Stage with
                     | NegotiationStage.RejectedByClub _

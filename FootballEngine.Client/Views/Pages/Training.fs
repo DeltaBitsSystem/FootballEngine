@@ -147,28 +147,6 @@ module TrainingPresenter =
 
 module Training =
 
-    let private fitnessColor v =
-        if v >= 80 then Theme.Success
-        elif v >= 55 then Theme.Warning
-        else Theme.Danger
-
-    let private positionSortKey (pos: Position) =
-        match pos with
-        | GK -> 0
-        | DR
-        | DC
-        | DL
-        | WBR
-        | WBL -> 1
-        | DM
-        | MC
-        | MR
-        | ML -> 2
-        | AMR
-        | AMC
-        | AML -> 3
-        | ST -> 4
-
     let private trainingBadges (player: Player) =
         let focusOpt =
             TrainingPresenter.focusOptions
@@ -220,9 +198,9 @@ module Training =
                           ) ] ] ]
 
     let private playerRow (player: Player) (isSelected: bool) (onClick: unit -> unit) : IView =
-        let fitCol = fitnessColor player.MatchFitness
-        let bgColor = if isSelected then Theme.Accent + "10" else "Transparent"
-        let leftBorderColor = if isSelected then Theme.Accent else "Transparent"
+        let fitCol = PlayerPresenter.fitnessColor player.MatchFitness
+        let bgColor = SelectionStyle.rowBg isSelected
+        let leftBorderColor = SelectionStyle.rowBorder isSelected
 
         Border.create
             [ Border.background bgColor
@@ -233,7 +211,7 @@ module Training =
               Border.onPointerReleased (fun _ -> onClick ())
               Border.child (
                   Grid.create
-                      [ Grid.columnDefinitions "3, Auto, *, Auto"
+                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.playerListCols)
                         Grid.children
                             [ UI.positionBadge player.Position
                               |> fun b ->
@@ -575,14 +553,14 @@ module Training =
         match state.Mode with
         | InGame(gs, _) ->
             let userClubId = gs.UserClubId
-            let selectedPlayerId = state.SelectedPlayer
+            let selectedPlayerId = state.Training.SelectedPlayer
 
             let squad =
                 GameState.getSquad userClubId gs
-                |> List.sortBy (fun p -> positionSortKey p.Position, p.CurrentSkill * -1)
+                |> List.sortBy (fun p -> PlayerPresenter.positionSortKey p.Position, p.CurrentSkill * -1)
 
             let setPlayerFocus (playerId: PlayerId) (currentSchedule: TrainingSchedule) (focus: TrainingFocus) =
-                dispatch (SetPlayerTrainingSchedule(playerId, { currentSchedule with Focus = focus }))
+                dispatch (TrainingMsg (TrainingMsg.SetFocus(playerId, focus)))
 
             let setPlayerIntensity
                 (playerId: PlayerId)
@@ -590,10 +568,11 @@ module Training =
                 (intensity: TrainingIntensity)
                 =
                 dispatch (
-                    SetPlayerTrainingSchedule(
-                        playerId,
-                        { currentSchedule with
-                            Intensity = intensity }
+                    TrainingMsg (
+                        TrainingMsg.SetIntensity(
+                            playerId,
+                            intensity
+                        )
                     )
                 )
 
@@ -645,7 +624,7 @@ module Training =
                                                                       playerRow
                                                                           p
                                                                           (selectedPlayerId = Some p.Id)
-                                                                          (fun () -> dispatch (SelectPlayer p.Id)))
+                                                                                                                                                     (fun () -> dispatch (TrainingMsg (TrainingMsg.SelectPlayer p.Id))))
                                                               ) ]
                                                     ) ] ] ]
                               ) ] ] ]

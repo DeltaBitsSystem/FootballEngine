@@ -79,16 +79,7 @@ module PlayerScorer =
             else
                 abs (atan2 dy2 dx - atan2 dy1 dx) * 180.0 / System.Math.PI
 
-        let pressureLevel =
-            match ctx.NearestOpponentIdx with
-            | ValueNone -> 0.0
-            | ValueSome oppIdx ->
-                let ox = float ctx.Team.OppFrame.Physics.PosX[oppIdx]
-                let oy = float ctx.Team.OppFrame.Physics.PosY[oppIdx]
-                let dx = float ctx.MyPos.X - ox
-                let dy = float ctx.MyPos.Y - oy
-                let dist = sqrt (dx * dx + dy * dy)
-                1.0 - clampFloat (dist / 10.0) 0.0 1.0
+        let pressureLevel = ctx.ImmediatePressure
 
         let isOneOnOne =
             let mutable gkCount = 0
@@ -286,6 +277,7 @@ module PlayerScorer =
             + passConcentrationMod
             + trajectoryBonus
             + anticipationBonus
+            - ctx.ImmediatePressure * d.PassHighPressPenalty
 
         let maxPossible =
             d.PassPassingWeight
@@ -304,7 +296,6 @@ module PlayerScorer =
             + d.PassConcentrationMod
             + d.PassTrajectoryBonus
             + d.PassAnticipationBonus
-            + d.PassHighPressPenalty
 
         ((scoreRaw / maxPossible) * condFactor ctx.MyCondition)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
@@ -342,6 +333,7 @@ module PlayerScorer =
             + zoneBonusMax
             + phaseBonusMax
             + tempoPenalty
+            + d.DribblePressurePenalty
 
         let memMod =
             match ctx.NearestOpponentIdx with
@@ -356,6 +348,7 @@ module PlayerScorer =
         let scoreRaw =
             dribbling + agility + balance + zoneBonus + phaseMod + memMod + streakMod
             - tempoPenalty
+            - ctx.ImmediatePressure * d.DribblePressurePenalty
 
         ((scoreRaw / maxPossible) * condFactor ctx.MyCondition)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
@@ -393,15 +386,7 @@ module PlayerScorer =
         let directnessBonus = df * d.LongBallDirectnessBonus
 
         let pressureMod =
-            match ctx.NearestOpponentIdx with
-            | ValueSome oppIdx ->
-                let oppX = float ctx.Team.OppFrame.Physics.PosX[oppIdx] * 1.0<meter>
-                let oppY = float ctx.Team.OppFrame.Physics.PosY[oppIdx] * 1.0<meter>
-                let dx = ctx.MyPos.X - oppX
-                let dy = ctx.MyPos.Y - oppY
-                let dist = sqrt (dx * dx + dy * dy)
-                clampFloat (float dist / d.LongBallPressDistBase) d.LongBallPressMin d.LongBallPressMax
-            | ValueNone -> d.LongBallPressNoOpponent
+            1.0 - ctx.ImmediatePressure * 0.6
 
         let phaseMod =
             match ctx.Phase with

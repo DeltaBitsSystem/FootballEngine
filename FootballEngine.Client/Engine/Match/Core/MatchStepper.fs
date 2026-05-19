@@ -4,6 +4,7 @@ open FootballEngine.Domain
 open FootballEngine.Player
 open FootballEngine.Player.Actions
 open FootballEngine.Player.Perception
+open FootballEngine.TeamOrchestrator
 open FootballEngine.Types
 open FootballEngine.Types.IntentPhaseTypes
 open SimStateOps
@@ -434,8 +435,8 @@ module MatchStepper =
             |> applyDomainEvents state events
 
         if Scheduler.shouldRun teamFreq time semanticEvents then
-            TeamSystem.run ctx state clock time
-            |> applyDomainEvents state events
+            TeamDirector.tick (int time.Subtick) ctx state clock
+            TeamExecutor.run ctx state clock time |> ignore
 
         if Scheduler.shouldRun managerFreq time semanticEvents then
             let result = ManagerAgent.agent ctx state clock

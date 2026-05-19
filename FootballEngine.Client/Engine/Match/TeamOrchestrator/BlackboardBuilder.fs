@@ -80,7 +80,7 @@ let detectOpponentPressure (oppFrame: TeamFrame) (ballPos: Spatial) : OpponentPr
         elif ratio > 0.25 then OpponentPressure.MidPress
         else OpponentPressure.NoPress
 
-let computeThreatZones (influence: InfluenceFrame) (clubSide: ClubSide) : PitchZone[] =
+let computeThreatZones (influence: InfluenceFrame) (clubSide: ClubSide) : FlankZone[] =
     let oppThreshold = 0.3f
     let mutable threats = ResizeArray<int>()
 
@@ -99,12 +99,12 @@ let computeThreatZones (influence: InfluenceFrame) (clubSide: ClubSide) : PitchZ
     else
         threats
         |> Seq.map (fun cell ->
-            let cx, cy = cellToCenter cell
-            PitchZoneOps.ofPosition (float cx * 1.0<meter>) (float cy * 1.0<meter>))
+            let _, cy = cellToCenter cell
+            PitchZoneOps.toFlank (float cy * 1.0<meter>))
         |> Seq.distinct
         |> Seq.toArray
 
-let computeWeaknessZones (influence: InfluenceFrame) (clubSide: ClubSide) : PitchZone[] =
+let computeWeaknessZones (influence: InfluenceFrame) (clubSide: ClubSide) : FlankZone[] =
     let ourThreshold = 0.3f
     let mutable weaknesses = ResizeArray<int>()
 
@@ -125,8 +125,8 @@ let computeWeaknessZones (influence: InfluenceFrame) (clubSide: ClubSide) : Pitc
     else
         weaknesses
         |> Seq.map (fun cell ->
-            let cx, cy = cellToCenter cell
-            PitchZoneOps.ofPosition (float cx * 1.0<meter>) (float cy * 1.0<meter>))
+            let _, cy = cellToCenter cell
+            PitchZoneOps.toFlank (float cy * 1.0<meter>))
         |> Seq.distinct
         |> Seq.toArray
 

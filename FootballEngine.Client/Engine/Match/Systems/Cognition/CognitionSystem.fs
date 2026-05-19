@@ -164,7 +164,31 @@ module CognitionSystem =
                         let individual = individualPipeline actx
                         let blackboard = (getTeam state clubSide).Blackboard
                         let contextual = CollectiveModifiers.applyModifiers blackboard actx individual
-                        let rawIntent = MovementScorer.pickIntent (int time.Subtick) contextual actx
+
+                        let collectiveIntent = frame.CollectiveIntents[i]
+                        let withCollective =
+                            { contextual with
+                                PressBall = contextual.PressBall * collectiveIntent.PressBall
+                                SupportAttack = contextual.SupportAttack * collectiveIntent.SupportAttack
+                                CoverSpace = contextual.CoverSpace * collectiveIntent.CoverSpace
+                                MarkMan = contextual.MarkMan * collectiveIntent.MarkMan
+                                RecoverBall = contextual.RecoverBall * collectiveIntent.RecoverBall }
+
+                        let slotRole = box frame.SlotRoles[i] :?> SlotRole
+                        let withSlotRole =
+                            { withCollective with
+                                PressBall = withCollective.PressBall * SlotRole.pressBallBias slotRole
+                                SupportAttack = withCollective.SupportAttack * SlotRole.supportAttackBias slotRole
+                                CoverSpace = withCollective.CoverSpace * SlotRole.coverSpaceBias slotRole
+                                RecoverBall = withCollective.RecoverBall * SlotRole.recoverBallBias slotRole }
+
+                        let defRole = LanguagePrimitives.EnumOfValue<byte, DefensiveRole> frame.DefensiveRole[i]
+                        let withDefRole = MovementScorer.applyRoleModifiersForRole defRole actx.TeamHasBall withSlotRole
+
+                        let emergent = getEmergentState state clubSide
+                        let withEmergent = MovementScorer.applyEmergentModifiers emergent actx withDefRole
+
+                        let rawIntent = MovementScorer.pickIntent (int time.Subtick) withEmergent actx
 
                         let mutable finalIntent =
                             match rawIntent with

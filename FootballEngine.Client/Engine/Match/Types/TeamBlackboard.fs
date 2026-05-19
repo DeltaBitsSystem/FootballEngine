@@ -15,8 +15,8 @@ type TeamBlackboard =
     { OurPhase: TeamPhase
       OpponentShape: OpponentShape
       OpponentPressure: OpponentPressure
-      ThreatZones: PitchZone[]
-      WeaknessZones: PitchZone[]
+      ThreatZones: FlankZone[]
+      WeaknessZones: FlankZone[]
       MomentumStreak: float
       Urgency: float
       BallZone: PitchZone
