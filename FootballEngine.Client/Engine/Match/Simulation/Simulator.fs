@@ -213,7 +213,7 @@ module MatchSimulator =
               HomeChemistry = ChemistryGraph.init hCount
               AwayChemistry = ChemistryGraph.init aCount
               IsKnockoutMatch = isKnockout
-              Config = BalanceCalibrator.getConfig ()
+              Config = BalanceConfig.defaultConfig
               HomeRoster = homeRoster
               AwayRoster = awayRoster }
 
@@ -221,7 +221,7 @@ module MatchSimulator =
         state.SubTick <- 0<subtick>
         state.HomeScore <- 0
         state.AwayScore <- 0
-        state.Config <- BalanceCalibrator.getConfig ()
+        state.Config <- BalanceConfig.defaultConfig
 
         state.Ball <- { defaultBall with Control = Free }
 
@@ -394,7 +394,7 @@ module MatchSimulator =
         profileMap
         : Result<int * int * MatchEvent list * SimState, SimulationError> =
         result {
-            let validationErrors = ConfigValidation.validateAll (BalanceCalibrator.getConfig ())
+            let validationErrors = ConfigValidation.validateAll (BalanceConfig.defaultConfig)
 
             if not validationErrors.IsEmpty then
                 let msg = validationErrors |> String.concat "\n"
@@ -407,7 +407,7 @@ module MatchSimulator =
 
     let trySimulateMatchFull home away players staff profileMap : Result<MatchReplay, SimulationError> =
         result {
-            let validationErrors = ConfigValidation.validateAll (BalanceCalibrator.getConfig ())
+            let validationErrors = ConfigValidation.validateAll (BalanceConfig.defaultConfig)
 
             if not validationErrors.IsEmpty then
                 let msg = validationErrors |> String.concat "\n"
@@ -419,7 +419,7 @@ module MatchSimulator =
 
     let trySimulateMatchKnockout home away players staff profileMap : Result<MatchReplay * bool, SimulationError> =
         result {
-            let validationErrors = ConfigValidation.validateAll (BalanceCalibrator.getConfig ())
+            let validationErrors = ConfigValidation.validateAll (BalanceConfig.defaultConfig)
 
             if not validationErrors.IsEmpty then
                 let msg = validationErrors |> String.concat "\n"

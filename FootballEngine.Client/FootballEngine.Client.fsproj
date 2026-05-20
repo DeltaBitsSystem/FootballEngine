@@ -185,7 +185,6 @@
         <Compile Include="Engine\Match\Manager\ManagerAgent.fs"/>
 
         <Compile Include="Engine\Match\Core\MatchStepper.fs"/>
-        <Compile Include="Engine\Match\Simulation\BalanceCalibrator.fs"/>
         <Compile Include="Engine\Match\Simulation\EnvironmentSystems.fs"/>
         <Compile Include="Engine\Match\Simulation\Momentum.fs"/>
 
