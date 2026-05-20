@@ -3,6 +3,7 @@ namespace FootballEngine.TeamOrchestrator
 open FootballEngine
 open FootballEngine.Domain
 open FootballEngine.Types
+open FootballEngine.ML
 
 type PlanDeviation =
     | OnTrack
@@ -18,6 +19,7 @@ module ReactiveLoop =
         | TeamDirectiveState.Suspended d -> d.Params.Press.Intensity
 
     let private deviationFor (state: SimState) (clubSide: ClubSide) =
+        let w = EngineWeightDefaults.defaults.Collective.ReactiveLoop
         let emergent = SimStateOps.getEmergentState state clubSide
         let frame = SimStateOps.getFrame state clubSide
 
@@ -37,13 +39,14 @@ module ReactiveLoop =
         let avgCond = if active > 0 then float totalCond / float active else 50.0
         let fatigueDev = 1.0 - avgCond / 100.0
 
-        shapeDev * 0.4 + pressDev * 0.3 + fatigueDev * 0.3
+        shapeDev * w.ShapeDevWeight + pressDev * w.PressDevWeight + fatigueDev * w.FatigueDevWeight
 
     let run (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : PlanDeviation =
+        let w = EngineWeightDefaults.defaults.Collective.ReactiveLoop
         let homeDev = deviationFor state HomeClub
         let awayDev = deviationFor state AwayClub
         let totalDeviation = max homeDev awayDev
 
-        if totalDeviation < 0.15 then OnTrack
-        elif totalDeviation < 0.35 then Drifting totalDeviation
+        if totalDeviation < w.OnTrackThreshold then OnTrack
+        elif totalDeviation < w.DriftingThreshold then Drifting totalDeviation
         else Critical totalDeviation

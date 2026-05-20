@@ -2,8 +2,15 @@ namespace FootballEngine
 
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
+open FootballEngine.ML
 
 module CollectiveModifiers =
+
+    let private applyCoordination (mem: CoordinationMemory) (scores: MovementScores) : MovementScores =
+        let coord = clampFloat 0.90 1.20 mem.PressingCoordination
+        { scores with
+            PressBall = scores.PressBall * coord
+            CoverSpace = scores.CoverSpace * coord }
 
     let private getFlankOfPlayer (ctx: AgentContext) : FlankZone =
         PitchZoneOps.toFlank ctx.MyPos.Y
@@ -14,9 +21,14 @@ module CollectiveModifiers =
         (_defRole: DefensiveRole)
         (scores: MovementScores)
         : MovementScores =
+        let w = EngineWeightDefaults.defaults.Collective.Modifiers
         if bb.OurPhase = Transition && bb.JustLostBall then
             let distToBall = ctx.MyPos.DistTo2D ctx.BallState.Position
-            let multiplier = if distToBall < 15.0<meter> then 2.5 else 0.7
+            let multiplier =
+                if distToBall < w.TransitionNearDistance * 1.0<meter> then
+                    w.TransitionNearMult
+                else
+                    w.TransitionFarMult
             { scores with PressBall = scores.PressBall * multiplier }
         else
             scores
@@ -27,12 +39,13 @@ module CollectiveModifiers =
         (myFlank: FlankZone)
         (scores: MovementScores)
         : MovementScores =
+        let w = EngineWeightDefaults.defaults.Collective.Modifiers
         let flankMatch =
             bb.WeaknessZones
             |> Array.exists (fun z -> z = myFlank)
 
         if flankMatch then
-            { scores with SupportAttack = scores.SupportAttack * 1.4 }
+            { scores with SupportAttack = scores.SupportAttack * w.WeaknessSupportMult }
         else
             scores
 
@@ -42,10 +55,11 @@ module CollectiveModifiers =
         (slotRole: SlotRole)
         (scores: MovementScores)
         : MovementScores =
+        let w = EngineWeightDefaults.defaults.Collective.Modifiers
         if bb.OurPhase = Attacking && slotRole = AnchorDefense then
             { scores with
-                SupportAttack = scores.SupportAttack * 0.3
-                CoverSpace = scores.CoverSpace * 1.5 }
+                SupportAttack = scores.SupportAttack * w.RestDefenseSupportMult
+                CoverSpace = scores.CoverSpace * w.RestDefenseCoverMult }
         else
             scores
 
@@ -55,12 +69,13 @@ module CollectiveModifiers =
         (myFlank: FlankZone)
         (scores: MovementScores)
         : MovementScores =
+        let w = EngineWeightDefaults.defaults.Collective.Modifiers
         let threatMatch =
             bb.ThreatZones
             |> Array.exists (fun z -> z = myFlank)
 
         if threatMatch then
-            { scores with CoverSpace = scores.CoverSpace * 1.5 }
+            { scores with CoverSpace = scores.CoverSpace * w.ThreatCoverMult }
         else
             scores
 
@@ -69,13 +84,14 @@ module CollectiveModifiers =
         (ctx: AgentContext)
         (scores: MovementScores)
         : MovementScores =
+        let w = EngineWeightDefaults.defaults.Collective.Modifiers
         match bb.OpponentShape with
         | HighLine when ctx.TeamHasBall ->
-            { scores with SupportAttack = scores.SupportAttack * 1.3 }
+            { scores with SupportAttack = scores.SupportAttack * w.HighLineSupportMult }
         | LowBlock when not ctx.TeamHasBall ->
             { scores with
-                PressBall = scores.PressBall * 0.7
-                CoverSpace = scores.CoverSpace * 1.2 }
+                PressBall = scores.PressBall * w.LowBlockPressMult
+                CoverSpace = scores.CoverSpace * w.LowBlockCoverMult }
         | _ -> scores
 
     let private applyUrgency
@@ -83,10 +99,11 @@ module CollectiveModifiers =
         (_ctx: AgentContext)
         (scores: MovementScores)
         : MovementScores =
-        if bb.Urgency > 0.7 then
+        let w = EngineWeightDefaults.defaults.Collective.Modifiers
+        if bb.Urgency > w.UrgencyThreshold then
             { scores with
-                PressBall = scores.PressBall * (1.0 + bb.Urgency * 0.5)
-                SupportAttack = scores.SupportAttack * (1.0 + bb.Urgency * 0.3) }
+                PressBall = scores.PressBall * (1.0 + bb.Urgency * w.UrgencyPressMult)
+                SupportAttack = scores.SupportAttack * (1.0 + bb.Urgency * w.UrgencySupportMult) }
         else
             scores
 
@@ -112,3 +129,4 @@ module CollectiveModifiers =
         |> applyThreats blackboard ctx myFlank
         |> applyOpponentShape blackboard ctx
         |> applyUrgency blackboard ctx
+        |> applyCoordination blackboard.CoordinationMemory

@@ -1,6 +1,7 @@
 namespace FootballEngine.TeamOrchestrator
 
 open FootballEngine.Domain
+open FootballEngine.ML
 
 
 type FamiliarityPair =
@@ -16,12 +17,13 @@ type TeamCohesion =
 module ChemistryTracker =
 
     let updateFamiliarity (current: float) (successfulPass: bool) (minutesPlayed: float) : float =
-
-        let passBonus = if successfulPass then 0.02 else -0.005
-        let timeBonus = minutesPlayed * 0.001
+        let w = EngineWeightDefaults.defaults.Collective.Chemistry
+        let passBonus = if successfulPass then w.FamiliarityPassBonus else w.FamiliarityFailPenalty
+        let timeBonus = minutesPlayed * w.FamiliarityTimeBonus
         min 1.0 (current + passBonus + timeBonus)
 
     let calculateCohesion (familiarity: float[,]) (playerCount: int) : TeamCohesion =
+        let w = EngineWeightDefaults.defaults.Collective.Chemistry
 
         let mutable totalFam = 0.0
         let mutable count = 0
@@ -34,5 +36,5 @@ module ChemistryTracker =
         let avgFam = if count > 0 then totalFam / float count else 0.5
 
         { OverallCohesion = avgFam
-          PressingCoordination = avgFam * 0.8 + 0.1
-          TransitionSpeed = avgFam * 0.9 + 0.05 }
+          PressingCoordination = avgFam * w.PressingCoordinationFamiliarityMult + w.PressingCoordinationBase
+          TransitionSpeed = avgFam * w.TransitionSpeedFamiliarityMult + w.TransitionSpeedBase }

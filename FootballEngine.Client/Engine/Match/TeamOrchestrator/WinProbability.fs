@@ -2,6 +2,7 @@ namespace FootballEngine.TeamOrchestrator
 
 open FootballEngine
 open FootballEngine.Types
+open FootballEngine.ML
 open SimulationClock
 
 type MatchSituation =
@@ -12,25 +13,24 @@ type MatchSituation =
 module WinProbability =
 
     let calculate (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : float =
+        let w = EngineWeightDefaults.defaults.WinProbability
         let scoreDiff = state.HomeScore - state.AwayScore
         let minutesLeft = subTicksToSeconds clock state.SubTick / 60.0
 
-        // Base según marcador y minuto
         let baseProb =
             if scoreDiff > 0 then
-                0.55 + min 0.3 (float scoreDiff * 0.1)
+                w.GoalLeadBase + min w.GoalDiffSteepness (float scoreDiff * w.GoalDiffFactor)
             elif scoreDiff < 0 then
-                0.45 - min 0.3 (float -scoreDiff * 0.1)
+                w.DrawBase - min w.GoalDiffSteepness (float -scoreDiff * w.GoalDiffFactor)
             else
-                0.50
+                w.DrawBase
 
-        // Ajustes desde BalanceConfig (TODO: leer pesos de config)
-        let xGFactor = (state.HomeXG - state.AwayXG) * 0.15
+        let xGFactor = (state.HomeXG - state.AwayXG) * w.XGFactor
 
         let momentumFactor =
-            if state.Momentum > 2.0 then 0.08
-            elif state.Momentum < -2.0 then -0.08
-            else state.Momentum * 0.04
+            if state.Momentum > w.MomentumPositiveThreshold then w.MomentumPositiveBonus
+            elif state.Momentum < w.MomentumNegativeThreshold then w.MomentumNegativePenalty
+            else state.Momentum * w.MomentumLinearFactor
 
         let prob = baseProb + xGFactor + momentumFactor
         max 0.05 (min 0.95 prob)

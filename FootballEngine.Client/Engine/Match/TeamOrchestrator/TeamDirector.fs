@@ -7,6 +7,7 @@ open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
 open FootballEngine.Types.TacticsConfig
 open FootballEngine.Types.TeamDirectiveOps
+open FootballEngine.ML
 open SimStateOps
 
 
@@ -122,10 +123,11 @@ module BatchDecisionSupport =
                     let px = float frame.Physics.PosX[i] * 1.0<meter>
                     let isAdvanced = (px - 52.5<meter>) * forwardX > 5.0<meter>
 
+                    let w = EngineWeightDefaults.defaults.Collective.TeamDirector
                     let score =
-                        float player.Mental.WorkRate / 20.0 * 0.3
-                        + float player.Mental.Positioning / 20.0 * 0.4
-                        + (if isAdvanced then 0.5 else 0.0)
+                        float player.Mental.WorkRate / 20.0 * w.WorkRateWeight
+                        + float player.Mental.Positioning / 20.0 * w.PositioningWeight
+                        + (if isAdvanced then w.AdvancedBonus else 0.0)
 
                     if score > bestScore then
                         bestScore <- score

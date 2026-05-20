@@ -6,6 +6,7 @@ open FootballEngine.MatchSpatial
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
 open FootballEngine.Types.InfluenceTypes
+open FootballEngine.ML
 open SimStateOps
 
 let private detectOurPhase (state: SimState) (clubSide: ClubSide) : TeamPhase =
