@@ -125,7 +125,7 @@ module ActionResolver =
                 ValueNone
                 influence
 
-        let scores = PlayerScorer.computeAll actx state.MatchMemory
+        let scores = PlayerScorer.computeAll actx state.MatchMemory controller.ExperienceModifiers
         let mask = ActionEligibility.evaluate actx
         PlayerDecision.decide actx scores mask
 

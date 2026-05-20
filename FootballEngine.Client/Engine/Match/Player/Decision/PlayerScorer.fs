@@ -3,6 +3,7 @@ namespace FootballEngine.Player.Decision
 open System
 open FootballEngine
 open FootballEngine.Domain
+open FootballEngine.ML
 open FootballEngine.Player.Actions
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
@@ -25,7 +26,7 @@ module PlayerScorer =
 
     let private buildUpSideBonus (_pos: Position) = 0.0
 
-    let private shootScore (ctx: AgentContext) (matchMemory: MatchMemory) : float<decisionScore> =
+    let private shootScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
         let me = ctx.Me
         let d = ctx.Decision
         let t = ctx.Tactics
@@ -146,10 +147,10 @@ module PlayerScorer =
             + d.ShootBraveryPressureMod
             + 1.0
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition)
+        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.ShootingConfidence 0.85 1.15)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
-    let private passScore (ctx: AgentContext) (matchMemory: MatchMemory) : float<decisionScore> =
+    let private passScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
         let me = ctx.Me
         let d = ctx.Decision
         let t = ctx.Tactics
@@ -297,10 +298,10 @@ module PlayerScorer =
             + d.PassTrajectoryBonus
             + d.PassAnticipationBonus
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition)
+        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.PassingRhythm 0.85 1.15)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
-    let private dribbleScore (ctx: AgentContext) (matchMemory: MatchMemory) : float<decisionScore> =
+    let private dribbleScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
         let me = ctx.Me
         let d = ctx.Decision
         let t = ctx.Tactics
@@ -350,10 +351,10 @@ module PlayerScorer =
             - tempoPenalty
             - ctx.ImmediatePressure * d.DribblePressurePenalty
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition)
+        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.DuelMentality 0.85 1.15)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
-    let private crossScore (ctx: AgentContext) (matchMemory: MatchMemory) : float<decisionScore> =
+    let private crossScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
         let me = ctx.Me
         let d = ctx.Decision
         let t = ctx.Tactics
@@ -372,10 +373,10 @@ module PlayerScorer =
             + d.CrossZoneBonus
             + widthBonus
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition)
+        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.DuelMentality 0.85 1.15)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
-    let private longBallScore (ctx: AgentContext) (matchMemory: MatchMemory) : float<decisionScore> =
+    let private longBallScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
         let me = ctx.Me
         let d = ctx.Decision
         let t = ctx.Tactics
@@ -404,12 +405,12 @@ module PlayerScorer =
 
         let scoreRaw = (passing + vision) * pressureMod + phaseMod + directnessBonus
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition)
+        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.PassingRhythm 0.85 1.15)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
-    let computeAll (ctx: AgentContext) (matchMemory: MatchMemory) : ActionScores =
-        { Shoot = shootScore ctx matchMemory
-          Pass = passScore ctx matchMemory
-          Dribble = dribbleScore ctx matchMemory
-          Cross = crossScore ctx matchMemory
-          LongBall = longBallScore ctx matchMemory }
+    let computeAll (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : ActionScores =
+        { Shoot = shootScore ctx matchMemory exp
+          Pass = passScore ctx matchMemory exp
+          Dribble = dribbleScore ctx matchMemory exp
+          Cross = crossScore ctx matchMemory exp
+          LongBall = longBallScore ctx matchMemory exp }
