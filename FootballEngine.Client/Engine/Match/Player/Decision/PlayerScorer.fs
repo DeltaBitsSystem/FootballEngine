@@ -18,15 +18,17 @@ type ActionScores =
 
 module PlayerScorer =
 
-    let private normStat (v: int) = float v / 20.0
-    let private condFactor (c: float32) = 0.90 + 0.10 * (float c / 100.0)
+    let private normStat (v: int) = MathPipelines.normStat v
+    let private condFactor (c: float32) =
+        let cond = float c / 100.0
+        0.90 + 0.10 * sqrt cond
 
-    let private directnessFactor (t: TacticsConfig) (profile: BehavioralProfile) =
-        t.Directness * 0.6 + profile.Directness * 0.4
+    let private directnessFactor (t: TacticsConfig) (profile: BehavioralProfile) (iw: IndividualWeights) =
+        t.Directness * iw.DirectnessBlendTactic + profile.Directness * iw.DirectnessBlendProfile
 
     let private buildUpSideBonus (_pos: Position) = 0.0
 
-    let private shootScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
+    let private shootScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) (sw: ShootWeights) : float<decisionScore> =
         let me = ctx.Me
         let d = ctx.Decision
         let t = ctx.Tactics
@@ -46,14 +48,15 @@ module PlayerScorer =
         let distPenalty =
             clampFloat (float ctx.DistToGoal / d.ShootDistPenaltyDivisor) 0.0 d.ShootDistPenaltyMax
 
-        let df = directnessFactor t ctx.Profile
-        let mentalityBonus = t.UrgencyMultiplier * 0.1
+        let iw = EngineWeightDefaults.defaults.Individual
+        let df = directnessFactor t ctx.Profile iw
+        let mentalityBonus = t.UrgencyMultiplier * sw.XGInfluence
         let directnessBonus = df * d.ShootDirectnessBonus
 
-        let composureStateMod = ctx.MentalState.ComposureLevel * 0.12
-        let confidenceMod = ctx.MentalState.ConfidenceLevel * 0.08
-        let focusMod = ctx.MentalState.FocusLevel * 0.06
-        let riskBonus = ctx.MentalState.RiskTolerance * d.ShootDirectnessBonus * 0.5
+        let composureStateMod = ctx.MentalState.ComposureLevel * sw.ComposureStateMod
+        let confidenceMod = ctx.MentalState.ConfidenceLevel * sw.ConfidenceMod
+        let focusMod = ctx.MentalState.FocusLevel * sw.FocusMod
+        let riskBonus = ctx.MentalState.RiskTolerance * sw.RiskBonus
 
         let streakMod =
             MatchMemory.successStreakModifier ctx.Team.ClubSide ctx.MeIdx matchMemory
@@ -208,15 +211,16 @@ module PlayerScorer =
             ctx.Profile.CreativityWeight * d.CreativityWeight
             + (1.0 - ctx.Profile.Directness) * d.DirectnessWeight
 
-        let df = directnessFactor t ctx.Profile
-        let tempoBias = t.Tempo * 0.15
-        let directBias = -(df * 0.20)
+        let iw = EngineWeightDefaults.defaults.Individual
+        let df = directnessFactor t ctx.Profile iw
+        let tempoBias = t.Tempo * iw.Pass.AttackPhasePenalty
+        let directBias = -(df * iw.Pass.TargetBonus)
 
         let busMod = buildUpSideBonus me.Position
 
-        let confidenceMod = ctx.MentalState.ConfidenceLevel * 0.08
-        let riskMod = ctx.MentalState.RiskTolerance * d.PassTargetBonus * 0.3
-        let focusMod = ctx.MentalState.FocusLevel * 0.05
+        let confidenceMod = ctx.MentalState.ConfidenceLevel * iw.Pass.ComposureWeight
+        let riskMod = ctx.MentalState.RiskTolerance * d.PassTargetBonus * iw.Pass.TargetBonus
+        let focusMod = ctx.MentalState.FocusLevel * iw.SoftmaxTemperature
 
         let passMemMod =
             MatchMemory.passFailureModifier ctx.Team.ClubSide ctx.MeIdx matchMemory
@@ -244,7 +248,7 @@ module PlayerScorer =
                 if runningIntoSpace then
                     anticipation
                 else
-                    anticipation * 0.3
+                    anticipation * iw.DirectnessBlendProfile
             | ValueNone -> 0.0
 
         let influenceSpaceBonus =
@@ -258,7 +262,7 @@ module PlayerScorer =
 
                 let passSafety = float ctx.Influence.AttackerPassSafety[targetCell]
                 let defCoverage = float ctx.Influence.DefenderCoverage[targetCell]
-                (passSafety - 0.5) * 0.15 + (1.0 - defCoverage) * 0.10
+                (passSafety - 0.5) * iw.Pass.TargetBonus + (1.0 - defCoverage) * iw.SoftmaxTemperature
 
         let scoreRaw =
             passing
@@ -321,7 +325,8 @@ module PlayerScorer =
             | Midfield -> 0.0
             | Attack -> d.DribbleAttackPhaseBonus
 
-        let df = directnessFactor t ctx.Profile
+        let iw = EngineWeightDefaults.defaults.Individual
+        let df = directnessFactor t ctx.Profile iw
         let tempoPenalty = t.Tempo * (1.0 - df) * d.DribbleTempoPenalty
 
         let zoneBonusMax = max d.DribbleZoneBonusAttacking d.DribbleZoneBonusMidfield
@@ -383,11 +388,12 @@ module PlayerScorer =
         let passing = normStat me.Technical.Passing * d.LongBallPassingWeight
         let vision = normStat me.Mental.Vision * d.LongBallVisionWeight
 
-        let df = directnessFactor t ctx.Profile
+        let iw = EngineWeightDefaults.defaults.Individual
+        let df = directnessFactor t ctx.Profile iw
         let directnessBonus = df * d.LongBallDirectnessBonus
 
         let pressureMod =
-            1.0 - ctx.ImmediatePressure * 0.6
+            1.0 - ctx.ImmediatePressure * iw.LongBall.PressNoOpponent
 
         let phaseMod =
             match ctx.Phase with
@@ -409,7 +415,8 @@ module PlayerScorer =
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
     let computeAll (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : ActionScores =
-        { Shoot = shootScore ctx matchMemory exp
+        let sw = EngineWeightDefaults.defaults.Individual.Shoot
+        { Shoot = shootScore ctx matchMemory exp sw
           Pass = passScore ctx matchMemory exp
           Dribble = dribbleScore ctx matchMemory exp
           Cross = crossScore ctx matchMemory exp
