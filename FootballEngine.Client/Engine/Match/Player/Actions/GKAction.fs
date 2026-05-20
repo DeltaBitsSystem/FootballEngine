@@ -221,7 +221,7 @@ module GKAction =
                     let dx = targetSp.X - gkX
                     let dy = targetSp.Y - gkY
                     let dist = sqrt (dx * dx + dy * dy)
-                    let vz = speed * 0.15
+                    let vz = speed * gkc.DistributionAccuracyMult * 0.15
 
                     let vx, vy =
                         if dist < 0.01<meter> then

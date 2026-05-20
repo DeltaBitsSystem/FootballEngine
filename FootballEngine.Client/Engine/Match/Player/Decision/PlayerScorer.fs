@@ -26,6 +26,10 @@ module PlayerScorer =
     let private directnessFactor (t: TacticsConfig) (profile: BehavioralProfile) (iw: IndividualWeights) =
         t.Directness * iw.DirectnessBlendTactic + profile.Directness * iw.DirectnessBlendProfile
 
+    let private expMin = 0.85
+    let private expMax = 1.15
+    let private influenceSpaceBonusMax = 0.25
+
     let private buildUpSideBonus (_pos: Position) = 0.0
 
     let private shootScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) (sw: ShootWeights) : float<decisionScore> =
@@ -150,7 +154,7 @@ module PlayerScorer =
             + d.ShootBraveryPressureMod
             + 1.0
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.ShootingConfidence 0.85 1.15)
+        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.ShootingConfidence expMin expMax)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
     let private passScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
@@ -296,13 +300,13 @@ module PlayerScorer =
             + confidenceMod
             + riskMod
             + focusMod
-            + 0.25
+            + influenceSpaceBonusMax
             + d.PassDecisionsWeight
             + d.PassConcentrationMod
             + d.PassTrajectoryBonus
             + d.PassAnticipationBonus
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.PassingRhythm 0.85 1.15)
+        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.PassingRhythm expMin expMax)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
     let private dribbleScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
@@ -356,7 +360,7 @@ module PlayerScorer =
             - tempoPenalty
             - ctx.ImmediatePressure * d.DribblePressurePenalty
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.DuelMentality 0.85 1.15)
+        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.DuelMentality expMin expMax)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
     let private crossScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
@@ -378,7 +382,7 @@ module PlayerScorer =
             + d.CrossZoneBonus
             + widthBonus
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.DuelMentality 0.85 1.15)
+        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.DuelMentality expMin expMax)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
     let private longBallScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
@@ -411,7 +415,7 @@ module PlayerScorer =
 
         let scoreRaw = (passing + vision) * pressureMod + phaseMod + directnessBonus
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.PassingRhythm 0.85 1.15)
+        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.PassingRhythm expMin expMax)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
     let computeAll (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : ActionScores =

@@ -123,7 +123,7 @@ module CrossAction =
                 |] }
             else
                 let target, targetSp = targets[0]
-                let accuracyNoise = 0.15 * (1.0 - quality)
+                let accuracyNoise = EngineWeightDefaults.defaults.Outcomes.Cross.GkSkillDivisor / 1000.0 * (1.0 - quality)
 
                 let targetX =
                     targetSp.X + normalSample 0.0 accuracyNoise * 1.0<meter>
