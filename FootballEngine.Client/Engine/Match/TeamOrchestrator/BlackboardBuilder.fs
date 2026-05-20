@@ -234,4 +234,5 @@ let build (state: SimState) (clubSide: ClubSide) (ctx: MatchContext) : TeamBlack
       Urgency = urgency
       BallZone = ballZone
       JustLostBall = justLostBall
-      PressTriggerZone = pressTriggerZone }
+      PressTriggerZone = pressTriggerZone
+      CoordinationMemory = CoordinationMemory.defaultMemory }

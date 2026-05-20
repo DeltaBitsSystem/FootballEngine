@@ -21,7 +21,8 @@ type TeamBlackboard =
       Urgency: float
       BallZone: PitchZone
       JustLostBall: bool
-      PressTriggerZone: PitchZone }
+      PressTriggerZone: PitchZone
+      CoordinationMemory: CoordinationMemory }
 
 module TeamBlackboard =
     let empty =
@@ -34,4 +35,5 @@ module TeamBlackboard =
           Urgency = 0.0
           BallZone = MidfieldZone
           JustLostBall = false
-          PressTriggerZone = MidfieldZone }
+          PressTriggerZone = MidfieldZone
+          CoordinationMemory = CoordinationMemory.defaultMemory }

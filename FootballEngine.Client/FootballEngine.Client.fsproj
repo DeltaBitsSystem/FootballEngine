@@ -11,6 +11,7 @@
         <Compile Include="Domain\DomainTypes.fs"/>
         <Compile Include="Domain\Country.fs"/>
         <Compile Include="Domain\Training.fs"/>
+        <Compile Include="Domain\ExperienceModifiers.fs"/>
         <Compile Include="Domain\Player.fs"/>
         <Compile Include="Domain\PlayerExperience.fs"/>
         <Compile Include="Domain\Club.fs"/>
@@ -60,6 +61,7 @@
 
 
         <Compile Include="Engine\Match\Types\IntentTypes.fs"/>
+        <Compile Include="Engine\Match\Types\CoordinationMemory.fs"/>
         <Compile Include="Engine\Match\Types\TeamBlackboard.fs"/>
         <Compile Include="Engine\Match\Types\MatchMemory.fs"/>
 

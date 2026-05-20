@@ -209,4 +209,5 @@ module PlayerGen =
             )
           TrainingSchedule =
             { Focus = TrainingFocus.TrainingAllRound
-              Intensity = TrainingIntensity.TrainingNormal } }
+              Intensity = TrainingIntensity.TrainingNormal }
+          ExperienceModifiers = ExperienceModifiers.defaultModifiers }

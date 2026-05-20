@@ -195,7 +195,8 @@ module Mappers =
           Affiliation = affiliationFromEntity e
           TrainingSchedule =
             { Focus = parseTrainingFocus e.TrainingFocus
-              Intensity = parseTrainingIntensity e.TrainingIntensity } }
+              Intensity = parseTrainingIntensity e.TrainingIntensity }
+          ExperienceModifiers = ExperienceModifiers.defaultModifiers }
 
     let toClubEntity (club: Club) : ClubEntity =
         { Id = club.Id
