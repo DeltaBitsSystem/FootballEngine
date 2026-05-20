@@ -1,6 +1,7 @@
 namespace FootballEngine.Player.Actions
 
 open FootballEngine.Domain
+open FootballEngine.ML
 
 open FootballEngine.Stats
 open FootballEngine.Types

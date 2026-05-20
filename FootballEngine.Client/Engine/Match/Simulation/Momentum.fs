@@ -1,6 +1,7 @@
 namespace FootballEngine.Simulation
 
 open FootballEngine.Domain
+open FootballEngine.ML
 
 type MatchMomentum =
     { HomeMomentum: float
@@ -19,8 +20,9 @@ module DynamicMomentum =
           ConsecutiveAwayEvents = 0 }
 
     let update (momentum: MatchMomentum) (subTick: int) (eventClub: ClubSide) : MatchMomentum =
-        let delta = 0.5
-        let decay = 0.02
+        let mw = EngineWeightDefaults.defaults.Momentum
+        let delta = mw.EventDelta
+        let decay = mw.Decay
 
         let (homeM, awayM, homeC, awayC) =
             match eventClub with
@@ -29,8 +31,8 @@ module DynamicMomentum =
             | AwayClub ->
                 (momentum.HomeMomentum - decay, momentum.AwayMomentum + delta, 0, momentum.ConsecutiveAwayEvents + 1)
 
-        { HomeMomentum = max -10.0 (min 10.0 homeM)
-          AwayMomentum = max -10.0 (min 10.0 awayM)
+        { HomeMomentum = max mw.Min (min mw.Max homeM)
+          AwayMomentum = max mw.Min (min mw.Max awayM)
           LastEventSubTick = subTick
           ConsecutiveHomeEvents = homeC
           ConsecutiveAwayEvents = awayC }

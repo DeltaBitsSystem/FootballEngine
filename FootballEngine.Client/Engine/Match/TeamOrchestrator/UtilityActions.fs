@@ -1,6 +1,7 @@
 namespace FootballEngine
 
 open FootballEngine.Domain
+open FootballEngine.ML
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
 
@@ -40,25 +41,26 @@ module private UtilityEvaluators =
         (clubSide: ClubSide)
         (ctx: MatchContext)
         =
+        let uw = EngineWeightDefaults.defaults.Utility
         let ballZoneBonus =
             match depth, bb.BallZone with
-            | PressHigh, AttackingZone -> 0.4
-            | PressHigh, MidfieldZone -> 0.1
-            | PressHigh, _ -> -0.3
-            | PressMid, (AttackingZone | MidfieldZone) -> 0.3
-            | PressMid, _ -> -0.1
-            | PressLow, _ -> 0.1
+            | PressHigh, AttackingZone -> uw.PressZoneBonus_HighAttacking
+            | PressHigh, MidfieldZone -> uw.PressZoneBonus_HighMidfield
+            | PressHigh, _ -> uw.PressZoneBonus_HighDefensive
+            | PressMid, (AttackingZone | MidfieldZone) -> uw.PressZoneBonus_MidAttackingMidfield
+            | PressMid, _ -> uw.PressZoneBonus_MidDefensive
+            | PressLow, _ -> uw.PressZoneBonus_Low
 
         let avgCond = avgCondition state clubSide
         let staminaFactor = avgCond / 100.0
 
         let opponentBonus =
             if bb.OpponentShape = OpponentShape.HighLine && bb.OpponentPressure = NoPress then
-                0.3
+                uw.OpponentHighLineNoPressBonus
             else
                 0.0
 
-        let successBonus = emergent.PressingIntensity * 0.2
+        let successBonus = emergent.PressingIntensity * uw.PressingSuccessBonus
 
         clamp (ballZoneBonus * staminaFactor + opponentBonus + successBonus) 0.0 1.0
 
@@ -69,23 +71,24 @@ module private UtilityEvaluators =
         (clubSide: ClubSide)
         (ctx: MatchContext)
         =
+        let uw = EngineWeightDefaults.defaults.Utility
         let sd = scoreDiffFor state clubSide
         let ml = minutesLeft state
 
         let leadBonus =
-            if sd > 0 then min 0.5 (float sd * 0.2)
+            if sd > 0 then min (uw.DropDeepLeadBonus * float sd) (uw.DropDeepLeadBonus * 2.5)
             elif sd < 0 then -0.4
             else 0.0
 
-        let timeBonus = if ml < 15.0 && sd >= 0 then 0.3 else 0.0
+        let timeBonus = if ml < 15.0 && sd >= 0 then uw.DropDeepTimeBonus else 0.0
 
         let threatPenalty =
             if bb.OpponentShape = OpponentShape.HighLine then
-                -0.2
+                uw.DropDeepHighLinePenalty
             else
                 0.0
 
-        clamp (0.3 + leadBonus + timeBonus + threatPenalty) 0.0 1.0
+        clamp (uw.DropDeepBase + leadBonus + timeBonus + threatPenalty) 0.0 1.0
 
     let evaluateCounterPress
         (bb: TeamBlackboard)
@@ -94,12 +97,13 @@ module private UtilityEvaluators =
         (clubSide: ClubSide)
         (ctx: MatchContext)
         =
+        let uw = EngineWeightDefaults.defaults.Utility
         if not bb.JustLostBall then
             0.0
         else
             let staminaFactor = avgCondition state clubSide / 100.0
-            let intensityBonus = emergent.PressingIntensity * 0.3
-            clamp (0.5 * staminaFactor + intensityBonus) 0.0 1.0
+            let intensityBonus = emergent.PressingIntensity * uw.CounterPressIntensityBonus
+            clamp (uw.CounterPressBase * staminaFactor + intensityBonus) 0.0 1.0
 
     let evaluateBuildFromBack
         (bb: TeamBlackboard)
@@ -108,28 +112,31 @@ module private UtilityEvaluators =
         (clubSide: ClubSide)
         (ctx: MatchContext)
         =
+        let uw = EngineWeightDefaults.defaults.Utility
         if bb.OurPhase = Defending then
             0.0
         else
             let comfortBonus =
-                if bb.OpponentPressure = NoPress then 0.4
-                elif bb.OpponentPressure = MidPress then 0.1
-                else -0.2
+                if bb.OpponentPressure = NoPress then uw.BuildFromBackNoPressBonus
+                elif bb.OpponentPressure = MidPress then uw.BuildFromBackMidPressBonus
+                else uw.BuildFromBackHighPressPenalty
 
-            let shapeBonus = if bb.OpponentShape = LowBlock then 0.2 else 0.0
+            let shapeBonus = if bb.OpponentShape = LowBlock then uw.BuildFromBackLowBlockBonus else 0.0
 
-            clamp (0.3 + comfortBonus + shapeBonus) 0.0 1.0
+            clamp (uw.BuildFromBackBase + comfortBonus + shapeBonus) 0.0 1.0
 
     let evaluatePlayWings bb emergent state clubSide ctx =
+        let uw = EngineWeightDefaults.defaults.Utility
         if bb.OurPhase = Defending then
             0.0
         else
-            let wingSpace = if bb.WeaknessZones.Length > 0 then 0.3 else 0.0
+            let wingSpace = if bb.WeaknessZones.Length > 0 then uw.WingSpaceBase else 0.0
 
             let staminaFactor = avgCondition state clubSide / 100.0
-            clamp (0.3 + wingSpace + staminaFactor * 0.2) 0.0 1.0
+            clamp (uw.DropDeepBase + wingSpace + staminaFactor * uw.StaminaWingMult) 0.0 1.0
 
     let evaluateOverloadFlank flank bb emergent state clubSide ctx =
+        let uw = EngineWeightDefaults.defaults.Utility
         if bb.OurPhase = Defending then
             0.0
         else
@@ -141,86 +148,92 @@ module private UtilityEvaluators =
             let hasWeakness =
                 bb.WeaknessZones |> Array.exists (fun z -> z = targetFlank)
 
-            let bonus = if hasWeakness then 0.4 else 0.1
-            clamp (0.3 + bonus) 0.0 1.0
+            let bonus = if hasWeakness then uw.OverloadWeaknessBonus else 0.1
+            clamp (uw.OverloadFlankBase + bonus) 0.0 1.0
 
     let evaluateDirectPlay bb emergent state clubSide ctx =
+        let uw = EngineWeightDefaults.defaults.Utility
         let sd = scoreDiffFor state clubSide
         let ml = minutesLeft state
 
         let urgencyBonus =
-            if sd < 0 && ml < 20.0 then 0.4
-            elif sd < 0 then 0.2
+            if sd < 0 && ml < 20.0 then uw.DirectPlayUrgencyBonus
+            elif sd < 0 then uw.DirectPlayUrgencyBonusAny
             else 0.0
 
         let highLineBonus =
             if bb.OpponentShape = OpponentShape.HighLine then
-                0.3
+                uw.DirectPlayHighLineBonus
             else
                 0.0
 
-        clamp (0.2 + urgencyBonus + highLineBonus) 0.0 1.0
+        clamp (uw.DirectPlayBase + urgencyBonus + highLineBonus) 0.0 1.0
 
     let evaluateSitAndCounter bb emergent state clubSide ctx =
+        let uw = EngineWeightDefaults.defaults.Utility
         let sd = scoreDiffFor state clubSide
 
         if sd <= 0 then
-            0.1
+            uw.SitAndCounterBase
         else
-            let leadBonus = min 0.3 (float sd * 0.15)
+            let leadBonus = min (uw.SitAndCounterLeadBonus * 2.0) (float sd * uw.SitAndCounterLeadBonus)
             let staminaFactor = avgCondition state clubSide / 100.0
-            clamp (0.3 + leadBonus + staminaFactor * 0.2) 0.0 1.0
+            clamp (uw.SitAndCounterBase + leadBonus + staminaFactor * uw.SitAndCounterStaminaFactor) 0.0 1.0
 
     let evaluateHoldPossession bb emergent state clubSide ctx =
+        let uw = EngineWeightDefaults.defaults.Utility
         let sd = scoreDiffFor state clubSide
         let ml = minutesLeft state
 
         let leadBonus =
-            if sd > 0 then 0.3
-            elif sd = 0 then 0.1
-            else -0.2
+            if sd > 0 then uw.HoldPossessionLeadBonus
+            elif sd = 0 then uw.HoldPossessionDrawBonus
+            else uw.HoldPossessionLosingPenalty
 
-        let timeBonus = if ml < 10.0 && sd >= 0 then 0.3 else 0.0
+        let timeBonus = if ml < 10.0 && sd >= 0 then uw.HoldPossessionTimeBonus else 0.0
 
-        let pressPenalty = if bb.OpponentPressure = HighPress then -0.2 else 0.0
+        let pressPenalty = if bb.OpponentPressure = HighPress then uw.HoldPossessionPressPenalty else 0.0
 
-        clamp (0.3 + leadBonus + timeBonus + pressPenalty) 0.0 1.0
+        clamp (uw.HoldPossessionBase + leadBonus + timeBonus + pressPenalty) 0.0 1.0
 
     let evaluateCompactBlock bb emergent state clubSide ctx =
+        let uw = EngineWeightDefaults.defaults.Utility
         let sd = scoreDiffFor state clubSide
         let ml = minutesLeft state
 
         let defensiveBonus =
-            if sd < 0 then 0.2
-            elif sd > 0 then -0.1
+            if sd < 0 then uw.CompactBlockLosingBonus
+            elif sd > 0 then uw.CompactBlockWinningPenalty
             else 0.0
 
         let opponentBonus =
             if bb.OpponentShape = OpponentShape.HighLine then
                 0.1
             else
-                0.2
+                uw.CompactBlockOpponentBonus
 
-        let timeBonus = if ml < 15.0 && sd >= 0 then 0.2 else 0.0
+        let timeBonus = if ml < 15.0 && sd >= 0 then uw.CompactBlockTimeBonus else 0.0
 
-        clamp (0.3 + defensiveBonus + opponentBonus + timeBonus) 0.0 1.0
+        clamp (uw.CompactBlockBase + defensiveBonus + opponentBonus + timeBonus) 0.0 1.0
 
     let evaluateHighLine bb emergent state clubSide ctx =
+        let uw = EngineWeightDefaults.defaults.Utility
         if bb.OurPhase = Attacking then
             0.0
         else
-            let cohesionBonus = emergent.CompactnessLevel * 0.3
+            let cohesionBonus = emergent.CompactnessLevel * uw.HighLineCohesionBonus
             let staminaFactor = avgCondition state clubSide / 100.0
 
             let riskPenalty =
                 if bb.OpponentShape = OpponentShape.HighLine then
-                    -0.2
+                    uw.HighLineRiskPenalty
                 else
                     0.0
 
-            clamp (0.2 + cohesionBonus + staminaFactor * 0.2 + riskPenalty) 0.0 1.0
+            clamp (uw.HighLineBase + cohesionBonus + staminaFactor * uw.HighLineStaminaFactor + riskPenalty) 0.0 1.0
 
-    let evaluateStructured _bb _emergent _state _clubSide _ctx = 0.25
+    let evaluateStructured _bb _emergent _state _clubSide _ctx =
+        EngineWeightDefaults.defaults.Utility.StructuredBase
 
 module UtilityActions =
 
@@ -291,7 +304,9 @@ module UtilityActions =
         let best = allActions[bestIdx]
 
         match prevAction with
-        | Some prev when prev <> best -> if bestScore > prevScore + 0.15 then best else prev
+        | Some prev when prev <> best ->
+            let uw = EngineWeightDefaults.defaults.Utility
+            if bestScore > prevScore + uw.DirectiveChangeThreshold then best else prev
         | _ -> best
 
     let toDirectiveKind (action: CollectiveAction) : DirectiveKind =

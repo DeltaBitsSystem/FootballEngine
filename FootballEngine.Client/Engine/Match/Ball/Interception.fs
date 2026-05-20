@@ -1,6 +1,7 @@
 namespace FootballEngine
 
 open FootballEngine.Domain
+open FootballEngine.ML
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
 open FootballEngine.Player.Decision.ActionMath
@@ -23,12 +24,13 @@ module Interception =
             else
                 let baseTime = (dist - float captureRadius) / maxSpeed
 
+                let iw = EngineWeightDefaults.defaults.Outcomes.Interception
                 let intentFactor =
                     match intentKind with
                     | IntentKind.PressBall
-                    | IntentKind.RecoverBall -> 0.7
-                    | IntentKind.MaintainShape -> 1.4
-                    | IntentKind.CoverSpace -> 1.2
+                    | IntentKind.RecoverBall -> iw.PressIntentFactor
+                    | IntentKind.MaintainShape -> iw.MaintainShapeIntentFactor
+                    | IntentKind.CoverSpace -> iw.CoverSpaceIntentFactor
                     | _ -> 1.0
 
                 baseTime * intentFactor

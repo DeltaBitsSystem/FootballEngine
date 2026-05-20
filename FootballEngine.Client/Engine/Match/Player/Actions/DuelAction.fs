@@ -6,6 +6,7 @@ open FootballEngine.Domain
 open FootballEngine.Player.Decision
 
 open FootballEngine.Referee
+open FootballEngine.ML
 open FootballEngine.SimStateOps
 open FootballEngine.Stats
 open FootballEngine.Types

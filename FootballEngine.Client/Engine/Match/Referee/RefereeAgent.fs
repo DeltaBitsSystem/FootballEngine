@@ -1,6 +1,7 @@
 namespace FootballEngine
 
 open FootballEngine.Domain
+open FootballEngine.ML
 open FootballEngine.Types
 open SimStateOps
 open Stats
@@ -9,14 +10,16 @@ open PhysicsContract
 module RefereeAgent =
 
     let cardProbability (config: HomeAdvantageConfig) (playerClub: ClubSide) (p: Player) =
-        let baseProb = 0.010 + float p.Mental.Aggression * 0.0004
+        let rw = EngineWeightDefaults.defaults.Referee
+        let baseProb = rw.CardBaseProb + float p.Mental.Aggression * rw.CardAggressionMult
 
         match playerClub with
         | HomeClub -> baseProb * (1.0 - config.CardReduction)
         | AwayClub -> baseProb
 
     let injuryProbability (p: Player) =
-        0.0008 + float (100 - p.Physical.Strength) * 0.00002
+        let rw = EngineWeightDefaults.defaults.Referee
+        rw.InjuryBaseProb + float (100 - p.Physical.Strength) * rw.InjuryStrengthInverseMult
 
     type BallOutResult =
         | NoOut
@@ -115,6 +118,7 @@ module RefereeAgent =
 
     let decideCard (fouler: Player) (ctx: MatchContext) (state: SimState) : RefereeAction list =
         let aggressionNorm = normaliseAttr fouler.Mental.Aggression
+        let rw = EngineWeightDefaults.defaults.Referee
 
         let isHome = playerOnSide ctx state HomeClub fouler.Id
 
@@ -130,7 +134,7 @@ module RefereeAgent =
             []
         elif currentYellows >= 1 then
             [ IssueRed(fouler, clubId) ]
-        elif bernoulli (0.25 + aggressionNorm * 0.35) then
+        elif bernoulli (rw.FoulAggressionBase + aggressionNorm * rw.FoulAggressionMult) then
             [ IssueYellow(fouler, clubId) ]
         else
             []

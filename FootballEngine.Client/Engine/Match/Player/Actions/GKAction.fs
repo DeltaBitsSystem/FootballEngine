@@ -4,6 +4,7 @@ open FootballEngine
 open FootballEngine.Domain
 open FootballEngine.MatchSpatial
 open FootballEngine.Player.Decision
+open FootballEngine.ML
 open FootballEngine.Referee
 open FootballEngine.SimStateOps
 open FootballEngine.Stats
