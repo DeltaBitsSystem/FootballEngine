@@ -4,6 +4,7 @@ open System
 open FootballEngine.Domain
 open FootballEngine.Data
 open FootballEngine.Stats
+open FootballEngine.ML
 
 module WorldGen =
 
@@ -322,7 +323,7 @@ module WorldGen =
         let userManager =
             createUserManager userStaffId managerName primaryCountry userClubId year
 
-        let profileCache = world.Players |> Map.map (fun _ p -> Player.profile p)
+        let profileCache = world.Players |> Map.map (fun _ p -> Player.profile p EngineWeightDefaults.defaults.ProfileWeights)
 
         let activeMods = DataRegistry.activeMods () |> List.map (fun m -> m.Id, m.Version)
 

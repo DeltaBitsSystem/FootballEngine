@@ -4,18 +4,21 @@ open System
 open FootballEngine.Domain
 open FootballEngine.Stats
 open FootballEngine.World
+open FootballEngine.ML
 
 module TrainingEngine =
+
+    let private dev = EngineWeightDefaults.defaults.Development
 
     let focusMultiplier (focus: TrainingFocus) (profile: BehavioralProfile) : float =
         match focus with
         | TrainingFocus.TrainingAllRound -> 1.0
-        | TrainingFocus.TrainingGoalkeeping -> 1.5
+        | TrainingFocus.TrainingGoalkeeping -> dev.FocusMultiplier_Goalkeeping
         | TrainingFocus.TrainingPhysical ->
-            profile.PressingIntensity * 1.0 + profile.PositionalFreedom * 0.5 + 0.5
+            profile.PressingIntensity * dev.FocusMultiplier_Physical_Pressing + profile.PositionalFreedom * dev.FocusMultiplier_Physical_Positional + dev.FocusMultiplier_PhysicalBase
         | TrainingFocus.TrainingTechnical ->
-            profile.CreativityWeight * 1.0 + profile.Directness * 0.5 + 0.5
-        | TrainingFocus.TrainingMental -> 1.2
+            profile.CreativityWeight * dev.FocusMultiplier_Technical_Creativity + profile.Directness * dev.FocusMultiplier_Technical_Directness + dev.FocusMultiplier_TechnicalBase
+        | TrainingFocus.TrainingMental -> dev.FocusMultiplier_Mental
 
     let intensityEffect (intensity: TrainingIntensity) : TrainingIntensityData = TrainingIntensityData.get intensity
 
@@ -35,12 +38,17 @@ module TrainingEngine =
         : Player =
         let gap = potential - currentSkill
 
+        let maxDeltaU21 = dev.AgeBracket_MaxDelta_U21
+        let maxDeltaU25 = dev.AgeBracket_MaxDelta_U25
+        let maxDeltaU28 = dev.AgeBracket_MaxDelta_U28
+        let maxDeltaU31 = dev.AgeBracket_MaxDelta_U31
+
         let baseDelta =
             match age with
-            | a when a <= 20 -> min gap 4
-            | a when a <= 24 -> min gap 3
-            | a when a <= 27 -> min gap 2
-            | a when a <= 30 -> 1
+            | a when a <= 20 -> min gap maxDeltaU21
+            | a when a <= 24 -> min gap maxDeltaU25
+            | a when a <= 27 -> min gap maxDeltaU28
+            | a when a <= 30 -> maxDeltaU31
             | _ -> 0
 
         if baseDelta <= 0 then
@@ -48,7 +56,7 @@ module TrainingEngine =
         else
             let focusMult = focusMultiplier schedule.Focus profile
             let intensityMult = intensityEffect schedule.Intensity |> fun e -> e.DeltaMultiplier
-            let weeklyDelta = float baseDelta * focusMult * intensityMult / 120.0
+            let weeklyDelta = float baseDelta * focusMult * intensityMult / dev.WeeklyDeltaDivisor
 
             let roll = rollProbability ()
             let shouldIncrease = roll < weeklyDelta
@@ -118,7 +126,7 @@ module TrainingEngine =
             age
             playerWithCondition.CurrentSkill
             playerWithCondition.PotentialSkill
-            (Player.profile playerWithCondition)
+            (Player.profile playerWithCondition EngineWeightDefaults.defaults.ProfileWeights)
             playerWithCondition
 
     let applyRemainingSeasonTraining
@@ -156,6 +164,8 @@ module TrainingEngine =
 
 module PlayerDevelopment =
 
+    let private dev = EngineWeightDefaults.defaults.Development
+
     let private skillDelta
         (age: int)
         (skill: int)
@@ -165,14 +175,20 @@ module PlayerDevelopment =
         : int =
         let gap = potential - skill
 
+        let maxDeltaU21 = dev.AgeBracket_MaxDelta_U21
+        let maxDeltaU25 = dev.AgeBracket_MaxDelta_U25
+        let maxDeltaU28 = dev.AgeBracket_MaxDelta_U28
+        let maxDeltaU31 = dev.AgeBracket_MaxDelta_U31
+        let maxDeltaU34 = dev.AgeBracket_MaxDelta_U34
+
         match schedule with
         | None ->
             match age with
-            | a when a <= 20 -> normalInt (float (min gap 4)) 1.5 0 (min gap 5)
-            | a when a <= 24 -> normalInt (float (min gap 2)) 1.5 -1 (min gap 3)
-            | a when a <= 27 -> normalInt 0.5 1.0 -1 2
-            | a when a <= 30 -> normalInt -0.5 1.0 -2 1
-            | a when a <= 33 -> normalInt -1.5 1.0 -3 0
+            | a when a <= 20 -> normalInt (float (min gap maxDeltaU21)) 1.5 0 (min gap (maxDeltaU21 + 1))
+            | a when a <= 24 -> normalInt (float (min gap maxDeltaU25)) 1.5 -1 (min gap (maxDeltaU25 + 1))
+            | a when a <= 27 -> normalInt 0.5 1.0 -1 maxDeltaU28
+            | a when a <= 30 -> normalInt -0.5 1.0 -2 maxDeltaU31
+            | a when a <= 33 -> normalInt -1.5 1.0 -3 maxDeltaU34
             | _ -> normalInt -2.5 1.0 -4 -1
         | Some sched ->
             let focusMult = TrainingEngine.focusMultiplier sched.Focus profile
@@ -185,27 +201,27 @@ module PlayerDevelopment =
             match age with
             | a when a <= 20 ->
                 normalInt
-                    (float (min gap 4) * combinedMult)
+                    (float (min gap maxDeltaU21) * combinedMult)
                     (1.5 * combinedMult)
                     0
-                    (int (float (min gap 5) * combinedMult))
+                    (int (float (min gap (maxDeltaU21 + 1)) * combinedMult))
             | a when a <= 24 ->
                 normalInt
-                    (float (min gap 2) * combinedMult)
+                    (float (min gap maxDeltaU25) * combinedMult)
                     (1.5 * combinedMult)
                     -1
-                    (int (float (min gap 3) * combinedMult))
-            | a when a <= 27 -> normalInt (0.5 * combinedMult) (1.0 * combinedMult) -1 (int (float 2 * combinedMult))
-            | a when a <= 30 -> normalInt (-0.5 * combinedMult) (1.0 * combinedMult) -2 (int (float 1 * combinedMult))
-            | a when a <= 33 -> normalInt (-1.5 * combinedMult) (1.0 * combinedMult) -3 0
+                    (int (float (min gap (maxDeltaU25 + 1)) * combinedMult))
+            | a when a <= 27 -> normalInt (0.5 * combinedMult) (1.0 * combinedMult) -1 (int (float maxDeltaU28 * combinedMult))
+            | a when a <= 30 -> normalInt (-0.5 * combinedMult) (1.0 * combinedMult) -2 (int (float maxDeltaU31 * combinedMult))
+            | a when a <= 33 -> normalInt (-1.5 * combinedMult) (1.0 * combinedMult) -3 maxDeltaU34
             | _ -> normalInt (-2.5 * combinedMult) (1.0 * combinedMult) -4 -1
 
     let private maybeStat (delta: int) (stat: int) : int =
         let threshold =
             if delta > 0 then
-                0.35 * float delta
+                dev.MaybeStat_PositiveThreshold * float delta
             else
-                0.50 * float (abs delta)
+                dev.MaybeStat_NegativeThreshold * float (abs delta)
 
         let roll = rollProbability ()
 
@@ -215,15 +231,33 @@ module PlayerDevelopment =
             stat
 
     let private physFocus (profile: BehavioralProfile) =
-        if profile.DefensiveHeight > 0.5 then "defensive"
-        elif profile.AttackingDepth > 0.6 && profile.Directness > 0.5 then "attacking"
+        if profile.DefensiveHeight > dev.StatFocus_DefensiveHeightThreshold then "defensive"
+        elif profile.AttackingDepth > dev.StatFocus_AttackingDepthThreshold && profile.Directness > dev.StatFocus_DirectnessThreshold then "attacking"
         else "general"
 
     let private techFocus (profile: BehavioralProfile) =
-        if profile.Directness > 0.5 && profile.AttackingDepth > 0.5 then "attack"
-        elif profile.DefensiveHeight > 0.5 then "defense"
-        elif profile.CreativityWeight > 0.5 then "playmaking"
+        if profile.Directness > dev.StatFocus_DirectnessThreshold && profile.AttackingDepth > dev.StatFocus_AttackingDepthThreshold then "attack"
+        elif profile.DefensiveHeight > dev.StatFocus_DefensiveHeightThreshold then "defense"
+        elif profile.CreativityWeight > dev.StatFocus_CreativityThreshold then "playmaking"
         else "general"
+
+    let applyPostMatchExperience (goals: int) (shots: int) (passSuccessRate: float) (duelWinRate: float) (current: ExperienceModifiers) : ExperienceModifiers =
+        let shootingPerf = if shots > 0 then float goals / float shots else 0.5
+        let shootingAdj = if shootingPerf > 0.3 then 1.01 elif shootingPerf > 0.15 then 1.0 else 0.99
+        let passingAdj = if passSuccessRate > 0.8 then 1.01 elif passSuccessRate > 0.6 then 1.0 else 0.99
+        let duelAdj = if duelWinRate > 0.55 then 1.01 elif duelWinRate > 0.4 then 1.0 else 0.99
+        let pressureAdj = if goals > 0 && shootingPerf > 0.3 then 1.01 else 1.0
+        { ShootingConfidence = Math.Clamp(0.85, 1.15, current.ShootingConfidence * shootingAdj)
+          PassingRhythm = Math.Clamp(0.85, 1.15, current.PassingRhythm * passingAdj)
+          DuelMentality = Math.Clamp(0.85, 1.15, current.DuelMentality * duelAdj)
+          HighPressureBonus = Math.Clamp(0.85, 1.15, current.HighPressureBonus * pressureAdj) }
+
+    let applyWeeklyExperienceDecay (current: ExperienceModifiers) : ExperienceModifiers =
+        let decay = 0.95
+        { ShootingConfidence = 1.0 + (current.ShootingConfidence - 1.0) * decay
+          PassingRhythm = 1.0 + (current.PassingRhythm - 1.0) * decay
+          DuelMentality = 1.0 + (current.DuelMentality - 1.0) * decay
+          HighPressureBonus = 1.0 + (current.HighPressureBonus - 1.0) * decay }
 
     let private developStats (delta: int) (profile: BehavioralProfile) (currentDate: DateTime) (p: Player) =
         let phys =
@@ -283,7 +317,7 @@ module PlayerDevelopment =
 
     let developPlayer (currentDate: DateTime) (schedule: TrainingSchedule option) (p: Player) : Player =
         let a = Player.age currentDate p
-        let prof = Player.profile p
+        let prof = Player.profile p EngineWeightDefaults.defaults.ProfileWeights
         let delta = skillDelta a p.CurrentSkill p.PotentialSkill schedule prof
         let newCA = clamp 1 p.PotentialSkill (p.CurrentSkill + delta)
 
@@ -308,7 +342,12 @@ module PlayerDevelopment =
                 gs.Players
                 |> Map.map (fun _ p ->
                     let schedule = Some p.TrainingSchedule
-                    developPlayer gs.CurrentDate schedule p) }
+                    let developed = developPlayer gs.CurrentDate schedule p
+                    let decayedExp =
+                        { developed with
+                            ExperienceModifiers =
+                                applyWeeklyExperienceDecay developed.ExperienceModifiers }
+                    decayedExp) }
 
 module DevelopmentPhase =
 

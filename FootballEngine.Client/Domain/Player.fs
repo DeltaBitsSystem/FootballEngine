@@ -116,7 +116,7 @@ module Player =
         | Contracted(_, contract) -> Some contract
         | _ -> None
 
-    let profile (p: Player) : BehavioralProfile =
+    let profile (p: Player) (pw: ProfileWeights) : BehavioralProfile =
         let norm x = float x / 20.0
         let clamp01 v = Math.Clamp(v, 0.0, 1.0)
 
@@ -126,12 +126,12 @@ module Player =
 
         let positionalFreedom =
             clamp01 (
-                norm mental.Positioning * 0.15
-                + norm mental.Vision * 0.15
-                + norm phys.Stamina * 0.20
-                + norm mental.Concentration * 0.10
-                + norm phys.Balance * 0.15
-                + norm phys.Agility * 0.25
+                norm mental.Positioning * pw.PositionalFreedom_PositioningWeight
+                + norm mental.Vision * pw.PositionalFreedom_VisionWeight
+                + norm phys.Stamina * pw.PositionalFreedom_StaminaWeight
+                + norm mental.Concentration * pw.PositionalFreedom_ConcentrationWeight
+                + norm phys.Balance * pw.PositionalFreedom_BalanceWeight
+                + norm phys.Agility * pw.PositionalFreedom_AgilityWeight
             )
 
         let attackingDepth =
@@ -145,12 +145,12 @@ module Player =
                 | AMC -> 0.65
                 | ST -> 0.85
             clamp01 (
-                posBase * 0.50
-                + norm phys.Pace * 0.15
-                + norm phys.Acceleration * 0.12
-                + norm tech.Finishing * 0.08
-                + norm mental.Composure * 0.05
-                + norm phys.Stamina * 0.10
+                posBase * pw.AttackingDepth_PositionBaseMultiplier
+                + norm phys.Pace * pw.AttackingDepth_PaceWeight
+                + norm phys.Acceleration * pw.AttackingDepth_AccelerationWeight
+                + norm tech.Finishing * pw.AttackingDepth_FinishingWeight
+                + norm mental.Composure * pw.AttackingDepth_ComposureWeight
+                + norm phys.Stamina * pw.AttackingDepth_StaminaWeight
             )
 
         let lateralTendency =
@@ -171,7 +171,7 @@ module Player =
                 | WBL -> -0.85
                 | WBR -> 0.85
 
-            Math.Clamp(baseFromPosition + norm tech.Crossing * 0.15 + norm phys.Pace * 0.10, -1.0, 1.0)
+            Math.Clamp(baseFromPosition + norm tech.Crossing * pw.LateralTendency_CrossingWeight + norm phys.Pace * pw.LateralTendency_PaceWeight, -1.0, 1.0)
 
         let defensiveHeight =
             let posBase =
@@ -184,69 +184,69 @@ module Player =
                 | AML | AMR | AMC -> 0.25
                 | ST -> 0.10
             clamp01 (
-                posBase * 0.55
-                + norm mental.WorkRate * 0.15
-                + norm tech.Tackling * 0.10
-                + norm mental.Positioning * 0.12
-                + norm phys.Stamina * 0.08
+                posBase * pw.DefensiveHeight_PositionBaseMultiplier
+                + norm mental.WorkRate * pw.DefensiveHeight_WorkRateWeight
+                + norm tech.Tackling * pw.DefensiveHeight_TacklingWeight
+                + norm mental.Positioning * pw.DefensiveHeight_PositioningWeight
+                + norm phys.Stamina * pw.DefensiveHeight_StaminaWeight
             )
 
         let pressingIntensity =
             clamp01 (
-                norm phys.Stamina * 0.30
-                + norm mental.WorkRate * 0.25
-                + norm mental.Aggression * 0.20
-                + norm phys.Pace * 0.15
-                + norm mental.Concentration * 0.10
+                norm phys.Stamina * pw.PressingIntensity_StaminaWeight
+                + norm mental.WorkRate * pw.PressingIntensity_WorkRateWeight
+                + norm mental.Aggression * pw.PressingIntensity_AggressionWeight
+                + norm phys.Pace * pw.PressingIntensity_PaceWeight
+                + norm mental.Concentration * pw.PressingIntensity_ConcentrationWeight
             )
 
         let riskAppetite =
             clamp01 (
-                norm tech.Passing * 0.15
-                + norm tech.LongShots * 0.15
-                + norm mental.Vision * 0.20
-                + norm mental.Composure * 0.20
-                + norm tech.Dribbling * 0.15
-                + norm mental.Bravery * 0.15
+                norm tech.Passing * pw.RiskAppetite_PassingWeight
+                + norm tech.LongShots * pw.RiskAppetite_LongShotsWeight
+                + norm mental.Vision * pw.RiskAppetite_VisionWeight
+                + norm mental.Composure * pw.RiskAppetite_ComposureWeight
+                + norm tech.Dribbling * pw.RiskAppetite_DribblingWeight
+                + norm mental.Bravery * pw.RiskAppetite_BraveryWeight
             )
 
         let directness =
             clamp01 (
-                norm tech.Finishing * 0.20
-                + norm phys.Pace * 0.20
-                + norm phys.Acceleration * 0.15
-                + norm mental.Aggression * 0.15
-                + norm tech.Dribbling * 0.10
-                + norm phys.Strength * 0.10
-                + (1.0 - norm tech.Passing) * 0.10
+                norm tech.Finishing * pw.Directness_FinishingWeight
+                + norm phys.Pace * pw.Directness_PaceWeight
+                + norm phys.Acceleration * pw.Directness_AccelerationWeight
+                + norm mental.Aggression * pw.Directness_AggressionWeight
+                + norm tech.Dribbling * pw.Directness_DribblingWeight
+                + norm phys.Strength * pw.Directness_StrengthWeight
+                + (1.0 - norm tech.Passing) * pw.Directness_InversePassingWeight
             )
 
         let creativityWeight =
             clamp01 (
-                norm tech.Passing * 0.25
-                + norm mental.Vision * 0.30
-                + norm tech.BallControl * 0.15
-                + norm tech.Dribbling * 0.10
-                + norm mental.Composure * 0.10
-                + norm tech.Crossing * 0.10
+                norm tech.Passing * pw.CreativityWeight_PassingWeight
+                + norm mental.Vision * pw.CreativityWeight_VisionWeight
+                + norm tech.BallControl * pw.CreativityWeight_BallControlWeight
+                + norm tech.Dribbling * pw.CreativityWeight_DribblingWeight
+                + norm mental.Composure * pw.CreativityWeight_ComposureWeight
+                + norm tech.Crossing * pw.CreativityWeight_CrossingWeight
             )
 
         let aerialThreat =
             clamp01 (
-                clamp01 (float phys.JumpingReach / 20.0) * 0.35
-                + norm tech.Heading * 0.30
-                + norm phys.Strength * 0.20
-                + norm mental.Bravery * 0.15
+                clamp01 (float phys.JumpingReach / 20.0) * pw.AerialThreat_JumpingReachWeight
+                + norm tech.Heading * pw.AerialThreat_HeadingWeight
+                + norm phys.Strength * pw.AerialThreat_StrengthWeight
+                + norm mental.Bravery * pw.AerialThreat_BraveryWeight
             )
 
         let holdUpPlay =
             clamp01 (
-                norm phys.Strength * 0.25
-                + norm tech.BallControl * 0.20
-                + norm mental.Composure * 0.15
-                + norm tech.Passing * 0.15
-                + norm tech.Heading * 0.10
-                + norm phys.Balance * 0.15
+                norm phys.Strength * pw.HoldUpPlay_StrengthWeight
+                + norm tech.BallControl * pw.HoldUpPlay_BallControlWeight
+                + norm mental.Composure * pw.HoldUpPlay_ComposureWeight
+                + norm tech.Passing * pw.HoldUpPlay_PassingWeight
+                + norm tech.Heading * pw.HoldUpPlay_HeadingWeight
+                + norm phys.Balance * pw.HoldUpPlay_BalanceWeight
             )
 
         { PositionalFreedom = positionalFreedom

@@ -6,6 +6,7 @@ open System.IO
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
 open FootballEngine.Types.SimulationClock
+open FootballEngine.Domain
 
 // ============================================================================
 // PARTIAL TYPES — CLIMutable DTOs for JSON deserialization

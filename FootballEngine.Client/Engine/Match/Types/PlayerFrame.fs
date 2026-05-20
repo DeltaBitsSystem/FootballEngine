@@ -51,7 +51,7 @@ type PlayerRoster =
 
 module PlayerRoster =
     let build (players: Player[]) : PlayerRoster =
-        let profiles = players |> Array.map Player.profile
+        let profiles = players |> Array.map (fun p -> Player.profile p ProfileWeightDefaults.defaults)
 
         { Players = players
           Profiles = profiles

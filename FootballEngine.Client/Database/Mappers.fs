@@ -3,6 +3,7 @@ namespace FootballEngine.Database
 open System
 open FootballEngine.Domain
 open FootballEngine.Database.Serializers
+open FootballEngine.ML
 
 module Mappers =
 
@@ -125,7 +126,7 @@ module Mappers =
           ContractExpiry = contractExpiry
           TrainingFocus = trainingFocusToString player.TrainingSchedule.Focus
           TrainingIntensity = trainingIntensityToString player.TrainingSchedule.Intensity
-          BehavioralProfile = behavioralProfileToString (Player.profile player) }
+          BehavioralProfile = behavioralProfileToString (Player.profile player EngineWeightDefaults.defaults.ProfileWeights) }
 
     let toPlayerDomain (e: PlayerEntity) : Player =
         let status =

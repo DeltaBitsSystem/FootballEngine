@@ -6,6 +6,7 @@ open FootballEngine.MatchSpatial
 open FootballEngine.Player.Actions
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
+open FootballEngine.ML
 open SimStateOps
 
 open SimulationClock
@@ -162,7 +163,7 @@ module MatchSimulator =
                     |> Map.tryFind p.Id
                     |> Option.defaultValue (HalfwayLineX, PitchWidth / 2.0)
 
-                let prof = profileMap |> Map.tryFind p.Id |> Option.defaultValue (Player.profile p)
+                let prof = profileMap |> Map.tryFind p.Id |> Option.defaultValue (Player.profile p EngineWeightDefaults.defaults.ProfileWeights)
 
                 let kx =
                     match p.Position with

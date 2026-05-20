@@ -9,6 +9,7 @@ open FootballEngine.World
 open TacticalInstructions
 open FootballEngine.Database
 open FootballEngine.Database.Mappers
+open FootballEngine.ML
 open SQLite
 
 module Db =
@@ -271,7 +272,7 @@ module Db =
                               NextNegotiationId = 1
                               ProfileCache =
                                   players
-                                  |> Map.map (fun _ p -> Player.profile p)
+                                  |> Map.map (fun _ p -> Player.profile p EngineWeightDefaults.defaults.ProfileWeights)
                               PlayerExperiences = Map.empty },
                             restoredClock
                         )
