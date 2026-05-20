@@ -27,6 +27,7 @@
         <Compile Include="Layer3_EdgeCases/GKEdgeCaseTests.fs"/>
         <Compile Include="Layer3_EdgeCases/PassEdgeCaseTests.fs"/>
         <Compile Include="Layer3_EdgeCases/PlayerPersonalityTests.fs"/>
+        <Compile Include="Layer3_EdgeCases/MathPipelinesTests.fs"/>
         <Compile Include="Enginetests.fs"/>
         <Compile Include="Worldtests.fs"/>
         <Compile Include="TrainingSystemTests.fs"/>

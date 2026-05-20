@@ -37,7 +37,8 @@ let makePlayer (id: PlayerId) (pos: Position) (skill: int) : Player =
       Condition = 100; MatchFitness = 100; Morale = 50; Status = Available
       CurrentSkill = skill; PotentialSkill = skill; Reputation = 50
       Affiliation = Contracted(1, { Salary = 1000m; ExpiryYear = 2030 })
-      TrainingSchedule = { Focus = TrainingAllRound; Intensity = TrainingLight } }
+      TrainingSchedule = { Focus = TrainingAllRound; Intensity = TrainingLight }
+      ExperienceModifiers = ExperienceModifiers.defaultModifiers }
 
 let makeGk (id: PlayerId) (skill: int) (reflexes: int) (handling: int) : Player =
     let p = makePlayer id GK skill

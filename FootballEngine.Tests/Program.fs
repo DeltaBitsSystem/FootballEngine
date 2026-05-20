@@ -25,6 +25,7 @@ open FootballEngine.Tests.Layer3.ShotEdgeCaseTests
 open FootballEngine.Tests.Layer3.GKEdgeCaseTests
 open FootballEngine.Tests.Layer3.PassEdgeCaseTests
 open FootballEngine.Tests.Layer3.PlayerPersonalityTests
+open FootballEngine.Tests.Layer3.MathPipelinesTests
 
 [<EntryPoint>]
 let main argv =
@@ -48,7 +49,8 @@ let main argv =
               shotEdgeCaseTests
               gkEdgeCaseTests
               passEdgeCaseTests
-              playerPersonalityTests ]
+              playerPersonalityTests
+              tests ]
 
     let engineTests =
         testList "Engine" [ batchTests; doubleSimGuardTests; standingUpdateTests; fixtureIntegrityTests ]

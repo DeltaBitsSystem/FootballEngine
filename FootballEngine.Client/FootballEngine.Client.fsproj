@@ -93,6 +93,7 @@
         <Compile Include="Engine\Match\Core\MatchSpatial.fs"/>
         <Compile Include="Engine\Match\Core\MatchContext.fs"/>
         <Compile Include="Engine\Match\Core\SimStateOps.fs"/>
+        <Compile Include="Engine\Match\Core\MathPipelines.fs"/>
 
 
         <Compile Include="Engine\Match\Referee\FoulAnalysis.fs"/>
