@@ -61,7 +61,7 @@ module OutcomeResolver =
     let private trackXG (state: SimState) (shooterClub: ClubSide) (ballPos: Spatial) (shootingDir: AttackDir) =
         let dist = shotDistance ballPos shootingDir
         let angle = shotAngle ballPos shootingDir
-        let xg = Player.Actions.xGCalculator.baseXG dist angle
+        let xg = Player.Actions.xGCalculator.baseXGWithDefaults dist angle
 
         if shooterClub = HomeClub then
             state.HomeXG <- state.HomeXG + xg

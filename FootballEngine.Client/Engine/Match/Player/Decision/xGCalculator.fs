@@ -1,6 +1,8 @@
 namespace FootballEngine.Player.Actions
 
+open FootballEngine
 open FootballEngine.Domain
+open FootballEngine.ML
 
 open FootballEngine.Types.PhysicsContract
 
@@ -17,30 +19,39 @@ type xGModel =
 
 module xGCalculator =
 
-    let baseXG (dist: float<meter>) (angle: float) : float =
+    let baseXG (dist: float<meter>) (angle: float) (w: XGWeights) : float =
         let d = float dist
         let a = angle
-        let distFactor = max 0.0 (1.0 - d / 30.0)
-        let angleFactor = a / 180.0
-        distFactor * angleFactor * 0.8
+        let distFactor = MathPipelines.xgDistanceComponent w.DistanceFactor d
+        let angleFactor = System.Math.Pow(a / 180.0, w.AngleExponent)
+        distFactor * angleFactor * w.BaseMultiplier
 
-    let adjustForShotType (xg: float) (shotType: ShotType) : float =
+    let adjustForShotType (xg: float) (shotType: ShotType) (w: XGWeights) : float =
         match shotType with
-        | ShotType.Header -> xg * 0.7
-        | ShotType.Volley -> xg * 0.6
-        | ShotType.HalfVolley -> xg * 0.75
-        | ShotType.ChipShot -> xg * 0.85
-        | ShotType.Curler -> xg * 0.9
-        | ShotType.DrivenShot -> xg * 1.1
-        | ShotType.PlacedShot -> xg * 1.0
-        | ShotType.FirstTimeShot -> xg * 0.8
+        | ShotType.Header -> xg * w.HeaderMultiplier
+        | ShotType.Volley -> xg * w.VolleyMultiplier
+        | ShotType.HalfVolley -> xg * w.HalfVolleyMultiplier
+        | ShotType.ChipShot -> xg * w.ChipShotMultiplier
+        | ShotType.Curler -> xg * w.CurlerMultiplier
+        | ShotType.DrivenShot -> xg * w.DrivenShotMultiplier
+        | ShotType.PlacedShot -> xg * w.PlacedShotMultiplier
+        | ShotType.FirstTimeShot -> xg * w.FirstTimeShotMultiplier
 
-    let adjustForPressure (xg: float) (pressure: float) : float = xg * (1.0 - pressure * 0.5)
+    let adjustForPressure (xg: float) (pressure: float) (w: XGWeights) : float =
+        xg * (1.0 - pressure * w.PressureReduction)
 
-    let calculate (model: xGModel) : float =
-        let xg = baseXG model.DistanceToGoal model.AngleToGoal
-        let xg2 = adjustForShotType xg model.ShotType
-        let xg3 = adjustForPressure xg2 model.PressureLevel
-        let xg4 = if model.IsOneOnOne then xg3 * 1.3 else xg3
-        let xg5 = if model.IsSetPiece then xg4 * 0.8 else xg4
+    let calculate (model: xGModel) (w: XGWeights) : float =
+        let xg = baseXG model.DistanceToGoal model.AngleToGoal w
+        let xg2 = adjustForShotType xg model.ShotType w
+        let xg3 = adjustForPressure xg2 model.PressureLevel w
+        let xg4 = if model.IsOneOnOne then xg3 * w.OneOnOneMultiplier else xg3
+        let xg5 = if model.IsSetPiece then xg4 * w.SetPieceMultiplier else xg4
         min 1.0 (max 0.0 xg5)
+
+    let calculateWithDefaults (model: xGModel) : float =
+        let w = EngineWeightDefaults.defaults.Outcomes.XG
+        calculate model w
+
+    let baseXGWithDefaults (dist: float<meter>) (angle: float) : float =
+        let w = EngineWeightDefaults.defaults.Outcomes.XG
+        baseXG dist angle w

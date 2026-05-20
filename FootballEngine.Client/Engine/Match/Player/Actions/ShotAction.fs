@@ -175,7 +175,7 @@ module ShotAction =
                           IsOneOnOne = false
                           IsSetPiece = false }
 
-                    let xgValue = xGCalculator.calculate xgModel
+                    let xgValue = xGCalculator.calculateWithDefaults xgModel
 
                     let newBall =
                         { state.Ball with

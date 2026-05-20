@@ -35,8 +35,6 @@ type ExecutionInput =
       Condition: int }
 
 module ActionMath =
-    let private norm v = normaliseAttr v
-    let private cond = normaliseCondition
     let private sigmoid x = 1.0 / (1.0 + System.Math.Exp(-x))
 
     // Probability helpers (using unique names to avoid collisions with Stats.fs)
@@ -65,43 +63,43 @@ module ActionMath =
         Probability.from (dist.Sample())
 
     let calcIntention (i: IntentionInput) : float<intention> =
-        let base' = (norm i.Vision * 0.65) + (norm i.Composure * 0.35)
-        let penalty = i.Pressure * (1.0 - norm i.Composure) * 0.30
+        let base' = (MathPipelines.normStat i.Vision * 0.65) + (MathPipelines.normStat i.Composure * 0.35)
+        let penalty = i.Pressure * (1.0 - MathPipelines.normStat i.Composure) * 0.30
 
-        (base' * cond i.Condition - penalty)
+        (base' * MathPipelines.normCondition i.Condition - penalty)
         |> clampFloat 0.05 1.0
         |> LanguagePrimitives.FloatWithMeasure<intention>
 
     let calcExecution (e: ExecutionInput) : float<execution> =
         let base' =
-            (norm e.TechnicalA * 0.55)
-            + (norm e.TechnicalB * 0.25)
-            + (norm e.PhysicalA * 0.20)
+            (MathPipelines.normStat e.TechnicalA * 0.55)
+            + (MathPipelines.normStat e.TechnicalB * 0.25)
+            + (MathPipelines.normStat e.PhysicalA * 0.20)
 
-        (base' * sqrt (cond e.Condition))
+        (base' * sqrt (MathPipelines.normCondition e.Condition))
         |> clampFloat 0.05 1.0
         |> LanguagePrimitives.FloatWithMeasure<execution>
 
     let calcMovementExecution (agility: int) (balance: int) (acceleration: int) (condition: int) : float<execution> =
         let base' =
-            (norm agility * 0.55) + (norm balance * 0.25) + (norm acceleration * 0.20)
+            (MathPipelines.normStat agility * 0.55) + (MathPipelines.normStat balance * 0.25) + (MathPipelines.normStat acceleration * 0.20)
 
-        (base' * sqrt (cond condition))
+        (base' * sqrt (MathPipelines.normCondition condition))
         |> clampFloat 0.05 1.0
         |> LanguagePrimitives.FloatWithMeasure<execution>
 
     let playerMaxSpeed (pace: int) (condition: int) : float<meter / second> =
-        let paceNorm = normaliseAttr pace
-        let condFactor = sqrt (normaliseCondition condition)
+        let paceNorm = MathPipelines.normStat pace
+        let condFactor = sqrt (MathPipelines.normCondition condition)
         (PlayerSpeedMin + (PlayerSpeedMax - PlayerSpeedMin) * paceNorm) * condFactor
 
     let playerAccel (acceleration: int) (condition: int) : float<meter / second^2> =
-        let aNorm = normaliseAttr acceleration
-        let condFactor = normaliseCondition condition
+        let aNorm = MathPipelines.normStat acceleration
+        let condFactor = MathPipelines.normCondition condition
         (PlayerAccelMin + (PlayerAccelMax - PlayerAccelMin) * aNorm) * condFactor
 
     let shotSpeed (finishing: int) : float<meter / second> =
-        let fNorm = normaliseAttr finishing
+        let fNorm = MathPipelines.normStat finishing
         ShotSpeedMin + (ShotSpeedMax - ShotSpeedMin) * fNorm
 
     let evalPerformance (config: PerformanceConfig) (stat: float) (condition: int) (morale: int) : float =

@@ -1,6 +1,8 @@
 namespace FootballEngine.Player.Decision
 
+open FootballEngine
 open FootballEngine.Domain
+open FootballEngine.ML
 open FootballEngine.Types
 
 
@@ -18,23 +20,26 @@ type PlayerPersonality =
 
 module PlayerPersonality =
 
-    let derive (player: Player) : PlayerPersonality =
+    let derive (player: Player) (pw: PersonalityWeights) : PlayerPersonality =
         let mental = player.Mental
-        let norm (v: int) = float v / 20.0
+        let norm = MathPipelines.normStat
 
-        { Flair = norm mental.Vision * 0.6 + norm player.Technical.Dribbling * 0.4
-          Consistency = norm mental.Concentration * 0.5 + norm mental.Composure * 0.5
+        { Flair = norm mental.Vision * pw.FlairVisionWeight + norm player.Technical.Dribbling * pw.FlairDribblingWeight
+          Consistency = norm mental.Concentration * pw.ConsistencyConcentrationWeight + norm mental.Composure * pw.ConsistencyComposureWeight
           ImportantMatches =
             norm mental.Composure * 0.4
             + norm mental.Leadership * 0.3
             + norm player.Morale * 0.3
-          Controversy = norm mental.Aggression * 0.5 + (1.0 - norm mental.Composure) * 0.5
-          Leadership = norm mental.Leadership
-          Teamwork = norm mental.WorkRate * 0.6 + norm mental.Positioning * 0.4
-          Ambition = norm player.Morale * 0.5 + norm mental.WorkRate * 0.5
-          Pressure = norm mental.Composure * 0.7 + norm mental.Concentration * 0.3
-          Sportsmanship = 1.0 - norm mental.Aggression * 0.6
-          Temperament = norm mental.Composure * 0.5 + norm mental.Concentration * 0.5 }
+          Controversy = norm mental.Aggression * pw.ControversyAggressionWeight + (1.0 - norm mental.Composure) * pw.ControversyComposureWeight
+          Leadership = norm mental.Leadership * pw.LeadershipWeight
+          Teamwork = norm mental.WorkRate * pw.TeamworkWorkRateWeight + norm mental.Positioning * pw.TeamworkPositioningWeight
+          Ambition = norm player.Morale * pw.AmbitionMoraleWeight + norm mental.WorkRate * pw.AmbitionWorkRateWeight
+          Pressure = norm mental.Composure * pw.PressureComposureWeight + norm mental.Concentration * pw.PressureConcentrationWeight
+          Sportsmanship = 1.0 - norm mental.Aggression * pw.SportsmanshipAggressionWeight
+          Temperament = norm mental.Composure * pw.TemperamentComposureWeight + norm mental.Concentration * pw.TemperamentConcentrationWeight }
+
+    let deriveWithDefaults (player: Player) : PlayerPersonality =
+        derive player EngineWeightDefaults.defaults.Personality
 
     let defaultPersonality =
         { Flair = 0.5

@@ -110,7 +110,7 @@ module PlayerScorer =
               IsOneOnOne = isOneOnOne
               IsSetPiece = false }
 
-        let xgValue = xGCalculator.calculate xgModel |> float
+        let xgValue = xGCalculator.calculateWithDefaults xgModel |> float
 
         let pressureResistance =
             let bravery = normStat me.Mental.Bravery

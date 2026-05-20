@@ -115,7 +115,7 @@ module PlayerDecision =
                     else
                         None
 
-        let personality = derive ctx.Me
+        let personality = deriveWithDefaults ctx.Me
 
         // ----------------------------------------------------------
         // Build candidate list — all scores are already [0..1]
