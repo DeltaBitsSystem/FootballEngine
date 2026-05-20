@@ -4,7 +4,6 @@ namespace FootballEngine.World
 open FootballEngine.Domain
 
 open FootballEngine.Simulation
-open FootballEngine.Simulation.BalanceCalibrator
 open FootballEngine.Simulation.MatchSimulator
 open FootballEngine.Types
 open FootballEngine.World.Phases
@@ -239,8 +238,6 @@ module WorldRunner =
 
                 let metrics =
                     MatchMetrics.extract replay.Events fixture.HomeClubId fixture.AwayClubId
-
-                ignore (calibrateOnce (getConfig ()) metrics CalibrationTargets.targetsDefault 0.1)
 
                 let clock1 = WorldClockOps.advance clock
 
