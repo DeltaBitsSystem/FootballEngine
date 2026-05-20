@@ -65,6 +65,7 @@
 
         <Compile Include="Engine\Match\Types\DirectiveTypes.fs"/>
         <Compile Include="Engine\Match\Types\BalanceConfig.fs"/>
+        <Compile Include="Tools\ConfigExtractor.fs"/>
 
         <Compile Include="Engine\Match\Types\RefereeAction.fs"/>
         <Compile Include="Engine\Match\Types\SchedulingTypes.fs"/>
