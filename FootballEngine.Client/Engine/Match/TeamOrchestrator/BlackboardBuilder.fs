@@ -226,6 +226,10 @@ let build (state: SimState) (clubSide: ClubSide) (ctx: MatchContext) : TeamBlack
 
     let ballZone = MatchSpatial.ofBallX state.Ball.Position.X attackDir
 
+    let coordMem =
+        if clubSide = HomeClub then ctx.Home.CoordinationMemory
+        else ctx.Away.CoordinationMemory
+
     { OurPhase = ourPhase
       OpponentShape = oppShape
       OpponentPressure = oppPressure
@@ -236,4 +240,4 @@ let build (state: SimState) (clubSide: ClubSide) (ctx: MatchContext) : TeamBlack
       BallZone = ballZone
       JustLostBall = justLostBall
       PressTriggerZone = pressTriggerZone
-      CoordinationMemory = CoordinationMemory.defaultMemory }
+      CoordinationMemory = coordMem }

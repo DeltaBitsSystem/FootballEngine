@@ -5,6 +5,7 @@ open FootballEngine.Domain
 
 open FootballEngine.Simulation
 open FootballEngine.Simulation.MatchSimulator
+open FootballEngine.TeamOrchestrator
 open FootballEngine.Types
 open FootballEngine.World.Phases
 open MatchOutcome
@@ -239,15 +240,53 @@ module WorldRunner =
                 let metrics =
                     MatchMetrics.extract replay.Events fixture.HomeClubId fixture.AwayClubId
 
+                let w = FootballEngine.ML.EngineWeightDefaults.defaults.Collective
+
+                let homeCoord =
+                    CoordinationLoop.updateFromMatch
+                        metrics.PassAccuracyHome
+                        0.5
+                        0
+                        0
+                        finalGs.Clubs[fixture.HomeClubId].CoordinationMemory
+                        w
+
+                let awayCoord =
+                    CoordinationLoop.updateFromMatch
+                        metrics.PassAccuracyAway
+                        0.5
+                        0
+                        0
+                        finalGs.Clubs[fixture.AwayClubId].CoordinationMemory
+                        w
+
+                let homeInjured = outcome.InjuredPlayers |> Set.count
+                let awayInjured = outcome.InjuredPlayers |> Set.count
+
+                let finalHomeCoord =
+                    if homeInjured > 0 then CoordinationLoop.applySquadChangeDecay homeInjured homeCoord
+                    else homeCoord
+
+                let finalAwayCoord =
+                    if awayInjured > 0 then CoordinationLoop.applySquadChangeDecay awayInjured awayCoord
+                    else awayCoord
+
+                let gsWithCoord =
+                    { finalGs with
+                        Clubs =
+                            finalGs.Clubs
+                            |> Map.add fixture.HomeClubId { finalGs.Clubs[fixture.HomeClubId] with CoordinationMemory = finalHomeCoord }
+                            |> Map.add fixture.AwayClubId { finalGs.Clubs[fixture.AwayClubId] with CoordinationMemory = finalAwayCoord } }
+
                 let clock1 = WorldClockOps.advance clock
 
                 Ok
                     { DayResult =
-                        { GameState = finalGs
+                        { GameState = gsWithCoord
                           WorldClock = clock1
                           PlayedMatches = [ fixtureId, outcome.Fixture ]
                           Logs = [ $"{home.Name} {h}-{a} {away.Name}" ]
-                          SeasonComplete = isSeasonComplete finalGs }
+                          SeasonComplete = isSeasonComplete gsWithCoord }
                       MatchReplay = replay }
 
     let hasUserMatchToday (gs: GameState) : bool =

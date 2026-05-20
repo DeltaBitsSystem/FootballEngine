@@ -1,5 +1,6 @@
 namespace FootballEngine
 
+open FootballEngine.Domain
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
 open FootballEngine.ML

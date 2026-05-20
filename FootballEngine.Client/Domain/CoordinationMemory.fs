@@ -1,6 +1,4 @@
-namespace FootballEngine.Types
-
-open FootballEngine.Domain
+namespace FootballEngine.Domain
 
 type CoordinationMemory = {
     PressingCoordination: float

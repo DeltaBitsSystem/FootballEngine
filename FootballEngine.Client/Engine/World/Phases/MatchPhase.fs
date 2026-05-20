@@ -3,6 +3,7 @@ namespace FootballEngine.World.Phases
 open FootballEngine.Domain
 open FootballEngine.Simulation.MatchSimulator
 open FootballEngine.Stats
+open FootballEngine.TeamOrchestrator
 open FootballEngine.Types
 open FootballEngine.World
 
@@ -301,7 +302,7 @@ module MatchPhase =
                 id, fixture, trySimulateMatch home away gsReady.Players gsReady.Staff gsReady.ProfileCache)
             |> Array.choose (fun (id, fixture, result) ->
                 match result with
-                | Ok(h, a, _, finalState) ->
+                | Ok(h, a, events, finalState) ->
                     let injured =
                         finalState.Home.Sidelined
                         |> Map.toSeq
@@ -316,7 +317,7 @@ module MatchPhase =
                                 Played = true
                                 HomeScore = Some h
                                 AwayScore = Some a
-                                Events = [] }
+                                Events = events }
                           HomeScore = h
                           AwayScore = a
                           InjuredPlayers = injured
@@ -324,7 +325,44 @@ module MatchPhase =
                           AwayPlayerStats = [||] }
                 | Error _ -> None)
 
-        applyOutcomes (fixtureToCompMap gsReady) outcomes gsReady
+        let afterOutcomes = applyOutcomes (fixtureToCompMap gsReady) outcomes gsReady
+
+        let w = FootballEngine.ML.EngineWeightDefaults.defaults.Collective
+
+        let updateClubCoord (clubId: ClubId) (gs: GameState) : GameState =
+            let outcome = outcomes |> Array.tryFind (fun o -> o.Fixture.HomeClubId = clubId || o.Fixture.AwayClubId = clubId)
+
+            match outcome with
+            | None -> gs
+            | Some o ->
+                let isHome = o.Fixture.HomeClubId = clubId
+                let m = MatchMetrics.extract o.Fixture.Events o.Fixture.HomeClubId o.Fixture.AwayClubId
+                let passRate = if isHome then m.PassAccuracyHome else m.PassAccuracyAway
+
+                let club = gs.Clubs[clubId]
+                let updatedCoord =
+                    CoordinationLoop.updateFromMatch
+                        passRate
+                        0.5
+                        0
+                        0
+                        club.CoordinationMemory
+                        w
+
+                let playersChanged = o.InjuredPlayers |> Set.count
+                let finalCoord =
+                    if playersChanged > 0 then CoordinationLoop.applySquadChangeDecay playersChanged updatedCoord
+                    else updatedCoord
+
+                { gs with
+                    Clubs = gs.Clubs |> Map.add clubId { club with CoordinationMemory = finalCoord } }
+
+        let affectedClubs =
+            outcomes
+            |> Array.collect (fun o -> [| o.Fixture.HomeClubId; o.Fixture.AwayClubId |])
+            |> Set.ofArray
+
+        affectedClubs |> Seq.fold (fun gs clubId -> updateClubCoord clubId gs) afterOutcomes
 
     let make: WorldPhase =
         { Tag = Match

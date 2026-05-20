@@ -27,7 +27,8 @@ type Club =
       StaffIds: StaffId list
       Budget: decimal
       Morale: int
-      BoardObjective: BoardObjective }
+      BoardObjective: BoardObjective
+      CoordinationMemory: CoordinationMemory }
 
 module Club =
 

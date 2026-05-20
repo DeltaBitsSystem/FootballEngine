@@ -1,6 +1,7 @@
 namespace FootballEngine.Database
 
 open System
+open System.Text.Json
 open FootballEngine.Domain
 open FootballEngine.Database.Serializers
 open FootballEngine.ML
@@ -206,7 +207,8 @@ module Mappers =
           Reputation = club.Reputation
           Budget = club.Budget
           Morale = club.Morale
-          BoardObjective = boardObjectiveToString club.BoardObjective }
+          BoardObjective = boardObjectiveToString club.BoardObjective
+          CoordinationMemory = JsonSerializer.Serialize(club.CoordinationMemory) }
 
     let toClubDomain (players: Map<PlayerId, Player>) (staff: Map<StaffId, Staff>) (ce: ClubEntity) : ClubId * Club =
         let playerIds =
@@ -237,7 +239,13 @@ module Mappers =
           StaffIds = staffIds
           Budget = ce.Budget
           Morale = ce.Morale
-          BoardObjective = parseBoardObjective ce.BoardObjective }
+          BoardObjective = parseBoardObjective ce.BoardObjective
+          CoordinationMemory =
+            match ce.CoordinationMemory with
+            | null | "" -> CoordinationMemory.defaultMemory
+            | json ->
+                try JsonSerializer.Deserialize<CoordinationMemory>(json)
+                with _ -> CoordinationMemory.defaultMemory }
 
     let toStaffEntity (staff: Staff) : StaffEntity =
         let contractClubId, contractSalary, contractExpiry =

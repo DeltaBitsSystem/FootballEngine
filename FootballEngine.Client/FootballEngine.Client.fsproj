@@ -14,8 +14,9 @@
         <Compile Include="Domain\ExperienceModifiers.fs"/>
         <Compile Include="Domain\Player.fs"/>
         <Compile Include="Domain\PlayerExperience.fs"/>
+        <Compile Include="Domain\Lineup.fs" />
+        <Compile Include="Domain\CoordinationMemory.fs" />
         <Compile Include="Domain\Club.fs"/>
-        <Compile Include="Domain\Lineup.fs"/>
         <Compile Include="Domain\Staff.fs"/>
         <Compile Include="Domain\Match.fs"/>
         <Compile Include="Domain\MatchMetrics.fs"/>
@@ -61,7 +62,6 @@
 
 
         <Compile Include="Engine\Match\Types\IntentTypes.fs"/>
-        <Compile Include="Engine\Match\Types\CoordinationMemory.fs"/>
         <Compile Include="Engine\Match\Types\TeamBlackboard.fs"/>
         <Compile Include="Engine\Match\Types\MatchMemory.fs"/>
 
@@ -156,6 +156,7 @@
         <Compile Include="Engine\Match\TeamOrchestrator\EmergentLoops.fs"/>
         <Compile Include="Engine\Match\TeamOrchestrator\EventWindow.fs"/>
         <Compile Include="Engine\Match\TeamOrchestrator\ChemistryTracker.fs"/>
+        <Compile Include="Engine\Match\TeamOrchestrator\CoordinationLoop.fs"/>
         <Compile Include="Engine\Match\TeamOrchestrator\WinProbability.fs"/>
         <Compile Include="Engine\Match\TeamOrchestrator\ReactiveLoop.fs"/>
         <Compile Include="Engine\Match\TeamOrchestrator\StrategicLoop.fs"/>

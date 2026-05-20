@@ -4,6 +4,7 @@ open System
 open FootballEngine.Domain
 open FootballEngine.Domain.LineupOps
 open FootballEngine.Stats
+open FootballEngine.Types
 
 module ClubGen =
 
@@ -115,7 +116,8 @@ module ClubGen =
               StaffIds = staff |> List.map _.Id
               Budget = budgetForLevel reputation entry.LeagueLevel
               Morale = moraleForReputation reputation
-              BoardObjective = boardObjectiveFor entry.LeagueLevel reputation }
+              BoardObjective = boardObjectiveFor entry.LeagueLevel reputation
+              CoordinationMemory = CoordinationMemory.defaultMemory }
 
 
         let playerMap = players |> List.map (fun p -> p.Id, p) |> Map.ofList
