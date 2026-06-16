@@ -81,21 +81,12 @@ module Transfer =
         : GameState =
         match gs.Clubs |> Map.tryFind toClubId, gs.Clubs |> Map.tryFind fromClubId with
         | Some buyer, Some seller ->
-            let updatedBuyer =
-                buyer
-                |> Club.adjustBudget -fee
-                |> Club.addPlayer playerId
+            let updatedBuyer = buyer |> Club.adjustBudget -fee |> Club.addPlayer playerId
 
-            let updatedSeller =
-                seller
-                |> Club.adjustBudget fee
-                |> Club.removePlayer playerId
+            let updatedSeller = seller |> Club.adjustBudget fee |> Club.removePlayer playerId
 
             { gs with
-                Clubs =
-                    gs.Clubs
-                    |> Map.add toClubId updatedBuyer
-                    |> Map.add fromClubId updatedSeller }
+                Clubs = gs.Clubs |> Map.add toClubId updatedBuyer |> Map.add fromClubId updatedSeller }
         | _ -> gs
 
     let completeUserTransfer
@@ -119,4 +110,5 @@ module Transfer =
 
         let gs2 = transferPlayer player.Id seller.Id buyer.Id fee gs
 
-        { gs2 with Players = gs2.Players |> Map.add player.Id updatedPlayer }
+        { gs2 with
+            Players = gs2.Players |> Map.add player.Id updatedPlayer }

@@ -271,10 +271,15 @@ module MatchPhase =
 
     let private parallelMapLimited (f: 'T -> 'U) (arr: 'T[]) : 'U[] =
         let maxThreads = max 1 (System.Environment.ProcessorCount - 1)
-        let options = System.Threading.Tasks.ParallelOptions(MaxDegreeOfParallelism = maxThreads)
+
+        let options =
+            System.Threading.Tasks.ParallelOptions(MaxDegreeOfParallelism = maxThreads)
+
         let results = Array.zeroCreate arr.Length
-        System.Threading.Tasks.Parallel.For(0, arr.Length, options, fun i ->
-            results[i] <- f arr[i]) |> ignore
+
+        System.Threading.Tasks.Parallel.For(0, arr.Length, options, fun i -> results[i] <- f arr[i])
+        |> ignore
+
         results
 
     let getAiFixturesToday (state: GameState) =
@@ -299,7 +304,16 @@ module MatchPhase =
             |> parallelMapLimited (fun (id, fixture) ->
                 let home = gsReady.Clubs[fixture.HomeClubId]
                 let away = gsReady.Clubs[fixture.AwayClubId]
-                id, fixture, trySimulateMatch BalanceConfig.defaultConfig home away gsReady.Players gsReady.Staff gsReady.ProfileCache)
+
+                id,
+                fixture,
+                trySimulateMatch
+                    BalanceConfig.defaultConfig
+                    home
+                    away
+                    gsReady.Players
+                    gsReady.Staff
+                    gsReady.ProfileCache)
             |> Array.choose (fun (id, fixture, result) ->
                 match result with
                 | Ok(h, a, events, finalState) ->
@@ -330,39 +344,48 @@ module MatchPhase =
         let w = BalanceConfig.defaultConfig.Collective
 
         let updateClubCoord (clubId: ClubId) (gs: GameState) : GameState =
-            let outcome = outcomes |> Array.tryFind (fun o -> o.Fixture.HomeClubId = clubId || o.Fixture.AwayClubId = clubId)
+            let outcome =
+                outcomes
+                |> Array.tryFind (fun o -> o.Fixture.HomeClubId = clubId || o.Fixture.AwayClubId = clubId)
 
             match outcome with
             | None -> gs
             | Some o ->
                 let isHome = o.Fixture.HomeClubId = clubId
-                let m = MatchMetrics.extract o.Fixture.Events o.Fixture.HomeClubId o.Fixture.AwayClubId
+
+                let m =
+                    MatchMetrics.extract o.Fixture.Events o.Fixture.HomeClubId o.Fixture.AwayClubId
+
                 let passRate = if isHome then m.PassAccuracyHome else m.PassAccuracyAway
 
                 let club = gs.Clubs[clubId]
+
                 let updatedCoord =
-                    CoordinationLoop.updateFromMatch
-                        passRate
-                        0.5
-                        0
-                        0
-                        club.CoordinationMemory
-                        w
+                    CoordinationLoop.updateFromMatch passRate 0.5 0 0 club.CoordinationMemory w
 
                 let playersChanged = o.InjuredPlayers |> Set.count
+
                 let finalCoord =
-                    if playersChanged > 0 then CoordinationLoop.applySquadChangeDecay playersChanged updatedCoord
-                    else updatedCoord
+                    if playersChanged > 0 then
+                        CoordinationLoop.applySquadChangeDecay playersChanged updatedCoord
+                    else
+                        updatedCoord
 
                 { gs with
-                    Clubs = gs.Clubs |> Map.add clubId { club with CoordinationMemory = finalCoord } }
+                    Clubs =
+                        gs.Clubs
+                        |> Map.add
+                            clubId
+                            { club with
+                                CoordinationMemory = finalCoord } }
 
         let affectedClubs =
             outcomes
             |> Array.collect (fun o -> [| o.Fixture.HomeClubId; o.Fixture.AwayClubId |])
             |> Set.ofArray
 
-        affectedClubs |> Seq.fold (fun gs clubId -> updateClubCoord clubId gs) afterOutcomes
+        affectedClubs
+        |> Seq.fold (fun gs clubId -> updateClubCoord clubId gs) afterOutcomes
 
     let make: WorldPhase =
         { Tag = Match

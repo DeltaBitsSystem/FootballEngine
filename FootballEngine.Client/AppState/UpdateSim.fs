@@ -293,7 +293,10 @@ module UpdateSim =
 
             let withMatch =
                 { nextState with
-                    Match = { nextState.Match with ActiveReplay = Some matchDay.MatchReplay; Snapshot = 0 }
+                    Match =
+                        { nextState.Match with
+                            ActiveReplay = Some matchDay.MatchReplay
+                            Snapshot = 0 }
                     CurrentPage = Match }
 
             if matchDay.DayResult.SeasonComplete then

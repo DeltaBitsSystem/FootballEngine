@@ -170,12 +170,7 @@ module GKAction =
               Vz = 0.0<meter / second> },
             Roll
 
-    let resolve
-        (subTick: int)
-        (ctx: MatchContext)
-        (state: SimState)
-        (clock: SimulationClock)
-        : ActionResult =
+    let resolve (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : ActionResult =
         let gkc = ctx.Config.GK
         let actx = ActionContext.build ctx state
 
@@ -199,7 +194,9 @@ module GKAction =
             else
                 let shouldDistribute =
                     match state.Ball.GKHoldSinceSubTick with
-                    | Some since -> subTick * 1<subtick> - since >= SimulationClock.deltaToSubtick gkc.GKDecisionWindowSubTicks
+                    | Some since ->
+                        subTick * 1<subtick> - since
+                        >= SimulationClock.deltaToSubtick gkc.GKDecisionWindowSubTicks
                     | None -> false
 
                 if not shouldDistribute then
@@ -268,12 +265,12 @@ module GKAction =
                             PlayerHoldSinceSubTick = None
                             Trajectory = Some trajectory }
 
-                    { Events = [|
-                        Emit { SubTick = subTick
-                               PlayerId = gkId
-                               ClubId = (if side = HomeClub then ctx.Home.Id else ctx.Away.Id)
-                               Type = GKDistribution(gkId, target.Id)
-                               Context = EventContext.empty }
-                        BallUpdate gkBall
-                    |] }
+                    { Events =
+                        [| Emit
+                               { SubTick = subTick
+                                 PlayerId = gkId
+                                 ClubId = (if side = HomeClub then ctx.Home.Id else ctx.Away.Id)
+                                 Type = GKDistribution(gkId, target.Id)
+                                 Context = EventContext.empty }
+                           BallUpdate gkBall |] }
         | _ -> ActionResult.empty

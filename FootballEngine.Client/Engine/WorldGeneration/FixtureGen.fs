@@ -42,6 +42,7 @@ module FixtureGen =
             let pairs =
                 [ for i in 0 .. n / 2 - 1 do
                       let h, a = pool[i], pool[n - 1 - i]
+
                       if h <> -1 && a <> -1 then
                           yield round, h, a ]
 
@@ -54,8 +55,11 @@ module FixtureGen =
         let firstLeg = singleRoundRobinPairs clubIds
 
         let rounds =
-            (if clubIds.Length % 2 = 0 then clubIds.Length
-             else clubIds.Length + 1) - 1
+            (if clubIds.Length % 2 = 0 then
+                 clubIds.Length
+             else
+                 clubIds.Length + 1)
+            - 1
 
         [ for round, h, a in firstLeg do
               yield round, h, a

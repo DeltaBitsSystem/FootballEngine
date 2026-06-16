@@ -3,13 +3,15 @@ namespace FootballEngine.Types
 open FootballEngine.Domain
 
 
-type DuelResult = Won | Lost
+type DuelResult =
+    | Won
+    | Lost
 
 [<Struct>]
 type PlayerMatchMemory =
     { mutable RecentPassFailures: int
       mutable SuccessStreak: int
-      mutable LastOpponentId: int      // slot index, -1 = none
+      mutable LastOpponentId: int // slot index, -1 = none
       mutable DuelWins: int
       mutable DuelLosses: int }
 
@@ -22,29 +24,31 @@ module PlayerMatchMemory =
           DuelLosses = 0 }
 
 type MatchMemory =
-    { Home: PlayerMatchMemory[]    // indexed by slot (0..10)
+    { Home: PlayerMatchMemory[] // indexed by slot (0..10)
       Away: PlayerMatchMemory[] }
 
 module MatchMemory =
     let create () =
-        { Home = Array.init 11 (fun _ -> PlayerMatchMemory.empty())
-          Away = Array.init 11 (fun _ -> PlayerMatchMemory.empty()) }
+        { Home = Array.init 11 (fun _ -> PlayerMatchMemory.empty ())
+          Away = Array.init 11 (fun _ -> PlayerMatchMemory.empty ()) }
 
     let empty = create ()
 
     let getSlot (mem: MatchMemory) (side: ClubSide) (slotIdx: int) : byref<PlayerMatchMemory> =
-        if side = HomeClub then &mem.Home[slotIdx]
-        else &mem.Away[slotIdx]
+        if side = HomeClub then
+            &mem.Home[slotIdx]
+        else
+            &mem.Away[slotIdx]
 
     let recordDuel (side: ClubSide) (slotIdx: int) (opponentSlot: int) (result: DuelResult) (mem: MatchMemory) =
         let arr = if side = HomeClub then mem.Home else mem.Away
         arr[slotIdx].LastOpponentId <- opponentSlot
+
         match result with
         | Won ->
             arr[slotIdx].DuelWins <- min 5 (arr[slotIdx].DuelWins + 1)
             arr[slotIdx].SuccessStreak <- min 5 (arr[slotIdx].SuccessStreak + 1)
-        | Lost ->
-            arr[slotIdx].DuelLosses <- min 5 (arr[slotIdx].DuelLosses + 1)
+        | Lost -> arr[slotIdx].DuelLosses <- min 5 (arr[slotIdx].DuelLosses + 1)
 
     let recordPassFailure (side: ClubSide) (slotIdx: int) (mem: MatchMemory) =
         let arr = if side = HomeClub then mem.Home else mem.Away

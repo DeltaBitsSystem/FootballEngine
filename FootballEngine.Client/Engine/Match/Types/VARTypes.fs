@@ -16,15 +16,22 @@ type VARDecision =
     | OnFieldReview
 
 type VARReviewState =
-    | Reviewing of incident: VARReviewableIncident * reviewStartSubTick: int<subtick> * reviewDurationSubTicks: int<tickDelta>
+    | Reviewing of
+        incident: VARReviewableIncident *
+        reviewStartSubTick: int<subtick> *
+        reviewDurationSubTicks: int<tickDelta>
     | ReviewComplete of incident: VARReviewableIncident * decision: VARDecision
 
 type VARState() =
-    member val private reviewHistory: ResizeArray<VARReviewableIncident * VARDecision * int<subtick>> = ResizeArray() with get
+    member val private reviewHistory: ResizeArray<VARReviewableIncident * VARDecision * int<subtick>> =
+        ResizeArray() with get
+
     member val CurrentReview: VARReviewState option = None with get, set
     member val IsChecking: bool = false with get, set
 
-    member this.AddReview(incident: VARReviewableIncident, startSubTick: int<subtick>, durationSubTicks: int<tickDelta>) =
+    member this.AddReview
+        (incident: VARReviewableIncident, startSubTick: int<subtick>, durationSubTicks: int<tickDelta>)
+        =
         this.CurrentReview <- Some(Reviewing(incident, startSubTick, durationSubTicks))
         this.IsChecking <- true
 

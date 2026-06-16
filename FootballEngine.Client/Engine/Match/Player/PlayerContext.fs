@@ -216,4 +216,6 @@ module AgentContext =
           VisibilityMask = visibilityMask
           CurrentSubTick = int state.SubTick
           TransitionPressExpiry = int (getTeam state team.ClubSide).TransitionPressExpiry
-          Influence = influence }
+          Influence = influence
+          Weights = state.Config
+          Situation = MatchSituationBuilder.compute team.ClubSide ctx state clock }

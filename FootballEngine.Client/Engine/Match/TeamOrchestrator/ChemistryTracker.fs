@@ -17,14 +17,17 @@ type TeamCohesion =
 
 module ChemistryTracker =
 
-    let updateFamiliarity (current: float) (successfulPass: bool) (minutesPlayed: float) : float =
-        let w = BalanceConfig.defaultConfig.Collective.Chemistry
-        let passBonus = if successfulPass then w.FamiliarityPassBonus else w.FamiliarityFailPenalty
+    let updateFamiliarity (w: ChemistryWeights) (current: float) (successfulPass: bool) (minutesPlayed: float) : float =
+        let passBonus =
+            if successfulPass then
+                w.FamiliarityPassBonus
+            else
+                w.FamiliarityFailPenalty
+
         let timeBonus = minutesPlayed * w.FamiliarityTimeBonus
         min 1.0 (current + passBonus + timeBonus)
 
-    let calculateCohesion (familiarity: float[,]) (playerCount: int) : TeamCohesion =
-        let w = BalanceConfig.defaultConfig.Collective.Chemistry
+    let calculateCohesion (w: ChemistryWeights) (familiarity: float[,]) (playerCount: int) : TeamCohesion =
 
         let mutable totalFam = 0.0
         let mutable count = 0

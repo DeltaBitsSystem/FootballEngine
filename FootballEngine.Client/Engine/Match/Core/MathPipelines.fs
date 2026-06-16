@@ -23,8 +23,7 @@ module MathPipelines =
 
     /// Exponencial en distancia: la probabilidad de gol no cae linealmente.
     /// A 25m es dramáticamente peor que a 15m — datos reales muestran esta curva.
-    let xgDistanceComponent (factor: float) (distMeters: float) : float =
-        Math.Exp(-factor * distMeters)
+    let xgDistanceComponent (factor: float) (distMeters: float) : float = Math.Exp(-factor * distMeters)
 
     /// Normaliza un stat de 1-20 a 0.0-1.0. Único lugar donde vive esta operación.
     let normStat (v: int) : float = float v / 20.0
@@ -34,10 +33,12 @@ module MathPipelines =
 
     /// Normaliza capacidad de estadio contra el máximo de referencia.
     /// 80000 es el estadio más grande relevante — Wembley, Camp Nou.
-    let normStadiumCapacity (capacity: int) (maxCapacity: int) : float =
-        float capacity / float maxCapacity
+    let normStadiumCapacity (capacity: int) (maxCapacity: int) : float = float capacity / float maxCapacity
 
     /// Divide score entre máximo posible para normalizar a [0,1]
     /// independientemente de cuántos términos se sumen.
     let normalizeScore (maxPossible: float) (score: float) : float =
-        if maxPossible > 0.0 then Math.Clamp(score / maxPossible, 0.0, 1.0) else 0.0
+        if maxPossible > 0.0 then
+            Math.Clamp(score / maxPossible, 0.0, 1.0)
+        else
+            0.0

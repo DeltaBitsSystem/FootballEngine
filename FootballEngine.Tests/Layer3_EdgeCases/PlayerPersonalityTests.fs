@@ -4,13 +4,17 @@ open Expecto
 open FootballEngine.Domain
 open FootballEngine.Player.Decision
 open FootballEngine.Tests.Infrastructure.Builders
+open FootballEngine.Types
 
 let playerPersonalityTests =
     testList
         "PlayerPersonality"
         [ test "derive produces personality from player" {
               let player = makePlayer 1 ST 15
-              let personality = PlayerPersonality.deriveWithDefaults player
+
+              let personality =
+                  PlayerPersonality.derive player BalanceConfig.defaultConfig.Personality
+
               Expect.isGreaterThanOrEqual personality.Flair 0.0 "flair should be >= 0"
               Expect.isLessThanOrEqual personality.Flair 1.0 "flair should be <= 1"
               Expect.isGreaterThanOrEqual personality.Consistency 0.0 "consistency should be >= 0"
@@ -19,12 +23,18 @@ let playerPersonalityTests =
 
           test "high mental stats produce high composure and leadership" {
               let player = makePlayer 1 ST 20
-              let personality = PlayerPersonality.deriveWithDefaults player
+
+              let personality =
+                  PlayerPersonality.derive player BalanceConfig.defaultConfig.Personality
+
               Expect.isGreaterThan personality.Consistency 0.5 "high mental = high consistency"
           }
 
           test "low mental stats produce lower personality scores" {
               let player = makePlayer 1 ST 1
-              let personality = PlayerPersonality.deriveWithDefaults player
+
+              let personality =
+                  PlayerPersonality.derive player BalanceConfig.defaultConfig.Personality
+
               Expect.isLessThan personality.Consistency 0.5 "low mental = low consistency"
           } ]

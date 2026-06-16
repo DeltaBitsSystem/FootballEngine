@@ -27,14 +27,18 @@ module MatchSimulator =
         let events = ResizeArray<MatchEvent>()
 
         state.EffectiveFullTimeSubTick <-
-            fullTime clock + state.StoppageTime.AccumulatedSeconds * clock.SubTicksPerSecond * 1<subtick>
+            fullTime clock
+            + state.StoppageTime.AccumulatedSeconds * clock.SubTicksPerSecond * 1<subtick>
 
         let maxSeguridad = fullTime clock + clock.SubTicksPerSecond * 60 * 10 * 1<subtick> // +10 min extra
 
         while state.Flow <> MatchEnded && state.SubTick < maxSeguridad do
             let snapshotSubTick = state.SubTick
             let result = MatchStepper.updateOne ctx clock [||] state
-            for e in result.Events do events.Add(e)
+
+            for e in result.Events do
+                events.Add(e)
+
             takeSnapshot state (int snapshotSubTick)
 
         state, events |> Seq.toList
@@ -64,10 +68,12 @@ module MatchSimulator =
                 snapshots.Add(SnapshotBuilder.take st)
                 lastSnapshotAt <- subTick + snapshotInterval
 
-        let takeSnapshotInt st subTick =
-            takeSnapshot st (subTick * 1<subtick>)
+        let takeSnapshotInt st subTick = takeSnapshot st (subTick * 1<subtick>)
 
         let finalState, events = runLoop ctx state clock takeSnapshotInt
+
+        JsonMatchDump.dumpMatch ctx.Home.Name ctx.Away.Name finalState.HomeScore finalState.AwayScore events
+        |> ignore
 
         { Context = ctx
           Final = finalState
@@ -164,7 +170,10 @@ module MatchSimulator =
                     |> Map.tryFind p.Id
                     |> Option.defaultValue (HalfwayLineX, PitchWidth / 2.0)
 
-                let prof = profileMap |> Map.tryFind p.Id |> Option.defaultValue (Player.profile p BalanceConfig.defaultConfig.ProfileWeights)
+                let prof =
+                    profileMap
+                    |> Map.tryFind p.Id
+                    |> Option.defaultValue (Player.profile p config.ProfileWeights)
 
                 let kx =
                     match p.Position with
@@ -409,7 +418,14 @@ module MatchSimulator =
             return final.HomeScore, final.AwayScore, events, final
         }
 
-    let trySimulateMatchFull (config: BalanceConfig) home away players staff profileMap : Result<MatchReplay, SimulationError> =
+    let trySimulateMatchFull
+        (config: BalanceConfig)
+        home
+        away
+        players
+        staff
+        profileMap
+        : Result<MatchReplay, SimulationError> =
         result {
             let validationErrors = ConfigValidation.validateAll config
 
@@ -421,7 +437,14 @@ module MatchSimulator =
             return runLoopFull ctx state defaultClock
         }
 
-    let trySimulateMatchKnockout (config: BalanceConfig) home away players staff profileMap : Result<MatchReplay * bool, SimulationError> =
+    let trySimulateMatchKnockout
+        (config: BalanceConfig)
+        home
+        away
+        players
+        staff
+        profileMap
+        : Result<MatchReplay * bool, SimulationError> =
         result {
             let validationErrors = ConfigValidation.validateAll config
 

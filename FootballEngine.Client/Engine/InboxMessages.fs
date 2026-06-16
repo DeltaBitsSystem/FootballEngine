@@ -95,9 +95,9 @@ module InboxMessages =
                 | Injured(severity, until) ->
                     let wasInjuredBefore =
                         match prevStatus.TryFind p.Id with
-                        | Some (Injured _) -> true
+                        | Some(Injured _) -> true
                         | _ -> false
-                    
+
                     if not wasInjuredBefore then
                         let weeksOut = int (until - date).TotalDays / 7
                         Some(p.Name, string p.Position, severity, max 1 weeksOut)

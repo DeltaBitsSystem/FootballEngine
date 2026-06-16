@@ -46,9 +46,7 @@ type ClubEntryDto =
 
 /// Cup format with embedded name (unlike domain CupFormat which has no name).
 [<CLIMutable>]
-type CupEntryDto =
-    { Name: string
-      Format: string }
+type CupEntryDto = { Name: string; Format: string }
 
 [<CLIMutable>]
 type LeagueRulesDto =

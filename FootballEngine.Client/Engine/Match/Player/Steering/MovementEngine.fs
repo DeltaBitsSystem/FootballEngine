@@ -201,22 +201,22 @@ module MovementEngine =
             updatePhysics ctx state clubSide currentSubTick dt
             refreshCache ctx state clubSide
 
-        // Degradar condición solo en ticks cognitivos (1 vez por segundo)
-        //if currentSubTick % clock.SubTicksPerSecond = 0 then
-        //    let frame = getFrame state clubSide
-        //    let roster = getRoster ctx clubSide
-        //    let matchMinute = subTicksToSeconds clock currentSubTick / 60.0
-        //
-        //    for i = 0 to frame.SlotCount - 1 do
-        //        match frame.Physics.Occupancy[i] with
-        //        | OccupancyKind.Active rosterIdx ->
-        //            let player = roster.Players[rosterIdx]
-        //            let currentCondition = int frame.Condition[i]
-        //            let isPressing = false // TODO: check pressing role if available
-        //            let newCondition = degradeCondition player currentCondition isPressing matchMinute
-        //            FrameMutate.setCondition frame i newCondition
-        //
-        //            if newCondition < ctx.Config.Manager.ConditionThresholdLosing then
-        //                emitSemantic (PlayerConditionCritical(roster.Players[rosterIdx].Id, newCondition)) state
-        //        | _ -> ()
-        //
+// Degradar condición solo en ticks cognitivos (1 vez por segundo)
+//if currentSubTick % clock.SubTicksPerSecond = 0 then
+//    let frame = getFrame state clubSide
+//    let roster = getRoster ctx clubSide
+//    let matchMinute = subTicksToSeconds clock currentSubTick / 60.0
+//
+//    for i = 0 to frame.SlotCount - 1 do
+//        match frame.Physics.Occupancy[i] with
+//        | OccupancyKind.Active rosterIdx ->
+//            let player = roster.Players[rosterIdx]
+//            let currentCondition = int frame.Condition[i]
+//            let isPressing = false // TODO: check pressing role if available
+//            let newCondition = degradeCondition player currentCondition isPressing matchMinute
+//            FrameMutate.setCondition frame i newCondition
+//
+//            if newCondition < ctx.Config.Manager.ConditionThresholdLosing then
+//                emitSemantic (PlayerConditionCritical(roster.Players[rosterIdx].Id, newCondition)) state
+//        | _ -> ()
+//

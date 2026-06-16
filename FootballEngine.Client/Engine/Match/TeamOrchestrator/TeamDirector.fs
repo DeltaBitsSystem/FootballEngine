@@ -78,16 +78,32 @@ module BatchDecisionSupport =
         let frame = team.OwnFrame
         let resultX = Array.zeroCreate<float32> frame.SlotCount
         let resultY = Array.zeroCreate<float32> frame.SlotCount
-        computeSupportPositionsInto team ballPos ballControl phase tactics desiredWidth basePositions shapeTargetX shapeTargetY profiles resultX resultY
+
+        computeSupportPositionsInto
+            team
+            ballPos
+            ballControl
+            phase
+            tactics
+            desiredWidth
+            basePositions
+            shapeTargetX
+            shapeTargetY
+            profiles
+            resultX
+            resultY
+
         Array.init frame.SlotCount (fun i ->
             defaultSpatial (float resultX[i] * 1.0<meter>) (float resultY[i] * 1.0<meter>))
 
     let pickRunner
+        (w: TeamDirectorWeights)
         (team: TeamPerspective)
         (ballPos: Spatial)
         (ballControl: BallControl)
         (emergent: EmergentState)
         (influence: InfluenceTypes.InfluenceFrame)
+        (config: InfluenceConfig)
         : PlayerId option * RunType option * Spatial option =
         let frame = team.OwnFrame
         let roster = team.OwnRoster
@@ -103,15 +119,15 @@ module BatchDecisionSupport =
         let mutable bestCellIdx = 0
         let mutable bestCellScore = -1.0
 
-        for cell = 0 to InfluenceTypes.GridSize - 1 do
+        for cell = 0 to InfluenceTypes.gridSize config - 1 do
             let s =
-                InfluenceTypes.scoreCellRaw cell influence (float32 ballPos.X) (float32 ballPos.Y) dir
+                InfluenceTypes.scoreCellRaw config cell influence (float32 ballPos.X) (float32 ballPos.Y) dir
 
             if s > bestCellScore then
                 bestCellScore <- s
                 bestCellIdx <- cell
 
-        let cx, cy = InfluenceTypes.cellToCenter bestCellIdx
+        let cx, cy = InfluenceTypes.cellToCenter config bestCellIdx
 
         let bestCellTarget =
             defaultSpatial
@@ -131,7 +147,6 @@ module BatchDecisionSupport =
                     let px = float frame.Physics.PosX[i] * 1.0<meter>
                     let isAdvanced = (px - 52.5<meter>) * forwardX > 5.0<meter>
 
-                    let w = BalanceConfig.defaultConfig.Collective.TeamDirector
                     let score =
                         float player.Mental.WorkRate / 20.0 * w.WorkRateWeight
                         + float player.Mental.Positioning / 20.0 * w.PositioningWeight
@@ -244,7 +259,10 @@ module TeamDirector =
         let roster = getRoster ctx clubSide
 
         let cohesion =
-            ChemistryTracker.calculateCohesion chemistry.Familiarity roster.Players.Length
+            ChemistryTracker.calculateCohesion
+                state.Config.Collective.Chemistry
+                chemistry.Familiarity
+                roster.Players.Length
 
         let rates, _ =
             EventWindow.computeRates (state.Config.Timing.EventWindowSubTicks) state.MatchEvents (int state.SubTick)
@@ -261,7 +279,9 @@ module TeamDirector =
 
         let prevAction = (getTeam state clubSide).LastCollectiveAction
         let emergent = getEmergentState state clubSide
-        let action = UtilityActions.resolve blackboard prevAction emergent state clubSide ctx
+
+        let action =
+            UtilityActions.resolve blackboard prevAction emergent state clubSide ctx
 
         let teamState = getTeam state clubSide
         teamState.Blackboard <- blackboard
@@ -277,14 +297,10 @@ module TeamDirector =
     let private resolveKind (read: OrchestratorRead) : DirectiveKind =
         UtilityActions.toDirectiveKind read.CollectiveAction
 
-    let private updateDirective
-        (state: SimState)
-        (clubSide: ClubSide)
-        (kind: DirectiveKind)
-        (subTick: int)
-        : unit =
+    let private updateDirective (state: SimState) (clubSide: ClubSide) (kind: DirectiveKind) (subTick: int) : unit =
 
         let emergent = getEmergentState state clubSide
+
         let tacticsCfg =
             tacticsConfig (getTactics state clubSide) (getInstructions state clubSide)
 
@@ -318,19 +334,23 @@ module TeamDirector =
 
         let updated =
             current
-            |> EmergentLoops.updateCompactness r.ShortPassRate
-            |> EmergentLoops.updatePressing r.PressRate
-            |> EmergentLoops.updateWingPlay r.FlankRate
-            |> EmergentLoops.updateFatigueSpiral read.AvgCondition 0
+            |> EmergentLoops.updateCompactness state.Config.Collective.Emergent r.ShortPassRate
+            |> EmergentLoops.updatePressing state.Config.Collective.Emergent r.PressRate
+            |> EmergentLoops.updateWingPlay state.Config.Collective.Emergent r.FlankRate
+            |> EmergentLoops.updateFatigueSpiral state.Config.Collective.Emergent read.AvgCondition 0
 
         setEmergentState state clubSide updated
 
     let tick (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : unit =
         let time = Scheduler.buildMatchTime state clock
         let strategicFreq = EveryMinute(30<matchMin>, 0<matchMin>)
-        let reactiveFreq  = EveryMinute(3<matchMin>, 0<matchMin>)
-        let isStrategicTick = Scheduler.shouldRun strategicFreq time state.PendingSemanticEvents
-        let isReactiveTick  = Scheduler.shouldRun reactiveFreq time state.PendingSemanticEvents
+        let reactiveFreq = EveryMinute(3<matchMin>, 0<matchMin>)
+
+        let isStrategicTick =
+            Scheduler.shouldRun strategicFreq time state.PendingSemanticEvents
+
+        let isReactiveTick =
+            Scheduler.shouldRun reactiveFreq time state.PendingSemanticEvents
 
         for clubSide in bothSides do
             let read = readTeam clubSide ctx state
@@ -353,6 +373,7 @@ module TeamDirector =
                     match deviation with
                     | Critical _ ->
                         let mode = StrategicLoop.run ctx state clock
+
                         match mode with
                         | Recovering(_, target) -> target
                         | ExecutingPlan _ -> resolveKind read

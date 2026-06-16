@@ -45,9 +45,9 @@ type SystemFrequency =
     | WhenFlow of FlowMatcher list * SystemFrequency
 
 type MatchTime =
-    { Subtick : int<subtick>
-      Minute  : int<matchMin>
-      Flow    : MatchFlow }
+    { Subtick: int<subtick>
+      Minute: int<matchMin>
+      Flow: MatchFlow }
 
 module SchedulingTypes =
 

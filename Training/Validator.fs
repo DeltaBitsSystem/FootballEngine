@@ -31,4 +31,4 @@ module Validator =
             if newError < originalError then
                 Ok candidateWeights
             else
-                Error (sprintf "Validation failed: original error %.4f, new error %.4f" originalError newError)
+                Error(sprintf "Validation failed: original error %.4f, new error %.4f" originalError newError)

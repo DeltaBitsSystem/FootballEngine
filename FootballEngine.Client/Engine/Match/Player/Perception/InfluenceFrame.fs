@@ -1,219 +1,120 @@
 namespace FootballEngine.Player.Perception
 
 open System
+open FootballEngine.Domain
 open FootballEngine.Types
 open FootballEngine.Types.InfluenceTypes
 
 
-// ============================================================
-// Influence Frame computation — builds spatial influence grids
-// from TeamFrame data. Runs at cognitive tick frequency (~2Hz).
-// ============================================================
-
 module InfluenceFrame =
 
-    // Sigma for Gaussian kernel: ~15m radius of influence per player
-    [<Literal>]
-    let private PlayerSigma = 15.0f
+    let private accumulateTeamInfluence
+        (frame: TeamFrame)
+        (roster: PlayerRoster)
+        (grid: InfluenceGrid)
+        (config: InfluenceConfig)
+        (ballX: float32)
+        (ballY: float32)
+        (vxStrengh: float32)
+        : unit =
+        let cw = cellWidth config
+        let ch = cellHeight config
+        let gridCols = config.GridCols
+        let gridRows = config.GridRows
 
-    // Pre-compute cell centers to avoid recomputing every frame
-    let private cellCenters: (float32 * float32)[] =
-        Array.init GridSize (fun i -> cellToCenter i)
+        for i = 0 to frame.SlotCount - 1 do
+            match frame.Physics.Occupancy[i] with
+            | OccupancyKind.Active rosterIdx ->
+                let px = frame.Physics.PosX[i]
+                let py = frame.Physics.PosY[i]
+                let pvx = frame.Physics.VelX[i]
+                let pvy = frame.Physics.VelY[i]
+                let conditionFactor = float32 frame.Condition[i] / 100.0f
+                let player = roster.Players[rosterIdx]
 
-    /// Build influence grids from team frames.
-    /// homeFrame/awayFrame = current positions, homeRoster/awayRoster = player attributes.
-    let compute (homeFrame: TeamFrame) (awayFrame: TeamFrame) : InfluenceFrame =
-        let result = emptyInfluenceFrame ()
-        let homeGrid = result.HomeGrid
-        let awayGrid = result.AwayGrid
-        let sigma = PlayerSigma
+                let sigma =
+                    playerSigma config player.Mental.Positioning player.Mental.Concentration player.Mental.Vision
+
+                let sigmaSq = sigma * sigma
+
+                let minCol = max 0 (int ((px - 3.0f * sigma) / cw))
+                let maxCol = min (gridCols - 1) (int ((px + 3.0f * sigma) / cw))
+                let minRow = max 0 (int ((py - 3.0f * sigma) / ch))
+                let maxRow = min (gridRows - 1) (int ((py + 3.0f * sigma) / ch))
+
+                for row = minRow to maxRow do
+                    for col = minCol to maxCol do
+                        let cell = row * gridCols + col
+                        let cx = (float32 col + 0.5f) * cw
+                        let cy = (float32 row + 0.5f) * ch
+                        let dx = cx - px
+                        let dy = cy - py
+                        let distSq = dx * dx + dy * dy
+                        let toBallX = ballX - cx
+                        let toBallY = ballY - cy
+                        let vWeight = velocityWeight pvx pvy toBallX toBallY vxStrengh
+                        let weight = MathF.Exp(-distSq / (2.0f * sigmaSq)) * conditionFactor * vWeight
+                        grid[cell] <- grid[cell] + weight
+            | _ -> ()
+
+    let private addBallGravity
+        (ballX: float32)
+        (ballY: float32)
+        (homeGrid: InfluenceGrid)
+        (awayGrid: InfluenceGrid)
+        (config: InfluenceConfig)
+        : unit =
+        let sigma = float32 config.BallGravitySigma
         let sigmaSq = sigma * sigma
+        let factor = float32 config.BallGravityFactor
+        let cw = cellWidth config
+        let ch = cellHeight config
+        let gridCols = config.GridCols
+        let gridRows = config.GridRows
 
-        // Accumulate home influence
-        for i = 0 to homeFrame.SlotCount - 1 do
-            match homeFrame.Physics.Occupancy[i] with
-            | OccupancyKind.Active _ ->
-                let px = homeFrame.Physics.PosX[i]
-                let py = homeFrame.Physics.PosY[i]
-                let conditionFactor = float32 homeFrame.Condition[i] / 100.0f
-                // Only iterate cells within ~3 sigma (45m) for performance
-                let minCol = max 0 (int ((px - 3.0f * sigma) / CellWidth))
-                let maxCol = min (GridCols - 1) (int ((px + 3.0f * sigma) / CellWidth))
-                let minRow = max 0 (int ((py - 3.0f * sigma) / CellHeight))
-                let maxRow = min (GridRows - 1) (int ((py + 3.0f * sigma) / CellHeight))
+        let minCol = max 0 (int ((ballX - 3.0f * sigma) / cw))
+        let maxCol = min (gridCols - 1) (int ((ballX + 3.0f * sigma) / cw))
+        let minRow = max 0 (int ((ballY - 3.0f * sigma) / ch))
+        let maxRow = min (gridRows - 1) (int ((ballY + 3.0f * sigma) / ch))
 
-                for row = minRow to maxRow do
-                    for col = minCol to maxCol do
-                        let cell = row * GridCols + col
-                        let cx, cy = cellCenters[cell]
-                        let dx = cx - px
-                        let dy = cy - py
-                        let distSq = dx * dx + dy * dy
-                        let weight = System.MathF.Exp(-distSq / (2.0f * sigmaSq)) * conditionFactor
-                        homeGrid[cell] <- homeGrid[cell] + weight
-            | _ -> ()
+        for row = minRow to maxRow do
+            for col = minCol to maxCol do
+                let cell = row * gridCols + col
+                let cx = (float32 col + 0.5f) * cw
+                let cy = (float32 row + 0.5f) * ch
+                let dx = cx - ballX
+                let dy = cy - ballY
+                let distSq = dx * dx + dy * dy
+                let weight = MathF.Exp(-distSq / (2.0f * sigmaSq)) * factor
+                homeGrid[cell] <- homeGrid[cell] + weight
+                awayGrid[cell] <- awayGrid[cell] + weight
 
-        // Accumulate away influence (same logic)
-        for i = 0 to awayFrame.SlotCount - 1 do
-            match awayFrame.Physics.Occupancy[i] with
-            | OccupancyKind.Active _ ->
-                let px = awayFrame.Physics.PosX[i]
-                let py = awayFrame.Physics.PosY[i]
-                let conditionFactor = float32 awayFrame.Condition[i] / 100.0f
-                let minCol = max 0 (int ((px - 3.0f * sigma) / CellWidth))
-                let maxCol = min (GridCols - 1) (int ((px + 3.0f * sigma) / CellWidth))
-                let minRow = max 0 (int ((py - 3.0f * sigma) / CellHeight))
-                let maxRow = min (GridRows - 1) (int ((py + 3.0f * sigma) / CellHeight))
-
-                for row = minRow to maxRow do
-                    for col = minCol to maxCol do
-                        let cell = row * GridCols + col
-                        let cx, cy = cellCenters[cell]
-                        let dx = cx - px
-                        let dy = cy - py
-                        let distSq = dx * dx + dy * dy
-                        let weight = System.MathF.Exp(-distSq / (2.0f * sigmaSq)) * conditionFactor
-                        awayGrid[cell] <- awayGrid[cell] + weight
-            | _ -> ()
-
-        // Compute contested grid and control
-        let contested = result.ContestedGrid
-        let control = result.ControlGrid
-
-        for i = 0 to GridSize - 1 do
-            let h = homeGrid[i]
-            let a = awayGrid[i]
-            contested[i] <- h - a
-
-            if h > a + 0.3f then control[i] <- 1uy
-            elif a > h + 0.3f then control[i] <- 2uy
-            else control[i] <- 0uy
-
-        // Attacker pass safety: for each cell, how much home influence minus away influence
-        // Normalized to 0.0-1.0 range
-        let passSafety = result.AttackerPassSafety
-
-        for i = 0 to GridSize - 1 do
-            let h = homeGrid[i]
-            let a = awayGrid[i]
-            let total = h + a
-
-            if total < 0.01f then
-                passSafety[i] <- 0.5f
-            else
-                // Positive = home advantage (safe), negative = away advantage (dangerous)
-                passSafety[i] <- 0.5f + 0.5f * (h - a) / total
-
-        // Defender coverage: for each cell, how well is it covered by defenders?
-        // From defender's perspective: high value = well covered
-        let coverage = result.DefenderCoverage
-
-        for i = 0 to GridSize - 1 do
-            let h = homeGrid[i]
-            let a = awayGrid[i]
-            let total = h + a
-
-            if total < 0.01f then
-                coverage[i] <- 0.0f
-            else
-                // For home team defending: how much away influence (attackers) is in this cell?
-                // High away influence = poorly covered from home perspective
-                coverage[i] <- 1.0f - (a / total)
-
-        result
-
-    /// Same algorithm as compute but writes into a pre-existing target InfluenceFrame
-    /// to avoid allocating new arrays every tick.
-    let computeInto (homeFrame: TeamFrame) (awayFrame: TeamFrame) (target: InfluenceFrame) : unit =
+    let computeInto
+        (homeFrame: TeamFrame)
+        (awayFrame: TeamFrame)
+        (homeRoster: PlayerRoster)
+        (awayRoster: PlayerRoster)
+        (target: InfluenceFrame)
+        (config: InfluenceConfig)
+        (ballX: float32)
+        (ballY: float32)
+        : unit =
         let homeGrid = target.HomeGrid
         let awayGrid = target.AwayGrid
-        let sigma = PlayerSigma
-        let sigmaSq = sigma * sigma
+        let netGrid = target.NetGrid
+        let totalGrid = target.TotalGrid
+        let size = gridSize config
 
-        Array.Clear(homeGrid, 0, homeGrid.Length)
-        Array.Clear(awayGrid, 0, awayGrid.Length)
+        Array.Clear(homeGrid, 0, size)
+        Array.Clear(awayGrid, 0, size)
 
-        // Accumulate home influence
-        for i = 0 to homeFrame.SlotCount - 1 do
-            match homeFrame.Physics.Occupancy[i] with
-            | OccupancyKind.Active _ ->
-                let px = homeFrame.Physics.PosX[i]
-                let py = homeFrame.Physics.PosY[i]
-                let conditionFactor = float32 homeFrame.Condition[i] / 100.0f
-                let minCol = max 0 (int ((px - 3.0f * sigma) / CellWidth))
-                let maxCol = min (GridCols - 1) (int ((px + 3.0f * sigma) / CellWidth))
-                let minRow = max 0 (int ((py - 3.0f * sigma) / CellHeight))
-                let maxRow = min (GridRows - 1) (int ((py + 3.0f * sigma) / CellHeight))
+        let velStrength = float32 config.VelocityBiasStrength
+        accumulateTeamInfluence homeFrame homeRoster homeGrid config ballX ballY velStrength
+        accumulateTeamInfluence awayFrame awayRoster awayGrid config ballX ballY velStrength
+        addBallGravity ballX ballY homeGrid awayGrid config
 
-                for row = minRow to maxRow do
-                    for col = minCol to maxCol do
-                        let cell = row * GridCols + col
-                        let cx, cy = cellCenters[cell]
-                        let dx = cx - px
-                        let dy = cy - py
-                        let distSq = dx * dx + dy * dy
-                        let weight = System.MathF.Exp(-distSq / (2.0f * sigmaSq)) * conditionFactor
-                        homeGrid[cell] <- homeGrid[cell] + weight
-            | _ -> ()
-
-        // Accumulate away influence (same logic)
-        for i = 0 to awayFrame.SlotCount - 1 do
-            match awayFrame.Physics.Occupancy[i] with
-            | OccupancyKind.Active _ ->
-                let px = awayFrame.Physics.PosX[i]
-                let py = awayFrame.Physics.PosY[i]
-                let conditionFactor = float32 awayFrame.Condition[i] / 100.0f
-                let minCol = max 0 (int ((px - 3.0f * sigma) / CellWidth))
-                let maxCol = min (GridCols - 1) (int ((px + 3.0f * sigma) / CellWidth))
-                let minRow = max 0 (int ((py - 3.0f * sigma) / CellHeight))
-                let maxRow = min (GridRows - 1) (int ((py + 3.0f * sigma) / CellHeight))
-
-                for row = minRow to maxRow do
-                    for col = minCol to maxCol do
-                        let cell = row * GridCols + col
-                        let cx, cy = cellCenters[cell]
-                        let dx = cx - px
-                        let dy = cy - py
-                        let distSq = dx * dx + dy * dy
-                        let weight = System.MathF.Exp(-distSq / (2.0f * sigmaSq)) * conditionFactor
-                        awayGrid[cell] <- awayGrid[cell] + weight
-            | _ -> ()
-
-        // Compute contested grid and control
-        let contested = target.ContestedGrid
-        let control = target.ControlGrid
-
-        for i = 0 to GridSize - 1 do
+        for i = 0 to size - 1 do
             let h = homeGrid[i]
             let a = awayGrid[i]
-            contested[i] <- h - a
-
-            if h > a + 0.3f then control[i] <- 1uy
-            elif a > h + 0.3f then control[i] <- 2uy
-            else control[i] <- 0uy
-
-        // Attacker pass safety
-        let passSafety = target.AttackerPassSafety
-
-        for i = 0 to GridSize - 1 do
-            let h = homeGrid[i]
-            let a = awayGrid[i]
-            let total = h + a
-
-            if total < 0.01f then
-                passSafety[i] <- 0.5f
-            else
-                passSafety[i] <- 0.5f + 0.5f * (h - a) / total
-
-        // Defender coverage
-        let coverage = target.DefenderCoverage
-
-        for i = 0 to GridSize - 1 do
-            let h = homeGrid[i]
-            let a = awayGrid[i]
-            let total = h + a
-
-            if total < 0.01f then
-                coverage[i] <- 0.0f
-            else
-                coverage[i] <- 1.0f - (a / total)
+            netGrid[i] <- h - a
+            totalGrid[i] <- h + a

@@ -32,5 +32,4 @@ module WorldScheduler =
 
         newState, WorldClockOps.advance clock
 
-    let tick (clock: WorldClock) (state: GameState) : GameState * WorldClock =
-        tickWith Set.empty clock state
+    let tick (clock: WorldClock) (state: GameState) : GameState * WorldClock = tickWith Set.empty clock state

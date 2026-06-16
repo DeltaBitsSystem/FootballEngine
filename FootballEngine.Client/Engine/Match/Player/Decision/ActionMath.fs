@@ -63,7 +63,10 @@ module ActionMath =
         Probability.from (dist.Sample())
 
     let calcIntention (i: IntentionInput) : float<intention> =
-        let base' = (MathPipelines.normStat i.Vision * 0.65) + (MathPipelines.normStat i.Composure * 0.35)
+        let base' =
+            (MathPipelines.normStat i.Vision * 0.65)
+            + (MathPipelines.normStat i.Composure * 0.35)
+
         let penalty = i.Pressure * (1.0 - MathPipelines.normStat i.Composure) * 0.30
 
         (base' * MathPipelines.normCondition i.Condition - penalty)
@@ -82,7 +85,9 @@ module ActionMath =
 
     let calcMovementExecution (agility: int) (balance: int) (acceleration: int) (condition: int) : float<execution> =
         let base' =
-            (MathPipelines.normStat agility * 0.55) + (MathPipelines.normStat balance * 0.25) + (MathPipelines.normStat acceleration * 0.20)
+            (MathPipelines.normStat agility * 0.55)
+            + (MathPipelines.normStat balance * 0.25)
+            + (MathPipelines.normStat acceleration * 0.20)
 
         (base' * sqrt (MathPipelines.normCondition condition))
         |> clampFloat 0.05 1.0

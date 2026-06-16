@@ -60,14 +60,18 @@ module TeamExecutor =
         for clubSide in [| HomeClub; AwayClub |] do
             let teamState = getTeam state clubSide
 
-            let frame   = getFrame state clubSide
-            let roster  = getRoster ctx clubSide
+            let frame = getFrame state clubSide
+            let roster = getRoster ctx clubSide
             let directive = getDirective state clubSide
+
             let kind =
                 match TeamDirectiveOps.currentDirective directive with
                 | Some d -> d.Kind
-                | None   -> Structured
-            let tacticsCfg = tacticsConfig (getTactics state clubSide) (getInstructions state clubSide)
+                | None -> Structured
+
+            let tacticsCfg =
+                tacticsConfig (getTactics state clubSide) (getInstructions state clubSide)
+
             let bx = float32 state.Ball.Position.X
             let by = float32 state.Ball.Position.Y
             let slotRoles = SlotRoleAssigner.assign frame roster kind tacticsCfg bx by
@@ -82,9 +86,20 @@ module TeamExecutor =
             else
                 System.Array.Clear(teamState.ShapeTargetX, 0, frame.SlotCount)
                 System.Array.Clear(teamState.ShapeTargetY, 0, frame.SlotCount)
+
             let shapeTargetX = teamState.ShapeTargetX
             let shapeTargetY = teamState.ShapeTargetY
-            ShapeEngine.computeShapeTargets basePositions frame.Physics roster.Profiles dir phase state.Ball.Position.X tacticsCfg shapeTargetX shapeTargetY
+
+            ShapeEngine.computeShapeTargets
+                basePositions
+                frame.Physics
+                roster.Profiles
+                dir
+                phase
+                state.Ball.Position.X
+                tacticsCfg
+                shapeTargetX
+                shapeTargetY
 
             BatchDecisionSupport.computeSupportPositionsInto
                 team
@@ -94,14 +109,29 @@ module TeamExecutor =
                 tacticsCfg
                 tacticsCfg.Width
                 basePositions
-                shapeTargetX shapeTargetY roster.Profiles
+                shapeTargetX
+                shapeTargetY
+                roster.Profiles
                 frame.SupportPositionX
                 frame.SupportPositionY
 
-            let cFrame = if clubSide = HomeClub then state.HomeCognitiveFrame else state.AwayCognitiveFrame
-            let defRoles = BatchDecisionSupport.computeDefensiveShape team state.Ball.Position cFrame (int time.Subtick) (int teamState.TransitionPressExpiry)
+            let cFrame =
+                if clubSide = HomeClub then
+                    state.HomeCognitiveFrame
+                else
+                    state.AwayCognitiveFrame
+
+            let defRoles =
+                BatchDecisionSupport.computeDefensiveShape
+                    team
+                    state.Ball.Position
+                    cFrame
+                    (int time.Subtick)
+                    (int teamState.TransitionPressExpiry)
+
             for i = 0 to frame.SlotCount - 1 do
                 frame.SlotRoles[i] <- slotRoles[i]
                 frame.DefensiveRole[i] <- byte defRoles[i]
                 frame.CollectiveIntents[i] <- buildCollectiveIntent kind
+
         Array.empty<DomainEvent>

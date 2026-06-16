@@ -8,9 +8,10 @@ module Scheduler =
 
     let buildMatchTime (state: SimState) (clock: SimulationClock) : MatchTime =
         let rawMinute = SimulationClock.toMatchMin clock state.SubTick
+
         { Subtick = state.SubTick
-          Minute  = rawMinute
-          Flow    = state.Flow }
+          Minute = rawMinute
+          Flow = state.Flow }
 
     let private flowMatches (matcher: FlowMatcher) (flow: MatchFlow) : bool =
         match matcher, flow with
@@ -26,8 +27,8 @@ module Scheduler =
         matchers |> List.exists (fun m -> flowMatches m flow)
 
     let private hasEventKind (kinds: SemanticEventKind list) (events: ResizeArray<SemanticEvent>) : bool =
-        kinds |> List.exists (fun k ->
-            events |> Seq.exists (fun e -> SemanticEvent.kind e = k))
+        kinds
+        |> List.exists (fun k -> events |> Seq.exists (fun e -> SemanticEvent.kind e = k))
 
     let private evalInner (inner: SystemFrequency) (time: MatchTime) (events: ResizeArray<SemanticEvent>) : bool =
         match inner with
@@ -35,8 +36,7 @@ module Scheduler =
         | EveryN delta -> int time.Subtick % int delta = 0
         | EveryMinute(period, offset) -> int time.Minute % int period = int offset
         | OnEvent kinds -> hasEventKind kinds events
-        | OnEventOrEveryN(kinds, delta) ->
-            hasEventKind kinds events || int time.Subtick % int delta = 0
+        | OnEventOrEveryN(kinds, delta) -> hasEventKind kinds events || int time.Subtick % int delta = 0
         | WhenFlow _ -> false
 
     let shouldRun (freq: SystemFrequency) (time: MatchTime) (events: ResizeArray<SemanticEvent>) : bool =
@@ -45,8 +45,9 @@ module Scheduler =
         | EveryN delta -> int time.Subtick % int delta = 0
         | EveryMinute(period, offset) -> int time.Minute % int period = int offset
         | OnEvent kinds -> hasEventKind kinds events
-        | OnEventOrEveryN(kinds, delta) ->
-            hasEventKind kinds events || int time.Subtick % int delta = 0
+        | OnEventOrEveryN(kinds, delta) -> hasEventKind kinds events || int time.Subtick % int delta = 0
         | WhenFlow(matchers, inner) ->
-            if flowOk matchers time.Flow then evalInner inner time events
-            else false
+            if flowOk matchers time.Flow then
+                evalInner inner time events
+            else
+                false

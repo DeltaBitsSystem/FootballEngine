@@ -34,8 +34,15 @@ module MatchMetrics =
         events |> List.filter (fun e -> filter e.Type) |> List.length
 
     let extract (events: MatchEvent list) (homeId: ClubId) (awayId: ClubId) : MatchMetrics =
-        let goalsHome = countByClub events homeId (function MatchEventType.Goal -> true | _ -> false)
-        let goalsAway = countByClub events awayId (function MatchEventType.Goal -> true | _ -> false)
+        let goalsHome =
+            countByClub events homeId (function
+                | MatchEventType.Goal -> true
+                | _ -> false)
+
+        let goalsAway =
+            countByClub events awayId (function
+                | MatchEventType.Goal -> true
+                | _ -> false)
 
         let shotsHome =
             countByClub events homeId (function
@@ -84,16 +91,26 @@ module MatchMetrics =
                 | _ -> false)
 
         let passesCompletedHome =
-            countByClub events homeId (function MatchEventType.PassCompleted _ -> true | _ -> false)
+            countByClub events homeId (function
+                | MatchEventType.PassCompleted _ -> true
+                | _ -> false)
 
         let passesCompletedAway =
-            countByClub events awayId (function MatchEventType.PassCompleted _ -> true | _ -> false)
+            countByClub events awayId (function
+                | MatchEventType.PassCompleted _ -> true
+                | _ -> false)
 
         let passAccuracyHome =
-            if passesHome > 0 then float passesCompletedHome / float passesHome else 0.0
+            if passesHome > 0 then
+                float passesCompletedHome / float passesHome
+            else
+                0.0
 
         let passAccuracyAway =
-            if passesAway > 0 then float passesCompletedAway / float passesAway else 0.0
+            if passesAway > 0 then
+                float passesCompletedAway / float passesAway
+            else
+                0.0
 
         let dribblesHome =
             countByClub events homeId (function
@@ -109,26 +126,40 @@ module MatchMetrics =
                 | MatchEventType.DribbleKeep -> true
                 | _ -> false)
 
-        let cornersHome = countByClub events homeId (function MatchEventType.Corner -> true | _ -> false)
-        let cornersAway = countByClub events awayId (function MatchEventType.Corner -> true | _ -> false)
+        let cornersHome =
+            countByClub events homeId (function
+                | MatchEventType.Corner -> true
+                | _ -> false)
 
-        let foulsHome = countByClub events homeId (function MatchEventType.FoulCommitted -> true | _ -> false)
-        let foulsAway = countByClub events awayId (function MatchEventType.FoulCommitted -> true | _ -> false)
+        let cornersAway =
+            countByClub events awayId (function
+                | MatchEventType.Corner -> true
+                | _ -> false)
+
+        let foulsHome =
+            countByClub events homeId (function
+                | MatchEventType.FoulCommitted -> true
+                | _ -> false)
+
+        let foulsAway =
+            countByClub events awayId (function
+                | MatchEventType.FoulCommitted -> true
+                | _ -> false)
 
         let isHomeWin = goalsHome > goalsAway
         let isDraw = goalsHome = goalsAway
         let isAwayWin = goalsAway > goalsHome
 
         let totalEvents = float (List.length events)
+
         let possessionHome =
             if totalEvents > 0.0 then
                 let homeEvents =
-                    events
-                    |> List.filter (fun e -> e.ClubId = homeId)
-                    |> List.length
-                    |> float
+                    events |> List.filter (fun e -> e.ClubId = homeId) |> List.length |> float
+
                 homeEvents / totalEvents
-            else 0.5
+            else
+                0.5
 
         let possessionAway = 1.0 - possessionHome
 
@@ -155,63 +186,81 @@ module MatchMetrics =
           IsAwayWin = isAwayWin }
 
     let empty =
-        { GoalsHome = 0; GoalsAway = 0
-          ShotsHome = 0; ShotsAway = 0
-          ShotsOnTargetHome = 0; ShotsOnTargetAway = 0
-          PassesHome = 0; PassesAway = 0
-          PassAccuracyHome = 0.0; PassAccuracyAway = 0.0
-          PossessionHome = 0.5; PossessionAway = 0.5
-          DribblesHome = 0; DribblesAway = 0
-          CornersHome = 0; CornersAway = 0
-          FoulsHome = 0; FoulsAway = 0
-          IsHomeWin = false; IsDraw = true; IsAwayWin = false }
+        { GoalsHome = 0
+          GoalsAway = 0
+          ShotsHome = 0
+          ShotsAway = 0
+          ShotsOnTargetHome = 0
+          ShotsOnTargetAway = 0
+          PassesHome = 0
+          PassesAway = 0
+          PassAccuracyHome = 0.0
+          PassAccuracyAway = 0.0
+          PossessionHome = 0.5
+          PossessionAway = 0.5
+          DribblesHome = 0
+          DribblesAway = 0
+          CornersHome = 0
+          CornersAway = 0
+          FoulsHome = 0
+          FoulsAway = 0
+          IsHomeWin = false
+          IsDraw = true
+          IsAwayWin = false }
 
     let average (metrics: MatchMetrics list) : MatchMetrics =
-        if List.isEmpty metrics then empty
+        if List.isEmpty metrics then
+            empty
         else
             let n = float (List.length metrics)
-            let sum = List.fold (fun acc m ->
-                { GoalsHome = acc.GoalsHome + m.GoalsHome
-                  GoalsAway = acc.GoalsAway + m.GoalsAway
-                  ShotsHome = acc.ShotsHome + m.ShotsHome
-                  ShotsAway = acc.ShotsAway + m.ShotsAway
-                  ShotsOnTargetHome = acc.ShotsOnTargetHome + m.ShotsOnTargetHome
-                  ShotsOnTargetAway = acc.ShotsOnTargetAway + m.ShotsOnTargetAway
-                  PassesHome = acc.PassesHome + m.PassesHome
-                  PassesAway = acc.PassesAway + m.PassesAway
-                  PassAccuracyHome = acc.PassAccuracyHome + m.PassAccuracyHome
-                  PassAccuracyAway = acc.PassAccuracyAway + m.PassAccuracyAway
-                  PossessionHome = acc.PossessionHome + m.PossessionHome
-                  PossessionAway = acc.PossessionAway + m.PossessionAway
-                  DribblesHome = acc.DribblesHome + m.DribblesHome
-                  DribblesAway = acc.DribblesAway + m.DribblesAway
-                  CornersHome = acc.CornersHome + m.CornersHome
-                  CornersAway = acc.CornersAway + m.CornersAway
-                  FoulsHome = acc.FoulsHome + m.FoulsHome
-                  FoulsAway = acc.FoulsAway + m.FoulsAway
-                  IsHomeWin = acc.IsHomeWin || m.IsHomeWin
-                  IsDraw = acc.IsDraw || m.IsDraw
-                  IsAwayWin = acc.IsAwayWin || m.IsAwayWin }) empty metrics
+
+            let sum =
+                List.fold
+                    (fun acc m ->
+                        { GoalsHome = acc.GoalsHome + m.GoalsHome
+                          GoalsAway = acc.GoalsAway + m.GoalsAway
+                          ShotsHome = acc.ShotsHome + m.ShotsHome
+                          ShotsAway = acc.ShotsAway + m.ShotsAway
+                          ShotsOnTargetHome = acc.ShotsOnTargetHome + m.ShotsOnTargetHome
+                          ShotsOnTargetAway = acc.ShotsOnTargetAway + m.ShotsOnTargetAway
+                          PassesHome = acc.PassesHome + m.PassesHome
+                          PassesAway = acc.PassesAway + m.PassesAway
+                          PassAccuracyHome = acc.PassAccuracyHome + m.PassAccuracyHome
+                          PassAccuracyAway = acc.PassAccuracyAway + m.PassAccuracyAway
+                          PossessionHome = acc.PossessionHome + m.PossessionHome
+                          PossessionAway = acc.PossessionAway + m.PossessionAway
+                          DribblesHome = acc.DribblesHome + m.DribblesHome
+                          DribblesAway = acc.DribblesAway + m.DribblesAway
+                          CornersHome = acc.CornersHome + m.CornersHome
+                          CornersAway = acc.CornersAway + m.CornersAway
+                          FoulsHome = acc.FoulsHome + m.FoulsHome
+                          FoulsAway = acc.FoulsAway + m.FoulsAway
+                          IsHomeWin = acc.IsHomeWin || m.IsHomeWin
+                          IsDraw = acc.IsDraw || m.IsDraw
+                          IsAwayWin = acc.IsAwayWin || m.IsAwayWin })
+                    empty
+                    metrics
 
             let avg (x: float) = x / n
-            { GoalsHome = int(avg(float sum.GoalsHome))
-              GoalsAway = int(avg(float sum.GoalsAway))
-              ShotsHome = int(avg(float sum.ShotsHome))
-              ShotsAway = int(avg(float sum.ShotsAway))
-              ShotsOnTargetHome = int(avg(float sum.ShotsOnTargetHome))
-              ShotsOnTargetAway = int(avg(float sum.ShotsOnTargetAway))
-              PassesHome = int(avg(float sum.PassesHome))
-              PassesAway = int(avg(float sum.PassesAway))
+
+            { GoalsHome = int (avg (float sum.GoalsHome))
+              GoalsAway = int (avg (float sum.GoalsAway))
+              ShotsHome = int (avg (float sum.ShotsHome))
+              ShotsAway = int (avg (float sum.ShotsAway))
+              ShotsOnTargetHome = int (avg (float sum.ShotsOnTargetHome))
+              ShotsOnTargetAway = int (avg (float sum.ShotsOnTargetAway))
+              PassesHome = int (avg (float sum.PassesHome))
+              PassesAway = int (avg (float sum.PassesAway))
               PassAccuracyHome = avg sum.PassAccuracyHome
               PassAccuracyAway = avg sum.PassAccuracyAway
               PossessionHome = avg sum.PossessionHome
               PossessionAway = avg sum.PossessionAway
-              DribblesHome = int(avg(float sum.DribblesHome))
-              DribblesAway = int(avg(float sum.DribblesAway))
-              CornersHome = int(avg(float sum.CornersHome))
-              CornersAway = int(avg(float sum.CornersAway))
-              FoulsHome = int(avg(float sum.FoulsHome))
-              FoulsAway = int(avg(float sum.FoulsAway))
+              DribblesHome = int (avg (float sum.DribblesHome))
+              DribblesAway = int (avg (float sum.DribblesAway))
+              CornersHome = int (avg (float sum.CornersHome))
+              CornersAway = int (avg (float sum.CornersAway))
+              FoulsHome = int (avg (float sum.FoulsHome))
+              FoulsAway = int (avg (float sum.FoulsAway))
               IsHomeWin = false
               IsDraw = false
               IsAwayWin = false }

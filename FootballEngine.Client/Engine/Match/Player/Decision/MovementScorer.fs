@@ -10,6 +10,8 @@ open FootballEngine.Types.PhysicsContract
 
 module MovementScorer =
 
+    let private neighborBuffer = Array.zeroCreate<int> 8
+
     let private normStat (v: int) = float v / 20.0
     let private normCond (v: float32) = float v / 100.0
 
@@ -192,19 +194,37 @@ module MovementScorer =
                 | _ -> 0.1 + zonalFactor
 
         let influenceBonus =
+            let infCfg = ctx.Weights.Influence
+
             let cell =
                 InfluenceTypes.posToCell
+                    infCfg
                     ctx.Team.OwnFrame.Physics.PosX[ctx.MeIdx]
                     ctx.Team.OwnFrame.Physics.PosY[ctx.MeIdx]
 
-            let contested = ctx.Influence.ContestedGrid[cell]
+            let mutable deficitSum = 0.0
+            let mutable count = 0
+
+            let myNet = ctx.Influence.NetGrid[cell]
+
+            if myNet < 0.0f then
+                deficitSum <- deficitSum + float (-myNet)
+
+            count <- count + 1
+
+            for ni = 0 to InfluenceTypes.neighborsInto infCfg cell neighborBuffer - 1 do
+                let neighbor = neighborBuffer[ni]
+                let net = ctx.Influence.NetGrid[neighbor]
+
+                if net < 0.0f then
+                    deficitSum <- deficitSum + float (-net)
+
+                count <- count + 1
+
+            let avgDeficit = if count = 0 then 0.0 else deficitSum / float count
             let gapRead = normStat ctx.Me.Mental.Positioning
 
-            if contested < 0.0f then
-                let deficit = min 1.0f (-contested)
-                float deficit * 0.15 * gapRead
-            else
-                0.0
+            avgDeficit * 0.20 * gapRead
 
         baseScore + influenceBonus
 
@@ -238,11 +258,14 @@ module MovementScorer =
                 | GK -> 0.0
 
             let spaceBonus =
+                let infCfg = ctx.Weights.Influence
+                let size = InfluenceTypes.gridSize infCfg
                 let mutable bestScore = 0.0
 
-                for cell = 0 to InfluenceTypes.GridSize - 1 do
+                for cell = 0 to size - 1 do
                     let s =
                         InfluenceTypes.scoreCellRaw
+                            infCfg
                             cell
                             ctx.Influence
                             (float32 ctx.MyPos.X)
@@ -337,7 +360,11 @@ module MovementScorer =
                         0.8 - (float dist / 15.0) * 0.4
             | _ -> 0.0
 
-    let applyEmergentModifiers (emergent: EmergentState) (_ctx: AgentContext) (scores: MovementScores) : MovementScores =
+    let applyEmergentModifiers
+        (emergent: EmergentState)
+        (_ctx: AgentContext)
+        (scores: MovementScores)
+        : MovementScores =
         { scores with
             PressBall = scores.PressBall * emergent.PressingIntensity
             MarkMan = scores.MarkMan * emergent.CompactnessLevel
@@ -349,6 +376,7 @@ module MovementScorer =
             0.0
         else
             let frame = ctx.Team.OwnFrame
+
             if ctx.MeIdx < frame.SlotCount then
                 match LanguagePrimitives.EnumOfValue<byte, DefensiveRole> frame.DefensiveRole[ctx.MeIdx] with
                 | DefensiveRole.Marker ->
@@ -397,7 +425,11 @@ module MovementScorer =
             else
                 0.0
 
-    let applyRoleModifiersForRole (defRole: DefensiveRole) (teamHasBall: bool) (scores: MovementScores) : MovementScores =
+    let applyRoleModifiersForRole
+        (defRole: DefensiveRole)
+        (teamHasBall: bool)
+        (scores: MovementScores)
+        : MovementScores =
         if not teamHasBall then
             match defRole with
             | DefensiveRole.FirstDefender ->
@@ -534,6 +566,7 @@ module MovementScorer =
                 MaintainShape shapeTarget
         else
             let frame = ctx.Team.OwnFrame
+
             let supportPosition =
                 if ctx.MeIdx < frame.SlotCount then
                     let spX = float frame.SupportPositionX[ctx.MeIdx] * 1.0<meter>
@@ -633,6 +666,7 @@ module MovementScorer =
                     | ValueSome oppIdx ->
                         let oppX = float ctx.Team.OppFrame.Physics.PosX[oppIdx] * 1.0<meter>
                         let oppY = float ctx.Team.OppFrame.Physics.PosY[oppIdx] * 1.0<meter>
+
                         let oppPos =
                             { X = oppX
                               Y = oppY
@@ -672,7 +706,10 @@ module MovementScorer =
             else
                 let prevScore = scoreForIntentKind scores ctx.PreviousIntentKind
                 // Threshold increased to 0.40 and a small persistence bonus (0.05) to current intent
-                if bestScore > prevScore + 0.40 then buildBestIntent () else previousIntentFromContext ctx
+                if bestScore > prevScore + 0.40 then
+                    buildBestIntent ()
+                else
+                    previousIntentFromContext ctx
 
     let pickIntent (currentSubTick: int) (scores: MovementScores) (ctx: AgentContext) : MovementIntent =
         match ctx.BallState.Control with

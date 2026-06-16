@@ -38,9 +38,7 @@ module Db =
                           ClockWeek = clock.Current.Week
                           ClockMonth = clock.Current.Month
                           ActiveModsJson =
-                              state.ActiveMods
-                              |> List.map (fun (id, v) -> $"{id}:{v}")
-                              |> String.concat "," }
+                            state.ActiveMods |> List.map (fun (id, v) -> $"{id}:{v}") |> String.concat "," }
                     )
                     |> ignore
 
@@ -244,14 +242,14 @@ module Db =
                           PendingEvents = [] }
 
                     let activeMods: (string * string) list =
-                        if String.IsNullOrEmpty meta.ActiveModsJson then []
+                        if String.IsNullOrEmpty meta.ActiveModsJson then
+                            []
                         else
                             meta.ActiveModsJson.Split(',')
                             |> Array.toList
                             |> List.choose (fun s ->
                                 let parts = s.Split(':')
-                                if parts.Length = 2 then Some(parts[0], parts[1])
-                                else None)
+                                if parts.Length = 2 then Some(parts[0], parts[1]) else None)
 
                     return
                         Some(
@@ -272,8 +270,8 @@ module Db =
                               PendingNegotiations = Map.empty
                               NextNegotiationId = 1
                               ProfileCache =
-                                  players
-                                  |> Map.map (fun _ p -> Player.profile p BalanceConfig.defaultConfig.ProfileWeights)
+                                players
+                                |> Map.map (fun _ p -> Player.profile p BalanceConfig.defaultConfig.ProfileWeights)
                               PlayerExperiences = Map.empty },
                             restoredClock
                         )

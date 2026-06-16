@@ -24,22 +24,33 @@ module PlayerPersonality =
         let mental = player.Mental
         let norm = MathPipelines.normStat
 
-        { Flair = norm mental.Vision * pw.FlairVisionWeight + norm player.Technical.Dribbling * pw.FlairDribblingWeight
-          Consistency = norm mental.Concentration * pw.ConsistencyConcentrationWeight + norm mental.Composure * pw.ConsistencyComposureWeight
+        { Flair =
+            norm mental.Vision * pw.FlairVisionWeight
+            + norm player.Technical.Dribbling * pw.FlairDribblingWeight
+          Consistency =
+            norm mental.Concentration * pw.ConsistencyConcentrationWeight
+            + norm mental.Composure * pw.ConsistencyComposureWeight
           ImportantMatches =
             norm mental.Composure * 0.4
             + norm mental.Leadership * 0.3
             + norm player.Morale * 0.3
-          Controversy = norm mental.Aggression * pw.ControversyAggressionWeight + (1.0 - norm mental.Composure) * pw.ControversyComposureWeight
+          Controversy =
+            norm mental.Aggression * pw.ControversyAggressionWeight
+            + (1.0 - norm mental.Composure) * pw.ControversyComposureWeight
           Leadership = norm mental.Leadership * pw.LeadershipWeight
-          Teamwork = norm mental.WorkRate * pw.TeamworkWorkRateWeight + norm mental.Positioning * pw.TeamworkPositioningWeight
-          Ambition = norm player.Morale * pw.AmbitionMoraleWeight + norm mental.WorkRate * pw.AmbitionWorkRateWeight
-          Pressure = norm mental.Composure * pw.PressureComposureWeight + norm mental.Concentration * pw.PressureConcentrationWeight
+          Teamwork =
+            norm mental.WorkRate * pw.TeamworkWorkRateWeight
+            + norm mental.Positioning * pw.TeamworkPositioningWeight
+          Ambition =
+            norm player.Morale * pw.AmbitionMoraleWeight
+            + norm mental.WorkRate * pw.AmbitionWorkRateWeight
+          Pressure =
+            norm mental.Composure * pw.PressureComposureWeight
+            + norm mental.Concentration * pw.PressureConcentrationWeight
           Sportsmanship = 1.0 - norm mental.Aggression * pw.SportsmanshipAggressionWeight
-          Temperament = norm mental.Composure * pw.TemperamentComposureWeight + norm mental.Concentration * pw.TemperamentConcentrationWeight }
-
-    let deriveWithDefaults (player: Player) : PlayerPersonality =
-        derive player BalanceConfig.defaultConfig.Personality
+          Temperament =
+            norm mental.Composure * pw.TemperamentComposureWeight
+            + norm mental.Concentration * pw.TemperamentConcentrationWeight }
 
     let defaultPersonality =
         { Flair = 0.5

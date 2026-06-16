@@ -7,7 +7,12 @@ module ModSaver =
 
     let private options = JsonSerializerOptions(WriteIndented = true)
 
-    let saveMod (basePath: string) (manifest: ModManifestDto) (countries: Map<string, CountryDataDto>) (intlComps: InternationalCompDto list) =
+    let saveMod
+        (basePath: string)
+        (manifest: ModManifestDto)
+        (countries: Map<string, CountryDataDto>)
+        (intlComps: InternationalCompDto list)
+        =
         try
             let modDir = Path.Combine(basePath, manifest.Name)
 

@@ -77,6 +77,7 @@
         <Compile Include="Engine\Match\Types\TeamFrame.fs"/>
         <Compile Include="Engine\Match\Types\TeamContext.fs"/>
         <Compile Include="Engine\Match\Types\BallTypes.fs"/>
+        <Compile Include="Engine\Match\Types\MatchSituation.fs"/>
         <Compile Include="Engine\Match\Types\ActionContext.fs"/>
         <Compile Include="Engine\Match\Types\AdaptiveTactics.fs"/>
         <Compile Include="Engine\Match\Types\ShapeEngine.fs"/>
@@ -92,6 +93,7 @@
         <Compile Include="Engine\Match\Core\MatchSpatial.fs"/>
         <Compile Include="Engine\Match\Core\MatchContext.fs"/>
         <Compile Include="Engine\Match\Core\SimStateOps.fs"/>
+        <Compile Include="Engine\Match\Core\MatchSituationBuilder.fs"/>
         <Compile Include="Engine\Match\Core\MathPipelines.fs"/>
 
         <Compile Include="Engine\Match\ML\WeightsLoader.fs"/>
@@ -125,6 +127,7 @@
         <Compile Include="Engine\Match\Player\Decision\xGCalculator.fs"/>
         <Compile Include="Engine\Match\Player\Decision\PlayerScorer.fs"/>
         <Compile Include="Engine\Match\Player\Decision\PlayerPersonality.fs"/>
+        <Compile Include="Engine\Match\Player\Decision\DecisionTrace.fs"/>
         <Compile Include="Engine\Match\Player\Decision\ReactiveLayer.fs"/>
         <Compile Include="Engine\Match\Player\Decision\PlayerDecision.fs"/>
 
@@ -187,6 +190,7 @@
         <Compile Include="Engine\Match\Simulation\Momentum.fs"/>
 
         <Compile Include="Engine\Match\Simulation\SnapshotBuilder.fs"/>
+        <Compile Include="Engine\Match\Logging\JsonMatchDump.fs"/>
         <Compile Include="Engine\Match\Simulation\Simulator.fs"/>
 
         <Compile Include="Engine\WorldGeneration\PlayerGen.fs"/>

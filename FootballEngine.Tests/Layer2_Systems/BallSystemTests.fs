@@ -14,21 +14,32 @@ let ballSystemTests =
         "BallSystem"
         [ test "BallSystem always emits exactly one BallUpdate" {
               let ctx, state = buildStandardMatch ()
-              let outputs = BallSystem.run ctx state defaultClock
-              let ballUpdates = outputs |> Array.filter (fun o -> match o with BallUpdate _ -> true | _ -> false)
-              Expect.equal ballUpdates.Length 1 "BallSystem must emit exactly one BallUpdate per tick"
+              let buffer = ResizeArray<DomainEvent>(16)
+              BallSystem.run ctx state defaultClock buffer
+
+              let ballUpdates =
+                  buffer
+                  |> Seq.filter (fun o ->
+                      match o with
+                      | BallUpdate _ -> true
+                      | _ -> false)
+                  |> Seq.length
+
+              Expect.equal ballUpdates 1 "BallSystem must emit exactly one BallUpdate per tick"
           }
 
           test "BallSystem does not crash with single player and free ball" {
               let home = [| makePlayer 1 MC 15 |]
               let ctx, state = buildSimState home [| 30.0, 34.0 |] [||] [||]
               state |> withBallAt 30.0 34.0 |> withBallFree |> ignore
-              engineMustNotCrash (fun () -> BallSystem.run ctx state defaultClock |> ignore)
+              let buffer = ResizeArray<DomainEvent>(16)
+              engineMustNotCrash (fun () -> BallSystem.run ctx state defaultClock buffer)
           }
 
           test "BallSystem does not crash when ball is already Controlled" {
               let home = [| makePlayer 1 MC 15 |]
               let ctx, state = buildSimState home [| 30.0, 34.0 |] [||] [||]
               state |> withBallAt 30.0 34.0 |> withBallControlledBy HomeClub 1 |> ignore
-              engineMustNotCrash (fun () -> BallSystem.run ctx state defaultClock |> ignore)
+              let buffer = ResizeArray<DomainEvent>(16)
+              engineMustNotCrash (fun () -> BallSystem.run ctx state defaultClock buffer)
           } ]

@@ -58,8 +58,7 @@ module PhysicsSystem =
                             None
 
                     match reactiveWrite with
-                    | Some(kind, tx, ty, pid) ->
-                        FrameMutate.setIntent frame.Intent i kind tx ty pid
+                    | Some(kind, tx, ty, pid) -> FrameMutate.setIntent frame.Intent i kind tx ty pid
                     | None -> ()
 
                     // Steering — física pura
@@ -67,7 +66,8 @@ module PhysicsSystem =
                         match frame.Intent.Kind[i] with
                         | IntentKind.ExecuteRun ->
                             SimStateOps.getActiveRuns state clubSide
-                            |> List.tryFind (fun r -> r.PlayerId = player.Id && RunAssignment.isActive (subTick * 1<subtick>) r)
+                            |> List.tryFind (fun r ->
+                                r.PlayerId = player.Id && RunAssignment.isActive (subTick * 1<subtick>) r)
                             |> Option.map (fun run ->
                                 let t = RunAssignment.progress (subTick * 1<subtick>) run
                                 let tx, ty = RunAssignment.evaluateTrajectory t run.Trajectory
@@ -127,7 +127,8 @@ module PhysicsSystem =
 
                     // Degradación de condición — 1 vez por segundo
                     if subTick % clock.SubTicksPerSecond = 0 then
-                        let matchMinute = SimulationClock.subTicksToSeconds clock (subTick * 1<subtick>) / 60.0
+                        let matchMinute =
+                            SimulationClock.subTicksToSeconds clock (subTick * 1<subtick>) / 60.0
 
                         let isPressing =
                             frame.Intent.Kind[i] = IntentKind.PressBall

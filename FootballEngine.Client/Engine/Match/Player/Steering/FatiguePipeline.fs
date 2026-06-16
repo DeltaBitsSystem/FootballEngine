@@ -69,7 +69,12 @@ module FatiguePipeline =
     // Degradation depends on pressing intensity, stamina, and work rate
     // -------------------------------------------------------------------------
 
-    let degradeCondition (player: Player) (currentCondition: float32) (isPressing: bool) (matchMinute: float) : float32 =
+    let degradeCondition
+        (player: Player)
+        (currentCondition: float32)
+        (isPressing: bool)
+        (matchMinute: float)
+        : float32 =
 
         let stamina = player.Physical.Stamina
         let workRate = player.Mental.WorkRate

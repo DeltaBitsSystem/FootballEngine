@@ -37,11 +37,16 @@ let matchInvariantTests =
               state |> withKickOffPending HomeClub |> ignore
               let mutable s = state
               let mutable prev = -1<subtick>
+
               for _ in 1..100 do
                   if s.Flow <> MatchEnded then
                       let result = MatchStepper.updateOne ctx defaultClock [||] s
-                      Expect.isGreaterThan result.State.SubTick prev
+
+                      Expect.isGreaterThan
+                          result.State.SubTick
+                          prev
                           $"SubTick must increase. prev={prev}, got={result.State.SubTick}"
+
                       prev <- result.State.SubTick
                       s <- result.State
           }
@@ -57,6 +62,9 @@ let matchInvariantTests =
               let ctx, state = buildStandardMatch ()
               state |> withKickOffPending HomeClub |> ignore
               let finalState, _ = advanceTicks 5000 ctx state
-              Expect.isLessThanOrEqual finalState.MatchEvents.Count 1024
+
+              Expect.isLessThanOrEqual
+                  finalState.MatchEvents.Count
+                  1024
                   "MatchEvents circular buffer must not grow unbounded"
           } ]

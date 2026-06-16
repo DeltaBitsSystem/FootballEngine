@@ -104,7 +104,8 @@ module SetPieceAgent =
 
                     let arrivalSubTick =
                         state.SubTick
-                        + (int (float (flightTime / 1.0<second>) * float clock.SubTicksPerSecond) * 1<subtick>)
+                        + (int (float (flightTime / 1.0<second>) * float clock.SubTicksPerSecond)
+                           * 1<subtick>)
 
                     let trajectory =
                         { OriginX = gkXf
@@ -128,7 +129,13 @@ module SetPieceAgent =
                                     Vz = 0.0<meter / second> }
                             Trajectory = Some trajectory }
 
-                    { Events = [| Emit { SubTick = int state.SubTick; PlayerId = gk.Id; ClubId = kickingClubId; Type = MatchEventType.GoalKick; Context = EventContext.empty } |] }
+                    { Events =
+                        [| Emit
+                               { SubTick = int state.SubTick
+                                 PlayerId = gk.Id
+                                 ClubId = kickingClubId
+                                 Type = MatchEventType.GoalKick
+                                 Context = EventContext.empty } |] }
 
             | SetPieceKind.Penalty ->
                 let roster = getRoster ctx clubSide
@@ -229,8 +236,16 @@ module SetPieceAgent =
 
                     SimStateOps.emitSemantic SemanticEvent.BallLoose state
 
-                    { Events = [| Emit { SubTick = int state.SubTick; PlayerId = kicker.Id; ClubId = kickingClubId; Type = MatchEventType.KickOff; Context = EventContext.empty } |] }
+                    { Events =
+                        [| Emit
+                               { SubTick = int state.SubTick
+                                 PlayerId = kicker.Id
+                                 ClubId = kickingClubId
+                                 Type = MatchEventType.KickOff
+                                 Context = EventContext.empty } |] }
 
-        for de in result.Events do events.Add(de)
+        for de in result.Events do
+            events.Add(de)
+
         events.Add(DomainEvent.FlowChange MatchFlow.Live)
         events.ToArray()

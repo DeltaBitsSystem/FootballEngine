@@ -11,15 +11,13 @@ module ActionSystem =
         (ctx: MatchContext)
         (state: SimState)
         (clock: SimulationClock)
-        : DomainEvent[] =
+        (outputs: ResizeArray<DomainEvent>)
+        : unit =
 
         let actionResult, refActions = ActionResolver.run subTick ctx state clock
-        let events = ResizeArray<DomainEvent>(16)
 
-        events.AddRange(actionResult.Events)
+        outputs.AddRange(actionResult.Events)
 
         for action in refActions do
             let refEvents = RefereeApplicator.apply subTick action ctx state
-            events.AddRange(refEvents)
-
-        events.ToArray()
+            outputs.AddRange(refEvents)

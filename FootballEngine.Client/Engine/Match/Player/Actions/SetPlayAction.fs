@@ -88,7 +88,7 @@ module SetPlayAction =
                   EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
                   KickerId = kicker.Id
                   PeakHeight = vz * vz / (2.0 * 9.80665<meter / second^2>)
-                  Intent = Struck(kicker.Id, quality / 2.0) }
+                  Intent = Struck(kicker.Id, quality / 2.0, float spc.FreeKickSpeed, angle * 180.0 / System.Math.PI) }
 
             let wallSize = calculateWallSize distToGoal
             let wallPlayers = selectWallPlayers defRoster attFrame goalX bY wallSize
@@ -104,7 +104,13 @@ module SetPlayAction =
                     LastTouchBy = Some kicker.Id
                     Trajectory = Some trajectory }
 
-            { Events = [| Emit { SubTick = subTick; PlayerId = kicker.Id; ClubId = clubId; Type = MatchEventType.FreeKick false; Context = EventContext.empty } |] }
+            { Events =
+                [| Emit
+                       { SubTick = subTick
+                         PlayerId = kicker.Id
+                         ClubId = clubId
+                         Type = MatchEventType.FreeKick false
+                         Context = EventContext.empty } |] }
 
     let resolveCorner (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : ActionResult =
         let actx = ActionContext.build ctx state
@@ -185,7 +191,14 @@ module SetPlayAction =
                     state
 
                 state.Ball <- { state.Ball with Control = Airborne }
-                { Events = [| Emit { SubTick = subTick; PlayerId = taker.Id; ClubId = attClubId; Type = MatchEventType.Corner; Context = EventContext.empty } |] }
+
+                { Events =
+                    [| Emit
+                           { SubTick = subTick
+                             PlayerId = taker.Id
+                             ClubId = attClubId
+                             Type = MatchEventType.Corner
+                             Context = EventContext.empty } |] }
             else
                 let bestAttacker, bestAttackerSp, _ =
                     attackersInBox
@@ -258,7 +271,13 @@ module SetPlayAction =
                         LastTouchBy = Some taker.Id
                         Trajectory = Some trajectory }
 
-                { Events = [| Emit { SubTick = subTick; PlayerId = taker.Id; ClubId = attClubId; Type = MatchEventType.Corner; Context = EventContext.empty } |] }
+                { Events =
+                    [| Emit
+                           { SubTick = subTick
+                             PlayerId = taker.Id
+                             ClubId = attClubId
+                             Type = MatchEventType.Corner
+                             Context = EventContext.empty } |] }
 
     let resolveThrowIn
         (subTick: int)
@@ -318,7 +337,14 @@ module SetPlayAction =
                 let tY = float throwFrame.Physics.PosY[tmIdx] * 1.0<meter>
                 ballTowards state.Ball.Position.X state.Ball.Position.Y tX tY spc.ThrowInSpeed spc.ThrowInVz state
                 adjustMomentum actx.Att.AttackDir spc.ThrowInMomentum state
-                { Events = [| Emit { SubTick = subTick; PlayerId = teammate.Id; ClubId = clubId; Type = MatchEventType.PassLaunched(thrower.Id, teammate.Id); Context = EventContext.empty } |] }
+
+                { Events =
+                    [| Emit
+                           { SubTick = subTick
+                             PlayerId = teammate.Id
+                             ClubId = clubId
+                             Type = MatchEventType.PassLaunched(thrower.Id, teammate.Id)
+                             Context = EventContext.empty } |] }
 
     let resolvePenalty
         (subTick: int)
@@ -434,7 +460,7 @@ module SetPlayAction =
               EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
               KickerId = kicker.Id
               PeakHeight = vz * vz / (2.0 * 9.80665<meter / second^2>)
-              Intent = Struck(kicker.Id, kickerPower) }
+              Intent = Struck(kicker.Id, kickerPower, float speed, angle * 180.0 / System.Math.PI) }
 
         state.Ball <-
             { state.Ball with

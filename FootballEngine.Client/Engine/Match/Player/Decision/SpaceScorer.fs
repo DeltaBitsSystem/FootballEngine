@@ -6,11 +6,6 @@ open FootballEngine.Types.InfluenceTypes
 open FootballEngine.Types.PhysicsContract
 
 
-// ============================================================
-// Space Scorer — evaluates off-ball space targets using influence maps
-// Enables pass-into-space and intelligent runs
-// ============================================================
-
 module SpaceScorer =
 
     [<Struct>]
@@ -19,22 +14,14 @@ module SpaceScorer =
           Score: float
           Position: Spatial }
 
-    // Minimum teammate convergence required for a space pass
     [<Literal>]
     let private MinTeammateConvergence = 0.15
 
-    // Forward bias: how much to favor cells closer to opponent goal
-    [<Literal>]
-    let private ForwardBiasWeight = 0.25
-
     let private normStat (v: int) = float v / 20.0
-
     let private pitchLengthM = float PitchLength
-    let private cellWidthM = float CellWidth
-    let private cellHeightM = float CellHeight
 
-    let private cellCenterPos (cell: int) : Spatial =
-        let cx, cy = cellToCenter cell
+    let private cellCenterPos (config: InfluenceConfig) (cell: int) : Spatial =
+        let cx, cy = cellToCenter config cell
 
         { X = float cx * 1.0<meter>
           Y = float cy * 1.0<meter>
@@ -43,17 +30,18 @@ module SpaceScorer =
           Vy = 0.0<meter / second>
           Vz = 0.0<meter / second> }
 
-    /// Score a single cell from the perspective of the attacking team.
-    /// High score = good space to pass into or run to.
-    let scoreCell (cell: int) (influence: InfluenceFrame) (myPos: Spatial) (attackDir: AttackDir) : float =
+    let scoreCell
+        (config: InfluenceConfig)
+        (cell: int)
+        (influence: InfluenceFrame)
+        (myPos: Spatial)
+        (attackDir: AttackDir)
+        : float =
+        scoreCellRaw config cell influence (float32 myPos.X) (float32 myPos.Y) attackDir
 
-        scoreCellRaw cell influence (float32 myPos.X) (float32 myPos.Y) attackDir
-
-    /// Compute how many teammates are moving toward a given cell.
-    /// Returns a convergence score 0.0-1.0.
     let private computeTeammateConvergence (ctx: AgentContext) (targetCell: int) : float =
-
-        let targetPos = cellCenterPos targetCell
+        let config = ctx.Weights.Influence
+        let targetPos = cellCenterPos config targetCell
         let mutable totalConvergence = 0.0
         let mutable count = 0
 
@@ -75,11 +63,8 @@ module SpaceScorer =
                           Vz = 0.0<meter / second> }
 
                     let dist = playerPos.DistTo2D targetPos
-
-                    // Convergence: closer players with velocity toward target count more
                     let proximityScore = max 0.0 (1.0 - float dist / 40.0)
 
-                    // Velocity alignment: is the player moving toward the target?
                     let velAlign =
                         let toTargetX = float (targetPos.X - playerPos.X)
                         let toTargetY = float (targetPos.Y - playerPos.Y)
@@ -89,7 +74,7 @@ module SpaceScorer =
                             0.0
                         else
                             let dot = vx * toTargetX / toTargetDist + vy * toTargetY / toTargetDist
-                            max 0.0 (float dot / 8.0) // normalize by max sprint speed
+                            max 0.0 (float dot / 8.0)
 
                     let convergence = proximityScore * 0.4 + velAlign * 0.6
                     totalConvergence <- totalConvergence + convergence
@@ -98,13 +83,36 @@ module SpaceScorer =
 
         if count = 0 then 0.0 else totalConvergence / float count
 
-    /// Find the best space target for a through ball — cells behind the defensive line
-    /// with high attacker influence and low defender coverage.
+    let private hasClearLane
+        (ballX: float32)
+        (ballY: float32)
+        (targetCell: int)
+        (influence: InfluenceFrame)
+        (config: InfluenceConfig)
+        : bool =
+        let tx, ty = cellToCenter config targetCell
+        let steps = 8
+        let mutable blockedCells = 0
+
+        for s = 1 to steps - 1 do
+            let t = float32 s / float32 steps
+            let px = ballX + (tx - ballX) * t
+            let py = ballY + (ty - ballY) * t
+            let cell = posToCell config px py
+
+            if influence.AwayGrid[cell] > 0.5f then
+                blockedCells <- blockedCells + 1
+
+        blockedCells <= 2
+
     let findThroughBallTarget (ctx: AgentContext) : SpaceTarget voption =
+        let config = ctx.Weights.Influence
         let influence = ctx.Influence
         let attackDir = ctx.Team.AttackDir
+        let size = gridSize config
+        let ballX = float32 ctx.BallState.Position.X
+        let ballY = float32 ctx.BallState.Position.Y
 
-        // Find the defensive line position (deepest defender x)
         let mutable deepestDefX =
             match attackDir with
             | LeftToRight -> 0.0f
@@ -124,7 +132,6 @@ module SpaceScorer =
                     deepestDefX <- dx
             | _ -> ()
 
-        // Push the through ball line slightly behind the defensive line
         let throughBallLine =
             match attackDir with
             | LeftToRight -> deepestDefX + 5.0f
@@ -133,18 +140,17 @@ module SpaceScorer =
         let mutable bestTarget: SpaceTarget voption = ValueNone
         let mutable bestScore = 0.0
 
-        for cell = 0 to GridSize - 1 do
-            let cx, _ = cellToCenter cell
+        for cell = 0 to size - 1 do
+            let cx, _ = cellToCenter config cell
 
             let isBehindLine =
                 match attackDir with
                 | LeftToRight -> cx > throughBallLine
                 | RightToLeft -> cx < throughBallLine
 
-            if isBehindLine then
-                let score = scoreCell cell influence ctx.MyPos attackDir
+            if isBehindLine && hasClearLane ballX ballY cell influence config then
+                let score = scoreCell config cell influence ctx.MyPos attackDir
 
-                // Bonus for being in the "through ball zone"
                 let depthBonus =
                     let depth =
                         match attackDir with
@@ -162,21 +168,21 @@ module SpaceScorer =
                         ValueSome
                             { Cell = cell
                               Score = adjustedScore
-                              Position = cellCenterPos cell }
+                              Position = cellCenterPos config cell }
 
         bestTarget
 
-    /// Find the best general space target (not necessarily behind defensive line).
-    /// Used for general space passes and off-ball runs.
     let findBestSpaceTarget (ctx: AgentContext) : SpaceTarget voption =
+        let config = ctx.Weights.Influence
         let influence = ctx.Influence
         let attackDir = ctx.Team.AttackDir
+        let size = gridSize config
 
         let mutable bestTarget: SpaceTarget voption = ValueNone
         let mutable bestScore = 0.0
 
-        for cell = 0 to GridSize - 1 do
-            let score = scoreCell cell influence ctx.MyPos attackDir
+        for cell = 0 to size - 1 do
+            let score = scoreCell config cell influence ctx.MyPos attackDir
 
             if score > bestScore then
                 bestScore <- score
@@ -185,20 +191,18 @@ module SpaceScorer =
                     ValueSome
                         { Cell = cell
                           Score = score
-                          Position = cellCenterPos cell }
+                          Position = cellCenterPos config cell }
 
         bestTarget
 
-    /// Score a potential space pass to a given cell.
-    /// Combines space quality with teammate convergence.
     let spacePassScore (ctx: AgentContext) (targetCell: int) : float<decisionScore> =
+        let config = ctx.Weights.Influence
         let influence = ctx.Influence
         let attackDir = ctx.Team.AttackDir
 
-        let spaceScore = scoreCell targetCell influence ctx.MyPos attackDir
+        let spaceScore = scoreCell config targetCell influence ctx.MyPos attackDir
         let convergence = computeTeammateConvergence ctx targetCell
 
-        // Space pass requires at least some teammate convergence
         let convergenceFactor =
             if convergence < MinTeammateConvergence then 0.3
             elif convergence < 0.4 then 0.6

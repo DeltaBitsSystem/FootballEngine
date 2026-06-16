@@ -23,11 +23,25 @@ let goalCycleTests =
 
           test "GoalPause with 5 ticks → RestartDelay → Live cycle completes within 300 ticks" {
               let ctx, state = buildStandardMatch ()
+
               state.Flow <-
-                   GoalPause { ScoringTeam = HomeClub; ScorerId = None;
-                               IsOwnGoal = false; RemainingTicks = 5 * 1<tickDelta>; VARRequested = false }
+                  GoalPause
+                      { ScoringTeam = HomeClub
+                        ScorerId = None
+                        IsOwnGoal = false
+                        RemainingTicks = 5 * 1<tickDelta>
+                        VARRequested = false }
+
               let phase1 =
-                  runUntilFlow (fun f -> match f with RestartDelay _ -> true | _ -> false) 50 ctx state
+                  runUntilFlow
+                      (fun f ->
+                          match f with
+                          | RestartDelay _ -> true
+                          | _ -> false)
+                      50
+                      ctx
+                      state
+
               Expect.isSome phase1 "Should reach RestartDelay after GoalPause"
               let stateAfterPause, _ = phase1.Value
               let phase2 = runUntilFlow (fun f -> f = Live) 250 ctx stateAfterPause

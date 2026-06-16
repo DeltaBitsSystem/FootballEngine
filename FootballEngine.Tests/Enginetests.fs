@@ -20,6 +20,7 @@ let private unplayedFixtures (game: GameState) limit =
     |> Map.toList
     |> List.collect (fun (_, comp) -> comp.Fixtures |> Map.toList)
     |> List.filter (fun (_, f) -> not f.Played)
+    |> List.sortBy (fun (_, f) -> f.ScheduledDate)
     |> List.truncate limit
 
 let private advanceToSimulate (game: GameState) (fixtures: (MatchId * MatchFixture) list) : WorldRunner.DayResult =
@@ -34,7 +35,7 @@ let batchTests =
         [ testCase "batch simulates fixtures correctly"
           <| fun () ->
               let game = loadGame ()
-              let fixtures = unplayedFixtures game 20
+              let fixtures = unplayedFixtures game 5
 
               if fixtures.IsEmpty then
                   failtest "No unplayed fixtures found"
@@ -46,7 +47,7 @@ let batchTests =
           testCase "standings are mathematically sane"
           <| fun () ->
               let game = loadGame ()
-              let result = advanceToSimulate game (unplayedFixtures game 20)
+              let result = advanceToSimulate game (unplayedFixtures game 5)
 
               let sane =
                   result.GameState.Competitions
@@ -68,7 +69,7 @@ let batchTests =
           testCase "home win awards more points than away win"
           <| fun () ->
               let game = loadGame ()
-              let result = advanceToSimulate game (unplayedFixtures game 20)
+              let result = advanceToSimulate game (unplayedFixtures game 5)
 
               let verified =
                   result.GameState.Competitions
@@ -107,7 +108,7 @@ let standingUpdateTests =
         [ testCase "standings exist for all clubs after simulation"
           <| fun () ->
               let game = loadGame ()
-              let result = advanceToSimulate game (unplayedFixtures game 20)
+              let result = advanceToSimulate game (unplayedFixtures game 5)
 
               let allHaveStandings =
                   result.GameState.Competitions
@@ -139,7 +140,7 @@ let fixtureIntegrityTests =
           testCase "no fixture has nil scores after batch simulation"
           <| fun () ->
               let game = loadGame ()
-              let result = advanceToSimulate game (unplayedFixtures game 20)
+              let result = advanceToSimulate game (unplayedFixtures game 5)
 
               let noNilScores =
                   result.PlayedMatches

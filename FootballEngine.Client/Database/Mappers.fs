@@ -127,7 +127,10 @@ module Mappers =
           ContractExpiry = contractExpiry
           TrainingFocus = trainingFocusToString player.TrainingSchedule.Focus
           TrainingIntensity = trainingIntensityToString player.TrainingSchedule.Intensity
-          BehavioralProfile = behavioralProfileToString (Player.profile player FootballEngine.Types.BalanceConfig.defaultConfig.ProfileWeights) }
+          BehavioralProfile =
+            behavioralProfileToString (
+                Player.profile player FootballEngine.Types.BalanceConfig.defaultConfig.ProfileWeights
+            ) }
 
     let toPlayerDomain (e: PlayerEntity) : Player =
         let status =
@@ -242,10 +245,13 @@ module Mappers =
           BoardObjective = parseBoardObjective ce.BoardObjective
           CoordinationMemory =
             match ce.CoordinationMemory with
-            | null | "" -> CoordinationMemory.defaultMemory
+            | null
+            | "" -> CoordinationMemory.defaultMemory
             | json ->
-                try JsonSerializer.Deserialize<CoordinationMemory>(json)
-                with _ -> CoordinationMemory.defaultMemory }
+                try
+                    JsonSerializer.Deserialize<CoordinationMemory>(json)
+                with _ ->
+                    CoordinationMemory.defaultMemory }
 
     let toStaffEntity (staff: Staff) : StaffEntity =
         let contractClubId, contractSalary, contractExpiry =
@@ -485,5 +491,4 @@ module Mappers =
         { Code = cd.Country.Code
           DataJson = serializeCountryData cd }
 
-    let toCountryDomain (e: CountryEntity) : CountryData =
-        deserializeCountryData e.DataJson
+    let toCountryDomain (e: CountryEntity) : CountryData = deserializeCountryData e.DataJson

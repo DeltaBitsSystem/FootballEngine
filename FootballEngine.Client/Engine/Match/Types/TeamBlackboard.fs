@@ -3,13 +3,22 @@ namespace FootballEngine.Types
 open FootballEngine.Domain
 
 [<Struct>]
-type TeamPhase = Attacking | Defending | Transition
+type TeamPhase =
+    | Attacking
+    | Defending
+    | Transition
 
 [<Struct>]
-type OpponentShape = HighLine | MidBlock | LowBlock
+type OpponentShape =
+    | HighLine
+    | MidBlock
+    | LowBlock
 
 [<Struct>]
-type OpponentPressure = HighPress | MidPress | NoPress
+type OpponentPressure =
+    | HighPress
+    | MidPress
+    | NoPress
 
 type TeamBlackboard =
     { OurPhase: TeamPhase

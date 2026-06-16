@@ -60,12 +60,19 @@ module EventTimeline =
         let panel = StackPanel(Orientation = Orientation.Horizontal, Height = 30.0)
 
         let mutable lastMinute = -1
+
         for e in events do
             let minute = e.SubTick / 40
+
             if minute <> lastMinute then
-                let marker = Ellipse(Width = 8.0, Height = 8.0, Fill = eventColor (eventTypeFromMatchEvent e))
+                let marker =
+                    Ellipse(Width = 8.0, Height = 8.0, Fill = eventColor (eventTypeFromMatchEvent e))
+
                 let tip = TextBlock(Text = $"{minute}'", FontSize = 8.0, Margin = Thickness(2.0))
-                let wrapper = StackPanel(Orientation = Orientation.Vertical, Margin = Thickness(1.0))
+
+                let wrapper =
+                    StackPanel(Orientation = Orientation.Vertical, Margin = Thickness(1.0))
+
                 wrapper.Children.Add(marker) |> ignore
                 wrapper.Children.Add(tip) |> ignore
                 panel.Children.Add(wrapper) |> ignore

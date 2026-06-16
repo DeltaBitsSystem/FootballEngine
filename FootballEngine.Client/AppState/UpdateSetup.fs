@@ -12,7 +12,10 @@ module UpdateSetup =
 
     let handle (msg: SetupMsg) (state: State) : State * Cmd<Msg> =
         match msg with
-        | GoToStep step -> { state with Setup = { state.Setup with Step = step } }, Cmd.none
+        | GoToStep step ->
+            { state with
+                Setup = { state.Setup with Step = step } },
+            Cmd.none
 
         | SelectPrimaryCountry code ->
             { state with
@@ -32,11 +35,15 @@ module UpdateSetup =
                     else
                         code :: state.Setup.SecondaryCountries
 
-                { state with Setup = { state.Setup with SecondaryCountries = updated } },
+                { state with
+                    Setup =
+                        { state.Setup with
+                            SecondaryCountries = updated } },
                 Cmd.none
 
         | UpdateManagerName name ->
-            { state with Setup = { state.Setup with ManagerName = name } },
+            { state with
+                Setup = { state.Setup with ManagerName = name } },
             Cmd.none
 
         | StartNewGame ->

@@ -138,12 +138,20 @@ module Player =
             let posBase =
                 match p.Position with
                 | GK -> 0.0
-                | DC | DM -> 0.05
-                | DL | DR | WBL | WBR -> 0.25
+                | DC
+                | DM -> 0.05
+                | DL
+                | DR
+                | WBL
+                | WBR -> 0.25
                 | MC -> 0.35
-                | ML | MR | AML | AMR -> 0.55
+                | ML
+                | MR
+                | AML
+                | AMR -> 0.55
                 | AMC -> 0.65
                 | ST -> 0.85
+
             clamp01 (
                 posBase * pw.AttackingDepth_PositionBaseMultiplier
                 + norm phys.Pace * pw.AttackingDepth_PaceWeight
@@ -171,18 +179,32 @@ module Player =
                 | WBL -> -0.85
                 | WBR -> 0.85
 
-            Math.Clamp(baseFromPosition + norm tech.Crossing * pw.LateralTendency_CrossingWeight + norm phys.Pace * pw.LateralTendency_PaceWeight, -1.0, 1.0)
+            Math.Clamp(
+                baseFromPosition
+                + norm tech.Crossing * pw.LateralTendency_CrossingWeight
+                + norm phys.Pace * pw.LateralTendency_PaceWeight,
+                -1.0,
+                1.0
+            )
 
         let defensiveHeight =
             let posBase =
                 match p.Position with
                 | GK -> 1.0
                 | DC -> 0.90
-                | DL | DR | WBL | WBR -> 0.75
+                | DL
+                | DR
+                | WBL
+                | WBR -> 0.75
                 | DM -> 0.70
-                | MC | ML | MR -> 0.45
-                | AML | AMR | AMC -> 0.25
+                | MC
+                | ML
+                | MR -> 0.45
+                | AML
+                | AMR
+                | AMC -> 0.25
                 | ST -> 0.10
+
             clamp01 (
                 posBase * pw.DefensiveHeight_PositionBaseMultiplier
                 + norm mental.WorkRate * pw.DefensiveHeight_WorkRateWeight

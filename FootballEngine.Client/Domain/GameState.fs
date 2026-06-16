@@ -51,7 +51,9 @@ module GameState =
     let updatePlayer (p: Player) (gs: GameState) : GameState =
         { gs with
             Players = gs.Players |> Map.add p.Id p
-            ProfileCache = gs.ProfileCache |> Map.add p.Id (Player.profile p ProfileWeightDefaults.defaults) }
+            ProfileCache =
+                gs.ProfileCache
+                |> Map.add p.Id (Player.profile p ProfileWeightDefaults.defaults) }
 
     let getProfile (pid: PlayerId) (gs: GameState) : BehavioralProfile =
         gs.ProfileCache

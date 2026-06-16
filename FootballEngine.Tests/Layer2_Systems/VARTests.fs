@@ -10,7 +10,13 @@ let varTests =
         "VAR"
         [ test "AddReview sets CurrentReview and IsChecking" {
               let varState = VARState()
-              varState.AddReview(VARReviewableIncident.GoalCheck(HomeClub, None, false, 0<subtick>), 0<subtick>, 100 * 1<tickDelta>)
+
+              varState.AddReview(
+                  VARReviewableIncident.GoalCheck(HomeClub, None, false, 0<subtick>),
+                  0<subtick>,
+                  100 * 1<tickDelta>
+              )
+
               Expect.isTrue varState.IsChecking "IsChecking should be true"
 
               match varState.CurrentReview with
@@ -57,7 +63,8 @@ let varTests =
           }
 
           test "GoalCheck incident is correctly structured" {
-              let incident = VARReviewableIncident.GoalCheck(HomeClub, Some 1, false, 1000<subtick>)
+              let incident =
+                  VARReviewableIncident.GoalCheck(HomeClub, Some 1, false, 1000<subtick>)
 
               match incident with
               | VARReviewableIncident.GoalCheck(club, Some pid, isOG, subTick) ->

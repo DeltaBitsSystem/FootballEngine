@@ -111,6 +111,7 @@ module Competition =
                 comp.Standings
                 |> Map.tryFind id
                 |> Option.defaultWith (fun () -> emptyStanding id)
+
             id, standing)
         |> List.sortByDescending (fun (_, s) -> s.Points, s.Won, s.GoalsFor - s.GoalsAgainst)
 
@@ -124,6 +125,7 @@ module Competition =
                 comp.Standings
                 |> Map.tryFind id
                 |> Option.defaultWith (fun () -> emptyStanding id)
+
             id, standing)
         |> List.sortBy (fun (_, s) -> s.Points, s.Won, s.GoalsFor - s.GoalsAgainst)
         |> List.truncate n
@@ -133,5 +135,4 @@ module Competition =
         comp.Fixtures |> Map.filter (fun _ f -> MatchFixture.isPending f)
 
     let fixturesFor (clubId: ClubId) (comp: Competition) =
-        comp.Fixtures
-        |> Map.filter (fun _ f -> MatchFixture.involves clubId f)
+        comp.Fixtures |> Map.filter (fun _ f -> MatchFixture.involves clubId f)

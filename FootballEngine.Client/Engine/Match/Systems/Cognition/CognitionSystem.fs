@@ -32,9 +32,13 @@ module CognitionSystem =
           RecoverBall = MovementScorer.recoverBallScore ctx
           MoveToSetPiecePos = 0.0 }
 
-    let run (ctx: MatchContext) (state: SimState) (clock: SimulationClock) (time: MatchTime) : DomainEvent[] =
-
-        let domainEvents = ResizeArray<DomainEvent>(4)
+    let run
+        (ctx: MatchContext)
+        (state: SimState)
+        (clock: SimulationClock)
+        (time: MatchTime)
+        (outputs: ResizeArray<DomainEvent>)
+        : unit =
 
         let possessionHistory = state.PossessionHistory
 
@@ -42,16 +46,15 @@ module CognitionSystem =
             let team = buildTeamPerspective clubSide ctx state
             let frame = team.OwnFrame
             let roster = team.OwnRoster
+
             let cFrame =
                 if clubSide = HomeClub then
                     state.HomeCognitiveFrame
                 else
                     state.AwayCognitiveFrame
-            let influence =
-                if clubSide = HomeClub then
-                    state.HomeInfluenceFrame
-                else
-                    state.AwayInfluenceFrame
+
+            let influence = state.InfluenceFrame
+
             let dir = team.AttackDir
             let ballXSmooth = state.BallXSmooth
             let phase = phaseFromBallZone dir ballXSmooth
@@ -77,18 +80,24 @@ module CognitionSystem =
 
             let activeRunByPlayer = teamState.ActiveRunLookup
             activeRunByPlayer.Clear()
+
             for run in getActiveRuns state clubSide do
-                if RunAssignment.isActive time.Subtick run && not (activeRunByPlayer.ContainsKey run.PlayerId) then
+                if
+                    RunAssignment.isActive time.Subtick run
+                    && not (activeRunByPlayer.ContainsKey run.PlayerId)
+                then
                     activeRunByPlayer.Add(run.PlayerId, run)
 
             let ownCount = frame.SlotCount
             let oppCount = team.OppFrame.SlotCount
+
             let visCanSeeTM =
                 if teamState.VisCanSeeTM.Length >= ownCount then
                     teamState.VisCanSeeTM
                 else
                     teamState.VisCanSeeTM <- Array.zeroCreate ownCount
                     teamState.VisCanSeeTM
+
             let visCanSeeOpp =
                 if teamState.VisCanSeeOpp.Length >= oppCount then
                     teamState.VisCanSeeOpp
@@ -119,7 +128,8 @@ module CognitionSystem =
 
                         if hasBall && not isSetPiece then
                             Perception.computeVisibilityMaskInto
-                                visCanSeeTM visCanSeeOpp
+                                visCanSeeTM
+                                visCanSeeOpp
                                 i
                                 { X = myX
                                   Y = myY
@@ -166,6 +176,7 @@ module CognitionSystem =
                         let contextual = CollectiveModifiers.applyModifiers blackboard actx individual
 
                         let collectiveIntent = frame.CollectiveIntents[i]
+
                         let withCollective =
                             { contextual with
                                 PressBall = contextual.PressBall * collectiveIntent.PressBall
@@ -174,7 +185,8 @@ module CognitionSystem =
                                 MarkMan = contextual.MarkMan * collectiveIntent.MarkMan
                                 RecoverBall = contextual.RecoverBall * collectiveIntent.RecoverBall }
 
-                        let slotRole = box frame.SlotRoles[i] :?> SlotRole
+                        let slotRole = frame.SlotRoles[i]
+
                         let withSlotRole =
                             { withCollective with
                                 PressBall = withCollective.PressBall * SlotRole.pressBallBias slotRole
@@ -182,8 +194,11 @@ module CognitionSystem =
                                 CoverSpace = withCollective.CoverSpace * SlotRole.coverSpaceBias slotRole
                                 RecoverBall = withCollective.RecoverBall * SlotRole.recoverBallBias slotRole }
 
-                        let defRole = LanguagePrimitives.EnumOfValue<byte, DefensiveRole> frame.DefensiveRole[i]
-                        let withDefRole = MovementScorer.applyRoleModifiersForRole defRole actx.TeamHasBall withSlotRole
+                        let defRole =
+                            LanguagePrimitives.EnumOfValue<byte, DefensiveRole> frame.DefensiveRole[i]
+
+                        let withDefRole =
+                            MovementScorer.applyRoleModifiersForRole defRole actx.TeamHasBall withSlotRole
 
                         let emergent = getEmergentState state clubSide
                         let withEmergent = MovementScorer.applyEmergentModifiers emergent actx withDefRole
@@ -221,11 +236,15 @@ module CognitionSystem =
                         FrameMutate.setIntent frame.Intent i kind tx ty pid
 
                         let dur, trigger = IntentPhase.duration clock finalFinalIntent
-                        FrameMutate.commitIntent frame.Intent i (time.Subtick + SimulationClock.deltaToSubtick dur) (LanguagePrimitives.EnumOfValue<byte, ExitTrigger> (byte trigger))
+
+                        FrameMutate.commitIntent
+                            frame.Intent
+                            i
+                            (time.Subtick + SimulationClock.deltaToSubtick dur)
+                            (LanguagePrimitives.EnumOfValue<byte, ExitTrigger>(byte trigger))
+
                         frame.Intent.CommittedAt[i] <- int time.Subtick
 
                         match finalFinalIntent with
-                        | ExecuteRun run -> domainEvents.Add(RegisterRun(clubSide, run))
+                        | ExecuteRun run -> outputs.Add(RegisterRun(clubSide, run))
                         | _ -> ()
-
-        domainEvents.ToArray()

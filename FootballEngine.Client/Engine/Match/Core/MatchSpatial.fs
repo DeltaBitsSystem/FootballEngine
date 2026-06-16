@@ -154,23 +154,31 @@ module MatchSpatial =
         let tdx = tX - bX
         let tdy = tY - bY
         let lenSq = tdx * tdx + tdy * tdy
-        if lenSq < 0.01f then true
+
+        if lenSq < 0.01f then
+            true
         else
             let invLenSq = 1.0f / lenSq
             let radiusSq = 9.0f
             let mutable blocked = false
             let mutable i = 0
+
             while not blocked && i < defFrame.SlotCount do
                 match defFrame.Physics.Occupancy[i] with
                 | OccupancyKind.Active _ ->
                     let dpx = defFrame.Physics.PosX[i] - bX
                     let dpy = defFrame.Physics.PosY[i] - bY
                     let t = (dpx * tdx + dpy * tdy) * invLenSq
+
                     if t >= 0.0f && t <= 1.0f then
                         let crossSq = (dpx * tdy - dpy * tdx) * (dpx * tdy - dpy * tdx)
-                        if crossSq < radiusSq * lenSq then blocked <- true
+
+                        if crossSq < radiusSq * lenSq then
+                            blocked <- true
                 | _ -> ()
+
                 i <- i + 1
+
             not blocked
 
     let findBestPassTargetFrame

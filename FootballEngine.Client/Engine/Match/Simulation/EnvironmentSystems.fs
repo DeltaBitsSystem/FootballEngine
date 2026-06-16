@@ -19,8 +19,7 @@ type PitchCondition =
 
 module WeatherSystem =
 
-    let ballSpeedModifier (weather: WeatherCondition) : float =
-        let ew = BalanceConfig.defaultConfig.Environment
+    let ballSpeedModifier (ew: EnvironmentWeights) (weather: WeatherCondition) : float =
         match weather with
         | Clear -> ew.WeatherClearModifier
         | LightRain -> ew.WeatherLightRainModifier
@@ -28,8 +27,7 @@ module WeatherSystem =
         | Snow -> ew.WeatherSnowModifier
         | Windy -> ew.WeatherWindyModifier
 
-    let slipProbability (pitch: PitchCondition) (player: Player) : float =
-        let ew = BalanceConfig.defaultConfig.Environment
+    let slipProbability (ew: EnvironmentWeights) (pitch: PitchCondition) (player: Player) : float =
         let agility = float player.Physical.Agility / 20.0
 
         let baseSlip =
@@ -49,8 +47,7 @@ type CrowdInfluence =
 
 module CrowdSystem =
 
-    let homeAdvantage (crowd: CrowdInfluence) : float =
-        let ew = BalanceConfig.defaultConfig.Environment
+    let homeAdvantage (ew: EnvironmentWeights) (crowd: CrowdInfluence) : float =
         let capacityFactor = float crowd.StadiumCapacity / ew.CrowdMaxCapacity
         let supportFactor = crowd.HomeSupport
         let momentumFactor = max 0.0 crowd.CurrentMomentum / 10.0
@@ -62,7 +59,6 @@ module CrowdSystem =
          + importanceFactor * ew.CrowdImportanceWeight)
         * ew.CrowdMaxAdvantage
 
-    let pressureOnAwayTeam (crowd: CrowdInfluence) : float =
-        let homeAdv = homeAdvantage crowd
-        let ew = BalanceConfig.defaultConfig.Environment
+    let pressureOnAwayTeam (ew: EnvironmentWeights) (crowd: CrowdInfluence) : float =
+        let homeAdv = homeAdvantage ew crowd
         homeAdv * ew.AwayPressureCrowdMult

@@ -46,10 +46,10 @@ module AdaptiveSystem =
 
                let updated =
                    emergent
-                   |> EmergentLoops.updateCompactness shortPassRate
-                   |> EmergentLoops.updatePressing pressRate
-                   |> EmergentLoops.updateWingPlay flankRate
-                   |> EmergentLoops.updateFatigueSpiral avgCond 0
+                   |> EmergentLoops.updateCompactness state.Config.Collective.Emergent shortPassRate
+                   |> EmergentLoops.updatePressing state.Config.Collective.Emergent pressRate
+                   |> EmergentLoops.updateWingPlay state.Config.Collective.Emergent flankRate
+                   |> EmergentLoops.updateFatigueSpiral state.Config.Collective.Emergent avgCond 0
 
                yield DomainEvent.EmergentUpdate(clubSide, updated)
 
@@ -64,5 +64,5 @@ module AdaptiveSystem =
                    DomainEvent.AdaptiveUpdate(
                        clubSide,
                        { AdaptiveTactics.initial with
-                            Records = updatedRecords }
-                    ) |]
+                           Records = updatedRecords }
+                   ) |]

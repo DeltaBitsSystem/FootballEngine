@@ -92,8 +92,7 @@ module PhysicsContract =
     [<Literal>]
     let AttrMax = 20.0
 
-    let inline normaliseAttr (v: int) : float =
-        float v / AttrMax
+    let inline normaliseAttr (v: int) : float = float v / AttrMax
 
     let inline toScalar (v: float<'u>) : float = float v
 

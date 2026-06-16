@@ -11,7 +11,7 @@ type AimedKind =
 
 type InFlightIntent =
     | Aimed of passerId: PlayerId * targetId: PlayerId * quality: float * kind: AimedKind
-    | Struck of shooterId: PlayerId * quality: float
+    | Struck of shooterId: PlayerId * quality: float * shotSpeed: float * shotAngleDeg: float
     | Cleared of playerId: PlayerId
     | Uncontrolled
 
@@ -48,6 +48,7 @@ type ArrivalContext =
     { BallPos: Spatial
       TargetId: PlayerId
       Quality: float
+      Intent: InFlightIntent
       HomeFrame: TeamFrame
       AwayFrame: TeamFrame
       HomeRoster: PlayerRoster

@@ -114,19 +114,19 @@ module Squad =
                               [ let a = state.Squad.SortBy
 
                                 UI.iconToggleButton "Line" PlayerIcon.position (a = ByPosition) (fun _ ->
-                                    dispatch (SquadMsg (SquadMsg.SetSort ByPosition)))
+                                    dispatch (SquadMsg(SquadMsg.SetSort ByPosition)))
 
                                 UI.iconToggleButton "Skill" PlayerIcon.skill (a = ByCA) (fun _ ->
-                                    dispatch (SquadMsg (SquadMsg.SetSort ByCA)))
+                                    dispatch (SquadMsg(SquadMsg.SetSort ByCA)))
 
                                 UI.iconToggleButton "Age" PlayerIcon.age (a = ByAge) (fun _ ->
-                                    dispatch (SquadMsg (SquadMsg.SetSort ByAge)))
+                                    dispatch (SquadMsg(SquadMsg.SetSort ByAge)))
 
                                 UI.iconToggleButton "Value" PlayerIcon.value (a = ByValue) (fun _ ->
-                                    dispatch (SquadMsg (SquadMsg.SetSort ByValue)))
+                                    dispatch (SquadMsg(SquadMsg.SetSort ByValue)))
 
                                 UI.iconToggleButton "Name" IconName.sort (a = ByName) (fun _ ->
-                                    dispatch (SquadMsg (SquadMsg.SetSort ByName))) ] ]
+                                    dispatch (SquadMsg(SquadMsg.SetSort ByName))) ] ]
 
                     StackPanel.create
                         [ StackPanel.orientation Orientation.Horizontal
@@ -192,15 +192,18 @@ module Squad =
 
                                                               for player in players do
                                                                   let isSelected =
-                                                                       state.Squad.SelectedPlayer
+                                                                      state.Squad.SelectedPlayer
                                                                       |> Option.exists (fun id -> id = player.Id)
 
                                                                   PlayerView.row
                                                                       player
                                                                       gs.CurrentDate
                                                                       isSelected
-                                                                       (state.Squad.DraggedPlayer = Some player.Id)
-                                                                       (fun () -> dispatch (SquadMsg (SquadMsg.SelectPlayer player.Id)))
+                                                                      (state.Squad.DraggedPlayer = Some player.Id)
+                                                                      (fun () ->
+                                                                          dispatch (
+                                                                              SquadMsg(SquadMsg.SelectPlayer player.Id)
+                                                                          ))
                                                                   |> View.withKey (string player.Id) ] ]
                                           ) ] ] ]
 
@@ -208,7 +211,8 @@ module Squad =
                             [ Grid.column 1
                               Grid.children
                                   [ match
-                                         state.Squad.SelectedPlayer |> Option.bind (fun id -> gs.Players |> Map.tryFind id)
+                                        state.Squad.SelectedPlayer
+                                        |> Option.bind (fun id -> gs.Players |> Map.tryFind id)
                                     with
                                     | Some player -> PlayerView.detail (Some player) gs.CurrentDate
                                     | None -> PlayerView.detail None gs.CurrentDate ] ] ] ]

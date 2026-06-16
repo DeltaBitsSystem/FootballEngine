@@ -45,7 +45,9 @@ module OutcomeResolver =
         let dx = float (goalX - ballPos.X)
         let dy = float (goalY - ballPos.Y)
         let dist = sqrt (dx * dx + dy * dy)
-        if dist < 0.01 then 180.0
+
+        if dist < 0.01 then
+            180.0
         else
             let halfWidth = (PostFarY - PostNearY) / 2.0<meter>
             let angleRad = atan (float halfWidth / dist)
@@ -61,7 +63,7 @@ module OutcomeResolver =
     let private trackXG (state: SimState) (shooterClub: ClubSide) (ballPos: Spatial) (shootingDir: AttackDir) =
         let dist = shotDistance ballPos shootingDir
         let angle = shotAngle ballPos shootingDir
-        let xg = Player.Actions.xGCalculator.baseXGWithDefaults dist angle
+        let xg = Player.Actions.xGCalculator.baseXG dist angle state.Config.XG
 
         if shooterClub = HomeClub then
             state.HomeXG <- state.HomeXG + xg
@@ -175,23 +177,36 @@ module OutcomeResolver =
                         else
                             [ createEvent (subTick * 1<subtick>) passerId attClubId (PassCompleted(passerId, targetId)) ]
 
-                    let controlProb =
-                        normaliseAttr player.Technical.BallControl
-                        * ctx.Config.GK.CatchHandlingMult
-                        * controlMult
+                    let orCfg = ctx.Config.OutfieldReception
 
-                    if bernoulli (clamp controlProb 0.0 interceptCap) then
-                        PossessionGained(club, player, passEvent true),
+                    let controlProb =
+                        orCfg.ReceptionBaseProbability
+                        + orCfg.BallControlWeight * normaliseAttr player.Technical.BallControl
+                        + orCfg.PassQualityWeight * quality
+                        - orCfg.BallSpeedPenalty
+                          * float (sqrt (ball.Position.Vx * ball.Position.Vx + ball.Position.Vy * ball.Position.Vy))
+
+                    let withCtrl (e: MatchEvent) =
+                        { e with
+                            Context =
+                                { e.Context with
+                                    ControlProb = Some controlProb } }
+
+                    if bernoulli (clamp controlProb 0.0 orCfg.ReceptionMaxProbability) then
+                        PossessionGained(club, player, passEvent true |> List.map withCtrl),
                         { ball with
                             Control = Controlled(club, player.Id)
-                            LastTouchBy = Some player.Id }
+                            LastTouchBy = Some player.Id
+                            Trajectory = None }
                     else
-                        BallLoose(passEvent false),
+                        BallLoose(passEvent false |> List.map withCtrl),
                         { ball with
                             Control = Free
-                            LastTouchBy = Some player.Id }
-                | Struck(shooterId, quality) ->
+                            LastTouchBy = Some player.Id
+                            Trajectory = None }
+                | Struck(shooterId, quality, shotSpeed, shotAngle) ->
                     let shootingDir = attDir
+
                     let shooterClub =
                         if homeRoster.Players |> Array.exists (fun p -> p.Id = shooterId) then
                             HomeClub
@@ -206,7 +221,27 @@ module OutcomeResolver =
                             Control = Free
                             Trajectory = None }
                     else
-                        NoChange, ball
+                        let saveEvt =
+                            createEvent
+                                (subTick * 1<subtick>)
+                                shooterId
+                                (if shooterClub = HomeClub then ctx.Home.Id else ctx.Away.Id)
+                                (SaveCaught(shooterId, player.Id))
+
+                        PossessionGained(
+                            club,
+                            player,
+                            [ { saveEvt with
+                                  Context =
+                                      { saveEvt.Context with
+                                          GKSaveAttempt = Some true
+                                          ShotSpeed = Some shotSpeed } } ]
+                        ),
+                        { ball with
+                            Control = Controlled(club, player.Id)
+                            LastTouchBy = Some player.Id
+                            Trajectory = None
+                            GKHoldSinceSubTick = Some(subTick * 1<subtick>) }
                 | _ -> NoChange, ball
             | None ->
                 PossessionGained(club, player, []),
@@ -226,27 +261,51 @@ module OutcomeResolver =
 
                     let passerClubId = if passerClub = HomeClub then ctx.Home.Id else ctx.Away.Id
 
+                    let interceptorEvt =
+                        createEvent (subTick * 1<subtick>) passerId passerClubId (PassIntercepted(passerId, player.Id))
+
                     PossessionGained(
                         club,
                         player,
-                        [ createEvent (subTick * 1<subtick>) passerId passerClubId (PassIntercepted(passerId, player.Id)) ]
+                        [ { interceptorEvt with
+                              Context =
+                                  { interceptorEvt.Context with
+                                      InterceptorId = Some player.Id } } ]
                     ),
                     { ball with
                         Control = Controlled(club, player.Id)
-                        LastTouchBy = Some player.Id }
+                        LastTouchBy = Some player.Id
+                        Trajectory = None }
                 | _ ->
                     PossessionGained(club, player, []),
                     { ball with
-                        Control = Controlled(club, player.Id) }
+                        Control = Controlled(club, player.Id)
+                        Trajectory = None }
             | None ->
                 PossessionGained(club, player, []),
                 { ball with
-                    Control = Controlled(club, player.Id) }
+                    Control = Controlled(club, player.Id)
+                    Trajectory = None }
 
         | ContactResolver.Contested club ->
             BallContested club,
             { ball with
                 Control = Contesting club
+                Trajectory = None }
+
+        | ContactResolver.GoalScored ->
+            let shooterClub =
+                match ball.Trajectory with
+                | Some { Intent = Struck(shooterId, _, _, _) } ->
+                    if homeRoster.Players |> Array.exists (fun p -> p.Id = shooterId) then
+                        HomeClub
+                    else
+                        AwayClub
+                | _ -> state.AttackingSide
+
+            GoalScored(shooterClub, ball.LastTouchBy),
+            { ball with
+                Control = Free
                 Trajectory = None }
 
         | ContactResolver.NoContact ->

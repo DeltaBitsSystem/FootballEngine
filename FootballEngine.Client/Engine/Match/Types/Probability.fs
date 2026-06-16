@@ -15,5 +15,5 @@ module Probability =
     let value (p: Probability) : float = p.Value
 
     let zero = { Value = 0.0 }
-    let one  = { Value = 1.0 }
+    let one = { Value = 1.0 }
     let half = { Value = 0.5 }

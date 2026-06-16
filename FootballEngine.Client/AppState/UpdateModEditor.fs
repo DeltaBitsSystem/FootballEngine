@@ -103,39 +103,63 @@ module UpdateModEditor =
                 SelectedCountryCode = Some data.Country.Code }
             |> runValidation
 
-        | UpdateCountry (code, updater) ->
+        | UpdateCountry(code, updater) ->
             match state.Countries |> Map.tryFind code with
             | Some data ->
                 let newState = pushHistory state
-                { newState with Countries = state.Countries |> Map.add code (updater data) } |> runValidation
+
+                { newState with
+                    Countries = state.Countries |> Map.add code (updater data) }
+                |> runValidation
             | None -> state, Elmish.Cmd.none
 
-        | AddCup (code, cup) ->
+        | AddCup(code, cup) ->
             match state.Countries |> Map.tryFind code with
             | Some data ->
                 let newState = pushHistory state
-                let nextData = { data with Cups = data.Cups @ [cup] }
-                { newState with Countries = state.Countries |> Map.add code nextData } |> runValidation
+                let nextData = { data with Cups = data.Cups @ [ cup ] }
+
+                { newState with
+                    Countries = state.Countries |> Map.add code nextData }
+                |> runValidation
             | None -> state, Elmish.Cmd.none
 
-        | UpdateCup (code, index, updater) ->
+        | UpdateCup(code, index, updater) ->
             match state.Countries |> Map.tryFind code with
             | Some data ->
                 if index >= 0 && index < data.Cups.Length then
                     let newState = pushHistory state
-                    let nextData = { data with Cups = data.Cups |> List.mapi (fun i c -> if i = index then updater c else c) }
-                    { newState with Countries = state.Countries |> Map.add code nextData } |> runValidation
-                else state, Elmish.Cmd.none
+
+                    let nextData =
+                        { data with
+                            Cups = data.Cups |> List.mapi (fun i c -> if i = index then updater c else c) }
+
+                    { newState with
+                        Countries = state.Countries |> Map.add code nextData }
+                    |> runValidation
+                else
+                    state, Elmish.Cmd.none
             | None -> state, Elmish.Cmd.none
 
-        | RemoveCup (code, index) ->
+        | RemoveCup(code, index) ->
             match state.Countries |> Map.tryFind code with
             | Some data ->
                 if index >= 0 && index < data.Cups.Length then
                     let newState = pushHistory state
-                    let nextData = { data with Cups = data.Cups |> List.indexed |> List.filter (fun (i, _) -> i <> index) |> List.map snd }
-                    { newState with Countries = state.Countries |> Map.add code nextData } |> runValidation
-                else state, Elmish.Cmd.none
+
+                    let nextData =
+                        { data with
+                            Cups =
+                                data.Cups
+                                |> List.indexed
+                                |> List.filter (fun (i, _) -> i <> index)
+                                |> List.map snd }
+
+                    { newState with
+                        Countries = state.Countries |> Map.add code nextData }
+                    |> runValidation
+                else
+                    state, Elmish.Cmd.none
             | None -> state, Elmish.Cmd.none
 
 

@@ -99,11 +99,7 @@ module ActionResolver =
         : OnBallIntent option =
         let team = buildTeamPerspective clubSide ctx state
 
-        let influence =
-            if clubSide = HomeClub then
-                state.HomeInfluenceFrame
-            else
-                state.AwayInfluenceFrame
+        let influence = state.InfluenceFrame
 
         let actx =
             AgentContext.build
@@ -125,9 +121,12 @@ module ActionResolver =
                 ValueNone
                 influence
 
-        let scores = PlayerScorer.computeAll actx state.MatchMemory controller.ExperienceModifiers
+        let scores =
+            PlayerScorer.computeAll actx state.MatchMemory controller.ExperienceModifiers
+
         let mask = ActionEligibility.evaluate actx
-        PlayerDecision.decide actx scores mask
+        let intent, _trace = PlayerDecision.decide actx scores mask
+        intent
 
     let private resolveIntent
         (subTick: int)
@@ -171,7 +170,12 @@ module ActionResolver =
                 result, refActions
             | None -> ActionResult.empty, []
 
-    let run (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : ActionResult * RefereeAction list =
+    let run
+        (subTick: int)
+        (ctx: MatchContext)
+        (state: SimState)
+        (clock: SimulationClock)
+        : ActionResult * RefereeAction list =
         match state.Flow with
         | Live ->
             let controller, rosterOpt, controllerClubSide = findController ctx state
@@ -180,17 +184,8 @@ module ActionResolver =
                 match controller, rosterOpt, controllerClubSide with
                 | Some ctrl, Some roster, Some clubSide ->
                     if ctrl.Position = GK then
-                        match state.Ball.Control with
-                        | Controlled(side, gkId) when gkId = ctrl.Id ->
-                            let result = GKAction.resolve subTick ctx state clock
-                            result, []
-                        | _ ->
-                            let meIdx = roster.Players |> Array.findIndex (fun p -> p.Id = ctrl.Id)
-                            let profile = roster.Profiles[meIdx]
-
-                            match decideAction ctrl profile meIdx clubSide ctx state clock with
-                            | Some action -> resolveIntent subTick action ctx state clock
-                            | None -> ActionResult.empty, []
+                        let result = GKAction.resolve subTick ctx state clock
+                        result, []
                     else
                         let meIdx = roster.Players |> Array.findIndex (fun p -> p.Id = ctrl.Id)
                         let profile = roster.Profiles[meIdx]
@@ -203,7 +198,8 @@ module ActionResolver =
                             | Receiving _ ->
                                 let holdTimeout =
                                     match state.Ball.PlayerHoldSinceSubTick with
-                                    | Some since -> subTick * 1<subtick> - since >= SimulationClock.deltaToSubtick 12<tickDelta>
+                                    | Some since ->
+                                        subTick * 1<subtick> - since >= SimulationClock.deltaToSubtick 12<tickDelta>
                                     | None -> true
 
                                 if holdTimeout then

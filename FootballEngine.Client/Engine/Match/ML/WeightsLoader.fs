@@ -11,918 +11,895 @@ open FootballEngine.Domain
 // ============================================================================
 
 [<CLIMutable>]
-type PartialDuelConfig = {
-    DuelSteepness: float option
-    MomentumBonus: float option
-    JitterWin: float option
-    JitterRecover: float option
-    JitterKeep: float option
-    SpeedKeep: float option
-    SpeedKeepVz: float option
-    AttackerDribblingWeight: float option
-    AttackerAgilityWeight: float option
-    AttackerBalanceWeight: float option
-    DefenderTacklingWeight: float option
-    DefenderStrengthWeight: float option
-    DefenderPositionWeight: float option
-    FatigueThreshold: int option
-    FatigueDecay: float option
-}
+type PartialDuelConfig =
+    { DuelSteepness: float option
+      MomentumBonus: float option
+      JitterWin: float option
+      JitterRecover: float option
+      JitterKeep: float option
+      SpeedKeep: float option
+      SpeedKeepVz: float option
+      AttackerDribblingWeight: float option
+      AttackerAgilityWeight: float option
+      AttackerBalanceWeight: float option
+      DefenderTacklingWeight: float option
+      DefenderStrengthWeight: float option
+      DefenderPositionWeight: float option
+      FatigueThreshold: int option
+      FatigueDecay: float option }
 
 [<CLIMutable>]
-type PartialShotConfig = {
-    OnTargetBase: float option
-    OnTargetDistDecayRate: float option
-    OnTargetDistMaxPenalty: float option
-    QualityGate: float option
-    AngleSpreadBase: float option
-    VzBase: float option
-    VzVariance: float option
-    OnTargetMultiplier: float option
-    OnTargetDistDivisor: float option
-    NormalisationDistance: float option
-    DistanceToGoalMultiplier: float option
-    FinishingMin: float option
-    FinishingMax: float option
-    FinishingBonusST: float option
-    FinishingBonusAM: float option
-    FinishingBonusMC: float option
-    FinishingBonusOther: float option
-    CondFactorDivisor: float option
-    ComposureMultiplier: float option
-    UrgencyMultiplier: float option
-    BasePowerDivisor: float option
-    SpinTopMultiplier: float option
-    PositionDirectnessWeight: float option
-    PositionDepthWeight: float option
-    PositionCreativityWeight: float option
-    DistNormWeight: float option
-    PositionBonusWeight: float option
-    HeavyTouchDivisor: float option
-    HeavyTouchMultiplier: float option
-    JitterStdDev: float option
-    GkReflexesStatMult: float option
-    GkOneOnOneStatMult: float option
-    SaveDenominatorOffset: float option
-    ShotWideMargin: float option
-}
+type PartialShotConfig =
+    { OnTargetBase: float option
+      OnTargetDistDecayRate: float option
+      OnTargetDistMaxPenalty: float option
+      QualityGate: float option
+      AngleSpreadBase: float option
+      VzBase: float option
+      VzVariance: float option
+      OnTargetMultiplier: float option
+      OnTargetDistDivisor: float option
+      NormalisationDistance: float option
+      DistanceToGoalMultiplier: float option
+      FinishingMin: float option
+      FinishingMax: float option
+      FinishingBonusST: float option
+      FinishingBonusAM: float option
+      FinishingBonusMC: float option
+      FinishingBonusOther: float option
+      CondFactorDivisor: float option
+      ComposureMultiplier: float option
+      UrgencyMultiplier: float option
+      BasePowerDivisor: float option
+      SpinTopMultiplier: float option
+      PositionDirectnessWeight: float option
+      PositionDepthWeight: float option
+      PositionCreativityWeight: float option
+      DistNormWeight: float option
+      PositionBonusWeight: float option
+      HeavyTouchDivisor: float option
+      HeavyTouchMultiplier: float option
+      JitterStdDev: float option
+      GkReflexesStatMult: float option
+      GkOneOnOneStatMult: float option
+      SaveDenominatorOffset: float option
+      ShotWideMargin: float option }
 
 [<CLIMutable>]
-type PartialPassConfig = {
-    BaseMean: float option
-    DistancePenaltyPerMeter: float option
-    LongPassPenaltyPerMeter: float option
-    TechnicalWeight: float option
-    VisionWeight: float option
-    SuccessShapeAlpha: float option
-    SuccessConditionMultiplier: float option
-    OffsideMomentum: float option
-    SuccessMomentum: float option
-    FailMomentum: float option
-    DeflectBaseRate: float option
-    MisplacedBaseRate: float option
-    InterceptBaseRate: float option
-    InterceptionRadius: float option
-    PressureDistance: float option
-    DeflectPressureMultiplier: float option
-    InterceptPaceWeight: float option
-    InterceptPositioningWeight: float option
-    ScrambleJitter: float option
-    Speed: float option
-    Vz: float option
-    InterceptDistFactorWeight: float option
-    InterceptPositioningContrib: float option
-    InterceptVisionContrib: float option
-    CreativityWeight: float option
-    DirectnessWeight: float option
-    MeanMin: float option
-    MeanMax: float option
-    DefaultNearestDefDist: float option
-    DefaultTackling: float option
-    HeavyTouchDivisor: float option
-    HeavyTouchMultiplier: float option
-    JitterStdDev: float option
-    DeflectedSpeedMult: float option
-    DeflectedVzMult: float option
-    InterceptProbMax: float option
-    MisplacedSpeedMult: float option
-    LongBallBaseMean: float option
-    LongBallLongShotsWeight: float option
-    LongBallPassingWeight: float option
-    LongBallVisionWeight: float option
-    LongBallSuccessShapeAlpha: float option
-    LongBallSuccessConditionMultiplier: float option
-    LongBallOffsideMomentum: float option
-    LongBallSuccessMomentum: float option
-    LongBallFailMomentum: float option
-    LongBallSpeed: float option
-    LongBallVz: float option
-    LongBallDeflectMult: float option
-    LongBallInterceptMult: float option
-    LongBallPressureContrib: float option
-    ForwardDepthThreshold: float option
-    ForwardCreativityThreshold: float option
-    LongBallScrambleJitterMult: float option
-    PassLeadFactor: float option
-}
+type PartialPassConfig =
+    { BaseMean: float option
+      DistancePenaltyPerMeter: float option
+      LongPassPenaltyPerMeter: float option
+      TechnicalWeight: float option
+      VisionWeight: float option
+      SuccessShapeAlpha: float option
+      SuccessConditionMultiplier: float option
+      OffsideMomentum: float option
+      SuccessMomentum: float option
+      FailMomentum: float option
+      DeflectBaseRate: float option
+      MisplacedBaseRate: float option
+      InterceptBaseRate: float option
+      InterceptionRadius: float option
+      PressureDistance: float option
+      DeflectPressureMultiplier: float option
+      InterceptPaceWeight: float option
+      InterceptPositioningWeight: float option
+      ScrambleJitter: float option
+      Speed: float option
+      Vz: float option
+      InterceptDistFactorWeight: float option
+      InterceptPositioningContrib: float option
+      InterceptVisionContrib: float option
+      CreativityWeight: float option
+      DirectnessWeight: float option
+      MeanMin: float option
+      MeanMax: float option
+      DefaultNearestDefDist: float option
+      DefaultTackling: float option
+      HeavyTouchDivisor: float option
+      HeavyTouchMultiplier: float option
+      JitterStdDev: float option
+      DeflectedSpeedMult: float option
+      DeflectedVzMult: float option
+      InterceptProbMax: float option
+      MisplacedSpeedMult: float option
+      LongBallBaseMean: float option
+      LongBallLongShotsWeight: float option
+      LongBallPassingWeight: float option
+      LongBallVisionWeight: float option
+      LongBallSuccessShapeAlpha: float option
+      LongBallSuccessConditionMultiplier: float option
+      LongBallOffsideMomentum: float option
+      LongBallSuccessMomentum: float option
+      LongBallFailMomentum: float option
+      LongBallSpeed: float option
+      LongBallVz: float option
+      LongBallDeflectMult: float option
+      LongBallInterceptMult: float option
+      LongBallPressureContrib: float option
+      ForwardDepthThreshold: float option
+      ForwardCreativityThreshold: float option
+      LongBallScrambleJitterMult: float option
+      PassLeadFactor: float option }
 
 [<CLIMutable>]
-type PartialCrossConfig = {
-    BaseMean: float option
-    CrossingWeight: float option
-    PassingWeight: float option
-    SuccessShapeAlpha: float option
-    SuccessConditionMultiplier: float option
-    HeaderDuelSteepness: float option
-    HeaderAccuracyBase: float option
-    HeaderAccuracySkillMult: float option
-    GkSaveBase: float option
-    GkReflexesMult: float option
-    GkAerialReachMult: float option
-    GkJumpMult: float option
-    ClaimCrossProbability: float option
-    FailMomentum: float option
-    Speed: float option
-    Vz: float option
-    AerialThreatThreshold: float option
-    AttackingDepthThreshold: float option
-    GkSkillDefault: float option
-    GkSkillDivisor: float option
-    SpinTopMult: float option
-    SpinSideMult: float option
-    FallbackSpeed: float option
-    FallbackVz: float option
-}
+type PartialCrossConfig =
+    { BaseMean: float option
+      CrossingWeight: float option
+      PassingWeight: float option
+      SuccessShapeAlpha: float option
+      SuccessConditionMultiplier: float option
+      HeaderDuelSteepness: float option
+      HeaderAccuracyBase: float option
+      HeaderAccuracySkillMult: float option
+      GkSaveBase: float option
+      GkReflexesMult: float option
+      GkAerialReachMult: float option
+      GkJumpMult: float option
+      ClaimCrossProbability: float option
+      FailMomentum: float option
+      Speed: float option
+      Vz: float option
+      AerialThreatThreshold: float option
+      AttackingDepthThreshold: float option
+      GkSkillDefault: float option
+      GkSkillDivisor: float option
+      SpinTopMult: float option
+      SpinSideMult: float option
+      FallbackSpeed: float option
+      FallbackVz: float option }
 
 [<CLIMutable>]
-type PartialDribbleConfig = {
-    TechnicalWeight: float option
-    AgilityWeight: float option
-    BalanceWeight: float option
-    ForwardDistance: float option
-    SuccessMomentum: float option
-    FailMomentum: float option
-    CrossProbability: float option
-    PassProbability: float option
-    ShotProbability: float option
-}
+type PartialDribbleConfig =
+    { TechnicalWeight: float option
+      AgilityWeight: float option
+      BalanceWeight: float option
+      ForwardDistance: float option
+      SuccessMomentum: float option
+      FailMomentum: float option
+      CrossProbability: float option
+      PassProbability: float option
+      ShotProbability: float option }
 
 [<CLIMutable>]
-type PartialTackleConfig = {
-    TechnicalWeight: float option
-    PositioningWeight: float option
-    StrengthWeight: float option
-    AggressionWeight: float option
-    PositioningReduction: float option
-    FoulShapeBeta: float option
-    FoulMomentum: float option
-    SuccessMomentum: float option
-    FailMomentum: float option
-    TackleSteepness: float option
-}
+type PartialTackleConfig =
+    { TechnicalWeight: float option
+      PositioningWeight: float option
+      StrengthWeight: float option
+      AggressionWeight: float option
+      PositioningReduction: float option
+      FoulShapeBeta: float option
+      FoulMomentum: float option
+      SuccessMomentum: float option
+      FailMomentum: float option
+      TackleSteepness: float option }
 
 [<CLIMutable>]
-type PartialSetPieceConfig = {
-    FreeKickTargetX: float option
-    FreeKickSpeed: float option
-    FreeKickVz: float option
-    FreeKickSteepness: float option
-    FreeKickSavePowerThreshold: float option
-    FreeKickSaveVariance: float option
-    FreeKickSpinTopMult: float option
-    FreeKickSpinSideMult: float option
-    CornerBoxXThreshold: float option
-    CornerDefenderBoxThreshold: float option
-    CornerSecondPhaseProbability: float option
-    CornerKeepPossessionProbability: float option
-    CornerSpeed: float option
-    CornerVz: float option
-    CornerDensityBase: float option
-    CornerDensityPenalty: float option
-    CornerLogisticSteepness: float option
-    CornerDefScoreDefault: float option
-    ThrowInSpeed: float option
-    ThrowInVz: float option
-    ThrowInMomentum: float option
-    PenaltySkillMultiplier: float option
-    PenaltyMoraleMultiplier: float option
-    PenaltyPressureMultiplier: float option
-    PenaltyComposureNoise: float option
-    PenaltyLogisticBase: float option
-    PenaltyGkReflexesMult: float option
-    PenaltyGkHandlingMult: float option
-    PenaltySkillDivisor: float option
-    PenaltyCondDivisor: float option
-    PenaltyMoraleBase: float option
-    PenaltyMoraleDivisor: float option
-    PenaltyGkSkillDivisor: float option
-    PenaltySpeed: float option
-    PenaltyVzBase: float option
-    PenaltyVzVariance: float option
-    PenaltyAngleSpread: float option
-    PostShotClearProbability: float option
-    ClearSpeed: float option
-    ClearVz: float option
-    ClearYStdDev: float option
-    GoalKickFallbackDistHome: float option
-    GoalKickFallbackDistAway: float option
-    KickOffPartnerOffsetX: float option
-    KickOffPartnerOffsetY: float option
-    FoulBaseRate: float option
-    CornerOnFailedCross: float option
-}
+type PartialSetPieceConfig =
+    { FreeKickTargetX: float option
+      FreeKickSpeed: float option
+      FreeKickVz: float option
+      FreeKickSteepness: float option
+      FreeKickSavePowerThreshold: float option
+      FreeKickSaveVariance: float option
+      FreeKickSpinTopMult: float option
+      FreeKickSpinSideMult: float option
+      CornerBoxXThreshold: float option
+      CornerDefenderBoxThreshold: float option
+      CornerSecondPhaseProbability: float option
+      CornerKeepPossessionProbability: float option
+      CornerSpeed: float option
+      CornerVz: float option
+      CornerDensityBase: float option
+      CornerDensityPenalty: float option
+      CornerLogisticSteepness: float option
+      CornerDefScoreDefault: float option
+      ThrowInSpeed: float option
+      ThrowInVz: float option
+      ThrowInMomentum: float option
+      PenaltySkillMultiplier: float option
+      PenaltyMoraleMultiplier: float option
+      PenaltyPressureMultiplier: float option
+      PenaltyComposureNoise: float option
+      PenaltyLogisticBase: float option
+      PenaltyGkReflexesMult: float option
+      PenaltyGkHandlingMult: float option
+      PenaltySkillDivisor: float option
+      PenaltyCondDivisor: float option
+      PenaltyMoraleBase: float option
+      PenaltyMoraleDivisor: float option
+      PenaltyGkSkillDivisor: float option
+      PenaltySpeed: float option
+      PenaltyVzBase: float option
+      PenaltyVzVariance: float option
+      PenaltyAngleSpread: float option
+      PostShotClearProbability: float option
+      ClearSpeed: float option
+      ClearVz: float option
+      ClearYStdDev: float option
+      GoalKickFallbackDistHome: float option
+      GoalKickFallbackDistAway: float option
+      KickOffPartnerOffsetX: float option
+      KickOffPartnerOffsetY: float option
+      FoulBaseRate: float option
+      CornerOnFailedCross: float option }
 
 [<CLIMutable>]
-type PartialGKConfig = {
-    CatchHandlingMult: float option
-    DiveReach: float option
-    ParrySpeed: float option
-    ParryDeflectionAngle: float option
-    AerialReachMult: float option
-    JumpReachMult: float option
-    PunchProbability: float option
-    ClaimCrossProbability: float option
-    CollectionRadius: float option
-    CollectionPriority: float option
-    ThrowSpeed: float option
-    RollSpeed: float option
-    GoalKickSpeed: float option
-    PuntSpeed: float option
-    DistributionAccuracyMult: float option
-    DistributionDecisionNoise: float option
-    HoldTimeSubTicks: int option
-    MaxHoldSubTicks: int option
-    BackPassHandlingPenalty: float option
-    GKDecisionWindowSubTicks: int option
-}
+type PartialGKConfig =
+    { CatchHandlingMult: float option
+      DiveReach: float option
+      ParrySpeed: float option
+      ParryDeflectionAngle: float option
+      AerialReachMult: float option
+      JumpReachMult: float option
+      PunchProbability: float option
+      ClaimCrossProbability: float option
+      CollectionRadius: float option
+      CollectionPriority: float option
+      ThrowSpeed: float option
+      RollSpeed: float option
+      GoalKickSpeed: float option
+      PuntSpeed: float option
+      DistributionAccuracyMult: float option
+      DistributionDecisionNoise: float option
+      HoldTimeSubTicks: int option
+      MaxHoldSubTicks: int option
+      BackPassHandlingPenalty: float option
+      GKDecisionWindowSubTicks: int option
+      SaveBaseProbability: float option
+      SaveReflexesWeight: float option
+      SavePositioningWeight: float option
+      SaveSpeedFactor: float option
+      SaveAngleFactor: float option }
 
 [<CLIMutable>]
-type PartialHomeAdvantageConfig = {
-    Strength: float option
-    DuelAttackBonus: float option
-    DuelDefenseBonus: float option
-    ShotComposureBonus: float option
-    PassAccuracyBonus: float option
-    DribbleBonus: float option
-    SetPlayAccuracyBonus: float option
-    TackleBonus: float option
-    FreeKickComposure: float option
-    PenaltyBonus: float option
-    CardReduction: float option
-    FatigueReduction: float option
-}
+type PartialHomeAdvantageConfig =
+    { Strength: float option
+      DuelAttackBonus: float option
+      DuelDefenseBonus: float option
+      ShotComposureBonus: float option
+      PassAccuracyBonus: float option
+      DribbleBonus: float option
+      SetPlayAccuracyBonus: float option
+      TackleBonus: float option
+      FreeKickComposure: float option
+      PenaltyBonus: float option
+      CardReduction: float option
+      FatigueReduction: float option }
 
 [<CLIMutable>]
-type PartialPhysicsConfig = {
-    Gravity: float option
-    AirDrag: float option
-    GroundRestitution: float option
-    GroundFriction: float option
-    PostRestitution: float option
-    SpinDecay: float option
-    MagnusCoeff: float option
-    ContactRadius: float option
-    PlayerMaxForce: float option
-    PlayerMassBase: float option
-    PlayerMassWeightCoeff: float option
-    PlayerMassStrengthCoeff: float option
-    SteeringSlowRadius: float option
-    SteeringFleeRadius: float option
-    SteeringAlignmentWeight: float option
-    CohesionWeight: float option
-    TurnConstraintAgilityCoeff: float option
-    TurnConstraintBaseLimit: float option
-    MoveSpeedMax: float option
-    MoveSpeedMin: float option
-    SeparationMinDistance: float option
-    BallContestSeparationRadius: float option
-    SeparationStrength: float option
-    SeparationAgilityMultiplier: float option
-    JitterBase: float option
-    JitterAgilityMultiplier: float option
-    BallStopThreshold: float option
-    AirborneCheckThreshold: float option
-    AxisStopThreshold: float option
-    AirborneRestitutionBase: float option
-    AirborneRestitutionCoeff: float option
-    AirborneRestitutionFloor: float option
-    GroundRestitutionBase: float option
-    GroundRestitutionCoeff: float option
-    GroundRestitutionFloor: float option
-    ChaserProximity: float option
-    AirborneThreshold: float option
-    ArrivalAnticipationBase: float option
-    ArrivalAnticipationQuality: float option
-    ArrivalCompetitionRadius: float option
-    ArrivalConvergenceThreshold: float option
-    ArrivalContestThreshold: float option
-    ReceivingGraceSubTicks: int option
-}
+type PartialPhysicsConfig =
+    { Gravity: float option
+      AirDrag: float option
+      GroundRestitution: float option
+      GroundFriction: float option
+      PostRestitution: float option
+      SpinDecay: float option
+      MagnusCoeff: float option
+      ContactRadius: float option
+      PlayerMaxForce: float option
+      PlayerMassBase: float option
+      PlayerMassWeightCoeff: float option
+      PlayerMassStrengthCoeff: float option
+      SteeringSlowRadius: float option
+      SteeringFleeRadius: float option
+      SteeringAlignmentWeight: float option
+      CohesionWeight: float option
+      TurnConstraintAgilityCoeff: float option
+      TurnConstraintBaseLimit: float option
+      MoveSpeedMax: float option
+      MoveSpeedMin: float option
+      SeparationMinDistance: float option
+      BallContestSeparationRadius: float option
+      SeparationStrength: float option
+      SeparationAgilityMultiplier: float option
+      JitterBase: float option
+      JitterAgilityMultiplier: float option
+      BallStopThreshold: float option
+      AirborneCheckThreshold: float option
+      AxisStopThreshold: float option
+      AirborneRestitutionBase: float option
+      AirborneRestitutionCoeff: float option
+      AirborneRestitutionFloor: float option
+      GroundRestitutionBase: float option
+      GroundRestitutionCoeff: float option
+      GroundRestitutionFloor: float option
+      ChaserProximity: float option
+      AirborneThreshold: float option
+      ArrivalAnticipationBase: float option
+      ArrivalAnticipationQuality: float option
+      ArrivalCompetitionRadius: float option
+      ArrivalConvergenceThreshold: float option
+      ArrivalContestThreshold: float option
+      ReceivingGraceSubTicks: int option }
 
 [<CLIMutable>]
-type PartialTimingConfig = {
-    DuelChainDelay: TickDelay option
-    DuelNextDelay: TickDelay option
-    ShotDelay: TickDelay option
-    FoulDelay: TickDelay option
-    GoalDelay: TickDelay option
-    KickOffDelay: TickDelay option
-    CornerDelay: TickDelay option
-    FreeKickDelay: TickDelay option
-    ThrowInDelay: TickDelay option
-    GoalKickDelay: TickDelay option
-    InjuryDelay: TickDelay option
-    ManagerReactDelay: TickDelay option
-    SubsDelay: TickDelay option
-    StuckBallDelay: int option
-    EventWindowSubTicks: int option
-}
+type PartialTimingConfig =
+    { DuelChainDelay: TickDelay option
+      DuelNextDelay: TickDelay option
+      ShotDelay: TickDelay option
+      FoulDelay: TickDelay option
+      GoalDelay: TickDelay option
+      KickOffDelay: TickDelay option
+      CornerDelay: TickDelay option
+      FreeKickDelay: TickDelay option
+      ThrowInDelay: TickDelay option
+      GoalKickDelay: TickDelay option
+      InjuryDelay: TickDelay option
+      ManagerReactDelay: TickDelay option
+      SubsDelay: TickDelay option
+      StuckBallDelay: int option
+      EventWindowSubTicks: int option }
 
 [<CLIMutable>]
-type PartialMatchVolumeConfig = {
-    MaxChainLength: int option
-    TargetDuelTicksPerMatch: int option
-    TargetShotsPerMatch: float option
-    TargetDribblesPerMatch: float option
-    TargetPassesPerMatch: float option
-    TargetCrossesPerMatch: float option
-    TargetLongBallsPerMatch: float option
-}
+type PartialMatchVolumeConfig =
+    { MaxChainLength: int option
+      TargetDuelTicksPerMatch: int option
+      TargetShotsPerMatch: float option
+      TargetDribblesPerMatch: float option
+      TargetPassesPerMatch: float option
+      TargetCrossesPerMatch: float option
+      TargetLongBallsPerMatch: float option }
 
 [<CLIMutable>]
-type PartialManagerConfig = {
-    FatigueReactionThreshold: int option
-    SustainedMomentumSubTicks: int option
-    MomentumThreshold: float option
-    FatigueCheckSubTicks: int option
-    ConditionThresholdLosing: int option
-    ConditionThresholdDrawing: int option
-    ConditionThresholdWinning: int option
-    SubWindowMinutes: int[] option
-}
+type PartialManagerConfig =
+    { FatigueReactionThreshold: int option
+      SustainedMomentumSubTicks: int option
+      MomentumThreshold: float option
+      FatigueCheckSubTicks: int option
+      ConditionThresholdLosing: int option
+      ConditionThresholdDrawing: int option
+      ConditionThresholdWinning: int option
+      SubWindowMinutes: int[] option }
 
 [<CLIMutable>]
-type PartialBuildUpConfig = {
-    PassSuccessBonus: float option
-    DribblePenalty: float option
-    LongBallPenalty: float option
-    GKDistributionBonus: float option
-    DCPassingBonus: float option
-}
+type PartialBuildUpConfig =
+    { PassSuccessBonus: float option
+      DribblePenalty: float option
+      LongBallPenalty: float option
+      GKDistributionBonus: float option
+      DCPassingBonus: float option }
 
 [<CLIMutable>]
-type PartialDecisionConfig = {
-    ShootFinishingWeight: float option
-    ShootLongShotsWeight: float option
-    ShootComposureWeight: float option
-    ShootDistNormWeight: float option
-    ShootDistNormDivisor: float option
-    ShootPosDirectnessWeight: float option
-    ShootPosDepthWeight: float option
-    ShootSTBonus: float option
-    ShootDistPenaltyDivisor: float option
-    ShootDistPenaltyMax: float option
-    ShootDirectnessBonus: float option
-    PassPassingWeight: float option
-    PassVisionWeight: float option
-    PassTargetBonus: float option
-    PassAttackPhasePenalty: float option
-    DribbleZoneBonusAttacking: float option
-    DribbleZoneBonusMidfield: float option
-    DribbleAttackPhaseBonus: float option
-    DribbleTempoPenalty: float option
-    DribblePressurePenalty: float option
-    CrossCrossingWeight: float option
-    CrossLateralTendencyWeight: float option
-    CrossLateralTendencyBase: float option
-    CrossZoneBonus: float option
-    CrossWidthBonus: float option
-    LongBallPassingWeight: float option
-    LongBallVisionWeight: float option
-    LongBallPressDistBase: float option
-    LongBallPressMin: float option
-    LongBallPressMax: float option
-    LongBallPressNoOpponent: float option
-    LongBallAttackPhaseBonus: float option
-    LongBallDirectnessBonus: float option
-    CreativityWeight: float option
-    DirectnessWeight: float option
-    DecisionTemperature: float option
-    ShootMinThreshold: float option
-    ShootDirectnessThresholdMod: float option
-    PassMinThreshold: float option
-    PassDirectnessThresholdMod: float option
-    DribbleMinThreshold: float option
-    DribbleDefZoneDirectnessMin: float option
-    DribbleHighTempo: float option
-    DribbleHighTempoDirectnessMin: float option
-    LongBallMinThreshold: float option
-    LongBallDirectnessThresholdMod: float option
-    SpacePassMinScore: float option
-    ShootDecisionsWeight: float option
-    ShootBraveryMod: float option
-    ShootConcentrationMod: float option
-    PassDecisionsWeight: float option
-    PassConcentrationMod: float option
-    DribbleBraveryMod: float option
-    ShootXGWeight: float option
-    PassHighPressPenalty: float option
-    DribbleAggressivePenalty: float option
-    LongBallSlowTargetBonus: float option
-    PassTrajectoryBonus: float option
-    PersonalityFlairWeight: float option
-    PersonalityTeamworkWeight: float option
-    PersonalityConsistencyMod: float option
-    ShootBraveryPressureMod: float option
-    PassAnticipationBonus: float option
-}
+type PartialDecisionConfig =
+    { ShootFinishingWeight: float option
+      ShootLongShotsWeight: float option
+      ShootComposureWeight: float option
+      ShootDistNormWeight: float option
+      ShootDistNormDivisor: float option
+      ShootPosDirectnessWeight: float option
+      ShootPosDepthWeight: float option
+      ShootSTBonus: float option
+      ShootDistPenaltyDivisor: float option
+      ShootDistPenaltyMax: float option
+      ShootDirectnessBonus: float option
+      PassPassingWeight: float option
+      PassVisionWeight: float option
+      PassTargetBonus: float option
+      PassAttackPhasePenalty: float option
+      DribbleZoneBonusAttacking: float option
+      DribbleZoneBonusMidfield: float option
+      DribbleAttackPhaseBonus: float option
+      DribbleTempoPenalty: float option
+      DribblePressurePenalty: float option
+      DribblePressureBlockThreshold: float option
+      CrossCrossingWeight: float option
+      CrossLateralTendencyWeight: float option
+      CrossLateralTendencyBase: float option
+      CrossZoneBonus: float option
+      CrossWidthBonus: float option
+      LongBallPassingWeight: float option
+      LongBallVisionWeight: float option
+      LongBallPressDistBase: float option
+      LongBallPressMin: float option
+      LongBallPressMax: float option
+      LongBallPressNoOpponent: float option
+      LongBallAttackPhaseBonus: float option
+      LongBallDirectnessBonus: float option
+      CreativityWeight: float option
+      DirectnessWeight: float option
+      DecisionTemperature: float option
+      ShootMinThreshold: float option
+      ShootDirectnessThresholdMod: float option
+      PassMinThreshold: float option
+      PassDirectnessThresholdMod: float option
+      DribbleMinThreshold: float option
+      DribbleDefZoneDirectnessMin: float option
+      DribbleHighTempo: float option
+      DribbleHighTempoDirectnessMin: float option
+      LongBallMinThreshold: float option
+      LongBallDirectnessThresholdMod: float option
+      SpacePassMinScore: float option
+      ShootDecisionsWeight: float option
+      ShootBraveryMod: float option
+      ShootConcentrationMod: float option
+      PassDecisionsWeight: float option
+      PassConcentrationMod: float option
+      DribbleBraveryMod: float option
+      ShootXGWeight: float option
+      PassHighPressPenalty: float option
+      DribbleAggressivePenalty: float option
+      LongBallSlowTargetBonus: float option
+      PassTrajectoryBonus: float option
+      PersonalityFlairWeight: float option
+      PersonalityTeamworkWeight: float option
+      PersonalityConsistencyMod: float option
+      ShootBraveryPressureMod: float option
+      PassAnticipationBonus: float option }
 
 [<CLIMutable>]
-type PartialPerceptionConfig = {
-    VisionRadiusBase: float option
-    VisionRadiusMax: float option
-    VisionConeAngle: float option
-    PeripheralMultiplier: float option
-    MinimumAwarenessFloor: float option
-    AnticipationBonusRadius: float option
-    GoalkeeperConeAngle: float option
-    CommunicationRange: float option
-    SetPieceSimplifiedRadius: float option
-    BlindPassVisionThreshold: int option
-    BlindPassComposureThreshold: int option
-    BlindPassSuccessPenalty: float option
-}
+type PartialPerceptionConfig =
+    { VisionRadiusBase: float option
+      VisionRadiusMax: float option
+      VisionConeAngle: float option
+      PeripheralMultiplier: float option
+      MinimumAwarenessFloor: float option
+      AnticipationBonusRadius: float option
+      GoalkeeperConeAngle: float option
+      CommunicationRange: float option
+      SetPieceSimplifiedRadius: float option
+      BlindPassVisionThreshold: int option
+      BlindPassComposureThreshold: int option
+      BlindPassSuccessPenalty: float option }
 
 [<CLIMutable>]
-type PartialShootWeights = {
-    FinishingWeight: float option
-    LongShotsWeight: float option
-    ComposureWeight: float option
-    XGInfluence: float option
-    ComposureStateMod: float option
-    ConfidenceMod: float option
-    FocusMod: float option
-    RiskBonus: float option
-    DistPenaltyDivisor: float option
-    DistPenaltyMax: float option
-}
+type PartialShootWeights =
+    { FinishingWeight: float option
+      LongShotsWeight: float option
+      ComposureWeight: float option
+      XGInfluence: float option
+      ComposureStateMod: float option
+      ConfidenceMod: float option
+      FocusMod: float option
+      RiskBonus: float option
+      DistPenaltyDivisor: float option
+      DistPenaltyMax: float option }
 
 [<CLIMutable>]
-type PartialPassWeights = {
-    PassingWeight: float option
-    VisionWeight: float option
-    ComposureWeight: float option
-    TargetBonus: float option
-    AttackPhasePenalty: float option
-}
+type PartialPassWeights =
+    { PassingWeight: float option
+      VisionWeight: float option
+      ComposureWeight: float option
+      TargetBonus: float option
+      AttackPhasePenalty: float option }
 
 [<CLIMutable>]
-type PartialDribbleWeights = {
-    DribblingWeight: float option
-    AgilityWeight: float option
-    BalanceWeight: float option
-    ZoneBonusAttacking: float option
-    ZoneBonusMidfield: float option
-    TempoPenalty: float option
-    PressurePenalty: float option
-}
+type PartialDribbleWeights =
+    { DribblingWeight: float option
+      AgilityWeight: float option
+      BalanceWeight: float option
+      ZoneBonusAttacking: float option
+      ZoneBonusMidfield: float option
+      TempoPenalty: float option
+      PressurePenalty: float option }
 
 [<CLIMutable>]
-type PartialCrossWeights = {
-    CrossingWeight: float option
-    LateralTendencyWeight: float option
-    LateralTendencyBase: float option
-    ZoneBonus: float option
-    WidthBonus: float option
-}
+type PartialCrossWeights =
+    { CrossingWeight: float option
+      LateralTendencyWeight: float option
+      LateralTendencyBase: float option
+      ZoneBonus: float option
+      WidthBonus: float option }
 
 [<CLIMutable>]
-type PartialLongBallWeights = {
-    LongShotsWeight: float option
-    PassingWeight: float option
-    VisionWeight: float option
-    PressDistBase: float option
-    PressMin: float option
-    PressMax: float option
-    PressNoOpponent: float option
-    AttackPhaseBonus: float option
-    DirectnessBonus: float option
-}
+type PartialLongBallWeights =
+    { LongShotsWeight: float option
+      PassingWeight: float option
+      VisionWeight: float option
+      PressDistBase: float option
+      PressMin: float option
+      PressMax: float option
+      PressNoOpponent: float option
+      AttackPhaseBonus: float option
+      DirectnessBonus: float option }
 
 [<CLIMutable>]
-type PartialIndividualWeights = {
-    Shoot: PartialShootWeights option
-    Pass: PartialPassWeights option
-    Dribble: PartialDribbleWeights option
-    Cross: PartialCrossWeights option
-    LongBall: PartialLongBallWeights option
-    SoftmaxTemperature: float option
-    DirectnessBlendTactic: float option
-    DirectnessBlendProfile: float option
-}
+type PartialIndividualWeights =
+    { Shoot: PartialShootWeights option
+      Pass: PartialPassWeights option
+      Dribble: PartialDribbleWeights option
+      Cross: PartialCrossWeights option
+      LongBall: PartialLongBallWeights option
+      SoftmaxTemperature: float option
+      DirectnessBlendTactic: float option
+      DirectnessBlendProfile: float option }
 
 [<CLIMutable>]
-type PartialDevelopmentWeights = {
-    AgeBracket_MaxDelta_U21: int option
-    AgeBracket_MaxDelta_U25: int option
-    AgeBracket_MaxDelta_U28: int option
-    AgeBracket_MaxDelta_U31: int option
-    AgeBracket_MaxDelta_U34: int option
-    FocusMultiplier_Goalkeeping: float option
-    FocusMultiplier_PhysicalBase: float option
-    FocusMultiplier_Physical_Pressing: float option
-    FocusMultiplier_Physical_Positional: float option
-    FocusMultiplier_Mental: float option
-    FocusMultiplier_TechnicalBase: float option
-    FocusMultiplier_Technical_Creativity: float option
-    FocusMultiplier_Technical_Directness: float option
-    WeeklyDeltaDivisor: float option
-    StatFocus_DirectnessThreshold: float option
-    StatFocus_AttackingDepthThreshold: float option
-    StatFocus_DefensiveHeightThreshold: float option
-    StatFocus_CreativityThreshold: float option
-    MaybeStat_PositiveThreshold: float option
-    MaybeStat_NegativeThreshold: float option
-}
+type PartialDevelopmentWeights =
+    { AgeBracket_MaxDelta_U21: int option
+      AgeBracket_MaxDelta_U25: int option
+      AgeBracket_MaxDelta_U28: int option
+      AgeBracket_MaxDelta_U31: int option
+      AgeBracket_MaxDelta_U34: int option
+      FocusMultiplier_Goalkeeping: float option
+      FocusMultiplier_PhysicalBase: float option
+      FocusMultiplier_Physical_Pressing: float option
+      FocusMultiplier_Physical_Positional: float option
+      FocusMultiplier_Mental: float option
+      FocusMultiplier_TechnicalBase: float option
+      FocusMultiplier_Technical_Creativity: float option
+      FocusMultiplier_Technical_Directness: float option
+      WeeklyDeltaDivisor: float option
+      StatFocus_DirectnessThreshold: float option
+      StatFocus_AttackingDepthThreshold: float option
+      StatFocus_DefensiveHeightThreshold: float option
+      StatFocus_CreativityThreshold: float option
+      MaybeStat_PositiveThreshold: float option
+      MaybeStat_NegativeThreshold: float option }
 
 [<CLIMutable>]
-type PartialCalibrationTargets = {
-    GoalsPerMatch: float option
-    ShotsPerMatch: float option
-    PassSuccessRate: float option
-    CrossSuccessRate: float option
-    HomeWinPct: float option
-    DrawPct: float option
-    AwayWinPct: float option
-    CardsPerMatch: float option
-    InjuriesPerMatch: float option
-    DribblesPerMatch: float option
-    CrossesPerMatch: float option
-    LongBallsPerMatch: float option
-    DuelTicksPerMatch: float option
-}
+type PartialCalibrationTargets =
+    { GoalsPerMatch: float option
+      ShotsPerMatch: float option
+      PassSuccessRate: float option
+      CrossSuccessRate: float option
+      HomeWinPct: float option
+      DrawPct: float option
+      AwayWinPct: float option
+      CardsPerMatch: float option
+      InjuriesPerMatch: float option
+      DribblesPerMatch: float option
+      CrossesPerMatch: float option
+      LongBallsPerMatch: float option
+      DuelTicksPerMatch: float option }
 
 [<CLIMutable>]
-type PartialPersonalityWeights = {
-    FlairVisionWeight: float option
-    FlairDribblingWeight: float option
-    ConsistencyConcentrationWeight: float option
-    ConsistencyComposureWeight: float option
-    LeadershipWeight: float option
-    ControversyAggressionWeight: float option
-    ControversyComposureWeight: float option
-    TeamworkWorkRateWeight: float option
-    TeamworkPositioningWeight: float option
-    AmbitionMoraleWeight: float option
-    AmbitionWorkRateWeight: float option
-    PressureComposureWeight: float option
-    PressureConcentrationWeight: float option
-    SportsmanshipAggressionWeight: float option
-    TemperamentComposureWeight: float option
-    TemperamentConcentrationWeight: float option
-}
+type PartialPersonalityWeights =
+    { FlairVisionWeight: float option
+      FlairDribblingWeight: float option
+      ConsistencyConcentrationWeight: float option
+      ConsistencyComposureWeight: float option
+      LeadershipWeight: float option
+      ControversyAggressionWeight: float option
+      ControversyComposureWeight: float option
+      TeamworkWorkRateWeight: float option
+      TeamworkPositioningWeight: float option
+      AmbitionMoraleWeight: float option
+      AmbitionWorkRateWeight: float option
+      PressureComposureWeight: float option
+      PressureConcentrationWeight: float option
+      SportsmanshipAggressionWeight: float option
+      TemperamentComposureWeight: float option
+      TemperamentConcentrationWeight: float option }
 
 [<CLIMutable>]
-type PartialDirectiveParamsMap = {
-    CompactnessSuccessDelta: float option
-    CompactnessFailDelta: float option
-    CompactnessSuccessThreshold: float option
-    CompactnessFailThreshold: float option
-    PressingSuccessDelta: float option
-    PressingFailDelta: float option
-    PressingSuccessThreshold: float option
-    PressingFailThreshold: float option
-    WingPlaySuccessDelta: float option
-    WingPlayFailDelta: float option
-    WingPlaySuccessThreshold: float option
-    WingPlayFailThreshold: float option
-}
+type PartialDirectiveParamsMap =
+    { CompactnessSuccessDelta: float option
+      CompactnessFailDelta: float option
+      CompactnessSuccessThreshold: float option
+      CompactnessFailThreshold: float option
+      PressingSuccessDelta: float option
+      PressingFailDelta: float option
+      PressingSuccessThreshold: float option
+      PressingFailThreshold: float option
+      WingPlaySuccessDelta: float option
+      WingPlayFailDelta: float option
+      WingPlaySuccessThreshold: float option
+      WingPlayFailThreshold: float option }
 
 [<CLIMutable>]
-type PartialEmergentWeights = {
-    CompactnessSuccessDelta: float option
-    CompactnessFailDelta: float option
-    CompactnessSuccessThreshold: float option
-    CompactnessFailThreshold: float option
-    PressingSuccessDelta: float option
-    PressingFailDelta: float option
-    PressingSuccessThreshold: float option
-    PressingFailThreshold: float option
-    WingPlaySuccessDelta: float option
-    WingPlayFailDelta: float option
-    WingPlaySuccessThreshold: float option
-    WingPlayFailThreshold: float option
-    ConsecutiveLossPenalty: float option
-    FatigueSpiralCompactnessFactor: float option
-    FatigueSpiralPressingFactor: float option
-    FatigueSpiralTempoFactor: float option
-    FatigueSpiralRiskFactor: float option
-    FatigueSpiralThreshold: float option
-}
+type PartialEmergentWeights =
+    { CompactnessSuccessDelta: float option
+      CompactnessFailDelta: float option
+      CompactnessSuccessThreshold: float option
+      CompactnessFailThreshold: float option
+      PressingSuccessDelta: float option
+      PressingFailDelta: float option
+      PressingSuccessThreshold: float option
+      PressingFailThreshold: float option
+      WingPlaySuccessDelta: float option
+      WingPlayFailDelta: float option
+      WingPlaySuccessThreshold: float option
+      WingPlayFailThreshold: float option
+      ConsecutiveLossPenalty: float option
+      FatigueSpiralCompactnessFactor: float option
+      FatigueSpiralPressingFactor: float option
+      FatigueSpiralTempoFactor: float option
+      FatigueSpiralRiskFactor: float option
+      FatigueSpiralThreshold: float option }
 
 [<CLIMutable>]
-type PartialModifierWeights = {
-    TransitionNearMult: float option
-    TransitionFarMult: float option
-    TransitionNearDistance: float option
-    WeaknessSupportMult: float option
-    RestDefenseSupportMult: float option
-    RestDefenseCoverMult: float option
-    ThreatCoverMult: float option
-    HighLineSupportMult: float option
-    LowBlockPressMult: float option
-    LowBlockCoverMult: float option
-    UrgencyPressMult: float option
-    UrgencySupportMult: float option
-    UrgencyThreshold: float option
-}
+type PartialModifierWeights =
+    { TransitionNearMult: float option
+      TransitionFarMult: float option
+      TransitionNearDistance: float option
+      WeaknessSupportMult: float option
+      RestDefenseSupportMult: float option
+      RestDefenseCoverMult: float option
+      ThreatCoverMult: float option
+      HighLineSupportMult: float option
+      LowBlockPressMult: float option
+      LowBlockCoverMult: float option
+      UrgencyPressMult: float option
+      UrgencySupportMult: float option
+      UrgencyThreshold: float option }
 
 [<CLIMutable>]
-type PartialChemistryWeights = {
-    FamiliarityPassBonus: float option
-    FamiliarityFailPenalty: float option
-    FamiliarityTimeBonus: float option
-    PressingCoordinationBase: float option
-    PressingCoordinationFamiliarityMult: float option
-    TransitionSpeedBase: float option
-    TransitionSpeedFamiliarityMult: float option
-}
+type PartialChemistryWeights =
+    { FamiliarityPassBonus: float option
+      FamiliarityFailPenalty: float option
+      FamiliarityTimeBonus: float option
+      PressingCoordinationBase: float option
+      PressingCoordinationFamiliarityMult: float option
+      TransitionSpeedBase: float option
+      TransitionSpeedFamiliarityMult: float option }
 
 [<CLIMutable>]
-type PartialTeamDirectorWeights = {
-    WorkRateWeight: float option
-    PositioningWeight: float option
-    AdvancedBonus: float option
-}
+type PartialTeamDirectorWeights =
+    { WorkRateWeight: float option
+      PositioningWeight: float option
+      AdvancedBonus: float option }
 
 [<CLIMutable>]
-type PartialReactiveLoopWeights = {
-    ShapeDevWeight: float option
-    PressDevWeight: float option
-    FatigueDevWeight: float option
-    OnTrackThreshold: float option
-    DriftingThreshold: float option
-}
+type PartialReactiveLoopWeights =
+    { ShapeDevWeight: float option
+      PressDevWeight: float option
+      FatigueDevWeight: float option
+      OnTrackThreshold: float option
+      DriftingThreshold: float option }
 
 [<CLIMutable>]
-type PartialCollectiveWeights = {
-    DirectiveParams: PartialDirectiveParamsMap option
-    Emergent: PartialEmergentWeights option
-    Modifiers: PartialModifierWeights option
-    Chemistry: PartialChemistryWeights option
-    TeamDirector: PartialTeamDirectorWeights option
-    ReactiveLoop: PartialReactiveLoopWeights option
-}
+type PartialCollectiveWeights =
+    { DirectiveParams: PartialDirectiveParamsMap option
+      Emergent: PartialEmergentWeights option
+      Modifiers: PartialModifierWeights option
+      Chemistry: PartialChemistryWeights option
+      TeamDirector: PartialTeamDirectorWeights option
+      ReactiveLoop: PartialReactiveLoopWeights option }
 
 [<CLIMutable>]
-type PartialXGWeights = {
-    DistanceFactor: float option
-    AngleExponent: float option
-    BaseMultiplier: float option
-    OneOnOneMultiplier: float option
-    SetPieceMultiplier: float option
-    PressureReduction: float option
-    HeaderMultiplier: float option
-    VolleyMultiplier: float option
-    HalfVolleyMultiplier: float option
-    ChipShotMultiplier: float option
-    CurlerMultiplier: float option
-    DrivenShotMultiplier: float option
-    PlacedShotMultiplier: float option
-    FirstTimeShotMultiplier: float option
-}
+type PartialXGWeights =
+    { DistanceFactor: float option
+      AngleExponent: float option
+      BaseMultiplier: float option
+      OneOnOneMultiplier: float option
+      SetPieceMultiplier: float option
+      PressureReduction: float option
+      HeaderMultiplier: float option
+      VolleyMultiplier: float option
+      HalfVolleyMultiplier: float option
+      ChipShotMultiplier: float option
+      CurlerMultiplier: float option
+      DrivenShotMultiplier: float option
+      PlacedShotMultiplier: float option
+      FirstTimeShotMultiplier: float option }
 
 [<CLIMutable>]
-type PartialInterceptionWeights = {
-    BallControlRadiusMult: float option
-    PressIntentFactor: float option
-    RecoverIntentFactor: float option
-    MaintainShapeIntentFactor: float option
-    CoverSpaceIntentFactor: float option
-}
+type PartialInterceptionWeights =
+    { BallControlRadiusMult: float option
+      PressIntentFactor: float option
+      RecoverIntentFactor: float option
+      MaintainShapeIntentFactor: float option
+      CoverSpaceIntentFactor: float option }
 
 [<CLIMutable>]
-type PartialWinProbabilityWeights = {
-    GoalLeadBase: float option
-    DrawBase: float option
-    GoalDiffFactor: float option
-    XGFactor: float option
-    HomeAdvantage: float option
-    GoalDiffSteepness: float option
-    XGDiffSteepness: float option
-    MinutePressure: float option
-    ComebackBonus: float option
-    MomentumPositiveThreshold: float option
-    MomentumNegativeThreshold: float option
-    MomentumPositiveBonus: float option
-    MomentumNegativePenalty: float option
-    MomentumLinearFactor: float option
-}
+type PartialWinProbabilityWeights =
+    { GoalLeadBase: float option
+      DrawBase: float option
+      GoalDiffFactor: float option
+      XGFactor: float option
+      HomeAdvantage: float option
+      GoalDiffSteepness: float option
+      XGDiffSteepness: float option
+      MinutePressure: float option
+      ComebackBonus: float option
+      MomentumPositiveThreshold: float option
+      MomentumNegativeThreshold: float option
+      MomentumPositiveBonus: float option
+      MomentumNegativePenalty: float option
+      MomentumLinearFactor: float option }
 
 [<CLIMutable>]
-type PartialUtilityWeights = {
-    PressZoneBonus_HighAttacking: float option
-    PressZoneBonus_HighMidfield: float option
-    PressZoneBonus_HighDefensive: float option
-    PressZoneBonus_MidAttackingMidfield: float option
-    PressZoneBonus_MidDefensive: float option
-    PressZoneBonus_Low: float option
-    PossessionChangeWindow: float option
-    ScoreDiffPressStep: float option
-    WingSpaceBase: float option
-    StaminaWingMult: float option
-    StructuredBase: float option
-    DirectiveChangeThreshold: float option
-    DropDeepHighLinePenalty: float option
-    DropDeepLeadBonus: float option
-    DropDeepTimeBonus: float option
-    DropDeepBase: float option
-    CounterPressStaminaFactor: float option
-    CounterPressIntensityBonus: float option
-    CounterPressBase: float option
-    BuildFromBackNoPressBonus: float option
-    BuildFromBackMidPressBonus: float option
-    BuildFromBackHighPressPenalty: float option
-    BuildFromBackLowBlockBonus: float option
-    BuildFromBackBase: float option
-    DirectPlayUrgencyBonus: float option
-    DirectPlayUrgencyBonusAny: float option
-    DirectPlayHighLineBonus: float option
-    DirectPlayBase: float option
-    SitAndCounterBase: float option
-    SitAndCounterLeadBonus: float option
-    SitAndCounterStaminaFactor: float option
-    HoldPossessionLeadBonus: float option
-    HoldPossessionDrawBonus: float option
-    HoldPossessionLosingPenalty: float option
-    HoldPossessionTimeBonus: float option
-    HoldPossessionPressPenalty: float option
-    HoldPossessionBase: float option
-    CompactBlockLosingBonus: float option
-    CompactBlockWinningPenalty: float option
-    CompactBlockOpponentBonus: float option
-    CompactBlockTimeBonus: float option
-    CompactBlockBase: float option
-    HighLineCohesionBonus: float option
-    HighLineStaminaFactor: float option
-    HighLineRiskPenalty: float option
-    HighLineBase: float option
-    PressingSuccessBonus: float option
-    OpponentHighLineNoPressBonus: float option
-    OverloadWeaknessBonus: float option
-    OverloadFlankBase: float option
-}
+type PartialUtilityWeights =
+    { PressZoneBonus_HighAttacking: float option
+      PressZoneBonus_HighMidfield: float option
+      PressZoneBonus_HighDefensive: float option
+      PressZoneBonus_MidAttackingMidfield: float option
+      PressZoneBonus_MidDefensive: float option
+      PressZoneBonus_Low: float option
+      PossessionChangeWindow: float option
+      ScoreDiffPressStep: float option
+      WingSpaceBase: float option
+      StaminaWingMult: float option
+      StructuredBase: float option
+      DirectiveChangeThreshold: float option
+      DropDeepHighLinePenalty: float option
+      DropDeepLeadBonus: float option
+      DropDeepTimeBonus: float option
+      DropDeepBase: float option
+      CounterPressStaminaFactor: float option
+      CounterPressIntensityBonus: float option
+      CounterPressBase: float option
+      BuildFromBackNoPressBonus: float option
+      BuildFromBackMidPressBonus: float option
+      BuildFromBackHighPressPenalty: float option
+      BuildFromBackLowBlockBonus: float option
+      BuildFromBackBase: float option
+      DirectPlayUrgencyBonus: float option
+      DirectPlayUrgencyBonusAny: float option
+      DirectPlayHighLineBonus: float option
+      DirectPlayBase: float option
+      SitAndCounterBase: float option
+      SitAndCounterLeadBonus: float option
+      SitAndCounterStaminaFactor: float option
+      HoldPossessionLeadBonus: float option
+      HoldPossessionDrawBonus: float option
+      HoldPossessionLosingPenalty: float option
+      HoldPossessionTimeBonus: float option
+      HoldPossessionPressPenalty: float option
+      HoldPossessionBase: float option
+      CompactBlockLosingBonus: float option
+      CompactBlockWinningPenalty: float option
+      CompactBlockOpponentBonus: float option
+      CompactBlockTimeBonus: float option
+      CompactBlockBase: float option
+      HighLineCohesionBonus: float option
+      HighLineStaminaFactor: float option
+      HighLineRiskPenalty: float option
+      HighLineBase: float option
+      PressingSuccessBonus: float option
+      OpponentHighLineNoPressBonus: float option
+      OverloadWeaknessBonus: float option
+      OverloadFlankBase: float option }
 
 [<CLIMutable>]
-type PartialPerformanceWeightsMap = {
-    DuelStatWeight: float option
-    DuelConditionWeight: float option
-    DuelMoraleWeight: float option
-    DuelCurveSteepness: float option
-    DuelCurveInflection: float option
-    TechnicalStatWeight: float option
-    TechnicalConditionWeight: float option
-    TechnicalMoraleWeight: float option
-    TechnicalCurveSteepness: float option
-    TechnicalCurveInflection: float option
-    DecisionStatWeight: float option
-    DecisionConditionWeight: float option
-    DecisionMoraleWeight: float option
-    DecisionCurveSteepness: float option
-    DecisionCurveInflection: float option
-}
+type PartialPerformanceWeightsMap =
+    { DuelStatWeight: float option
+      DuelConditionWeight: float option
+      DuelMoraleWeight: float option
+      DuelCurveSteepness: float option
+      DuelCurveInflection: float option
+      TechnicalStatWeight: float option
+      TechnicalConditionWeight: float option
+      TechnicalMoraleWeight: float option
+      TechnicalCurveSteepness: float option
+      TechnicalCurveInflection: float option
+      DecisionStatWeight: float option
+      DecisionConditionWeight: float option
+      DecisionMoraleWeight: float option
+      DecisionCurveSteepness: float option
+      DecisionCurveInflection: float option }
 
 [<CLIMutable>]
-type PartialRefereeWeights = {
-    CardBaseProb: float option
-    CardAggressionMult: float option
-    CardHomeReduction: float option
-    InjuryBaseProb: float option
-    InjuryStrengthInverseMult: float option
-    FoulAggressionBase: float option
-    FoulAggressionMult: float option
-}
+type PartialMatchSituationConfig =
+    { ShootLosingLateMod: float option
+      ShootDrawLateMod: float option
+      ShootMomentumScale: float option
+      PassWinningMod: float option
+      PassTransitionPenalty: float option
+      DribbleTransitionMod: float option
+      LongBallLosingLateMod: float option
+      LongBallPressureThreshold: float option
+      LongBallPressureMod: float option }
 
 [<CLIMutable>]
-type PartialEnvironmentWeights = {
-    WeatherClearModifier: float option
-    WeatherLightRainModifier: float option
-    WeatherHeavyRainModifier: float option
-    WeatherSnowModifier: float option
-    WeatherWindyModifier: float option
-    PitchDrySlipBase: float option
-    PitchDampSlipBase: float option
-    PitchWetSlipBase: float option
-    PitchWaterloggedSlipBase: float option
-    SlipAgilityReduction: float option
-    CrowdMaxCapacity: float option
-    CrowdCapacityWeight: float option
-    CrowdSupportWeight: float option
-    CrowdMomentumWeight: float option
-    CrowdImportanceWeight: float option
-    CrowdMaxAdvantage: float option
-    AwayPressureCrowdMult: float option
-}
+type PartialRefereeWeights =
+    { CardBaseProb: float option
+      CardAggressionMult: float option
+      CardHomeReduction: float option
+      InjuryBaseProb: float option
+      InjuryStrengthInverseMult: float option
+      FoulAggressionBase: float option
+      FoulAggressionMult: float option }
 
 [<CLIMutable>]
-type PartialMomentumWeights = {
-    EventDelta: float option
-    Decay: float option
-    Min: float option
-    Max: float option
-    HalfLifeSeconds: float option
-}
+type PartialEnvironmentWeights =
+    { WeatherClearModifier: float option
+      WeatherLightRainModifier: float option
+      WeatherHeavyRainModifier: float option
+      WeatherSnowModifier: float option
+      WeatherWindyModifier: float option
+      PitchDrySlipBase: float option
+      PitchDampSlipBase: float option
+      PitchWetSlipBase: float option
+      PitchWaterloggedSlipBase: float option
+      SlipAgilityReduction: float option
+      CrowdMaxCapacity: float option
+      CrowdCapacityWeight: float option
+      CrowdSupportWeight: float option
+      CrowdMomentumWeight: float option
+      CrowdImportanceWeight: float option
+      CrowdMaxAdvantage: float option
+      AwayPressureCrowdMult: float option }
 
 [<CLIMutable>]
-type PartialProfileWeights = {
-    PositionalFreedom_PositioningWeight: float option
-    PositionalFreedom_VisionWeight: float option
-    PositionalFreedom_StaminaWeight: float option
-    PositionalFreedom_ConcentrationWeight: float option
-    PositionalFreedom_BalanceWeight: float option
-    PositionalFreedom_AgilityWeight: float option
-    AttackingDepth_PaceWeight: float option
-    AttackingDepth_AccelerationWeight: float option
-    AttackingDepth_FinishingWeight: float option
-    AttackingDepth_ComposureWeight: float option
-    AttackingDepth_StaminaWeight: float option
-    AttackingDepth_PositionBaseMultiplier: float option
-    LateralTendency_CrossingWeight: float option
-    LateralTendency_PaceWeight: float option
-    DefensiveHeight_WorkRateWeight: float option
-    DefensiveHeight_TacklingWeight: float option
-    DefensiveHeight_PositioningWeight: float option
-    DefensiveHeight_StaminaWeight: float option
-    DefensiveHeight_PositionBaseMultiplier: float option
-    PressingIntensity_StaminaWeight: float option
-    PressingIntensity_WorkRateWeight: float option
-    PressingIntensity_AggressionWeight: float option
-    PressingIntensity_PaceWeight: float option
-    PressingIntensity_ConcentrationWeight: float option
-    RiskAppetite_PassingWeight: float option
-    RiskAppetite_LongShotsWeight: float option
-    RiskAppetite_VisionWeight: float option
-    RiskAppetite_ComposureWeight: float option
-    RiskAppetite_DribblingWeight: float option
-    RiskAppetite_BraveryWeight: float option
-    Directness_FinishingWeight: float option
-    Directness_PaceWeight: float option
-    Directness_AccelerationWeight: float option
-    Directness_AggressionWeight: float option
-    Directness_DribblingWeight: float option
-    Directness_StrengthWeight: float option
-    Directness_InversePassingWeight: float option
-    CreativityWeight_PassingWeight: float option
-    CreativityWeight_VisionWeight: float option
-    CreativityWeight_BallControlWeight: float option
-    CreativityWeight_DribblingWeight: float option
-    CreativityWeight_ComposureWeight: float option
-    CreativityWeight_CrossingWeight: float option
-    AerialThreat_JumpingReachWeight: float option
-    AerialThreat_HeadingWeight: float option
-    AerialThreat_StrengthWeight: float option
-    AerialThreat_BraveryWeight: float option
-    HoldUpPlay_StrengthWeight: float option
-    HoldUpPlay_BallControlWeight: float option
-    HoldUpPlay_ComposureWeight: float option
-    HoldUpPlay_PassingWeight: float option
-    HoldUpPlay_HeadingWeight: float option
-    HoldUpPlay_BalanceWeight: float option
-}
+type PartialMomentumWeights =
+    { EventDelta: float option
+      Decay: float option
+      Min: float option
+      Max: float option
+      HalfLifeSeconds: float option }
 
 [<CLIMutable>]
-type PartialBalanceConfig = {
-    Duel: PartialDuelConfig option
-    Shot: PartialShotConfig option
-    Pass: PartialPassConfig option
-    Cross: PartialCrossConfig option
-    Dribble: PartialDribbleConfig option
-    Tackle: PartialTackleConfig option
-    SetPiece: PartialSetPieceConfig option
-    GK: PartialGKConfig option
-    HomeAdvantage: PartialHomeAdvantageConfig option
-    Physics: PartialPhysicsConfig option
-    Timing: PartialTimingConfig option
-    MatchVolume: PartialMatchVolumeConfig option
-    Manager: PartialManagerConfig option
-    BuildUp: PartialBuildUpConfig option
-    Decision: PartialDecisionConfig option
-    Perception: PartialPerceptionConfig option
-    Individual: PartialIndividualWeights option
-    ProfileWeights: PartialProfileWeights option
-    Development: PartialDevelopmentWeights option
-    CalibrationTargets: PartialCalibrationTargets option
-    Collective: PartialCollectiveWeights option
-    Personality: PartialPersonalityWeights option
-    Utility: PartialUtilityWeights option
-    Referee: PartialRefereeWeights option
-    Environment: PartialEnvironmentWeights option
-    Momentum: PartialMomentumWeights option
-    XG: PartialXGWeights option
-    Interception: PartialInterceptionWeights option
-    WinProbability: PartialWinProbabilityWeights option
-    Performance: PartialPerformanceWeightsMap option
-}
+type PartialProfileWeights =
+    { PositionalFreedom_PositioningWeight: float option
+      PositionalFreedom_VisionWeight: float option
+      PositionalFreedom_StaminaWeight: float option
+      PositionalFreedom_ConcentrationWeight: float option
+      PositionalFreedom_BalanceWeight: float option
+      PositionalFreedom_AgilityWeight: float option
+      AttackingDepth_PaceWeight: float option
+      AttackingDepth_AccelerationWeight: float option
+      AttackingDepth_FinishingWeight: float option
+      AttackingDepth_ComposureWeight: float option
+      AttackingDepth_StaminaWeight: float option
+      AttackingDepth_PositionBaseMultiplier: float option
+      LateralTendency_CrossingWeight: float option
+      LateralTendency_PaceWeight: float option
+      DefensiveHeight_WorkRateWeight: float option
+      DefensiveHeight_TacklingWeight: float option
+      DefensiveHeight_PositioningWeight: float option
+      DefensiveHeight_StaminaWeight: float option
+      DefensiveHeight_PositionBaseMultiplier: float option
+      PressingIntensity_StaminaWeight: float option
+      PressingIntensity_WorkRateWeight: float option
+      PressingIntensity_AggressionWeight: float option
+      PressingIntensity_PaceWeight: float option
+      PressingIntensity_ConcentrationWeight: float option
+      RiskAppetite_PassingWeight: float option
+      RiskAppetite_LongShotsWeight: float option
+      RiskAppetite_VisionWeight: float option
+      RiskAppetite_ComposureWeight: float option
+      RiskAppetite_DribblingWeight: float option
+      RiskAppetite_BraveryWeight: float option
+      Directness_FinishingWeight: float option
+      Directness_PaceWeight: float option
+      Directness_AccelerationWeight: float option
+      Directness_AggressionWeight: float option
+      Directness_DribblingWeight: float option
+      Directness_StrengthWeight: float option
+      Directness_InversePassingWeight: float option
+      CreativityWeight_PassingWeight: float option
+      CreativityWeight_VisionWeight: float option
+      CreativityWeight_BallControlWeight: float option
+      CreativityWeight_DribblingWeight: float option
+      CreativityWeight_ComposureWeight: float option
+      CreativityWeight_CrossingWeight: float option
+      AerialThreat_JumpingReachWeight: float option
+      AerialThreat_HeadingWeight: float option
+      AerialThreat_StrengthWeight: float option
+      AerialThreat_BraveryWeight: float option
+      HoldUpPlay_StrengthWeight: float option
+      HoldUpPlay_BallControlWeight: float option
+      HoldUpPlay_ComposureWeight: float option
+      HoldUpPlay_PassingWeight: float option
+      HoldUpPlay_HeadingWeight: float option
+      HoldUpPlay_BalanceWeight: float option }
+
+[<CLIMutable>]
+type PartialBalanceConfig =
+    { Duel: PartialDuelConfig option
+      Shot: PartialShotConfig option
+      Pass: PartialPassConfig option
+      Cross: PartialCrossConfig option
+      Dribble: PartialDribbleConfig option
+      Tackle: PartialTackleConfig option
+      SetPiece: PartialSetPieceConfig option
+      GK: PartialGKConfig option
+      HomeAdvantage: PartialHomeAdvantageConfig option
+      Physics: PartialPhysicsConfig option
+      Timing: PartialTimingConfig option
+      MatchVolume: PartialMatchVolumeConfig option
+      Manager: PartialManagerConfig option
+      BuildUp: PartialBuildUpConfig option
+      Decision: PartialDecisionConfig option
+      Perception: PartialPerceptionConfig option
+      Individual: PartialIndividualWeights option
+      ProfileWeights: PartialProfileWeights option
+      Development: PartialDevelopmentWeights option
+      CalibrationTargets: PartialCalibrationTargets option
+      Collective: PartialCollectiveWeights option
+      Personality: PartialPersonalityWeights option
+      Utility: PartialUtilityWeights option
+      Referee: PartialRefereeWeights option
+      Environment: PartialEnvironmentWeights option
+      Momentum: PartialMomentumWeights option
+      XG: PartialXGWeights option
+      Interception: PartialInterceptionWeights option
+      WinProbability: PartialWinProbabilityWeights option
+      Performance: PartialPerformanceWeightsMap option
+      MatchSituation: PartialMatchSituationConfig option }
 
 // ============================================================================
 // Merge helpers
@@ -930,12 +907,24 @@ type PartialBalanceConfig = {
 
 module private Merger =
 
-    let opt d = function None -> d | Some v -> v
-    let inline optUnit (d: float<'u>) (p: float option) : float<'u> = match p with None -> d | Some v -> v * LanguagePrimitives.FloatWithMeasure<'u> 1.0
-    let inline optInt (d: int<'u>) (p: int option) : int<'u> = match p with None -> d | Some v -> v * LanguagePrimitives.Int32WithMeasure<'u> 1
+    let opt d =
+        function
+        | None -> d
+        | Some v -> v
+
+    let inline optUnit (d: float<'u>) (p: float option) : float<'u> =
+        match p with
+        | None -> d
+        | Some v -> v * LanguagePrimitives.FloatWithMeasure<'u> 1.0
+
+    let inline optInt (d: int<'u>) (p: int option) : int<'u> =
+        match p with
+        | None -> d
+        | Some v -> v * LanguagePrimitives.Int32WithMeasure<'u> 1
 
     let mergeDuel (p: PartialDuelConfig option) (d: DuelConfig) : DuelConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialDuelConfig>) p
+
         { DuelSteepness = opt d.DuelSteepness p.DuelSteepness
           MomentumBonus = opt d.MomentumBonus p.MomentumBonus
           JitterWin = opt d.JitterWin p.JitterWin
@@ -954,6 +943,7 @@ module private Merger =
 
     let mergeShot (p: PartialShotConfig option) (d: ShotConfig) : ShotConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialShotConfig>) p
+
         { OnTargetBase = opt d.OnTargetBase p.OnTargetBase
           OnTargetDistDecayRate = opt d.OnTargetDistDecayRate p.OnTargetDistDecayRate
           OnTargetDistMaxPenalty = opt d.OnTargetDistMaxPenalty p.OnTargetDistMaxPenalty
@@ -991,6 +981,7 @@ module private Merger =
 
     let mergePass (p: PartialPassConfig option) (d: PassConfig) : PassConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialPassConfig>) p
+
         { BaseMean = opt d.BaseMean p.BaseMean
           DistancePenaltyPerMeter = opt d.DistancePenaltyPerMeter p.DistancePenaltyPerMeter
           LongPassPenaltyPerMeter = opt d.LongPassPenaltyPerMeter p.LongPassPenaltyPerMeter
@@ -1033,7 +1024,8 @@ module private Merger =
           LongBallPassingWeight = opt d.LongBallPassingWeight p.LongBallPassingWeight
           LongBallVisionWeight = opt d.LongBallVisionWeight p.LongBallVisionWeight
           LongBallSuccessShapeAlpha = opt d.LongBallSuccessShapeAlpha p.LongBallSuccessShapeAlpha
-          LongBallSuccessConditionMultiplier = opt d.LongBallSuccessConditionMultiplier p.LongBallSuccessConditionMultiplier
+          LongBallSuccessConditionMultiplier =
+            opt d.LongBallSuccessConditionMultiplier p.LongBallSuccessConditionMultiplier
           LongBallOffsideMomentum = opt d.LongBallOffsideMomentum p.LongBallOffsideMomentum
           LongBallSuccessMomentum = opt d.LongBallSuccessMomentum p.LongBallSuccessMomentum
           LongBallFailMomentum = opt d.LongBallFailMomentum p.LongBallFailMomentum
@@ -1049,6 +1041,7 @@ module private Merger =
 
     let mergeCross (p: PartialCrossConfig option) (d: CrossConfig) : CrossConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialCrossConfig>) p
+
         { BaseMean = opt d.BaseMean p.BaseMean
           CrossingWeight = opt d.CrossingWeight p.CrossingWeight
           PassingWeight = opt d.PassingWeight p.PassingWeight
@@ -1076,6 +1069,7 @@ module private Merger =
 
     let mergeDribble (p: PartialDribbleConfig option) (d: DribbleConfig) : DribbleConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialDribbleConfig>) p
+
         { TechnicalWeight = opt d.TechnicalWeight p.TechnicalWeight
           AgilityWeight = opt d.AgilityWeight p.AgilityWeight
           BalanceWeight = opt d.BalanceWeight p.BalanceWeight
@@ -1088,6 +1082,7 @@ module private Merger =
 
     let mergeTackle (p: PartialTackleConfig option) (d: TackleConfig) : TackleConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialTackleConfig>) p
+
         { TechnicalWeight = opt d.TechnicalWeight p.TechnicalWeight
           PositioningWeight = opt d.PositioningWeight p.PositioningWeight
           StrengthWeight = opt d.StrengthWeight p.StrengthWeight
@@ -1101,6 +1096,7 @@ module private Merger =
 
     let mergeSetPiece (p: PartialSetPieceConfig option) (d: SetPieceConfig) : SetPieceConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialSetPieceConfig>) p
+
         { FreeKickTargetX = optUnit d.FreeKickTargetX p.FreeKickTargetX
           FreeKickSpeed = optUnit d.FreeKickSpeed p.FreeKickSpeed
           FreeKickVz = optUnit d.FreeKickVz p.FreeKickVz
@@ -1151,6 +1147,7 @@ module private Merger =
 
     let mergeGK (p: PartialGKConfig option) (d: GKConfig) : GKConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialGKConfig>) p
+
         { CatchHandlingMult = opt d.CatchHandlingMult p.CatchHandlingMult
           DiveReach = optUnit d.DiveReach p.DiveReach
           ParrySpeed = optUnit d.ParrySpeed p.ParrySpeed
@@ -1170,10 +1167,17 @@ module private Merger =
           HoldTimeSubTicks = optInt d.HoldTimeSubTicks p.HoldTimeSubTicks
           MaxHoldSubTicks = optInt d.MaxHoldSubTicks p.MaxHoldSubTicks
           BackPassHandlingPenalty = opt d.BackPassHandlingPenalty p.BackPassHandlingPenalty
-          GKDecisionWindowSubTicks = optInt d.GKDecisionWindowSubTicks p.GKDecisionWindowSubTicks }
+          GKDecisionWindowSubTicks = optInt d.GKDecisionWindowSubTicks p.GKDecisionWindowSubTicks
+          SaveBaseProbability = opt d.SaveBaseProbability p.SaveBaseProbability
+          SaveReflexesWeight = opt d.SaveReflexesWeight p.SaveReflexesWeight
+          SavePositioningWeight = opt d.SavePositioningWeight p.SavePositioningWeight
+          SaveSpeedFactor = opt d.SaveSpeedFactor p.SaveSpeedFactor
+          SaveAngleFactor = opt d.SaveAngleFactor p.SaveAngleFactor }
 
     let mergeHomeAdv (p: PartialHomeAdvantageConfig option) (d: HomeAdvantageConfig) : HomeAdvantageConfig =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialHomeAdvantageConfig>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialHomeAdvantageConfig>) p
+
         { Strength = opt d.Strength p.Strength
           DuelAttackBonus = opt d.DuelAttackBonus p.DuelAttackBonus
           DuelDefenseBonus = opt d.DuelDefenseBonus p.DuelDefenseBonus
@@ -1189,6 +1193,7 @@ module private Merger =
 
     let mergePhysics (p: PartialPhysicsConfig option) (d: PhysicsConfig) : PhysicsConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialPhysicsConfig>) p
+
         { Gravity = optUnit d.Gravity p.Gravity
           AirDrag = opt d.AirDrag p.AirDrag
           GroundRestitution = opt d.GroundRestitution p.GroundRestitution
@@ -1235,6 +1240,7 @@ module private Merger =
 
     let mergeTiming (p: PartialTimingConfig option) (d: TimingConfig) : TimingConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialTimingConfig>) p
+
         { DuelChainDelay = opt d.DuelChainDelay p.DuelChainDelay
           DuelNextDelay = opt d.DuelNextDelay p.DuelNextDelay
           ShotDelay = opt d.ShotDelay p.ShotDelay
@@ -1252,7 +1258,9 @@ module private Merger =
           EventWindowSubTicks = opt d.EventWindowSubTicks p.EventWindowSubTicks }
 
     let mergeMatchVolume (p: PartialMatchVolumeConfig option) (d: MatchVolumeConfig) : MatchVolumeConfig =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialMatchVolumeConfig>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialMatchVolumeConfig>) p
+
         { MaxChainLength = opt d.MaxChainLength p.MaxChainLength
           TargetDuelTicksPerMatch = opt d.TargetDuelTicksPerMatch p.TargetDuelTicksPerMatch
           TargetShotsPerMatch = opt d.TargetShotsPerMatch p.TargetShotsPerMatch
@@ -1263,6 +1271,7 @@ module private Merger =
 
     let mergeManager (p: PartialManagerConfig option) (d: ManagerConfig) : ManagerConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialManagerConfig>) p
+
         { FatigueReactionThreshold = opt d.FatigueReactionThreshold p.FatigueReactionThreshold
           SustainedMomentumSubTicks = opt d.SustainedMomentumSubTicks p.SustainedMomentumSubTicks
           MomentumThreshold = opt d.MomentumThreshold p.MomentumThreshold
@@ -1274,6 +1283,7 @@ module private Merger =
 
     let mergeBuildUp (p: PartialBuildUpConfig option) (d: BuildUpConfig) : BuildUpConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialBuildUpConfig>) p
+
         { PassSuccessBonus = opt d.PassSuccessBonus p.PassSuccessBonus
           DribblePenalty = opt d.DribblePenalty p.DribblePenalty
           LongBallPenalty = opt d.LongBallPenalty p.LongBallPenalty
@@ -1282,6 +1292,7 @@ module private Merger =
 
     let mergeDecision (p: PartialDecisionConfig option) (d: DecisionConfig) : DecisionConfig =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialDecisionConfig>) p
+
         { ShootFinishingWeight = opt d.ShootFinishingWeight p.ShootFinishingWeight
           ShootLongShotsWeight = opt d.ShootLongShotsWeight p.ShootLongShotsWeight
           ShootComposureWeight = opt d.ShootComposureWeight p.ShootComposureWeight
@@ -1302,6 +1313,7 @@ module private Merger =
           DribbleAttackPhaseBonus = opt d.DribbleAttackPhaseBonus p.DribbleAttackPhaseBonus
           DribbleTempoPenalty = opt d.DribbleTempoPenalty p.DribbleTempoPenalty
           DribblePressurePenalty = opt d.DribblePressurePenalty p.DribblePressurePenalty
+          DribblePressureBlockThreshold = opt d.DribblePressureBlockThreshold p.DribblePressureBlockThreshold
           CrossCrossingWeight = opt d.CrossCrossingWeight p.CrossCrossingWeight
           CrossLateralTendencyWeight = opt d.CrossLateralTendencyWeight p.CrossLateralTendencyWeight
           CrossLateralTendencyBase = opt d.CrossLateralTendencyBase p.CrossLateralTendencyBase
@@ -1347,7 +1359,9 @@ module private Merger =
           PassAnticipationBonus = opt d.PassAnticipationBonus p.PassAnticipationBonus }
 
     let mergePerception (p: PartialPerceptionConfig option) (d: PerceptionConfig) : PerceptionConfig =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialPerceptionConfig>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialPerceptionConfig>) p
+
         { VisionRadiusBase = optUnit d.VisionRadiusBase p.VisionRadiusBase
           VisionRadiusMax = optUnit d.VisionRadiusMax p.VisionRadiusMax
           VisionConeAngle = opt d.VisionConeAngle p.VisionConeAngle
@@ -1362,9 +1376,12 @@ module private Merger =
           BlindPassSuccessPenalty = opt d.BlindPassSuccessPenalty p.BlindPassSuccessPenalty }
 
     let mergeIndividual (p: PartialIndividualWeights option) (d: IndividualWeights) : IndividualWeights =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialIndividualWeights>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialIndividualWeights>) p
+
         let mergeShoot (sp: PartialShootWeights option) (sd: ShootWeights) : ShootWeights =
             let sp = Option.defaultWith (fun () -> Unchecked.defaultof<PartialShootWeights>) sp
+
             { FinishingWeight = opt sd.FinishingWeight sp.FinishingWeight
               LongShotsWeight = opt sd.LongShotsWeight sp.LongShotsWeight
               ComposureWeight = opt sd.ComposureWeight sp.ComposureWeight
@@ -1375,15 +1392,20 @@ module private Merger =
               RiskBonus = opt sd.RiskBonus sp.RiskBonus
               DistPenaltyDivisor = opt sd.DistPenaltyDivisor sp.DistPenaltyDivisor
               DistPenaltyMax = opt sd.DistPenaltyMax sp.DistPenaltyMax }
+
         let mergePass (pp: PartialPassWeights option) (pd: PassWeights) : PassWeights =
             let pp = Option.defaultWith (fun () -> Unchecked.defaultof<PartialPassWeights>) pp
+
             { PassingWeight = opt pd.PassingWeight pp.PassingWeight
               VisionWeight = opt pd.VisionWeight pp.VisionWeight
               ComposureWeight = opt pd.ComposureWeight pp.ComposureWeight
               TargetBonus = opt pd.TargetBonus pp.TargetBonus
               AttackPhasePenalty = opt pd.AttackPhasePenalty pp.AttackPhasePenalty }
+
         let mergeDribble (dp: PartialDribbleWeights option) (dd: DribbleWeights) : DribbleWeights =
-            let dp = Option.defaultWith (fun () -> Unchecked.defaultof<PartialDribbleWeights>) dp
+            let dp =
+                Option.defaultWith (fun () -> Unchecked.defaultof<PartialDribbleWeights>) dp
+
             { DribblingWeight = opt dd.DribblingWeight dp.DribblingWeight
               AgilityWeight = opt dd.AgilityWeight dp.AgilityWeight
               BalanceWeight = opt dd.BalanceWeight dp.BalanceWeight
@@ -1391,15 +1413,20 @@ module private Merger =
               ZoneBonusMidfield = opt dd.ZoneBonusMidfield dp.ZoneBonusMidfield
               TempoPenalty = opt dd.TempoPenalty dp.TempoPenalty
               PressurePenalty = opt dd.PressurePenalty dp.PressurePenalty }
+
         let mergeCross (cp: PartialCrossWeights option) (cd: CrossWeights) : CrossWeights =
             let cp = Option.defaultWith (fun () -> Unchecked.defaultof<PartialCrossWeights>) cp
+
             { CrossingWeight = opt cd.CrossingWeight cp.CrossingWeight
               LateralTendencyWeight = opt cd.LateralTendencyWeight cp.LateralTendencyWeight
               LateralTendencyBase = opt cd.LateralTendencyBase cp.LateralTendencyBase
               ZoneBonus = opt cd.ZoneBonus cp.ZoneBonus
               WidthBonus = opt cd.WidthBonus cp.WidthBonus }
+
         let mergeLongBall (lp: PartialLongBallWeights option) (ld: LongBallWeights) : LongBallWeights =
-            let lp = Option.defaultWith (fun () -> Unchecked.defaultof<PartialLongBallWeights>) lp
+            let lp =
+                Option.defaultWith (fun () -> Unchecked.defaultof<PartialLongBallWeights>) lp
+
             { LongShotsWeight = opt ld.LongShotsWeight lp.LongShotsWeight
               PassingWeight = opt ld.PassingWeight lp.PassingWeight
               VisionWeight = opt ld.VisionWeight lp.VisionWeight
@@ -1409,6 +1436,7 @@ module private Merger =
               PressNoOpponent = opt ld.PressNoOpponent lp.PressNoOpponent
               AttackPhaseBonus = opt ld.AttackPhaseBonus lp.AttackPhaseBonus
               DirectnessBonus = opt ld.DirectnessBonus lp.DirectnessBonus }
+
         { Shoot = mergeShoot p.Shoot d.Shoot
           Pass = mergePass p.Pass d.Pass
           Dribble = mergeDribble p.Dribble d.Dribble
@@ -1420,30 +1448,39 @@ module private Merger =
 
     let mergeProfile (p: PartialProfileWeights option) (d: ProfileWeights) : ProfileWeights =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialProfileWeights>) p
-        { PositionalFreedom_PositioningWeight = opt d.PositionalFreedom_PositioningWeight p.PositionalFreedom_PositioningWeight
+
+        { PositionalFreedom_PositioningWeight =
+            opt d.PositionalFreedom_PositioningWeight p.PositionalFreedom_PositioningWeight
           PositionalFreedom_VisionWeight = opt d.PositionalFreedom_VisionWeight p.PositionalFreedom_VisionWeight
           PositionalFreedom_StaminaWeight = opt d.PositionalFreedom_StaminaWeight p.PositionalFreedom_StaminaWeight
-          PositionalFreedom_ConcentrationWeight = opt d.PositionalFreedom_ConcentrationWeight p.PositionalFreedom_ConcentrationWeight
+          PositionalFreedom_ConcentrationWeight =
+            opt d.PositionalFreedom_ConcentrationWeight p.PositionalFreedom_ConcentrationWeight
           PositionalFreedom_BalanceWeight = opt d.PositionalFreedom_BalanceWeight p.PositionalFreedom_BalanceWeight
           PositionalFreedom_AgilityWeight = opt d.PositionalFreedom_AgilityWeight p.PositionalFreedom_AgilityWeight
           AttackingDepth_PaceWeight = opt d.AttackingDepth_PaceWeight p.AttackingDepth_PaceWeight
-          AttackingDepth_AccelerationWeight = opt d.AttackingDepth_AccelerationWeight p.AttackingDepth_AccelerationWeight
+          AttackingDepth_AccelerationWeight =
+            opt d.AttackingDepth_AccelerationWeight p.AttackingDepth_AccelerationWeight
           AttackingDepth_FinishingWeight = opt d.AttackingDepth_FinishingWeight p.AttackingDepth_FinishingWeight
           AttackingDepth_ComposureWeight = opt d.AttackingDepth_ComposureWeight p.AttackingDepth_ComposureWeight
           AttackingDepth_StaminaWeight = opt d.AttackingDepth_StaminaWeight p.AttackingDepth_StaminaWeight
-          AttackingDepth_PositionBaseMultiplier = opt d.AttackingDepth_PositionBaseMultiplier p.AttackingDepth_PositionBaseMultiplier
+          AttackingDepth_PositionBaseMultiplier =
+            opt d.AttackingDepth_PositionBaseMultiplier p.AttackingDepth_PositionBaseMultiplier
           LateralTendency_CrossingWeight = opt d.LateralTendency_CrossingWeight p.LateralTendency_CrossingWeight
           LateralTendency_PaceWeight = opt d.LateralTendency_PaceWeight p.LateralTendency_PaceWeight
           DefensiveHeight_WorkRateWeight = opt d.DefensiveHeight_WorkRateWeight p.DefensiveHeight_WorkRateWeight
           DefensiveHeight_TacklingWeight = opt d.DefensiveHeight_TacklingWeight p.DefensiveHeight_TacklingWeight
-          DefensiveHeight_PositioningWeight = opt d.DefensiveHeight_PositioningWeight p.DefensiveHeight_PositioningWeight
+          DefensiveHeight_PositioningWeight =
+            opt d.DefensiveHeight_PositioningWeight p.DefensiveHeight_PositioningWeight
           DefensiveHeight_StaminaWeight = opt d.DefensiveHeight_StaminaWeight p.DefensiveHeight_StaminaWeight
-          DefensiveHeight_PositionBaseMultiplier = opt d.DefensiveHeight_PositionBaseMultiplier p.DefensiveHeight_PositionBaseMultiplier
+          DefensiveHeight_PositionBaseMultiplier =
+            opt d.DefensiveHeight_PositionBaseMultiplier p.DefensiveHeight_PositionBaseMultiplier
           PressingIntensity_StaminaWeight = opt d.PressingIntensity_StaminaWeight p.PressingIntensity_StaminaWeight
           PressingIntensity_WorkRateWeight = opt d.PressingIntensity_WorkRateWeight p.PressingIntensity_WorkRateWeight
-          PressingIntensity_AggressionWeight = opt d.PressingIntensity_AggressionWeight p.PressingIntensity_AggressionWeight
+          PressingIntensity_AggressionWeight =
+            opt d.PressingIntensity_AggressionWeight p.PressingIntensity_AggressionWeight
           PressingIntensity_PaceWeight = opt d.PressingIntensity_PaceWeight p.PressingIntensity_PaceWeight
-          PressingIntensity_ConcentrationWeight = opt d.PressingIntensity_ConcentrationWeight p.PressingIntensity_ConcentrationWeight
+          PressingIntensity_ConcentrationWeight =
+            opt d.PressingIntensity_ConcentrationWeight p.PressingIntensity_ConcentrationWeight
           RiskAppetite_PassingWeight = opt d.RiskAppetite_PassingWeight p.RiskAppetite_PassingWeight
           RiskAppetite_LongShotsWeight = opt d.RiskAppetite_LongShotsWeight p.RiskAppetite_LongShotsWeight
           RiskAppetite_VisionWeight = opt d.RiskAppetite_VisionWeight p.RiskAppetite_VisionWeight
@@ -1459,7 +1496,8 @@ module private Merger =
           Directness_InversePassingWeight = opt d.Directness_InversePassingWeight p.Directness_InversePassingWeight
           CreativityWeight_PassingWeight = opt d.CreativityWeight_PassingWeight p.CreativityWeight_PassingWeight
           CreativityWeight_VisionWeight = opt d.CreativityWeight_VisionWeight p.CreativityWeight_VisionWeight
-          CreativityWeight_BallControlWeight = opt d.CreativityWeight_BallControlWeight p.CreativityWeight_BallControlWeight
+          CreativityWeight_BallControlWeight =
+            opt d.CreativityWeight_BallControlWeight p.CreativityWeight_BallControlWeight
           CreativityWeight_DribblingWeight = opt d.CreativityWeight_DribblingWeight p.CreativityWeight_DribblingWeight
           CreativityWeight_ComposureWeight = opt d.CreativityWeight_ComposureWeight p.CreativityWeight_ComposureWeight
           CreativityWeight_CrossingWeight = opt d.CreativityWeight_CrossingWeight p.CreativityWeight_CrossingWeight
@@ -1475,7 +1513,9 @@ module private Merger =
           HoldUpPlay_BalanceWeight = opt d.HoldUpPlay_BalanceWeight p.HoldUpPlay_BalanceWeight }
 
     let mergeDevelopment (p: PartialDevelopmentWeights option) (d: DevelopmentWeights) : DevelopmentWeights =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialDevelopmentWeights>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialDevelopmentWeights>) p
+
         { AgeBracket_MaxDelta_U21 = opt d.AgeBracket_MaxDelta_U21 p.AgeBracket_MaxDelta_U21
           AgeBracket_MaxDelta_U25 = opt d.AgeBracket_MaxDelta_U25 p.AgeBracket_MaxDelta_U25
           AgeBracket_MaxDelta_U28 = opt d.AgeBracket_MaxDelta_U28 p.AgeBracket_MaxDelta_U28
@@ -1483,22 +1523,30 @@ module private Merger =
           AgeBracket_MaxDelta_U34 = opt d.AgeBracket_MaxDelta_U34 p.AgeBracket_MaxDelta_U34
           FocusMultiplier_Goalkeeping = opt d.FocusMultiplier_Goalkeeping p.FocusMultiplier_Goalkeeping
           FocusMultiplier_PhysicalBase = opt d.FocusMultiplier_PhysicalBase p.FocusMultiplier_PhysicalBase
-          FocusMultiplier_Physical_Pressing = opt d.FocusMultiplier_Physical_Pressing p.FocusMultiplier_Physical_Pressing
-          FocusMultiplier_Physical_Positional = opt d.FocusMultiplier_Physical_Positional p.FocusMultiplier_Physical_Positional
+          FocusMultiplier_Physical_Pressing =
+            opt d.FocusMultiplier_Physical_Pressing p.FocusMultiplier_Physical_Pressing
+          FocusMultiplier_Physical_Positional =
+            opt d.FocusMultiplier_Physical_Positional p.FocusMultiplier_Physical_Positional
           FocusMultiplier_Mental = opt d.FocusMultiplier_Mental p.FocusMultiplier_Mental
           FocusMultiplier_TechnicalBase = opt d.FocusMultiplier_TechnicalBase p.FocusMultiplier_TechnicalBase
-          FocusMultiplier_Technical_Creativity = opt d.FocusMultiplier_Technical_Creativity p.FocusMultiplier_Technical_Creativity
-          FocusMultiplier_Technical_Directness = opt d.FocusMultiplier_Technical_Directness p.FocusMultiplier_Technical_Directness
+          FocusMultiplier_Technical_Creativity =
+            opt d.FocusMultiplier_Technical_Creativity p.FocusMultiplier_Technical_Creativity
+          FocusMultiplier_Technical_Directness =
+            opt d.FocusMultiplier_Technical_Directness p.FocusMultiplier_Technical_Directness
           WeeklyDeltaDivisor = opt d.WeeklyDeltaDivisor p.WeeklyDeltaDivisor
           StatFocus_DirectnessThreshold = opt d.StatFocus_DirectnessThreshold p.StatFocus_DirectnessThreshold
-          StatFocus_AttackingDepthThreshold = opt d.StatFocus_AttackingDepthThreshold p.StatFocus_AttackingDepthThreshold
-          StatFocus_DefensiveHeightThreshold = opt d.StatFocus_DefensiveHeightThreshold p.StatFocus_DefensiveHeightThreshold
+          StatFocus_AttackingDepthThreshold =
+            opt d.StatFocus_AttackingDepthThreshold p.StatFocus_AttackingDepthThreshold
+          StatFocus_DefensiveHeightThreshold =
+            opt d.StatFocus_DefensiveHeightThreshold p.StatFocus_DefensiveHeightThreshold
           StatFocus_CreativityThreshold = opt d.StatFocus_CreativityThreshold p.StatFocus_CreativityThreshold
           MaybeStat_PositiveThreshold = opt d.MaybeStat_PositiveThreshold p.MaybeStat_PositiveThreshold
           MaybeStat_NegativeThreshold = opt d.MaybeStat_NegativeThreshold p.MaybeStat_NegativeThreshold }
 
     let mergeCalTargets (p: PartialCalibrationTargets option) (d: CalibrationTargets) : CalibrationTargets =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialCalibrationTargets>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialCalibrationTargets>) p
+
         { GoalsPerMatch = opt d.GoalsPerMatch p.GoalsPerMatch
           ShotsPerMatch = opt d.ShotsPerMatch p.ShotsPerMatch
           PassSuccessRate = opt d.PassSuccessRate p.PassSuccessRate
@@ -1514,7 +1562,9 @@ module private Merger =
           DuelTicksPerMatch = opt d.DuelTicksPerMatch p.DuelTicksPerMatch }
 
     let mergePersonality (p: PartialPersonalityWeights option) (d: PersonalityWeights) : PersonalityWeights =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialPersonalityWeights>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialPersonalityWeights>) p
+
         { FlairVisionWeight = opt d.FlairVisionWeight p.FlairVisionWeight
           FlairDribblingWeight = opt d.FlairDribblingWeight p.FlairDribblingWeight
           ConsistencyConcentrationWeight = opt d.ConsistencyConcentrationWeight p.ConsistencyConcentrationWeight
@@ -1533,9 +1583,13 @@ module private Merger =
           TemperamentConcentrationWeight = opt d.TemperamentConcentrationWeight p.TemperamentConcentrationWeight }
 
     let mergeCollective (p: PartialCollectiveWeights option) (d: CollectiveWeights) : CollectiveWeights =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialCollectiveWeights>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialCollectiveWeights>) p
+
         let mergeDirectiveParams (dp: PartialDirectiveParamsMap option) (dd: DirectiveParamsMap) : DirectiveParamsMap =
-            let dp = Option.defaultWith (fun () -> Unchecked.defaultof<PartialDirectiveParamsMap>) dp
+            let dp =
+                Option.defaultWith (fun () -> Unchecked.defaultof<PartialDirectiveParamsMap>) dp
+
             { CompactnessSuccessDelta = opt dd.CompactnessSuccessDelta dp.CompactnessSuccessDelta
               CompactnessFailDelta = opt dd.CompactnessFailDelta dp.CompactnessFailDelta
               CompactnessSuccessThreshold = opt dd.CompactnessSuccessThreshold dp.CompactnessSuccessThreshold
@@ -1548,8 +1602,11 @@ module private Merger =
               WingPlayFailDelta = opt dd.WingPlayFailDelta dp.WingPlayFailDelta
               WingPlaySuccessThreshold = opt dd.WingPlaySuccessThreshold dp.WingPlaySuccessThreshold
               WingPlayFailThreshold = opt dd.WingPlayFailThreshold dp.WingPlayFailThreshold }
+
         let mergeEmergent (ep: PartialEmergentWeights option) (ed: EmergentWeights) : EmergentWeights =
-            let ep = Option.defaultWith (fun () -> Unchecked.defaultof<PartialEmergentWeights>) ep
+            let ep =
+                Option.defaultWith (fun () -> Unchecked.defaultof<PartialEmergentWeights>) ep
+
             { CompactnessSuccessDelta = opt ed.CompactnessSuccessDelta ep.CompactnessSuccessDelta
               CompactnessFailDelta = opt ed.CompactnessFailDelta ep.CompactnessFailDelta
               CompactnessSuccessThreshold = opt ed.CompactnessSuccessThreshold ep.CompactnessSuccessThreshold
@@ -1568,8 +1625,11 @@ module private Merger =
               FatigueSpiralTempoFactor = opt ed.FatigueSpiralTempoFactor ep.FatigueSpiralTempoFactor
               FatigueSpiralRiskFactor = opt ed.FatigueSpiralRiskFactor ep.FatigueSpiralRiskFactor
               FatigueSpiralThreshold = opt ed.FatigueSpiralThreshold ep.FatigueSpiralThreshold }
+
         let mergeModifiers (mp: PartialModifierWeights option) (md: ModifierWeights) : ModifierWeights =
-            let mp = Option.defaultWith (fun () -> Unchecked.defaultof<PartialModifierWeights>) mp
+            let mp =
+                Option.defaultWith (fun () -> Unchecked.defaultof<PartialModifierWeights>) mp
+
             { TransitionNearMult = opt md.TransitionNearMult mp.TransitionNearMult
               TransitionFarMult = opt md.TransitionFarMult mp.TransitionFarMult
               TransitionNearDistance = opt md.TransitionNearDistance mp.TransitionNearDistance
@@ -1583,27 +1643,38 @@ module private Merger =
               UrgencyPressMult = opt md.UrgencyPressMult mp.UrgencyPressMult
               UrgencySupportMult = opt md.UrgencySupportMult mp.UrgencySupportMult
               UrgencyThreshold = opt md.UrgencyThreshold mp.UrgencyThreshold }
+
         let mergeChemistry (cp: PartialChemistryWeights option) (cd: ChemistryWeights) : ChemistryWeights =
-            let cp = Option.defaultWith (fun () -> Unchecked.defaultof<PartialChemistryWeights>) cp
+            let cp =
+                Option.defaultWith (fun () -> Unchecked.defaultof<PartialChemistryWeights>) cp
+
             { FamiliarityPassBonus = opt cd.FamiliarityPassBonus cp.FamiliarityPassBonus
               FamiliarityFailPenalty = opt cd.FamiliarityFailPenalty cp.FamiliarityFailPenalty
               FamiliarityTimeBonus = opt cd.FamiliarityTimeBonus cp.FamiliarityTimeBonus
               PressingCoordinationBase = opt cd.PressingCoordinationBase cp.PressingCoordinationBase
-              PressingCoordinationFamiliarityMult = opt cd.PressingCoordinationFamiliarityMult cp.PressingCoordinationFamiliarityMult
+              PressingCoordinationFamiliarityMult =
+                opt cd.PressingCoordinationFamiliarityMult cp.PressingCoordinationFamiliarityMult
               TransitionSpeedBase = opt cd.TransitionSpeedBase cp.TransitionSpeedBase
               TransitionSpeedFamiliarityMult = opt cd.TransitionSpeedFamiliarityMult cp.TransitionSpeedFamiliarityMult }
+
         let mergeTeamDirector (tp: PartialTeamDirectorWeights option) (td: TeamDirectorWeights) : TeamDirectorWeights =
-            let tp = Option.defaultWith (fun () -> Unchecked.defaultof<PartialTeamDirectorWeights>) tp
+            let tp =
+                Option.defaultWith (fun () -> Unchecked.defaultof<PartialTeamDirectorWeights>) tp
+
             { WorkRateWeight = opt td.WorkRateWeight tp.WorkRateWeight
               PositioningWeight = opt td.PositioningWeight tp.PositioningWeight
               AdvancedBonus = opt td.AdvancedBonus tp.AdvancedBonus }
+
         let mergeReactiveLoop (rp: PartialReactiveLoopWeights option) (rd: ReactiveLoopWeights) : ReactiveLoopWeights =
-            let rp = Option.defaultWith (fun () -> Unchecked.defaultof<PartialReactiveLoopWeights>) rp
+            let rp =
+                Option.defaultWith (fun () -> Unchecked.defaultof<PartialReactiveLoopWeights>) rp
+
             { ShapeDevWeight = opt rd.ShapeDevWeight rp.ShapeDevWeight
               PressDevWeight = opt rd.PressDevWeight rp.PressDevWeight
               FatigueDevWeight = opt rd.FatigueDevWeight rp.FatigueDevWeight
               OnTrackThreshold = opt rd.OnTrackThreshold rp.OnTrackThreshold
               DriftingThreshold = opt rd.DriftingThreshold rp.DriftingThreshold }
+
         { DirectiveParams = mergeDirectiveParams p.DirectiveParams d.DirectiveParams
           Emergent = mergeEmergent p.Emergent d.Emergent
           Modifiers = mergeModifiers p.Modifiers d.Modifiers
@@ -1613,6 +1684,7 @@ module private Merger =
 
     let mergeXG (p: PartialXGWeights option) (d: XGWeights) : XGWeights =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialXGWeights>) p
+
         { DistanceFactor = opt d.DistanceFactor p.DistanceFactor
           AngleExponent = opt d.AngleExponent p.AngleExponent
           BaseMultiplier = opt d.BaseMultiplier p.BaseMultiplier
@@ -1629,7 +1701,9 @@ module private Merger =
           FirstTimeShotMultiplier = opt d.FirstTimeShotMultiplier p.FirstTimeShotMultiplier }
 
     let mergeInterception (p: PartialInterceptionWeights option) (d: InterceptionWeights) : InterceptionWeights =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialInterceptionWeights>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialInterceptionWeights>) p
+
         { BallControlRadiusMult = opt d.BallControlRadiusMult p.BallControlRadiusMult
           PressIntentFactor = opt d.PressIntentFactor p.PressIntentFactor
           RecoverIntentFactor = opt d.RecoverIntentFactor p.RecoverIntentFactor
@@ -1637,7 +1711,9 @@ module private Merger =
           CoverSpaceIntentFactor = opt d.CoverSpaceIntentFactor p.CoverSpaceIntentFactor }
 
     let mergeWinProb (p: PartialWinProbabilityWeights option) (d: WinProbabilityWeights) : WinProbabilityWeights =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialWinProbabilityWeights>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialWinProbabilityWeights>) p
+
         { GoalLeadBase = opt d.GoalLeadBase p.GoalLeadBase
           DrawBase = opt d.DrawBase p.DrawBase
           GoalDiffFactor = opt d.GoalDiffFactor p.GoalDiffFactor
@@ -1655,10 +1731,12 @@ module private Merger =
 
     let mergeUtility (p: PartialUtilityWeights option) (d: UtilityWeights) : UtilityWeights =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialUtilityWeights>) p
+
         { PressZoneBonus_HighAttacking = opt d.PressZoneBonus_HighAttacking p.PressZoneBonus_HighAttacking
           PressZoneBonus_HighMidfield = opt d.PressZoneBonus_HighMidfield p.PressZoneBonus_HighMidfield
           PressZoneBonus_HighDefensive = opt d.PressZoneBonus_HighDefensive p.PressZoneBonus_HighDefensive
-          PressZoneBonus_MidAttackingMidfield = opt d.PressZoneBonus_MidAttackingMidfield p.PressZoneBonus_MidAttackingMidfield
+          PressZoneBonus_MidAttackingMidfield =
+            opt d.PressZoneBonus_MidAttackingMidfield p.PressZoneBonus_MidAttackingMidfield
           PressZoneBonus_MidDefensive = opt d.PressZoneBonus_MidDefensive p.PressZoneBonus_MidDefensive
           PressZoneBonus_Low = opt d.PressZoneBonus_Low p.PressZoneBonus_Low
           PossessionChangeWindow = opt d.PossessionChangeWindow p.PossessionChangeWindow
@@ -1707,7 +1785,9 @@ module private Merger =
           OverloadFlankBase = opt d.OverloadFlankBase p.OverloadFlankBase }
 
     let mergePerf (p: PartialPerformanceWeightsMap option) (d: PerformanceWeightsMap) : PerformanceWeightsMap =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialPerformanceWeightsMap>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialPerformanceWeightsMap>) p
+
         { DuelStatWeight = opt d.DuelStatWeight p.DuelStatWeight
           DuelConditionWeight = opt d.DuelConditionWeight p.DuelConditionWeight
           DuelMoraleWeight = opt d.DuelMoraleWeight p.DuelMoraleWeight
@@ -1724,8 +1804,23 @@ module private Merger =
           DecisionCurveSteepness = opt d.DecisionCurveSteepness p.DecisionCurveSteepness
           DecisionCurveInflection = opt d.DecisionCurveInflection p.DecisionCurveInflection }
 
+    let mergeMatchSituation (p: PartialMatchSituationConfig option) (d: MatchSituationConfig) : MatchSituationConfig =
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialMatchSituationConfig>) p
+
+        { ShootLosingLateMod = opt d.ShootLosingLateMod p.ShootLosingLateMod
+          ShootDrawLateMod = opt d.ShootDrawLateMod p.ShootDrawLateMod
+          ShootMomentumScale = opt d.ShootMomentumScale p.ShootMomentumScale
+          PassWinningMod = opt d.PassWinningMod p.PassWinningMod
+          PassTransitionPenalty = opt d.PassTransitionPenalty p.PassTransitionPenalty
+          DribbleTransitionMod = opt d.DribbleTransitionMod p.DribbleTransitionMod
+          LongBallLosingLateMod = opt d.LongBallLosingLateMod p.LongBallLosingLateMod
+          LongBallPressureThreshold = opt d.LongBallPressureThreshold p.LongBallPressureThreshold
+          LongBallPressureMod = opt d.LongBallPressureMod p.LongBallPressureMod }
+
     let mergeReferee (p: PartialRefereeWeights option) (d: RefereeWeights) : RefereeWeights =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialRefereeWeights>) p
+
         { CardBaseProb = opt d.CardBaseProb p.CardBaseProb
           CardAggressionMult = opt d.CardAggressionMult p.CardAggressionMult
           CardHomeReduction = opt d.CardHomeReduction p.CardHomeReduction
@@ -1735,7 +1830,9 @@ module private Merger =
           FoulAggressionMult = opt d.FoulAggressionMult p.FoulAggressionMult }
 
     let mergeEnvironment (p: PartialEnvironmentWeights option) (d: EnvironmentWeights) : EnvironmentWeights =
-        let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialEnvironmentWeights>) p
+        let p =
+            Option.defaultWith (fun () -> Unchecked.defaultof<PartialEnvironmentWeights>) p
+
         { WeatherClearModifier = opt d.WeatherClearModifier p.WeatherClearModifier
           WeatherLightRainModifier = opt d.WeatherLightRainModifier p.WeatherLightRainModifier
           WeatherHeavyRainModifier = opt d.WeatherHeavyRainModifier p.WeatherHeavyRainModifier
@@ -1756,6 +1853,7 @@ module private Merger =
 
     let mergeMomentum (p: PartialMomentumWeights option) (d: MomentumWeights) : MomentumWeights =
         let p = Option.defaultWith (fun () -> Unchecked.defaultof<PartialMomentumWeights>) p
+
         { EventDelta = opt d.EventDelta p.EventDelta
           Decay = opt d.Decay p.Decay
           Min = opt d.Min p.Min
@@ -1771,6 +1869,7 @@ module private Merger =
           Tackle = mergeTackle p.Tackle d.Tackle
           SetPiece = mergeSetPiece p.SetPiece d.SetPiece
           GK = mergeGK p.GK d.GK
+          OutfieldReception = d.OutfieldReception
           HomeAdvantage = mergeHomeAdv p.HomeAdvantage d.HomeAdvantage
           Physics = mergePhysics p.Physics d.Physics
           Timing = mergeTiming p.Timing d.Timing
@@ -1792,7 +1891,10 @@ module private Merger =
           XG = mergeXG p.XG d.XG
           Interception = mergeInterception p.Interception d.Interception
           WinProbability = mergeWinProb p.WinProbability d.WinProbability
-          Performance = mergePerf p.Performance d.Performance }
+          Performance = mergePerf p.Performance d.Performance
+          MatchSituation = mergeMatchSituation p.MatchSituation d.MatchSituation
+          Influence = d.Influence
+          Diagnostics = d.Diagnostics }
 
 // ============================================================================
 // Public API
@@ -1800,8 +1902,7 @@ module private Merger =
 
 module WeightsLoader =
 
-    let mergeWithDefaults (p: PartialBalanceConfig) (d: BalanceConfig) : BalanceConfig =
-        Merger.mergeWithDefaults p d
+    let mergeWithDefaults (p: PartialBalanceConfig) (d: BalanceConfig) : BalanceConfig = Merger.mergeWithDefaults p d
 
     let load (path: string) : Result<BalanceConfig, string> =
         try
@@ -1811,6 +1912,6 @@ module WeightsLoader =
                 let json = File.ReadAllText path
                 let opts = JsonSerializerOptions(PropertyNameCaseInsensitive = true)
                 let partial = JsonSerializer.Deserialize<PartialBalanceConfig>(json, opts)
-                Ok (Merger.mergeWithDefaults partial BalanceConfig.defaultConfig)
+                Ok(Merger.mergeWithDefaults partial BalanceConfig.defaultConfig)
         with ex ->
             Error $"WeightsLoader: {ex.Message}"

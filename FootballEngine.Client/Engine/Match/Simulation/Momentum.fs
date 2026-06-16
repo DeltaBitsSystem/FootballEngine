@@ -20,8 +20,7 @@ module DynamicMomentum =
           ConsecutiveHomeEvents = 0
           ConsecutiveAwayEvents = 0 }
 
-    let update (momentum: MatchMomentum) (subTick: int) (eventClub: ClubSide) : MatchMomentum =
-        let mw = BalanceConfig.defaultConfig.Momentum
+    let update (mw: MomentumWeights) (momentum: MatchMomentum) (subTick: int) (eventClub: ClubSide) : MatchMomentum =
         let delta = mw.EventDelta
         let decay = mw.Decay
 

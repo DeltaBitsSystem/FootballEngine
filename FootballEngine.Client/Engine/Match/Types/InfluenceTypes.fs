@@ -10,119 +10,189 @@ open FootballEngine.Types.PhysicsContract
 
 module InfluenceTypes =
 
-    // Grid resolution: 10x7 cells (~10.5m x ~9.7m each on a 105x68 pitch)
-    [<Literal>]
-    let GridCols = 10
-    [<Literal>]
-    let GridRows = 7
-    [<Literal>]
-    let GridSize = GridCols * GridRows
-
-    let CellWidth = float32 PitchLength / float32 GridCols
-    let CellHeight = float32 PitchWidth / float32 GridRows
-
-    /// Influence value for a single cell: positive = team control, negative = opponent control
     type InfluenceValue = float32
 
-    /// Flat array representing the grid, row-major order
     type InfluenceGrid = InfluenceValue[]
 
-    /// Pre-computed influence data for both teams, updated at cognitive tick frequency
     type InfluenceFrame =
-        { /// Home team's influence on each cell
-          HomeGrid: InfluenceGrid
-          /// Away team's influence on each cell
-          AwayGrid: InfluenceGrid
-          /// Combined: HomeGrid - AwayGrid (positive = home advantage, negative = away advantage)
-          ContestedGrid: InfluenceGrid
-          /// For each cell, which team controls it (0 = contested, 1 = home, 2 = away)
-          ControlGrid: byte[]
-          /// Attacker's perspective: how safe is a pass to each cell? (0.0 = blocked, 1.0 = clear)
-          AttackerPassSafety: float32[]
-          /// Defender's perspective: how well covered is each cell? (0.0 = open, 1.0 = covered)
-          DefenderCoverage: float32[] }
+        { mutable HomeGrid: InfluenceGrid
+          mutable AwayGrid: InfluenceGrid
+          mutable NetGrid: InfluenceGrid
+          mutable TotalGrid: InfluenceGrid }
 
-    let emptyInfluenceFrame () =
-        { HomeGrid = Array.zeroCreate GridSize
-          AwayGrid = Array.zeroCreate GridSize
-          ContestedGrid = Array.zeroCreate GridSize
-          ControlGrid = Array.zeroCreate GridSize
-          AttackerPassSafety = Array.zeroCreate GridSize
-          DefenderCoverage = Array.zeroCreate GridSize }
+    let emptyInfluenceFrame (config: InfluenceConfig) : InfluenceFrame =
+        let size = config.GridCols * config.GridRows
 
-    /// Convert a pitch position (meters) to a grid cell index
-    let posToCell (x: float32) (y: float32) : int =
-        let col = max 0 (min (GridCols - 1) (int (x / CellWidth)))
-        let row = max 0 (min (GridRows - 1) (int (y / CellHeight)))
-        row * GridCols + col
+        { HomeGrid = Array.zeroCreate size
+          AwayGrid = Array.zeroCreate size
+          NetGrid = Array.zeroCreate size
+          TotalGrid = Array.zeroCreate size }
 
-    /// Convert a grid cell index to the center position (meters)
-    let cellToCenter (cell: int) : float32 * float32 =
-        let row = cell / GridCols
-        let col = cell % GridCols
-        let cx = (float32 col + 0.5f) * CellWidth
-        let cy = (float32 row + 0.5f) * CellHeight
+    let gridSize (config: InfluenceConfig) = config.GridCols * config.GridRows
+
+    let cellWidth (config: InfluenceConfig) =
+        float32 PitchLength / float32 config.GridCols
+
+    let cellHeight (config: InfluenceConfig) =
+        float32 PitchWidth / float32 config.GridRows
+
+    let posToCell (config: InfluenceConfig) (x: float32) (y: float32) : int =
+        let cw = cellWidth config
+        let ch = cellHeight config
+        let col = max 0 (min (config.GridCols - 1) (int (x / cw)))
+        let row = max 0 (min (config.GridRows - 1) (int (y / ch)))
+        row * config.GridCols + col
+
+    let cellToCenter (config: InfluenceConfig) (cell: int) : float32 * float32 =
+        let cw = cellWidth config
+        let ch = cellHeight config
+        let row = cell / config.GridCols
+        let col = cell % config.GridCols
+        let cx = (float32 col + 0.5f) * cw
+        let cy = (float32 row + 0.5f) * ch
         cx, cy
 
-    /// Get neighboring cell indices (up to 8, excluding out-of-bounds)
-    let neighbors (cell: int) : int[] =
-        let row = cell / GridCols
-        let col = cell % GridCols
+    let neighborsInto (config: InfluenceConfig) (cell: int) (buffer: int[]) : int =
+        let row = cell / config.GridCols
+        let col = cell % config.GridCols
         let mutable count = 0
-        let result = Array.zeroCreate<int> 8
+
         for dr = -1 to 1 do
             for dc = -1 to 1 do
                 if dr <> 0 || dc <> 0 then
                     let nr = row + dr
                     let nc = col + dc
-                    if nr >= 0 && nr < GridRows && nc >= 0 && nc < GridCols then
-                        result[count] <- nr * GridCols + nc
-                        count <- count + 1
-        result.[..count-1]
 
-    /// Gaussian kernel weight based on distance from cell center to player position
-    let gaussianWeight (cellCenterX: float32) (cellCenterY: float32) (playerX: float32) (playerY: float32) (sigma: float32) : float32 =
+                    if nr >= 0 && nr < config.GridRows && nc >= 0 && nc < config.GridCols then
+                        buffer[count] <- nr * config.GridCols + nc
+                        count <- count + 1
+
+        count
+
+    let neighbors (config: InfluenceConfig) (cell: int) : int[] =
+        let buffer = Array.zeroCreate<int> 8
+        let count = neighborsInto config cell buffer
+        if count = 8 then buffer else buffer.[.. count - 1]
+
+    let gaussianWeight
+        (cellCenterX: float32)
+        (cellCenterY: float32)
+        (playerX: float32)
+        (playerY: float32)
+        (sigma: float32)
+        : float32 =
         let dx = cellCenterX - playerX
         let dy = cellCenterY - playerY
         let distSq = dx * dx + dy * dy
         let sigmaSq = sigma * sigma
-        // exp(-d² / 2σ²)
         System.MathF.Exp(-distSq / (2.0f * sigmaSq))
 
-    /// Score a single cell for attacking space quality.
-    /// Pure function — no AgentContext needed.
+    let velocityWeight (vx: float32) (vy: float32) (toCellX: float32) (toCellY: float32) (strength: float32) : float32 =
+        let speed = sqrt (vx * vx + vy * vy)
+
+        if speed < 0.5f then
+            1.0f
+        else
+            let dirX = vx / speed
+            let dirY = vy / speed
+            let cellLen = sqrt (toCellX * toCellX + toCellY * toCellY)
+
+            if cellLen < 0.01f then
+                1.0f
+            else
+                let alignment = (dirX * toCellX + dirY * toCellY) / cellLen
+                1.0f + alignment * strength
+
+    let playerSigma (config: InfluenceConfig) (positioning: int) (anticipation: int) (vision: int) : float32 =
+        let sigmaBase = float32 config.SigmaBase
+
+        let attributeBonus =
+            0.5f * (float32 positioning / 20.0f)
+            + 0.3f * (float32 anticipation / 20.0f)
+            + 0.2f * (float32 vision / 20.0f)
+
+        sigmaBase + attributeBonus * float32 config.SigmaAttributeScale
+
+    let cellDefensiveStrength (cell: int) (clubSide: ClubSide) (influence: InfluenceFrame) : float =
+        let our =
+            if clubSide = HomeClub then
+                influence.HomeGrid[cell]
+            else
+                influence.AwayGrid[cell]
+
+        let opp =
+            if clubSide = HomeClub then
+                influence.AwayGrid[cell]
+            else
+                influence.HomeGrid[cell]
+
+        let total = our + opp
+        if total < 0.01f then 0.0 else float our / float total
+
+    let cellDangerScore (cell: int) (attackingDir: AttackDir) (influence: InfluenceFrame) : float =
+        let attackingSide = if attackingDir = LeftToRight then HomeClub else AwayClub
+        let oppCoverage = cellDefensiveStrength cell (ClubSide.flip attackingSide) influence
+        let openness = 1.0 - oppCoverage
+
+        let net =
+            if attackingDir = LeftToRight then
+                influence.NetGrid[cell]
+            else
+                -influence.NetGrid[cell]
+
+        let advantage = max 0.0 (float net) * 0.3
+        openness + advantage
+
     let scoreCellRaw
+        (config: InfluenceConfig)
         (cell: int)
         (influence: InfluenceFrame)
-        (myX: float32) (myY: float32)
+        (myX: float32)
+        (myY: float32)
         (attackDir: AttackDir)
         : float =
+        let net = influence.NetGrid[cell]
+        let total = influence.TotalGrid[cell]
 
-        let attSafety = influence.AttackerPassSafety[cell]
-        let defCoverage = influence.DefenderCoverage[cell]
-        let contested = influence.ContestedGrid[cell]
+        let safetyScore =
+            if total < 0.01f then
+                0.5
+            else
+                float net / float total * 0.5 + 0.5
 
-        let safetyScore = float attSafety
-        let opennessScore = 1.0 - float defCoverage
-        let contestedBonus = max 0.0 (float contested) * 0.5
+        let opennessScore = cellDangerScore cell attackDir influence
 
-        let cx, _ = cellToCenter cell
+        let cx, cy = cellToCenter config cell
+
         let forwardness =
             match attackDir with
-            | LeftToRight -> float cx / float (GridCols * int CellWidth)
-            | RightToLeft -> 1.0 - float cx / float (GridCols * int CellWidth)
+            | LeftToRight -> float cx / float PitchLength
+            | RightToLeft -> 1.0 - float cx / float PitchLength
 
-        let forwardBonus = forwardness * 0.25
+        let forwardBonus = forwardness * 0.20
 
         let dx = float (cx - myX)
-        let _, cy = cellToCenter cell
         let dy = float (cy - myY)
         let dist = sqrt (dx * dx + dy * dy)
-        let distScore =
-            if dist < 5.0 then 0.2
-            elif dist < 35.0 then 0.6
-            elif dist < 50.0 then 0.3
-            else 0.0
 
-        safetyScore * 0.30 + opennessScore * 0.25 + contestedBonus * 0.15
-        + forwardBonus * 0.15 + distScore * 0.15
+        let distScore =
+            if dist < 3.0 then 0.3
+            elif dist < 15.0 then 0.8
+            elif dist < 30.0 then 1.0
+            elif dist < 50.0 then 0.5
+            else 0.1
+
+        safetyScore * 0.30
+        + opennessScore * 0.25
+        + (max 0.0 (float net) * 0.3) * 0.15
+        + forwardBonus
+        + distScore * 0.10
+
+    let ensureSize (frame: InfluenceFrame) (config: InfluenceConfig) =
+        let size = gridSize config
+
+        if frame.HomeGrid.Length <> size then
+            frame.HomeGrid <- Array.zeroCreate size
+            frame.AwayGrid <- Array.zeroCreate size
+            frame.NetGrid <- Array.zeroCreate size
+            frame.TotalGrid <- Array.zeroCreate size

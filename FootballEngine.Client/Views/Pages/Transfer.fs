@@ -282,7 +282,8 @@ module Transfers =
                                 [ Grid.columnDefinitions "*, Auto"
                                   Grid.margin 8.0
                                   Grid.children
-                                      [ UI.ghostButton "Withdraw" None (fun _ -> dispatch (TransferMsg(WithdrawOffer neg.Id))) ] ] ] ]
+                                      [ UI.ghostButton "Withdraw" None (fun _ ->
+                                            dispatch (TransferMsg(WithdrawOffer neg.Id))) ] ] ] ]
                 :> IView
 
             | NegotiationStage.RejectedByClub(_, reason) ->
@@ -295,14 +296,14 @@ module Transfers =
                                 [ Grid.columnDefinitions "*, Auto"
                                   Grid.margin 8.0
                                   Grid.children
-                                       [ UI.ghostButton "Give Up" None (fun _ -> dispatch (TransferMsg (ClearNegotiation neg.Id)))
-                                         Border.create
+                                      [ UI.ghostButton "Give Up" None (fun _ ->
+                                            dispatch (TransferMsg(ClearNegotiation neg.Id)))
+                                        Border.create
                                             [ Grid.column 1
                                               Border.child (
                                                   UI.primaryButton "Counter Offer" (Some IconName.add) (fun _ ->
                                                       let higherFee = Player.playerValue p.CurrentSkill * 1.15m
-                                                      dispatch (TransferMsg(CounterOffer(neg.Id, higherFee, None)))
-                                                  )
+                                                      dispatch (TransferMsg(CounterOffer(neg.Id, higherFee, None))))
                                               ) ] ] ] ] ]
                 :> IView
 
@@ -310,20 +311,23 @@ module Transfers =
                 StackPanel.create
                     [ StackPanel.spacing 12.0
                       StackPanel.children
-                          [ UI.statusBanner Theme.Accent IconName.info $"Club counter-offered: {Formatters.money counter}"
+                          [ UI.statusBanner
+                                Theme.Accent
+                                IconName.info
+                                $"Club counter-offered: {Formatters.money counter}"
                             infoRow "Your Fee" (Formatters.money fee) Theme.TextSub
                             infoRow "Counter" (Formatters.money counter) Theme.AccentAlt
                             Grid.create
                                 [ Grid.columnDefinitions "*, Auto"
                                   Grid.margin 8.0
                                   Grid.children
-                                       [ UI.ghostButton "Reject" None (fun _ -> dispatch (TransferMsg (ClearNegotiation neg.Id)))
-                                         Border.create
+                                      [ UI.ghostButton "Reject" None (fun _ ->
+                                            dispatch (TransferMsg(ClearNegotiation neg.Id)))
+                                        Border.create
                                             [ Grid.column 1
                                               Border.child (
                                                   UI.primaryButton "Accept Counter" (Some IconName.success) (fun _ ->
-                                                      dispatch (TransferMsg(CounterOffer(neg.Id, counter, None)))
-                                                  )
+                                                      dispatch (TransferMsg(CounterOffer(neg.Id, counter, None))))
                                               ) ] ] ] ] ]
                 :> IView
 
@@ -334,7 +338,10 @@ module Transfers =
                 StackPanel.create
                     [ StackPanel.spacing 12.0
                       StackPanel.children
-                          [ UI.statusBanner Theme.Accent IconName.hourglass "Club accepted — waiting for player response..."
+                          [ UI.statusBanner
+                                Theme.Accent
+                                IconName.hourglass
+                                "Club accepted — waiting for player response..."
                             infoRow "Transfer Fee" (Formatters.money fee) Theme.Accent
                             infoRow "Salary" (Formatters.salary salary) Theme.TextSub
                             infoRow "Player's Current" (Formatters.salary currentSalary) Theme.TextMuted ] ]
@@ -351,13 +358,15 @@ module Transfers =
                                 [ Grid.columnDefinitions "*, Auto"
                                   Grid.margin 8.0
                                   Grid.children
-                                       [ UI.ghostButton "Abandon" None (fun _ -> dispatch (TransferMsg (ClearNegotiation neg.Id)))
-                                         Border.create
+                                      [ UI.ghostButton "Abandon" None (fun _ ->
+                                            dispatch (TransferMsg(ClearNegotiation neg.Id)))
+                                        Border.create
                                             [ Grid.column 1
                                               Border.child (
                                                   UI.primaryButton "Improve Salary" (Some IconName.add) (fun _ ->
-                                                      dispatch (TransferMsg(CounterOffer(neg.Id, fee, Some(salary * 1.2m))))
-                                                  )
+                                                      dispatch (
+                                                          TransferMsg(CounterOffer(neg.Id, fee, Some(salary * 1.2m)))
+                                                      ))
                                               ) ] ] ] ] ]
                 :> IView
 
@@ -377,7 +386,7 @@ module Transfers =
                       StackPanel.children
                           [ UI.statusBanner Theme.Danger IconName.error $"Negotiation collapsed: {reason}"
                             UI.primaryButton "Dismiss" (Some IconName.close) (fun _ ->
-                                dispatch (TransferMsg (ClearNegotiation neg.Id))) ] ]
+                                dispatch (TransferMsg(ClearNegotiation neg.Id))) ] ]
                 :> IView
 
             | NegotiationStage.Approaching ->
@@ -1068,15 +1077,11 @@ module Transfers =
                     match ts.CachedPlayers |> List.tryFind (fun p -> p.Id = pid) with
                     | None -> UI.emptyState IconName.error "Player not found" ""
                     | Some p ->
-                        let userNeg = ts.ActiveNegotiationId |> Option.bind (fun id -> gs.PendingNegotiations |> Map.tryFind id)
+                        let userNeg =
+                            ts.ActiveNegotiationId
+                            |> Option.bind (fun id -> gs.PendingNegotiations |> Map.tryFind id)
 
-                        playerDetailPanel
-                            p
-                            (getClubName pid)
-                            (List.contains pid ts.WatchlistIds)
-                            buyer
-                            userNeg
-                            dispatch
+                        playerDetailPanel p (getClubName pid) (List.contains pid ts.WatchlistIds) buyer userNeg dispatch
                         :> IView
 
             let marketContent =
@@ -1242,13 +1247,13 @@ module Transfers =
                                                                                           Theme.TextMain ]
                                                                                 TextBlock.create
                                                                                     [ Grid.column 1
-                                                                                      TextBlock.text
-                                                                                          (Formatters.money (feeOf neg))
+                                                                                      TextBlock.text (
+                                                                                          Formatters.money (feeOf neg)
+                                                                                      )
                                                                                       TextBlock.fontSize 12.0
                                                                                       TextBlock.fontWeight
                                                                                           FontWeight.SemiBold
-                                                                                      TextBlock.foreground
-                                                                                          Theme.TextSub
+                                                                                      TextBlock.foreground Theme.TextSub
                                                                                       TextBlock.verticalAlignment
                                                                                           VerticalAlignment.Center ]
                                                                                 Border.create
@@ -1269,8 +1274,10 @@ module Transfers =
                                                                                                 TextBlock.foreground
                                                                                                     color ]
                                                                                       ) ]
-                                                                                if neg.BuyerClubId = gs.UserClubId
-                                                                                   && color <> Theme.Danger then
+                                                                                if
+                                                                                    neg.BuyerClubId = gs.UserClubId
+                                                                                    && color <> Theme.Danger
+                                                                                then
                                                                                     Button.create
                                                                                         [ Grid.column 3
                                                                                           Button.padding (6.0, 4.0)

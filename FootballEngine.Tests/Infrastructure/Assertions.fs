@@ -27,9 +27,7 @@ let shouldContainKickOff (events: MatchEvent list) =
     shouldContainEventType (fun t -> t = MatchEventType.KickOff) "KickOff" events
 
 let shouldContainDomainEvent (predicate: DomainEvent -> bool) (label: string) (events: DomainEvent list) =
-    Expect.isTrue
-        (events |> List.exists predicate)
-        $"Expected domain event matching: {label}. Got: {events}"
+    Expect.isTrue (events |> List.exists predicate) $"Expected domain event matching: {label}. Got: {events}"
 
 let shouldContainBallUpdate (domainEvents: DomainEvent seq) =
     shouldContainDomainEvent

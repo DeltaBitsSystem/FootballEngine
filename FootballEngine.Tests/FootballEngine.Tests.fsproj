@@ -10,6 +10,9 @@
         <Compile Include="Infrastructure/Builders.fs"/>
         <Compile Include="Infrastructure/Runners.fs"/>
         <Compile Include="Infrastructure/Assertions.fs"/>
+        <Compile Include="Diagnostics/FootballRanges.fs"/>
+        <Compile Include="Diagnostics/MatchDiagnoster.fs"/>
+        <Compile Include="Diagnostics/DiagnosticTests.fs"/>
         <Compile Include="Layer1_E2E/FlowTransitionTests.fs"/>
         <Compile Include="Layer1_E2E/GoalCycleTests.fs"/>
         <Compile Include="Layer1_E2E/GKDistributionTests.fs"/>
@@ -22,7 +25,15 @@
         <Compile Include="Layer2_Systems/AdaptiveTacticsTests.fs"/>
         <Compile Include="Layer2_Systems/VARTests.fs"/>
         <Compile Include="Layer2_Systems/HandballDetectorTests.fs"/>
+        <Compile Include="Layer2_Systems/GoalDetectorTests.fs"/>
+        <Compile Include="Layer2_Systems/PlayerScorerTests.fs"/>
+        <Compile Include="Layer2_Systems/xGCalculatorTests.fs"/>
+        <Compile Include="Layer2_Systems/ConfigValidationTests.fs"/>
+        <!-- <Compile Include="Layer2_Systems/EnvironmentSystemsTests.fs"/> -->
+        <Compile Include="Layer2_Systems/MatchMemoryTests.fs"/>
+        <Compile Include="Layer2_Systems/PerceptionTests.fs"/>
         <Compile Include="Layer2_Systems/StatisticalContractsTests.fs"/>
+        <Compile Include="Layer2_Systems/SemanticE2ETests.fs"/>
         <Compile Include="Layer3_EdgeCases/ShotEdgeCaseTests.fs"/>
         <Compile Include="Layer3_EdgeCases/GKEdgeCaseTests.fs"/>
         <Compile Include="Layer3_EdgeCases/PassEdgeCaseTests.fs"/>

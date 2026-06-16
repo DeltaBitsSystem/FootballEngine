@@ -8,5 +8,4 @@ open SimStateOps
 
 module BallAgent =
 
-    let agent_DEPRECATED (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : DomainEvent[] =
-        [||]
+    let agent_DEPRECATED (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : DomainEvent[] = [||]

@@ -14,13 +14,19 @@ module GoalDetector =
 
         match homeAttackDir with
         | LeftToRight ->
-            if pos.X >= GoalLineHome && inGoalY && inGoalZ then Some HomeClub
-            elif pos.X <= GoalLineAway && inGoalY && inGoalZ then Some AwayClub
-            else None
+            if pos.X >= GoalLineHome && inGoalY && inGoalZ then
+                Some HomeClub
+            elif pos.X <= GoalLineAway && inGoalY && inGoalZ then
+                Some AwayClub
+            else
+                None
         | RightToLeft ->
-            if pos.X <= GoalLineAway && inGoalY && inGoalZ then Some HomeClub
-            elif pos.X >= GoalLineHome && inGoalY && inGoalZ then Some AwayClub
-            else None
+            if pos.X <= GoalLineAway && inGoalY && inGoalZ then
+                Some HomeClub
+            elif pos.X >= GoalLineHome && inGoalY && inGoalZ then
+                Some AwayClub
+            else
+                None
 
     let scorer
         (scoringClub: ClubSide)

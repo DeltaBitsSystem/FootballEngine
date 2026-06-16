@@ -57,7 +57,9 @@ module ShapeEngine =
             let compactShift = (currentY - 34.0<meter>) * pressureCoeff
 
             let widthShift =
-                (basePos.Y - 34.0<meter>) * (widthSpread - 1.0) * (abs profile.LateralTendency + 0.5)
+                (basePos.Y - 34.0<meter>)
+                * (widthSpread - 1.0)
+                * (abs profile.LateralTendency + 0.5)
 
             let x = basePos.X + phaseShift + tacticalPush + defensiveDrop + ballPullX
             let y = basePos.Y + compactShift + widthShift

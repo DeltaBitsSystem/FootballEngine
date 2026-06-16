@@ -52,36 +52,36 @@ module AppMsgs =
         | PushNotification of Notification
 
     type SquadMsg =
-        | SetSort      of SortField
+        | SetSort of SortField
         | SelectPlayer of PlayerId
         | ClearSelection
-        | StartDrag    of PlayerId
+        | StartDrag of PlayerId
         | EndDrag
 
     type TacticsMsg =
-        | SetFormation     of Formation
-        | SetTeamTactics   of TeamTactics
-        | SetInstruction   of (TacticalInstructions -> TacticalInstructions)
+        | SetFormation of Formation
+        | SetTeamTactics of TeamTactics
+        | SetInstruction of (TacticalInstructions -> TacticalInstructions)
         | DropPlayerInSlot of slotIndex: int * playerId: PlayerId
-        | StartDrag        of PlayerId
+        | StartDrag of PlayerId
         | EndDrag
 
     type TrainingMsg =
         | SelectPlayer of PlayerId
         | ClearSelection
-        | SetFocus     of playerId: PlayerId * TrainingFocus
+        | SetFocus of playerId: PlayerId * TrainingFocus
         | SetIntensity of playerId: PlayerId * TrainingIntensity
 
     type InboxMsg =
-        | SelectMessage   of messageId: int
-        | MarkAsRead      of messageId: int
+        | SelectMessage of messageId: int
+        | MarkAsRead of messageId: int
         | MarkActionTaken of messageId: int
 
     type MatchMsg =
-        | Step       of delta: int
+        | Step of delta: int
         | Close
         | TogglePlay
-        | SetSpeed   of int
+        | SetSpeed of int
         | Tick
 
     type ModEditorMsg =
@@ -105,23 +105,23 @@ module AppMsgs =
         | SearchMod of string
 
     type Msg =
-        | SetupMsg      of SetupMsg
-        | SimMsg        of SimMsg
-        | TransferMsg   of TransferMsg
+        | SetupMsg of SetupMsg
+        | SimMsg of SimMsg
+        | TransferMsg of TransferMsg
         | NotificationMsg of NotificationMsg
-        | ModEditorMsg  of ModEditorMsg
-        | GameLoaded    of (GameState * WorldClock) option
-        | ChangePage    of Page
-        | ChangeLeague  of CompetitionId
+        | ModEditorMsg of ModEditorMsg
+        | GameLoaded of (GameState * WorldClock) option
+        | ChangePage of Page
+        | ChangeLeague of CompetitionId
         | SetProcessing of bool
         | NoOp
         | ReloadMods
 
-        | SquadMsg      of SquadMsg
-        | TacticsMsg    of TacticsMsg
-        | TrainingMsg   of TrainingMsg
-        | InboxMsg      of InboxMsg
-        | MatchMsg      of MatchMsg
+        | SquadMsg of SquadMsg
+        | TacticsMsg of TacticsMsg
+        | TrainingMsg of TrainingMsg
+        | InboxMsg of InboxMsg
+        | MatchMsg of MatchMsg
 
 module SimHelpers =
     let primaryLeagueId (gs: GameState) =

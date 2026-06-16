@@ -27,6 +27,7 @@ module CalibrationTargets =
 
     let fromEngineTargets (t: FootballEngine.Types.CalibrationTargets) : CalibrationTargets =
         let range pct v = (v * (1.0 - pct), v * (1.0 + pct))
+
         { GoalsPerMatch = range 0.2 t.GoalsPerMatch
           Possession = (0.45, 0.55)
           PassAccuracy = range 0.1 t.PassSuccessRate
@@ -52,6 +53,7 @@ module MetricDelta =
         let range = max - min
         let deltaMid = obs - targetMid
         let deltaPct = if range > 0.0 then deltaMid / range else 0.0
+
         { Metric = name
           Observed = obs
           TargetMin = min
@@ -74,6 +76,7 @@ module Calibrator =
         let drib = float (m.DribblesHome + m.DribblesAway)
         let corn = float (m.CornersHome + m.CornersAway)
         let foul = float (m.FoulsHome + m.FoulsAway)
+
         [ MetricDelta.create "GoalsPerMatch" goals (fst t.GoalsPerMatch) (snd t.GoalsPerMatch)
           MetricDelta.create "PassAccuracy" passAcc (fst t.PassAccuracy) (snd t.PassAccuracy)
           MetricDelta.create "PossessionHome" poss (fst t.Possession) (snd t.Possession)

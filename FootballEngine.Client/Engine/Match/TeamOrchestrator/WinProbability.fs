@@ -13,7 +13,7 @@ type MatchSituation =
 module WinProbability =
 
     let calculate (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : float =
-        let w = BalanceConfig.defaultConfig.WinProbability
+        let w = state.Config.WinProbability
         let scoreDiff = state.HomeScore - state.AwayScore
         let minutesLeft = subTicksToSeconds clock state.SubTick / 60.0
 
@@ -28,9 +28,12 @@ module WinProbability =
         let xGFactor = (state.HomeXG - state.AwayXG) * w.XGFactor
 
         let momentumFactor =
-            if state.Momentum > w.MomentumPositiveThreshold then w.MomentumPositiveBonus
-            elif state.Momentum < w.MomentumNegativeThreshold then w.MomentumNegativePenalty
-            else state.Momentum * w.MomentumLinearFactor
+            if state.Momentum > w.MomentumPositiveThreshold then
+                w.MomentumPositiveBonus
+            elif state.Momentum < w.MomentumNegativeThreshold then
+                w.MomentumNegativePenalty
+            else
+                state.Momentum * w.MomentumLinearFactor
 
         let prob = baseProb + xGFactor + momentumFactor
         max 0.05 (min 0.95 prob)

@@ -81,18 +81,20 @@ let detectOpponentPressure (oppFrame: TeamFrame) (ballPos: Spatial) : OpponentPr
         elif ratio > 0.25 then OpponentPressure.MidPress
         else OpponentPressure.NoPress
 
-let computeThreatZones (influence: InfluenceFrame) (clubSide: ClubSide) : FlankZone[] =
-    let oppThreshold = 0.3f
+let computeThreatZones (influence: InfluenceFrame) (clubSide: ClubSide) (config: InfluenceConfig) : FlankZone[] =
+    let size = InfluenceTypes.gridSize config
     let mutable threats = ResizeArray<int>()
 
-    for cell = 0 to GridSize - 1 do
+    for cell = 0 to size - 1 do
         let oppInfluence =
             if clubSide = HomeClub then
-                -influence.ContestedGrid[cell]
+                -influence.NetGrid[cell]
             else
-                influence.ContestedGrid[cell]
+                influence.NetGrid[cell]
 
-        if oppInfluence > oppThreshold then
+        let totalDensity = influence.TotalGrid[cell]
+
+        if oppInfluence > 0.2f && totalDensity > 0.8f then
             threats.Add(cell)
 
     if threats.Count = 0 then
@@ -100,25 +102,27 @@ let computeThreatZones (influence: InfluenceFrame) (clubSide: ClubSide) : FlankZ
     else
         threats
         |> Seq.map (fun cell ->
-            let _, cy = cellToCenter cell
+            let _, cy = cellToCenter config cell
             PitchZoneOps.toFlank (float cy * 1.0<meter>))
         |> Seq.distinct
         |> Seq.toArray
 
-let computeWeaknessZones (influence: InfluenceFrame) (clubSide: ClubSide) : FlankZone[] =
-    let ourThreshold = 0.3f
+let computeWeaknessZones (influence: InfluenceFrame) (clubSide: ClubSide) (config: InfluenceConfig) : FlankZone[] =
+    let size = InfluenceTypes.gridSize config
     let mutable weaknesses = ResizeArray<int>()
 
-    for cell = 0 to GridSize - 1 do
+    for cell = 0 to size - 1 do
         let ourInfluence =
             if clubSide = HomeClub then
-                influence.ContestedGrid[cell]
+                influence.NetGrid[cell]
             else
-                -influence.ContestedGrid[cell]
+                -influence.NetGrid[cell]
 
-        let passSafety = float influence.AttackerPassSafety[cell]
+        let attackDir = if clubSide = HomeClub then LeftToRight else RightToLeft
+        let safety = cellDangerScore cell attackDir influence
+        let totalDensity = influence.TotalGrid[cell]
 
-        if ourInfluence > ourThreshold && passSafety > 0.4 then
+        if ourInfluence > 0.1f && safety > 0.4 && totalDensity > 0.5f then
             weaknesses.Add(cell)
 
     if weaknesses.Count = 0 then
@@ -126,7 +130,7 @@ let computeWeaknessZones (influence: InfluenceFrame) (clubSide: ClubSide) : Flan
     else
         weaknesses
         |> Seq.map (fun cell ->
-            let _, cy = cellToCenter cell
+            let _, cy = cellToCenter config cell
             PitchZoneOps.toFlank (float cy * 1.0<meter>))
         |> Seq.distinct
         |> Seq.toArray
@@ -192,17 +196,13 @@ let build (state: SimState) (clubSide: ClubSide) (ctx: MatchContext) : TeamBlack
     let oppFrame = getFrame state (ClubSide.flip clubSide)
     let attackDir = attackDirFor clubSide state
 
-    let influence =
-        if clubSide = HomeClub then
-            state.HomeInfluenceFrame
-        else
-            state.AwayInfluenceFrame
+    let influence = state.InfluenceFrame
 
     let ourPhase = detectOurPhase state clubSide
     let oppShape = detectOpponentShape oppFrame attackDir
     let oppPressure = detectOpponentPressure oppFrame state.Ball.Position
-    let threatZones = computeThreatZones influence clubSide
-    let weaknessZones = computeWeaknessZones influence clubSide
+    let threatZones = computeThreatZones influence clubSide state.Config.Influence
+    let weaknessZones = computeWeaknessZones influence clubSide state.Config.Influence
 
     let scoreDiff =
         if clubSide = HomeClub then
@@ -227,8 +227,10 @@ let build (state: SimState) (clubSide: ClubSide) (ctx: MatchContext) : TeamBlack
     let ballZone = MatchSpatial.ofBallX state.Ball.Position.X attackDir
 
     let coordMem =
-        if clubSide = HomeClub then ctx.Home.CoordinationMemory
-        else ctx.Away.CoordinationMemory
+        if clubSide = HomeClub then
+            ctx.Home.CoordinationMemory
+        else
+            ctx.Away.CoordinationMemory
 
     { OurPhase = ourPhase
       OpponentShape = oppShape

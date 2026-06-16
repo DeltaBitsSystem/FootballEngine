@@ -10,7 +10,7 @@ open OutcomeResolver
 
 module BallSystem =
 
-    let run (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : DomainEvent[] =
+    let run (ctx: MatchContext) (state: SimState) (clock: SimulationClock) (outputs: ResizeArray<DomainEvent>) : unit =
         let pcfg = ctx.Config.Physics
         let dt = SimulationClock.dt clock
         let homeFrame = SimStateOps.getFrame state HomeClub
@@ -53,11 +53,24 @@ module BallSystem =
                 homeRoster
                 awayRoster
                 pcfg
+                ctx.Config.GK
+                state.Config.Interception
                 withStationary.Trajectory
                 (int subTick)
+                attDir
 
         let (outcome, updatedBall) =
-            OutcomeResolver.resolve state contact withStationary (int subTick) attDir defDir homeRoster awayRoster ctx clock
+            OutcomeResolver.resolve
+                state
+                contact
+                withStationary
+                (int subTick)
+                attDir
+                defDir
+                homeRoster
+                awayRoster
+                ctx
+                clock
 
         let trajectoryAfter = updatedBall.Trajectory
 
@@ -67,7 +80,6 @@ module BallSystem =
             | Some t1, Some t2 -> int t1.LaunchSubTick <> int t2.LaunchSubTick
             | _ -> false
 
-        let outputs = ResizeArray<DomainEvent>(8)
         outputs.Add(DomainEvent.BallUpdate updatedBall)
 
         let delta =
@@ -106,5 +118,3 @@ module BallSystem =
             if launchDetected then
                 outputs.Add(DomainEvent.PossessionHistoryUpdate { delta with BallInFlight = true })
         | NoChange -> ()
-
-        outputs.ToArray()

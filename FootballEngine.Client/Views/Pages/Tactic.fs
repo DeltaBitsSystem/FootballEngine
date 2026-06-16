@@ -52,9 +52,9 @@ module Tactics =
                       e.Handled <- true
                       startDrag p.Id dispatch e)
               Border.child (
-                   Grid.create
-                       [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.playerListCols)
-                         Grid.children
+                  Grid.create
+                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.playerListCols)
+                        Grid.children
                             [ Rectangle.create
                                   [ Grid.column 0
                                     Rectangle.width 3.0
@@ -136,7 +136,7 @@ module Tactics =
                   match draggedId.Value with
                   | Some pId ->
                       draggedId.Value <- None
-                      dispatch (AppMsgs.TacticsMsg (TacticsMsg.DropPlayerInSlot(slot.Index, pId)))
+                      dispatch (AppMsgs.TacticsMsg(TacticsMsg.DropPlayerInSlot(slot.Index, pId)))
                   | None -> ())
               if player.IsSome then
                   Border.onPointerPressed (fun e ->
@@ -197,7 +197,7 @@ module Tactics =
 
     let pitchContainer (state: State) dispatch =
         match state.Mode with
-        | InGame (gs, _) ->
+        | InGame(gs, _) ->
             let lineup = getCurrentLineup gs
 
             let formation =
@@ -229,7 +229,7 @@ module Tactics =
                                     ComboBox.selectedItem currentFormation
                                     ComboBox.onSelectedItemChanged (fun obj ->
                                         if obj <> null then
-                                            dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetFormation(obj :?> Formation))))
+                                            dispatch (AppMsgs.TacticsMsg(TacticsMsg.SetFormation(obj :?> Formation))))
                                     ComboBox.horizontalAlignment HorizontalAlignment.Stretch
                                     ComboBox.fontSize 13.0
                                     ComboBox.fontWeight FontWeight.Bold ]
@@ -250,7 +250,9 @@ module Tactics =
                                     ComboBox.selectedItem currentTactics
                                     ComboBox.onSelectedItemChanged (fun obj ->
                                         if obj <> null then
-                                            dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetTeamTactics(obj :?> TeamTactics))))
+                                            dispatch (
+                                                AppMsgs.TacticsMsg(TacticsMsg.SetTeamTactics(obj :?> TeamTactics))
+                                            ))
                                     ComboBox.horizontalAlignment HorizontalAlignment.Stretch
                                     ComboBox.fontSize 13.0
                                     ComboBox.fontWeight FontWeight.Bold ]
@@ -315,38 +317,96 @@ module Tactics =
                     Border.create
                         [ Border.padding (16.0, 12.0)
                           Border.child (
-                               StackPanel.create
-                                   [ StackPanel.spacing 14.0
-                                     StackPanel.children
-                                          [ instructionSlider "Mentality" instructions.Mentality 0 4 "Def" "Att" (fun v ->
-                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with Mentality = v }))))
-                                            instructionSlider
-                                                "Defensive Line"
-                                                instructions.DefensiveLine
-                                                0
-                                                4
-                                                "Low"
-                                                "High"
-                                                 (fun v -> dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with DefensiveLine = v }))))
-                                            instructionSlider
-                                                "Pressing"
-                                                instructions.PressingIntensity
-                                                0
-                                                4
-                                                "Low"
-                                                "High"
-                                                 (fun v -> dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with PressingIntensity = v }))))
-                                            instructionSlider "Width" instructions.Width 0 4 "Narrow" "Wide" (fun v ->
-                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with Width = v }))))
-                                            instructionSlider "Tempo" instructions.Tempo 0 4 "Slow" "Fast" (fun v ->
-                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with Tempo = v }))))
-                                            instructionSlider "Directness" instructions.Directness 0 4 "Elaborate" "Direct" (fun v ->
-                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with Directness = v }))))
-                                            instructionSlider "Press Trigger" instructions.PressTriggerZone 0 2 "Own Half" "High Press" (fun v ->
-                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with PressTriggerZone = v }))))
-                                            instructionSlider "Defensive Shape" instructions.DefensiveShape 0 4 "Zonal" "Man" (fun v ->
-                                                dispatch (AppMsgs.TacticsMsg (TacticsMsg.SetInstruction (fun i -> { i with DefensiveShape = v }))))
-                                         ] ]
+                              StackPanel.create
+                                  [ StackPanel.spacing 14.0
+                                    StackPanel.children
+                                        [ instructionSlider "Mentality" instructions.Mentality 0 4 "Def" "Att" (fun v ->
+                                              dispatch (
+                                                  AppMsgs.TacticsMsg(
+                                                      TacticsMsg.SetInstruction(fun i -> { i with Mentality = v })
+                                                  )
+                                              ))
+                                          instructionSlider
+                                              "Defensive Line"
+                                              instructions.DefensiveLine
+                                              0
+                                              4
+                                              "Low"
+                                              "High"
+                                              (fun v ->
+                                                  dispatch (
+                                                      AppMsgs.TacticsMsg(
+                                                          TacticsMsg.SetInstruction(fun i ->
+                                                              { i with DefensiveLine = v })
+                                                      )
+                                                  ))
+                                          instructionSlider
+                                              "Pressing"
+                                              instructions.PressingIntensity
+                                              0
+                                              4
+                                              "Low"
+                                              "High"
+                                              (fun v ->
+                                                  dispatch (
+                                                      AppMsgs.TacticsMsg(
+                                                          TacticsMsg.SetInstruction(fun i ->
+                                                              { i with PressingIntensity = v })
+                                                      )
+                                                  ))
+                                          instructionSlider "Width" instructions.Width 0 4 "Narrow" "Wide" (fun v ->
+                                              dispatch (
+                                                  AppMsgs.TacticsMsg(
+                                                      TacticsMsg.SetInstruction(fun i -> { i with Width = v })
+                                                  )
+                                              ))
+                                          instructionSlider "Tempo" instructions.Tempo 0 4 "Slow" "Fast" (fun v ->
+                                              dispatch (
+                                                  AppMsgs.TacticsMsg(
+                                                      TacticsMsg.SetInstruction(fun i -> { i with Tempo = v })
+                                                  )
+                                              ))
+                                          instructionSlider
+                                              "Directness"
+                                              instructions.Directness
+                                              0
+                                              4
+                                              "Elaborate"
+                                              "Direct"
+                                              (fun v ->
+                                                  dispatch (
+                                                      AppMsgs.TacticsMsg(
+                                                          TacticsMsg.SetInstruction(fun i -> { i with Directness = v })
+                                                      )
+                                                  ))
+                                          instructionSlider
+                                              "Press Trigger"
+                                              instructions.PressTriggerZone
+                                              0
+                                              2
+                                              "Own Half"
+                                              "High Press"
+                                              (fun v ->
+                                                  dispatch (
+                                                      AppMsgs.TacticsMsg(
+                                                          TacticsMsg.SetInstruction(fun i ->
+                                                              { i with PressTriggerZone = v })
+                                                      )
+                                                  ))
+                                          instructionSlider
+                                              "Defensive Shape"
+                                              instructions.DefensiveShape
+                                              0
+                                              4
+                                              "Zonal"
+                                              "Man"
+                                              (fun v ->
+                                                  dispatch (
+                                                      AppMsgs.TacticsMsg(
+                                                          TacticsMsg.SetInstruction(fun i ->
+                                                              { i with DefensiveShape = v })
+                                                      )
+                                                  )) ] ]
                           ) ] ] ]
 
     let private teamStats (starterIds: Set<PlayerId>) (gs: GameState) =
@@ -379,7 +439,7 @@ module Tactics =
                                                           PlayerIcon.condition
                                                           "FITNESS"
                                                           $"{avgFitness}%%"
-                                                           (PlayerPresenter.fitnessColor avgFitness)
+                                                          (PlayerPresenter.fitnessColor avgFitness)
                                                       Grid.create
                                                           [ Grid.column 2
                                                             Grid.children
@@ -397,7 +457,7 @@ module Tactics =
 
     let tacticView (state: State) dispatch : IView =
         match state.Mode with
-        | InGame (gs, _) ->
+        | InGame(gs, _) ->
             let lineup = getCurrentLineup gs
 
             let currentFormation =

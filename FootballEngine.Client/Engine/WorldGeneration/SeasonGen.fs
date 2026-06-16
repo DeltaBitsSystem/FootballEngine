@@ -35,13 +35,10 @@ module SeasonGen =
                     if n = 0 || highComp.Standings.IsEmpty || lowComp.Standings.IsEmpty then
                         acc
                     else
-                        let relegated =
-                            Competition.bottomN n highComp
+                        let relegated = Competition.bottomN n highComp
 
                         let promoted =
-                            Competition.rankedStandings lowComp
-                            |> List.truncate n
-                            |> List.map fst
+                            Competition.rankedStandings lowComp |> List.truncate n |> List.map fst
 
                         acc
                         |> Map.add
@@ -69,10 +66,7 @@ module SeasonGen =
 
         let comps = applyPromotionRelegation state.Competitions
 
-        let allCountryData =
-            state.Countries
-            |> Map.toList
-            |> List.map snd
+        let allCountryData = state.Countries |> Map.toList |> List.map snd
 
         let regenerated =
             comps
@@ -118,7 +112,12 @@ module SeasonGen =
                         comp
                     else
                         let fixtures, next =
-                            FixtureGen.forCupFormat comp.Id qualifyingClubIds fmt (DateTime(state.Season, 9, 1)) nextMatchId
+                            FixtureGen.forCupFormat
+                                comp.Id
+                                qualifyingClubIds
+                                fmt
+                                (DateTime(state.Season, 9, 1))
+                                nextMatchId
 
                         nextMatchId <- next
 
@@ -128,4 +127,5 @@ module SeasonGen =
                             Fixtures = toFixtureMap fixtures
                             Standings = Map.empty })
 
-        { state with Competitions = regenerated }
+        { state with
+            Competitions = regenerated }

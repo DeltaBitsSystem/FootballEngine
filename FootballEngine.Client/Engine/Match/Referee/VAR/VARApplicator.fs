@@ -28,6 +28,7 @@ module VARApplicator =
                     GKHoldSinceSubTick = None
                     PlayerHoldSinceSubTick = None
                     Trajectory = None }
+
             [| DomainEvent.ScoreGoalAdjust(scoringClub, -1)
                DomainEvent.BallUpdate resetBall |]
 
@@ -47,16 +48,26 @@ module VARApplicator =
                     GKHoldSinceSubTick = None
                     PlayerHoldSinceSubTick = None
                     Trajectory = None }
+
             [| DomainEvent.BallUpdate resetBall |]
 
         | RedCardCheck(playerId, _) ->
             let side = clubSideOf ctx state playerId |> Option.defaultValue HomeClub
             let clubId = if side = HomeClub then ctx.Home.Id else ctx.Away.Id
-            [| DomainEvent.Emit { SubTick = subTick; PlayerId = playerId; ClubId = clubId; Type = MatchEventType.RedCard; Context = EventContext.empty }
+
+            [| DomainEvent.Emit
+                   { SubTick = subTick
+                     PlayerId = playerId
+                     ClubId = clubId
+                     Type = MatchEventType.RedCard
+                     Context = EventContext.empty }
                DomainEvent.SidelinedWrite(side, playerId, SidelinedByRedCard) |]
 
         | OffsideCheck _ ->
-            [| DomainEvent.BallUpdate { state.Ball with Control = Free; PendingOffsideSnapshot = None } |]
+            [| DomainEvent.BallUpdate
+                   { state.Ball with
+                       Control = Free
+                       PendingOffsideSnapshot = None } |]
 
     let applyCheckComplete
         (subTick: int)

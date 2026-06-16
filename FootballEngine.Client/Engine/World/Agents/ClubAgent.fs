@@ -94,7 +94,8 @@ module YouthGen =
             let countryData =
                 state.Countries
                 |> Map.tryFind club.Nationality
-                |> Option.defaultWith (fun () -> failwithf $"Country '{club.Nationality}' not found in GameState.Countries")
+                |> Option.defaultWith (fun () ->
+                    failwithf $"Country '{club.Nationality}' not found in GameState.Countries")
 
             let nextId =
                 state.Players

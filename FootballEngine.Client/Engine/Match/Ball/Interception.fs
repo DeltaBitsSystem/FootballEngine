@@ -8,10 +8,19 @@ open FootballEngine.Player.Decision.ActionMath
 
 
 module Interception =
-    let estimateTimeToBall (config: PhysicsConfig) (player: Player) (pPos: Spatial) (ballPos: Spatial) (intentKind: IntentKind) : float =
-        let iw = BalanceConfig.defaultConfig.Interception
+    let estimateTimeToBall
+        (config: PhysicsConfig)
+        (iw: InterceptionWeights)
+        (player: Player)
+        (pPos: Spatial)
+        (ballPos: Spatial)
+        (intentKind: IntentKind)
+        : float =
         let captureRadius =
-            config.ContactRadius + (float player.Technical.BallControl / 20.0) * iw.BallControlRadiusMult * 1.0<meter>
+            config.ContactRadius
+            + (float player.Technical.BallControl / 20.0)
+              * iw.BallControlRadiusMult
+              * 1.0<meter>
 
         let dist = float (ballPos.DistTo2D pPos)
 
@@ -25,7 +34,6 @@ module Interception =
             else
                 let baseTime = (dist - float captureRadius) / maxSpeed
 
-                let iw = BalanceConfig.defaultConfig.Interception
                 let intentFactor =
                     match intentKind with
                     | IntentKind.PressBall
@@ -36,7 +44,7 @@ module Interception =
 
                 baseTime * intentFactor
 
-    let evaluateArrival (ctx: ArrivalContext) : ArrivalWinner =
+    let evaluateArrival (iw: InterceptionWeights) (ctx: ArrivalContext) : ArrivalWinner =
         let anticipationBonus =
             ctx.Quality * ctx.PhysicsCfg.ArrivalAnticipationQuality
             + ctx.PhysicsCfg.ArrivalAnticipationBase
@@ -72,7 +80,9 @@ module Interception =
                         ()
                     elif ballSpeed < 0.5<meter / second> then
                         let intentKind = frame.Intent.Kind[i]
-                        let projectedTime = estimateTimeToBall ctx.PhysicsCfg player pPos ballPos intentKind
+
+                        let projectedTime =
+                            estimateTimeToBall ctx.PhysicsCfg iw player pPos ballPos intentKind
 
                         let adjustedTime =
                             if player.Id = ctx.TargetId then
@@ -99,7 +109,9 @@ module Interception =
                                 ()
                             else
                                 let intentKind = frame.Intent.Kind[i]
-                                let projectedTime = estimateTimeToBall ctx.PhysicsCfg player pPos ballPos intentKind
+
+                                let projectedTime =
+                                    estimateTimeToBall ctx.PhysicsCfg iw player pPos ballPos intentKind
 
                                 let adjustedTime =
                                     if player.Id = ctx.TargetId then
@@ -136,6 +148,7 @@ module Interception =
 
     let chooseBestInterceptorSoA
         (config: PhysicsConfig)
+        (iw: InterceptionWeights)
         (ballPos: Spatial)
         (homeFrame: TeamFrame)
         (awayFrame: TeamFrame)
@@ -169,7 +182,10 @@ module Interception =
                 let player = homeRoster.Players[i]
 
                 let captureRadius =
-                    config.ContactRadius + (float player.Technical.BallControl / 20.0) * BalanceConfig.defaultConfig.Interception.BallControlRadiusMult * 1.0<meter>
+                    config.ContactRadius
+                    + (float player.Technical.BallControl / 20.0)
+                      * iw.BallControlRadiusMult
+                      * 1.0<meter>
 
                 let px = float homeFrame.Physics.PosX[i] * 1.0<meter>
                 let py = float homeFrame.Physics.PosY[i] * 1.0<meter>
@@ -208,7 +224,10 @@ module Interception =
                 let player = awayRoster.Players[i]
 
                 let captureRadius =
-                    config.ContactRadius + (float player.Technical.BallControl / 20.0) * BalanceConfig.defaultConfig.Interception.BallControlRadiusMult * 1.0<meter>
+                    config.ContactRadius
+                    + (float player.Technical.BallControl / 20.0)
+                      * iw.BallControlRadiusMult
+                      * 1.0<meter>
 
                 let px = float awayFrame.Physics.PosX[i] * 1.0<meter>
                 let py = float awayFrame.Physics.PosY[i] * 1.0<meter>

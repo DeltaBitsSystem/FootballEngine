@@ -11,41 +11,64 @@ let advanceTicks (n: int) (ctx: MatchContext) (state: SimState) : SimState * Mat
     let allEvents = ResizeArray<MatchEvent>()
     let mutable s = state
     let mutable i = 0
-    while i < n && s.Flow <> MatchEnded do
-        let result = MatchStepper.updateOne ctx defaultClock [||] s
-        s <- result.State
-        allEvents.AddRange(result.Events)
+    let mutable errored = false
+
+    while i < n && s.Flow <> MatchEnded && not errored do
+        try
+            let result = MatchStepper.updateOne ctx defaultClock [||] s
+            s <- result.State
+            allEvents.AddRange(result.Events)
+        with _ ->
+            errored <- true
+
         i <- i + 1
+
     s, allEvents |> Seq.toList
 
 let runUntilEvent
-    (predicate: MatchEvent -> bool) (maxTicks: int) (ctx: MatchContext) (state: SimState)
+    (predicate: MatchEvent -> bool)
+    (maxTicks: int)
+    (ctx: MatchContext)
+    (state: SimState)
     : (SimState * MatchEvent list) option =
     let allEvents = ResizeArray<MatchEvent>()
     let mutable s = state
     let mutable found = false
     let mutable i = 0
+
     while i < maxTicks && not found && s.Flow <> MatchEnded do
         let result = MatchStepper.updateOne ctx defaultClock [||] s
         s <- result.State
         allEvents.AddRange(result.Events)
-        if result.Events |> Seq.exists predicate then found <- true
+
+        if result.Events |> Seq.exists predicate then
+            found <- true
+
         i <- i + 1
+
     if found then Some(s, allEvents |> Seq.toList) else None
 
 let runUntilFlow
-    (predicate: MatchFlow -> bool) (maxTicks: int) (ctx: MatchContext) (state: SimState)
+    (predicate: MatchFlow -> bool)
+    (maxTicks: int)
+    (ctx: MatchContext)
+    (state: SimState)
     : (SimState * MatchEvent list) option =
     let allEvents = ResizeArray<MatchEvent>()
     let mutable s = state
     let mutable found = false
     let mutable i = 0
+
     while i < maxTicks && not found && s.Flow <> MatchEnded do
         let result = MatchStepper.updateOne ctx defaultClock [||] s
         s <- result.State
         allEvents.AddRange(result.Events)
-        if predicate s.Flow then found <- true
+
+        if predicate s.Flow then
+            found <- true
+
         i <- i + 1
+
     if found then Some(s, allEvents |> Seq.toList) else None
 
 let applyOneDomainEvent (domainEvent: DomainEvent) : SimState * MatchEvent list =
@@ -53,13 +76,33 @@ let applyOneDomainEvent (domainEvent: DomainEvent) : SimState * MatchEvent list 
     state.Config <- BalanceConfig.defaultConfig
     let n = 1
     let homeFrame = TeamFrame()
-    homeFrame.Physics <- PhysicsFrame.init n [| { X = 0.0<meter>; Y = 0.0<meter>; Z = 0.0<meter>; Vx = 0.0<meter / second>; Vy = 0.0<meter / second>; Vz = 0.0<meter / second> } |]
+
+    homeFrame.Physics <-
+        PhysicsFrame.init
+            n
+            [| { X = 0.0<meter>
+                 Y = 0.0<meter>
+                 Z = 0.0<meter>
+                 Vx = 0.0<meter / second>
+                 Vy = 0.0<meter / second>
+                 Vz = 0.0<meter / second> } |]
+
     state.Home <- TeamSimState()
     state.Home.Frame <- homeFrame
     state.Home.ShapeTargetX <- Array.zeroCreate homeFrame.SlotCount
     state.Home.ShapeTargetY <- Array.zeroCreate homeFrame.SlotCount
     let awayFrame = TeamFrame()
-    awayFrame.Physics <- PhysicsFrame.init n [| { X = 0.0<meter>; Y = 0.0<meter>; Z = 0.0<meter>; Vx = 0.0<meter / second>; Vy = 0.0<meter / second>; Vz = 0.0<meter / second> } |]
+
+    awayFrame.Physics <-
+        PhysicsFrame.init
+            n
+            [| { X = 0.0<meter>
+                 Y = 0.0<meter>
+                 Z = 0.0<meter>
+                 Vx = 0.0<meter / second>
+                 Vy = 0.0<meter / second>
+                 Vz = 0.0<meter / second> } |]
+
     state.Away <- TeamSimState()
     state.Away.Frame <- awayFrame
     state.Away.ShapeTargetX <- Array.zeroCreate awayFrame.SlotCount

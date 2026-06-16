@@ -48,10 +48,28 @@ module ConfigValidation =
               cfg.CurveInflection >= 0.3 && cfg.CurveInflection <= 0.7,
               $"PerformanceConfig '%s{cfg.Name}' CurveInflection should be in [0.3, 0.7] for realistic curves." ]
 
+    let validateMatchSituationConfig (cfg: MatchSituationConfig) : ValidationError list =
+        errors
+            [ cfg.ShootLosingLateMod >= 1.0 && cfg.ShootLosingLateMod <= 2.0,
+              "ShootLosingLateMod should be in [1.0, 2.0]. Below 1.0 reduces urgency when losing."
+              cfg.ShootDrawLateMod >= 1.0 && cfg.ShootDrawLateMod <= 1.5, "ShootDrawLateMod should be in [1.0, 1.5]."
+              cfg.PassWinningMod >= 1.0 && cfg.PassWinningMod <= 1.5, "PassWinningMod should be in [1.0, 1.5]."
+              cfg.PassTransitionPenalty >= 0.5 && cfg.PassTransitionPenalty <= 1.0,
+              "PassTransitionPenalty should be in [0.5, 1.0]."
+              cfg.LongBallPressureThreshold >= 0.3 && cfg.LongBallPressureThreshold <= 0.9,
+              "LongBallPressureThreshold should be in [0.3, 0.9]." ]
+
+    let validateDiagnosticsConfig (cfg: DiagnosticsConfig) : ValidationError list =
+        errors
+            [ cfg.MaxTracesPerMatch >= 100 && cfg.MaxTracesPerMatch <= 10000,
+              "MaxTracesPerMatch should be in [100, 10000]." ]
+
     let validateAll (cfg: BalanceConfig) : ValidationError list =
         [ yield! validateDuelConfig cfg.Duel
           yield! validateShotConfig cfg.Shot
           yield! validateMatchVolumeConfig cfg.MatchVolume
+          yield! validateMatchSituationConfig cfg.MatchSituation
+          yield! validateDiagnosticsConfig cfg.Diagnostics
           yield! validatePerformanceConfig PerformanceDefaults.duelPerformanceConfig
           yield! validatePerformanceConfig PerformanceDefaults.technicalPerformanceConfig
           yield! validatePerformanceConfig PerformanceDefaults.decisionPerformanceConfig ]

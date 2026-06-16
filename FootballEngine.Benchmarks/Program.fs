@@ -18,8 +18,7 @@ let loadData () =
 let runOneSim (ctx: MatchContext) (state: SimState) =
     sw.Restart()
 
-    let replay =
-        MatchSimulator.runLoopFull ctx state SimulationClock.defaultClock
+    let replay = MatchSimulator.runLoopFull ctx state SimulationClock.defaultClock
 
     sw.Stop()
     replay.Final.HomeScore, replay.Final.AwayScore, sw.ElapsedMilliseconds
@@ -43,7 +42,14 @@ let main _args =
     printfn "=== Warm-up (1 iteration)..."
 
     let ctx, state, _, _ =
-        MatchSimulator.setup BalanceConfig.defaultConfig homeClub awayClub gameState.Players gameState.Staff false gameState.ProfileCache
+        MatchSimulator.setup
+            BalanceConfig.defaultConfig
+            homeClub
+            awayClub
+            gameState.Players
+            gameState.Staff
+            false
+            gameState.ProfileCache
         |> function
             | Ok v -> v
             | Error e -> failwithf $"Setup failed: %A{e}"
@@ -59,7 +65,14 @@ let main _args =
 
     while true do
         let ctx, state, _, _ =
-            MatchSimulator.setup BalanceConfig.defaultConfig homeClub awayClub gameState.Players gameState.Staff false gameState.ProfileCache
+            MatchSimulator.setup
+                BalanceConfig.defaultConfig
+                homeClub
+                awayClub
+                gameState.Players
+                gameState.Staff
+                false
+                gameState.ProfileCache
             |> function
                 | Ok v -> v
                 | Error e -> failwithf $"Setup failed: %A{e}"

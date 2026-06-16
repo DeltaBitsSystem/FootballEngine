@@ -46,7 +46,8 @@ module SetPiecePositioning =
                 let candidates =
                     [ for i = 0 to slots - 1 do
                           match SimStateOps.tryGetPlayerFromFrame frame roster i with
-                          | Some p when i <> takerIdx -> yield (i, p, (Player.profile p ProfileWeightDefaults.defaults).AerialThreat)
+                          | Some p when i <> takerIdx ->
+                              yield (i, p, (Player.profile p ProfileWeightDefaults.defaults).AerialThreat)
                           | _ -> () ]
                     |> List.sortByDescending (fun (_, _, at) -> at)
 

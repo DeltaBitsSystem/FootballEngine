@@ -8,6 +8,7 @@ open FootballEngine.Tests.TrainingSystemTests
 open FootballEngine.Tests.Infrastructure.Builders
 open FootballEngine.Tests.Infrastructure.Runners
 open FootballEngine.Tests.Infrastructure.Assertions
+open FootballEngine.Tests.Diagnostics.DiagnosticTests
 open FootballEngine.Tests.Layer1.FlowTransitionTests
 open FootballEngine.Tests.Layer1.GoalCycleTests
 open FootballEngine.Tests.Layer1.GKDistributionTests
@@ -20,7 +21,15 @@ open FootballEngine.Tests.Layer2.EmergentLoopsTests
 open FootballEngine.Tests.Layer2.AdaptiveTacticsTests
 open FootballEngine.Tests.Layer2.VARTests
 open FootballEngine.Tests.Layer2.HandballDetectorTests
+open FootballEngine.Tests.Layer2.GoalDetectorTests
+open FootballEngine.Tests.Layer2.PlayerScorerTests
+open FootballEngine.Tests.Layer2.xGCalculatorTests
+open FootballEngine.Tests.Layer2.ConfigValidationTests
+
+open FootballEngine.Tests.Layer2.MatchMemoryTests
+open FootballEngine.Tests.Layer2.PerceptionTests
 open FootballEngine.Tests.Layer2.StatisticalContractsTests
+open FootballEngine.Tests.Layer2.SemanticE2ETests
 open FootballEngine.Tests.Layer3.ShotEdgeCaseTests
 open FootballEngine.Tests.Layer3.GKEdgeCaseTests
 open FootballEngine.Tests.Layer3.PassEdgeCaseTests
@@ -34,7 +43,8 @@ let main argv =
     let matchEngineTests =
         testList
             "MatchEngine"
-            [ flowTransitionTests
+            [ diagnosticTests
+              flowTransitionTests
               goalCycleTests
               gkDistributionTests
               setPieceFlowTests
@@ -46,7 +56,15 @@ let main argv =
               adaptiveTacticsTests
               varTests
               handballDetectorTests
-              statisticalContractsTests |> testSequenced
+              goalDetectorTests
+              playerScorerTests
+              xGCalculatorTests
+              configValidationTests
+
+              matchMemoryTests
+              perceptionTests
+              statisticalContractsTests
+              semanticE2ETests
               shotEdgeCaseTests
               gkEdgeCaseTests
               passEdgeCaseTests

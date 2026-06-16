@@ -17,21 +17,25 @@ module CoordinationLoop =
 
         let pressingDecay = 1.0 - w.Chemistry.PressingCoordinationBase
         let pressingLearn = w.Chemistry.PressingCoordinationBase
+
         let newPressing =
-            current.PressingCoordination * pressingDecay
-            + pressSuccessRate * pressingLearn
+            current.PressingCoordination * pressingDecay + pressSuccessRate * pressingLearn
 
         let transitionRate =
-            if transitionCount > 0 then float successfulTransitions / float transitionCount else 0.5
+            if transitionCount > 0 then
+                float successfulTransitions / float transitionCount
+            else
+                0.5
 
         let transitionDecay = 1.0 - w.Chemistry.TransitionSpeedBase
         let transitionLearn = w.Chemistry.TransitionSpeedBase
+
         let newTransition =
-            current.TransitionSpeed * transitionDecay
-            + transitionRate * transitionLearn
+            current.TransitionSpeed * transitionDecay + transitionRate * transitionLearn
 
         let familiarityDecay = 1.0 - w.Chemistry.FamiliarityTimeBonus * 50.0
         let familiarityLearn = w.Chemistry.FamiliarityTimeBonus * 50.0
+
         let newFamiliarity =
             current.TacticalFamiliarity
             |> Map.map (fun _ v -> v * familiarityDecay + passSuccessRate * familiarityLearn)

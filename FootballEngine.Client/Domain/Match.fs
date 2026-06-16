@@ -72,7 +72,15 @@ type EventContext =
       Quality: float option
       ExpectedGoal: float option
       AssistId: PlayerId option
-      SecondaryResult: EventSecondary option }
+      SecondaryResult: EventSecondary option
+      PassMean: float option
+      DistancePenalty: float option
+      ControlProb: float option
+      InterceptorId: PlayerId option
+      GKSaveAttempt: bool option
+      GKSaveProb: float option
+      ShotSpeed: float option
+      ShotAngle: float option }
 
 module EventContext =
     let empty =
@@ -80,7 +88,15 @@ module EventContext =
           Quality = None
           ExpectedGoal = None
           AssistId = None
-          SecondaryResult = None }
+          SecondaryResult = None
+          PassMean = None
+          DistancePenalty = None
+          ControlProb = None
+          InterceptorId = None
+          GKSaveAttempt = None
+          GKSaveProb = None
+          ShotSpeed = None
+          ShotAngle = None }
 
     let at x y =
         { empty with

@@ -85,5 +85,7 @@ let applyOutputContractTests =
           }
 
           test "StoppageTimeAdd does not crash" {
-              engineMustNotCrash (fun () -> applyOneDomainEvent (DomainEvent.StoppageTimeAdd(100, StoppageReason.GoalDelay)) |> ignore)
+              engineMustNotCrash (fun () ->
+                  applyOneDomainEvent (DomainEvent.StoppageTimeAdd(100, StoppageReason.GoalDelay))
+                  |> ignore)
           } ]

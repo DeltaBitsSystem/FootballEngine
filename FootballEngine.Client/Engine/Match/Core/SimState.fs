@@ -23,9 +23,13 @@ type TeamSimState() =
     member val SetPiecePositions: Spatial[] option = None with get, set
     member val VisCanSeeTM: bool[] = Array.empty with get, set
     member val VisCanSeeOpp: bool[] = Array.empty with get, set
-    member val ActiveRunLookup: System.Collections.Generic.Dictionary<PlayerId, RunAssignment> = System.Collections.Generic.Dictionary() with get, set
 
-    member val Directive: TeamDirectiveState = TeamDirectiveState.Active(TeamDirectiveOps.empty 0<subtick>) with get, set
+    member val ActiveRunLookup: System.Collections.Generic.Dictionary<PlayerId, RunAssignment> =
+        System.Collections.Generic.Dictionary() with get, set
+
+    member val Directive: TeamDirectiveState =
+        TeamDirectiveState.Active(TeamDirectiveOps.empty 0<subtick>) with get, set
+
     member val Blackboard: TeamBlackboard = TeamBlackboard.empty with get, set
     member val LastCollectiveAction: CollectiveAction option = None with get, set
 
@@ -120,8 +124,7 @@ type SimState() =
     member val AwayCognitiveFrame = CognitiveFrameDefaults.empty with get, set
     member val PossessionHistory: PossessionHistory = PossessionHistory.empty with get, set
 
-    member val HomeInfluenceFrame = InfluenceTypes.emptyInfluenceFrame () with get, set
-    member val AwayInfluenceFrame = InfluenceTypes.emptyInfluenceFrame () with get, set
+    member val InfluenceFrame = InfluenceTypes.emptyInfluenceFrame BalanceConfig.defaultConfig.Influence with get, set
 
     member val HomeCFrameBuffers: CognitiveFrameBuffers option = None with get, set
     member val AwayCFrameBuffers: CognitiveFrameBuffers option = None with get, set
@@ -131,5 +134,6 @@ type SimState() =
     member val AwayPendingSubstitutions: SubstitutionRequest list = [] with get, set
     member val PendingSemanticEvents: ResizeArray<SemanticEvent> = ResizeArray(8) with get, set
     member val TickEvents: ResizeArray<MatchEvent> = ResizeArray<MatchEvent>(64) with get, set
+    member val TickDomainOutputs: ResizeArray<DomainEvent> = ResizeArray<DomainEvent>(16) with get, set
     member val HomeXG: float = 0.0 with get, set
     member val AwayXG: float = 0.0 with get, set

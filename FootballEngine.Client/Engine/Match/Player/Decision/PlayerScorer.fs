@@ -19,12 +19,14 @@ type ActionScores =
 module PlayerScorer =
 
     let private normStat (v: int) = MathPipelines.normStat v
+
     let private condFactor (c: float32) =
         let cond = float c / 100.0
         0.90 + 0.10 * sqrt cond
 
     let private directnessFactor (t: TacticsConfig) (profile: BehavioralProfile) (iw: IndividualWeights) =
-        t.Directness * iw.DirectnessBlendTactic + profile.Directness * iw.DirectnessBlendProfile
+        t.Directness * iw.DirectnessBlendTactic
+        + profile.Directness * iw.DirectnessBlendProfile
 
     let private expMin = 0.85
     let private expMax = 1.15
@@ -33,13 +35,26 @@ module PlayerScorer =
     let private buildUpSideBonus (pos: Position) =
         match pos with
         | GK -> 0.05
-        | DC | DM -> 0.10
-        | MC | AMC -> 0.08
-        | DL | DR | WBL | WBR -> 0.06
-        | ML | MR | AML | AMR -> 0.04
+        | DC
+        | DM -> 0.10
+        | MC
+        | AMC -> 0.08
+        | DL
+        | DR
+        | WBL
+        | WBR -> 0.06
+        | ML
+        | MR
+        | AML
+        | AMR -> 0.04
         | ST -> 0.02
 
-    let private shootScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) (sw: ShootWeights) : float<decisionScore> =
+    let private shootScore
+        (ctx: AgentContext)
+        (matchMemory: MatchMemory)
+        (exp: ExperienceModifiers)
+        (sw: ShootWeights)
+        : float<decisionScore> =
         let me = ctx.Me
         let d = ctx.Decision
         let t = ctx.Tactics
@@ -54,12 +69,11 @@ module PlayerScorer =
         let posBonus =
             ctx.Profile.Directness * d.ShootPosDirectnessWeight
             + ctx.Profile.AttackingDepth * d.ShootPosDepthWeight
-            + if me.Position = ST then d.ShootSTBonus else 0.0
 
         let distPenalty =
             clampFloat (float ctx.DistToGoal / d.ShootDistPenaltyDivisor) 0.0 d.ShootDistPenaltyMax
 
-        let iw = BalanceConfig.defaultConfig.Individual
+        let iw = ctx.Weights.Individual
         let df = directnessFactor t ctx.Profile iw
         let directnessBonus = df * d.ShootDirectnessBonus
 
@@ -124,7 +138,7 @@ module PlayerScorer =
               IsOneOnOne = isOneOnOne
               IsSetPiece = false }
 
-        let xgValue = xGCalculator.calculateWithDefaults xgModel |> float
+        let xgValue = xGCalculator.calculate xgModel ctx.Weights.XG |> float
 
         let pressureResistance =
             let bravery = normStat me.Mental.Bravery
@@ -157,12 +171,28 @@ module PlayerScorer =
             + d.ShootConcentrationMod
             + d.ShootXGWeight
             + d.ShootBraveryPressureMod
-            + 1.0
+            + d.ShootDirectnessBonus
+            + sw.ComposureStateMod
+            + sw.ConfidenceMod
+            + sw.FocusMod
+            + sw.RiskBonus
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.ShootingConfidence expMin expMax)
+        let scoreWithStBonus =
+            if me.Position = ST then
+                scoreRaw + d.ShootSTBonus
+            else
+                scoreRaw
+
+        ((scoreWithStBonus / maxPossible)
+         * condFactor ctx.MyCondition
+         * clampFloat exp.ShootingConfidence expMin expMax)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
-    let private passScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
+    let private passScore
+        (ctx: AgentContext)
+        (matchMemory: MatchMemory)
+        (exp: ExperienceModifiers)
+        : float<decisionScore> =
         let me = ctx.Me
         let d = ctx.Decision
         let t = ctx.Tactics
@@ -220,7 +250,7 @@ module PlayerScorer =
             ctx.Profile.CreativityWeight * d.CreativityWeight
             + (1.0 - ctx.Profile.Directness) * d.DirectnessWeight
 
-        let iw = BalanceConfig.defaultConfig.Individual
+        let iw = ctx.Weights.Individual
         let df = directnessFactor t ctx.Profile iw
         let tempoBias = t.Tempo * iw.Pass.AttackPhasePenalty
         let directBias = -(df * iw.Pass.TargetBonus)
@@ -228,7 +258,10 @@ module PlayerScorer =
         let busMod = buildUpSideBonus me.Position
 
         let confidenceMod = ctx.MentalState.ConfidenceLevel * iw.Pass.ComposureWeight
-        let riskMod = ctx.MentalState.RiskTolerance * d.PassTargetBonus * iw.Pass.TargetBonus
+
+        let riskMod =
+            ctx.MentalState.RiskTolerance * d.PassTargetBonus * iw.Pass.TargetBonus
+
         let focusMod = ctx.MentalState.FocusLevel * iw.SoftmaxTemperature
 
         let passMemMod =
@@ -264,14 +297,18 @@ module PlayerScorer =
             match ctx.BestPassTargetIdx with
             | ValueNone -> 0.0
             | ValueSome targetIdx ->
+                let infCfg = ctx.Weights.Influence
+
                 let targetCell =
                     InfluenceTypes.posToCell
+                        infCfg
                         ctx.Team.OwnFrame.Physics.PosX[targetIdx]
                         ctx.Team.OwnFrame.Physics.PosY[targetIdx]
 
-                let passSafety = float ctx.Influence.AttackerPassSafety[targetCell]
-                let defCoverage = float ctx.Influence.DefenderCoverage[targetCell]
-                (passSafety - 0.5) * iw.Pass.TargetBonus + (1.0 - defCoverage) * iw.SoftmaxTemperature
+                let danger =
+                    InfluenceTypes.cellDangerScore targetCell ctx.Team.AttackDir ctx.Influence
+
+                danger * iw.Pass.TargetBonus
 
         let scoreRaw =
             passing
@@ -299,22 +336,25 @@ module PlayerScorer =
             + d.PassTargetBonus
             + phaseBonusMax
             + creativityBonusMax
-            + tempoBias
-            + abs directBias
             + busMod
-            + confidenceMod
-            + riskMod
-            + focusMod
-            + influenceSpaceBonusMax
             + d.PassDecisionsWeight
             + d.PassConcentrationMod
             + d.PassTrajectoryBonus
             + d.PassAnticipationBonus
+            + iw.Pass.ComposureWeight
+            + iw.Pass.TargetBonus
+            + iw.SoftmaxTemperature
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.PassingRhythm expMin expMax)
+        ((scoreRaw / maxPossible)
+         * condFactor ctx.MyCondition
+         * clampFloat exp.PassingRhythm expMin expMax)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
-    let private dribbleScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
+    let private dribbleScore
+        (ctx: AgentContext)
+        (matchMemory: MatchMemory)
+        (exp: ExperienceModifiers)
+        : float<decisionScore> =
         let me = ctx.Me
         let d = ctx.Decision
         let t = ctx.Tactics
@@ -334,7 +374,7 @@ module PlayerScorer =
             | Midfield -> 0.0
             | Attack -> d.DribbleAttackPhaseBonus
 
-        let iw = BalanceConfig.defaultConfig.Individual
+        let iw = ctx.Weights.Individual
         let df = directnessFactor t ctx.Profile iw
         let tempoPenalty = t.Tempo * (1.0 - df) * d.DribbleTempoPenalty
 
@@ -365,10 +405,16 @@ module PlayerScorer =
             - tempoPenalty
             - ctx.ImmediatePressure * d.DribblePressurePenalty
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.DuelMentality expMin expMax)
+        ((scoreRaw / maxPossible)
+         * condFactor ctx.MyCondition
+         * clampFloat exp.DuelMentality expMin expMax)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
-    let private crossScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
+    let private crossScore
+        (ctx: AgentContext)
+        (matchMemory: MatchMemory)
+        (exp: ExperienceModifiers)
+        : float<decisionScore> =
         let me = ctx.Me
         let d = ctx.Decision
         let t = ctx.Tactics
@@ -387,22 +433,27 @@ module PlayerScorer =
             + d.CrossZoneBonus
             + widthBonus
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.DuelMentality expMin expMax)
+        ((scoreRaw / maxPossible)
+         * condFactor ctx.MyCondition
+         * clampFloat exp.DuelMentality expMin expMax)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
-    let private longBallScore (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : float<decisionScore> =
+    let private longBallScore
+        (ctx: AgentContext)
+        (matchMemory: MatchMemory)
+        (exp: ExperienceModifiers)
+        : float<decisionScore> =
         let me = ctx.Me
         let d = ctx.Decision
         let t = ctx.Tactics
         let passing = normStat me.Technical.Passing * d.LongBallPassingWeight
         let vision = normStat me.Mental.Vision * d.LongBallVisionWeight
 
-        let iw = BalanceConfig.defaultConfig.Individual
+        let iw = ctx.Weights.Individual
         let df = directnessFactor t ctx.Profile iw
         let directnessBonus = df * d.LongBallDirectnessBonus
 
-        let pressureMod =
-            1.0 - ctx.ImmediatePressure * iw.LongBall.PressNoOpponent
+        let pressureMod = 1.0 - ctx.ImmediatePressure * iw.LongBall.PressNoOpponent
 
         let phaseMod =
             match ctx.Phase with
@@ -420,13 +471,20 @@ module PlayerScorer =
 
         let scoreRaw = (passing + vision) * pressureMod + phaseMod + directnessBonus
 
-        ((scoreRaw / maxPossible) * condFactor ctx.MyCondition * clampFloat exp.PassingRhythm expMin expMax)
+        ((scoreRaw / maxPossible)
+         * condFactor ctx.MyCondition
+         * clampFloat exp.PassingRhythm expMin expMax)
         |> LanguagePrimitives.FloatWithMeasure<decisionScore>
 
     let computeAll (ctx: AgentContext) (matchMemory: MatchMemory) (exp: ExperienceModifiers) : ActionScores =
-        let sw = BalanceConfig.defaultConfig.Individual.Shoot
-        { Shoot = shootScore ctx matchMemory exp sw
-          Pass = passScore ctx matchMemory exp
-          Dribble = dribbleScore ctx matchMemory exp
+        let sw = ctx.Weights.Individual.Shoot
+        let sit = ctx.Situation
+
+        let clampScore (s: float<decisionScore>) (m: float) =
+            LanguagePrimitives.FloatWithMeasure<decisionScore>(clampFloat (float s * m) 0.0 1.0)
+
+        { Shoot = shootScore ctx matchMemory exp sw |> fun s -> clampScore s sit.ShootMod
+          Pass = passScore ctx matchMemory exp |> fun s -> clampScore s sit.PassMod
+          Dribble = dribbleScore ctx matchMemory exp |> fun s -> clampScore s sit.DribbleMod
           Cross = crossScore ctx matchMemory exp
-          LongBall = longBallScore ctx matchMemory exp }
+          LongBall = longBallScore ctx matchMemory exp |> fun s -> clampScore s sit.LongBallMod }

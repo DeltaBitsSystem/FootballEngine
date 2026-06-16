@@ -16,23 +16,32 @@ module JsonConverters =
         match DomainEncoders.parseConfederation d.Confederation with
         | Error e -> Error e
         | Ok conf ->
-            Ok { Code = d.Code; Name = d.Name; Confederation = conf }
+            Ok
+                { Code = d.Code
+                  Name = d.Name
+                  Confederation = conf }
 
     // ─── NamePool ───
 
     let namePoolToDto (np: NamePool) : NamePoolDto =
-        { FirstNames = np.FirstNames; LastNames = np.LastNames }
+        { FirstNames = np.FirstNames
+          LastNames = np.LastNames }
 
     let namePoolFromDto (d: NamePoolDto) : NamePool =
-        { FirstNames = d.FirstNames; LastNames = d.LastNames }
+        { FirstNames = d.FirstNames
+          LastNames = d.LastNames }
 
     // ─── ClubEntry ───
 
     let clubEntryToDto (ce: ClubEntry) : ClubEntryDto =
-        { Name = ce.Name; LeagueLevel = ce.LeagueLevel; Reputation = ce.Reputation }
+        { Name = ce.Name
+          LeagueLevel = ce.LeagueLevel
+          Reputation = ce.Reputation }
 
     let clubEntryFromDto (d: ClubEntryDto) : ClubEntry =
-        { Name = d.Name; LeagueLevel = d.LeagueLevel; Reputation = d.Reputation }
+        { Name = d.Name
+          LeagueLevel = d.LeagueLevel
+          Reputation = d.Reputation }
 
     // ─── CupEntry ───
 
@@ -40,8 +49,7 @@ module JsonConverters =
         { Name = name
           Format = DomainEncoders.cupFormatToString cf }
 
-    let cupFormatFromDto (d: CupEntryDto) : Result<CupFormat, string> =
-        DomainEncoders.parseCupFormat d.Format
+    let cupFormatFromDto (d: CupEntryDto) : Result<CupFormat, string> = DomainEncoders.parseCupFormat d.Format
 
     // ─── LeagueRules ───
 
@@ -53,16 +61,31 @@ module JsonConverters =
           Relegation = lr.Relegation |> List.map DomainEncoders.relegationToString }
 
     let leagueRulesFromDto (d: LeagueRulesDto) : Result<LeagueRules, string> =
-        let tbs = d.Tiebreakers |> List.map DomainEncoders.parseTiebreaker |> DomainEncoders.sequenceList
-        let promos = d.Promotion |> List.map DomainEncoders.parsePromotion |> DomainEncoders.sequenceList
-        let relegs = d.Relegation |> List.map DomainEncoders.parseRelegation |> DomainEncoders.sequenceList
-        DomainEncoders.map3 (fun tbs promos relegs ->
-            { PointsForWin = d.PointsForWin
-              PointsForDraw = d.PointsForDraw
-              Tiebreakers = tbs
-              Promotion = promos
-              Relegation = relegs })
-            tbs promos relegs
+        let tbs =
+            d.Tiebreakers
+            |> List.map DomainEncoders.parseTiebreaker
+            |> DomainEncoders.sequenceList
+
+        let promos =
+            d.Promotion
+            |> List.map DomainEncoders.parsePromotion
+            |> DomainEncoders.sequenceList
+
+        let relegs =
+            d.Relegation
+            |> List.map DomainEncoders.parseRelegation
+            |> DomainEncoders.sequenceList
+
+        DomainEncoders.map3
+            (fun tbs promos relegs ->
+                { PointsForWin = d.PointsForWin
+                  PointsForDraw = d.PointsForDraw
+                  Tiebreakers = tbs
+                  Promotion = promos
+                  Relegation = relegs })
+            tbs
+            promos
+            relegs
 
     // ─── CountryData ───
 
@@ -84,7 +107,9 @@ module JsonConverters =
                     match cd.CupNames |> List.tryItem i with
                     | Some n -> n
                     | None -> defaultCupName cd.Country.Code i
+
                 cupEntryToDto name cf)
+
         { Country = countryToDto cd.Country
           Names = namePoolToDto cd.Names
           LeagueNames = cd.LeagueNames
@@ -94,35 +119,58 @@ module JsonConverters =
 
     let countryDataFromDto (d: CountryDataDto) : Result<CountryData, string> =
         let country = countryFromDto d.Country
-        let leagueRules = d.LeagueRules |> List.map leagueRulesFromDto |> DomainEncoders.sequenceList
+
+        let leagueRules =
+            d.LeagueRules |> List.map leagueRulesFromDto |> DomainEncoders.sequenceList
+
         let cups = d.Cups |> List.map cupFormatFromDto |> DomainEncoders.sequenceList
         let cupNames = d.Cups |> List.map _.Name
-        DomainEncoders.map3 (fun country leagueRules cups ->
-            { Country = country
-              Names = namePoolFromDto d.Names
-              LeagueNames = d.LeagueNames
-              LeagueRules = leagueRules
-              Clubs = d.Clubs |> List.map clubEntryFromDto
-              Cups = cups
-              CupNames = cupNames })
-            country leagueRules cups
+
+        DomainEncoders.map3
+            (fun country leagueRules cups ->
+                { Country = country
+                  Names = namePoolFromDto d.Names
+                  LeagueNames = d.LeagueNames
+                  LeagueRules = leagueRules
+                  Clubs = d.Clubs |> List.map clubEntryFromDto
+                  Cups = cups
+                  CupNames = cupNames })
+            country
+            leagueRules
+            cups
 
     // ─── QualificationSlot ───
 
     let qualSlotToDto (qs: QualificationSlot) : QualificationSlotDto =
         match qs with
         | LeaguePosition(LeagueLevel lvl, fromPos, toPos) ->
-            { Kind = "LeaguePosition"; Level = Some lvl; FromPos = Some fromPos
-              ToPos = Some toPos; CompetitionName = None; Slots = None }
+            { Kind = "LeaguePosition"
+              Level = Some lvl
+              FromPos = Some fromPos
+              ToPos = Some toPos
+              CompetitionName = None
+              Slots = None }
         | CupWinner name ->
-            { Kind = "CupWinner"; Level = None; FromPos = None
-              ToPos = None; CompetitionName = Some name; Slots = None }
+            { Kind = "CupWinner"
+              Level = None
+              FromPos = None
+              ToPos = None
+              CompetitionName = Some name
+              Slots = None }
         | TitleHolder ->
-            { Kind = "TitleHolder"; Level = None; FromPos = None
-              ToPos = None; CompetitionName = None; Slots = None }
+            { Kind = "TitleHolder"
+              Level = None
+              FromPos = None
+              ToPos = None
+              CompetitionName = None
+              Slots = None }
         | ConfederationSlot n ->
-            { Kind = "ConfederationSlot"; Level = None; FromPos = None
-              ToPos = None; CompetitionName = None; Slots = Some n }
+            { Kind = "ConfederationSlot"
+              Level = None
+              FromPos = None
+              ToPos = None
+              CompetitionName = None
+              Slots = Some n }
 
     let qualSlotFromDto (d: QualificationSlotDto) : Result<QualificationSlot, string> =
         match d.Kind with
@@ -146,19 +194,22 @@ module JsonConverters =
     let intlCompToDto (name: string) (compType: CompetitionType) : Result<InternationalCompDto, string> =
         match compType with
         | InternationalCup(confOpt, fmt, slots) ->
-            Ok { Name = name
-                 Confederation = confOpt |> Option.map DomainEncoders.confederationToString
-                 Format = DomainEncoders.cupFormatToString fmt
-                 Qualification = slots |> List.map qualSlotToDto }
+            Ok
+                { Name = name
+                  Confederation = confOpt |> Option.map DomainEncoders.confederationToString
+                  Format = DomainEncoders.cupFormatToString fmt
+                  Qualification = slots |> List.map qualSlotToDto }
         | _ -> Error $"Only InternationalCup supported for serialization, got: {compType}"
 
     let intlCompFromDto (d: InternationalCompDto) : Result<(string * CompetitionType), string> =
         let fmt = DomainEncoders.parseCupFormat d.Format
+
         let conf =
             match d.Confederation with
             | None -> Ok None
             | Some s -> DomainEncoders.parseConfederation s |> Result.map Some
-        let slots = d.Qualification |> List.map qualSlotFromDto |> DomainEncoders.sequenceList
-        DomainEncoders.map3 (fun fmt conf slots ->
-            d.Name, InternationalCup(conf, fmt, slots))
-            fmt conf slots
+
+        let slots =
+            d.Qualification |> List.map qualSlotFromDto |> DomainEncoders.sequenceList
+
+        DomainEncoders.map3 (fun fmt conf slots -> d.Name, InternationalCup(conf, fmt, slots)) fmt conf slots

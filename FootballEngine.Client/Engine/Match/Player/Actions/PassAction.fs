@@ -110,6 +110,7 @@ module PassAction =
     let private captureAndLosePossession (state: SimState) (clubSide: ClubSide) (events: ResizeArray<DomainEvent>) =
         let activeRuns = SimStateOps.getActiveRuns state clubSide
         losePossession state
+
         for run in activeRuns do
             events.Add(DomainEvent.ExpireRun(clubSide, run.PlayerId))
 
@@ -209,11 +210,11 @@ module PassAction =
                            + (1.0 - passerProfile.Directness) * pc.DirectnessWeight
                        else
                            0.0)
-                     - distPenalty
-                     + (familiarity - 0.5) * BalanceConfig.defaultConfig.Collective.Chemistry.FamiliarityPassBonus
+                    - distPenalty
+                    + (familiarity - 0.5) * state.Config.Collective.Chemistry.FamiliarityPassBonus
 
                 let passMeanCapped = Math.Clamp(passMean, pc.MeanMin, pc.MeanMax)
-                let chemBonus = familiarity * BalanceConfig.defaultConfig.Collective.Chemistry.FamiliarityPassBonus
+                let chemBonus = familiarity * state.Config.Collective.Chemistry.FamiliarityPassBonus
 
                 let quality =
                     betaSample
@@ -242,7 +243,16 @@ module PassAction =
 
                 if offside then
                     let mDelta = forwardX actx.Att.AttackDir * (-pc.OffsideMomentum)
-                    events.Add(Emit { SubTick = subTick; PlayerId = target.Id; ClubId = attClubId; Type = PassIncomplete target.Id; Context = EventContext.empty })
+
+                    events.Add(
+                        Emit
+                            { SubTick = subTick
+                              PlayerId = target.Id
+                              ClubId = attClubId
+                              Type = PassIncomplete target.Id
+                              Context = EventContext.empty }
+                    )
+
                     captureAndLosePossession state actx.Att.ClubSide events
                     events.Add(MomentumDelta mDelta)
                     { Events = events.ToArray() }
@@ -303,19 +313,26 @@ module PassAction =
 
                     let mDelta = forwardX actx.Att.AttackDir * pc.SuccessMomentum
 
-                    events.Add(Emit { SubTick = subTick; PlayerId = passer.Id; ClubId = attClubId; Type = MatchEventType.PassLaunched(passer.Id, target.Id); Context = EventContext.empty })
+                    events.Add(
+                        Emit
+                            { SubTick = subTick
+                              PlayerId = passer.Id
+                              ClubId = attClubId
+                              Type = MatchEventType.PassLaunched(passer.Id, target.Id)
+                              Context =
+                                { EventContext.empty with
+                                    Quality = Some quality
+                                    PassMean = Some passMeanCapped
+                                    DistancePenalty = Some distPenalty } }
+                    )
+
                     events.Add(BallUpdate finalBall)
                     events.Add(MomentumDelta mDelta)
                     events.Add(MemoryWrite(actx.Att.ClubSide, pIdx, MemoryWriteKind.PassSuccess))
                     events.Add(EmitSemantic(SemanticEvent.PassLaunched(passer.Id, target.Id)))
                     { Events = events.ToArray() }
 
-    let resolveLong
-        (subTick: int)
-        (ctx: MatchContext)
-        (state: SimState)
-        (clock: SimulationClock)
-        : ActionResult =
+    let resolveLong (subTick: int) (ctx: MatchContext) (state: SimState) (clock: SimulationClock) : ActionResult =
         let events = ResizeArray<DomainEvent>(8)
         let actx = ActionContext.build ctx state
         let pc = ctx.Config.Pass
@@ -387,7 +404,16 @@ module PassAction =
 
             if bestFwdIdx < 0 then
                 let mDelta = forwardX actx.Att.AttackDir * (-pc.LongBallFailMomentum)
-                events.Add(Emit { SubTick = subTick; PlayerId = passer.Id; ClubId = attClubId; Type = MatchEventType.LongBall false; Context = EventContext.empty })
+
+                events.Add(
+                    Emit
+                        { SubTick = subTick
+                          PlayerId = passer.Id
+                          ClubId = attClubId
+                          Type = MatchEventType.LongBall false
+                          Context = EventContext.empty }
+                )
+
                 captureAndLosePossession state actx.Att.ClubSide events
                 events.Add(MomentumDelta mDelta)
                 { Events = events.ToArray() }
@@ -404,7 +430,16 @@ module PassAction =
 
                 if offside then
                     let mDelta = forwardX actx.Att.AttackDir * (-pc.LongBallOffsideMomentum)
-                    events.Add(Emit { SubTick = subTick; PlayerId = passer.Id; ClubId = attClubId; Type = MatchEventType.LongBall false; Context = EventContext.empty })
+
+                    events.Add(
+                        Emit
+                            { SubTick = subTick
+                              PlayerId = passer.Id
+                              ClubId = attClubId
+                              Type = MatchEventType.LongBall false
+                              Context = EventContext.empty }
+                    )
+
                     captureAndLosePossession state actx.Att.ClubSide events
                     events.Add(MomentumDelta mDelta)
                     { Events = events.ToArray() }
@@ -470,7 +505,15 @@ module PassAction =
 
                     let mDelta = forwardX actx.Att.AttackDir * pc.LongBallSuccessMomentum
 
-                    events.Add(Emit { SubTick = subTick; PlayerId = passer.Id; ClubId = attClubId; Type = MatchEventType.LongBall true; Context = EventContext.empty })
+                    events.Add(
+                        Emit
+                            { SubTick = subTick
+                              PlayerId = passer.Id
+                              ClubId = attClubId
+                              Type = MatchEventType.LongBall true
+                              Context = EventContext.empty }
+                    )
+
                     events.Add(BallUpdate finalBall)
                     events.Add(MomentumDelta mDelta)
                     { Events = events.ToArray() }
@@ -490,7 +533,7 @@ module PassAction =
         let defFrame = actx.Def.OwnFrame
         let attRoster = getRoster ctx actx.Att.ClubSide
 
-        let targetX, targetY = InfluenceTypes.cellToCenter targetCell
+        let targetX, targetY = InfluenceTypes.cellToCenter ctx.Config.Influence targetCell
 
         let targetSpatial =
             { X = float targetX * 1.0<meter>
@@ -560,7 +603,12 @@ module PassAction =
 
                         let convergence = proximityScore * 0.4 + velAlign * 0.6
                         let receiver = attRoster.Players[i]
-                        let ballControlBonus = float receiver.Technical.BallControl / 20.0 * BalanceConfig.defaultConfig.Collective.Chemistry.FamiliarityTimeBonus * 100.0
+
+                        let ballControlBonus =
+                            float receiver.Technical.BallControl / 20.0
+                            * state.Config.Collective.Chemistry.FamiliarityTimeBonus
+                            * 100.0
+
                         let totalScore = convergence + ballControlBonus
 
                         if totalScore > bestReceiverScore then
@@ -587,7 +635,16 @@ module PassAction =
 
                 if nearestIdx < 0 then
                     events.Add(MatchStatIncrement(actx.Att.ClubSide, PassAttempts, 1))
-                    events.Add(Emit { SubTick = subTick; PlayerId = passer.Id; ClubId = attClubId; Type = PassIncomplete passer.Id; Context = EventContext.empty })
+
+                    events.Add(
+                        Emit
+                            { SubTick = subTick
+                              PlayerId = passer.Id
+                              ClubId = attClubId
+                              Type = PassIncomplete passer.Id
+                              Context = EventContext.empty }
+                    )
+
                     captureAndLosePossession state actx.Att.ClubSide events
                     { Events = events.ToArray() }
                 else
@@ -604,7 +661,16 @@ module PassAction =
 
                 if offside then
                     let mDelta = forwardX actx.Att.AttackDir * (-pc.OffsideMomentum)
-                    events.Add(Emit { SubTick = subTick; PlayerId = receiver.Id; ClubId = attClubId; Type = PassIncomplete receiver.Id; Context = EventContext.empty })
+
+                    events.Add(
+                        Emit
+                            { SubTick = subTick
+                              PlayerId = receiver.Id
+                              ClubId = attClubId
+                              Type = PassIncomplete receiver.Id
+                              Context = EventContext.empty }
+                    )
+
                     captureAndLosePossession state actx.Att.ClubSide events
                     events.Add(MomentumDelta mDelta)
                     { Events = events.ToArray() }
@@ -649,7 +715,8 @@ module PassAction =
                             PendingOffsideSnapshot = Some snapshot
                             Trajectory = Some traj }
 
-                    let runDuration = max 60<subtick> (traj.EstimatedArrivalSubTick - subTick * 1<subtick> + 20<subtick>)
+                    let runDuration =
+                        max 60<subtick> (traj.EstimatedArrivalSubTick - subTick * 1<subtick> + 20<subtick>)
 
                     let assignment =
                         RunAssignment.create
@@ -669,7 +736,15 @@ module PassAction =
 
                     let mDelta = forwardX actx.Att.AttackDir * pc.SuccessMomentum
 
-                    events.Add(Emit { SubTick = subTick; PlayerId = passer.Id; ClubId = attClubId; Type = MatchEventType.PassLaunched(passer.Id, receiver.Id); Context = EventContext.empty })
+                    events.Add(
+                        Emit
+                            { SubTick = subTick
+                              PlayerId = passer.Id
+                              ClubId = attClubId
+                              Type = MatchEventType.PassLaunched(passer.Id, receiver.Id)
+                              Context = EventContext.empty }
+                    )
+
                     events.Add(BallUpdate finalBall)
                     events.Add(MomentumDelta mDelta)
                     events.Add(MemoryWrite(actx.Att.ClubSide, pIdx, MemoryWriteKind.PassSuccess))

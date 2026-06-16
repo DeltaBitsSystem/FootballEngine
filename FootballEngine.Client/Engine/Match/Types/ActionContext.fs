@@ -44,4 +44,6 @@ type AgentContext =
       VisibilityMask: VisibilityMask voption
       CurrentSubTick: int
       TransitionPressExpiry: int
-      Influence: InfluenceTypes.InfluenceFrame }
+      Influence: InfluenceTypes.InfluenceFrame
+      Weights: BalanceConfig
+      Situation: MatchSituation }

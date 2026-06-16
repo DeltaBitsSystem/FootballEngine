@@ -9,17 +9,16 @@ open PhysicsContract
 
 module RefereeAgent =
 
-    let cardProbability (config: HomeAdvantageConfig) (playerClub: ClubSide) (p: Player) =
-        let rw = BalanceConfig.defaultConfig.Referee
+    let cardProbability (rw: RefereeWeights) (config: HomeAdvantageConfig) (playerClub: ClubSide) (p: Player) =
         let baseProb = rw.CardBaseProb + float p.Mental.Aggression * rw.CardAggressionMult
 
         match playerClub with
         | HomeClub -> baseProb * (1.0 - config.CardReduction)
         | AwayClub -> baseProb
 
-    let injuryProbability (p: Player) =
-        let rw = BalanceConfig.defaultConfig.Referee
-        rw.InjuryBaseProb + float (100 - p.Physical.Strength) * rw.InjuryStrengthInverseMult
+    let injuryProbability (rw: RefereeWeights) (p: Player) =
+        rw.InjuryBaseProb
+        + float (100 - p.Physical.Strength) * rw.InjuryStrengthInverseMult
 
     type BallOutResult =
         | NoOut
@@ -83,7 +82,7 @@ module RefereeAgent =
 
             let injuryIntent =
                 att
-                |> Option.filter (fun a -> bernoulli (injuryProbability a))
+                |> Option.filter (fun a -> bernoulli (injuryProbability state.Config.Referee a))
                 |> Option.map (fun a ->
                     IssueInjury(
                         a,
@@ -96,13 +95,19 @@ module RefereeAgent =
 
             let stuckBallIntent =
                 match state.Ball.StationarySinceSubTick with
-                | Some since when state.SubTick - since >= SimulationClock.deltaToSubtick state.Config.Timing.StuckBallDelay ->
+                | Some since when
+                    state.SubTick - since
+                    >= SimulationClock.deltaToSubtick state.Config.Timing.StuckBallDelay
+                    ->
                     [ DropBall state.AttackingSide ]
                 | _ -> []
 
             let gkTimeWastingIntent =
                 match state.Ball.GKHoldSinceSubTick with
-                | Some since when state.SubTick - since >= SimulationClock.deltaToSubtick state.Config.GK.MaxHoldSubTicks ->
+                | Some since when
+                    state.SubTick - since
+                    >= SimulationClock.deltaToSubtick state.Config.GK.MaxHoldSubTicks
+                    ->
                     match state.Ball.Control with
                     | Controlled(side, _)
                     | Receiving(side, _, _) -> [ AwardIndirectFreeKick(ClubSide.flip side) ]
@@ -118,7 +123,7 @@ module RefereeAgent =
 
     let decideCard (fouler: Player) (ctx: MatchContext) (state: SimState) : RefereeAction list =
         let aggressionNorm = normaliseAttr fouler.Mental.Aggression
-        let rw = BalanceConfig.defaultConfig.Referee
+        let rw = state.Config.Referee
 
         let isHome = playerOnSide ctx state HomeClub fouler.Id
 
@@ -156,7 +161,9 @@ module RefereeAgent =
 
             for action in refActions do
                 let actionEvents = RefereeApplicator.apply (int subTick) action ctx state
-                for e in actionEvents do events.Add(e)
+
+                for e in actionEvents do
+                    events.Add(e)
 
             let hasDropBall =
                 refActions

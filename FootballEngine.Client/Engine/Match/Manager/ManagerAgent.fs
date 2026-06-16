@@ -318,8 +318,18 @@ module ManagerAgent =
 
                     state.StoppageTime.Add(subTick, StoppageReason.SubstitutionDelay) |> ignore
 
-                    [| DomainEvent.Emit { SubTick = subTick; PlayerId = playerOut.Id; ClubId = clubId; Type = SubstitutionOut; Context = EventContext.empty }
-                       DomainEvent.Emit { SubTick = subTick; PlayerId = incoming.Id; ClubId = clubId; Type = SubstitutionIn; Context = EventContext.empty } |]
+                    [| DomainEvent.Emit
+                           { SubTick = subTick
+                             PlayerId = playerOut.Id
+                             ClubId = clubId
+                             Type = SubstitutionOut
+                             Context = EventContext.empty }
+                       DomainEvent.Emit
+                           { SubTick = subTick
+                             PlayerId = incoming.Id
+                             ClubId = clubId
+                             Type = SubstitutionIn
+                             Context = EventContext.empty } |]
                 | _ -> [||]
 
         | AdjustTactics(clubId, newTactics) ->

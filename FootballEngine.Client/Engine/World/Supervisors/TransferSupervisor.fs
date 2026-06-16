@@ -17,11 +17,18 @@ module TransferSupervisor =
             with
             | Some buyer, Some seller, Some player ->
                 let fee = Player.playerValue player.CurrentSkill
+
                 match clubResponse buyer seller player fee with
                 | AcceptedByClub ->
-                    state, Some { neg with Stage = NegotiationStage.OfferMade fee }
+                    state,
+                    Some
+                        { neg with
+                            Stage = NegotiationStage.OfferMade fee }
                 | RejectedByClub ->
-                    state, Some { neg with Stage = NegotiationStage.RejectedByClub(fee, "fee below market value") }
+                    state,
+                    Some
+                        { neg with
+                            Stage = NegotiationStage.RejectedByClub(fee, "fee below market value") }
                 | _ -> state, Some neg
             | _ -> state, Some neg
 
@@ -35,9 +42,16 @@ module TransferSupervisor =
                 match clubResponse buyer seller player fee with
                 | AcceptedByClub ->
                     let salary = suggestedSalary player
-                    state, Some { neg with Stage = NegotiationStage.AwaitingPlayerResponse(fee, salary) }
+
+                    state,
+                    Some
+                        { neg with
+                            Stage = NegotiationStage.AwaitingPlayerResponse(fee, salary) }
                 | RejectedByClub ->
-                    state, Some { neg with Stage = NegotiationStage.RejectedByClub(fee, "fee insufficient") }
+                    state,
+                    Some
+                        { neg with
+                            Stage = NegotiationStage.RejectedByClub(fee, "fee insufficient") }
                 | _ -> state, Some neg
             | _ -> state, Some neg
 
@@ -46,9 +60,15 @@ module TransferSupervisor =
             | Some buyer, Some player ->
                 match playerResponse buyer player salary with
                 | ContractOffered(salary', years) ->
-                    state, Some { neg with Stage = NegotiationStage.Agreed(fee, salary', years) }
+                    state,
+                    Some
+                        { neg with
+                            Stage = NegotiationStage.Agreed(fee, salary', years) }
                 | ContractRejectedByPlayer ->
-                    state, Some { neg with Stage = NegotiationStage.RejectedByPlayer(fee, salary, "salary insufficient") }
+                    state,
+                    Some
+                        { neg with
+                            Stage = NegotiationStage.RejectedByPlayer(fee, salary, "salary insufficient") }
                 | _ -> state, Some neg
             | _ -> state, Some neg
 
@@ -66,8 +86,7 @@ module TransferSupervisor =
         | NegotiationStage.RejectedByClub _
         | NegotiationStage.RejectedByPlayer _
         | CounterReceived _
-        | Collapsed _ ->
-            state, Some neg
+        | Collapsed _ -> state, Some neg
 
     let private detectConflicts (intents: Intent<ManagerIntent> list) =
         intents
@@ -132,10 +151,13 @@ module TransferSupervisor =
         filteredIntents.PendingNegotiations
         |> Map.toList
         |> List.map snd
-        |> List.fold (fun gs neg ->
-            match advanceNegotiation gs neg with
-            | gs', Some updated ->
-                { gs' with PendingNegotiations = gs'.PendingNegotiations |> Map.add neg.Id updated }
-            | gs', None ->
-                { gs' with PendingNegotiations = gs'.PendingNegotiations |> Map.remove neg.Id })
+        |> List.fold
+            (fun gs neg ->
+                match advanceNegotiation gs neg with
+                | gs', Some updated ->
+                    { gs' with
+                        PendingNegotiations = gs'.PendingNegotiations |> Map.add neg.Id updated }
+                | gs', None ->
+                    { gs' with
+                        PendingNegotiations = gs'.PendingNegotiations |> Map.remove neg.Id })
             filteredIntents

@@ -16,18 +16,26 @@ module TrainingEngine =
         | TrainingFocus.TrainingAllRound -> 1.0
         | TrainingFocus.TrainingGoalkeeping -> dev.FocusMultiplier_Goalkeeping
         | TrainingFocus.TrainingPhysical ->
-            profile.PressingIntensity * dev.FocusMultiplier_Physical_Pressing + profile.PositionalFreedom * dev.FocusMultiplier_Physical_Positional + dev.FocusMultiplier_PhysicalBase
+            profile.PressingIntensity * dev.FocusMultiplier_Physical_Pressing
+            + profile.PositionalFreedom * dev.FocusMultiplier_Physical_Positional
+            + dev.FocusMultiplier_PhysicalBase
         | TrainingFocus.TrainingTechnical ->
-            profile.CreativityWeight * dev.FocusMultiplier_Technical_Creativity + profile.Directness * dev.FocusMultiplier_Technical_Directness + dev.FocusMultiplier_TechnicalBase
+            profile.CreativityWeight * dev.FocusMultiplier_Technical_Creativity
+            + profile.Directness * dev.FocusMultiplier_Technical_Directness
+            + dev.FocusMultiplier_TechnicalBase
         | TrainingFocus.TrainingMental -> dev.FocusMultiplier_Mental
 
     let intensityEffect (intensity: TrainingIntensity) : TrainingIntensityData = TrainingIntensityData.get intensity
 
     let private statFocusForTech (profile: BehavioralProfile) =
-        if profile.Directness > 0.5 && profile.AttackingDepth > 0.5 then "attack"
-        elif profile.DefensiveHeight > 0.5 then "defense"
-        elif profile.CreativityWeight > 0.5 then "playmaking"
-        else "general"
+        if profile.Directness > 0.5 && profile.AttackingDepth > 0.5 then
+            "attack"
+        elif profile.DefensiveHeight > 0.5 then
+            "defense"
+        elif profile.CreativityWeight > 0.5 then
+            "playmaking"
+        else
+            "general"
 
     let private applyWeeklySkillDevelopment
         (schedule: TrainingSchedule)
@@ -57,7 +65,9 @@ module TrainingEngine =
         else
             let focusMult = focusMultiplier schedule.Focus profile
             let intensityMult = intensityEffect schedule.Intensity |> fun e -> e.DeltaMultiplier
-            let weeklyDelta = float baseDelta * focusMult * intensityMult / dev.WeeklyDeltaDivisor
+
+            let weeklyDelta =
+                float baseDelta * focusMult * intensityMult / dev.WeeklyDeltaDivisor
 
             let roll = rollProbability ()
             let shouldIncrease = roll < weeklyDelta
@@ -212,8 +222,10 @@ module PlayerDevelopment =
                     (1.5 * combinedMult)
                     -1
                     (int (float (min gap (maxDeltaU25 + 1)) * combinedMult))
-            | a when a <= 27 -> normalInt (0.5 * combinedMult) (1.0 * combinedMult) -1 (int (float maxDeltaU28 * combinedMult))
-            | a when a <= 30 -> normalInt (-0.5 * combinedMult) (1.0 * combinedMult) -2 (int (float maxDeltaU31 * combinedMult))
+            | a when a <= 27 ->
+                normalInt (0.5 * combinedMult) (1.0 * combinedMult) -1 (int (float maxDeltaU28 * combinedMult))
+            | a when a <= 30 ->
+                normalInt (-0.5 * combinedMult) (1.0 * combinedMult) -2 (int (float maxDeltaU31 * combinedMult))
             | a when a <= 33 -> normalInt (-1.5 * combinedMult) (1.0 * combinedMult) -3 maxDeltaU34
             | _ -> normalInt (-2.5 * combinedMult) (1.0 * combinedMult) -4 -1
 
@@ -232,22 +244,55 @@ module PlayerDevelopment =
             stat
 
     let private physFocus (profile: BehavioralProfile) =
-        if profile.DefensiveHeight > dev.StatFocus_DefensiveHeightThreshold then "defensive"
-        elif profile.AttackingDepth > dev.StatFocus_AttackingDepthThreshold && profile.Directness > dev.StatFocus_DirectnessThreshold then "attacking"
-        else "general"
+        if profile.DefensiveHeight > dev.StatFocus_DefensiveHeightThreshold then
+            "defensive"
+        elif
+            profile.AttackingDepth > dev.StatFocus_AttackingDepthThreshold
+            && profile.Directness > dev.StatFocus_DirectnessThreshold
+        then
+            "attacking"
+        else
+            "general"
 
     let private techFocus (profile: BehavioralProfile) =
-        if profile.Directness > dev.StatFocus_DirectnessThreshold && profile.AttackingDepth > dev.StatFocus_AttackingDepthThreshold then "attack"
-        elif profile.DefensiveHeight > dev.StatFocus_DefensiveHeightThreshold then "defense"
-        elif profile.CreativityWeight > dev.StatFocus_CreativityThreshold then "playmaking"
-        else "general"
+        if
+            profile.Directness > dev.StatFocus_DirectnessThreshold
+            && profile.AttackingDepth > dev.StatFocus_AttackingDepthThreshold
+        then
+            "attack"
+        elif profile.DefensiveHeight > dev.StatFocus_DefensiveHeightThreshold then
+            "defense"
+        elif profile.CreativityWeight > dev.StatFocus_CreativityThreshold then
+            "playmaking"
+        else
+            "general"
 
-    let applyPostMatchExperience (goals: int) (shots: int) (passSuccessRate: float) (duelWinRate: float) (current: ExperienceModifiers) : ExperienceModifiers =
+    let applyPostMatchExperience
+        (goals: int)
+        (shots: int)
+        (passSuccessRate: float)
+        (duelWinRate: float)
+        (current: ExperienceModifiers)
+        : ExperienceModifiers =
         let shootingPerf = if shots > 0 then float goals / float shots else 0.5
-        let shootingAdj = if shootingPerf > 0.3 then 1.01 elif shootingPerf > 0.15 then 1.0 else 0.99
-        let passingAdj = if passSuccessRate > 0.8 then 1.01 elif passSuccessRate > 0.6 then 1.0 else 0.99
-        let duelAdj = if duelWinRate > 0.55 then 1.01 elif duelWinRate > 0.4 then 1.0 else 0.99
+
+        let shootingAdj =
+            if shootingPerf > 0.3 then 1.01
+            elif shootingPerf > 0.15 then 1.0
+            else 0.99
+
+        let passingAdj =
+            if passSuccessRate > 0.8 then 1.01
+            elif passSuccessRate > 0.6 then 1.0
+            else 0.99
+
+        let duelAdj =
+            if duelWinRate > 0.55 then 1.01
+            elif duelWinRate > 0.4 then 1.0
+            else 0.99
+
         let pressureAdj = if goals > 0 && shootingPerf > 0.3 then 1.01 else 1.0
+
         { ShootingConfidence = Math.Clamp(0.85, 1.15, current.ShootingConfidence * shootingAdj)
           PassingRhythm = Math.Clamp(0.85, 1.15, current.PassingRhythm * passingAdj)
           DuelMentality = Math.Clamp(0.85, 1.15, current.DuelMentality * duelAdj)
@@ -255,6 +300,7 @@ module PlayerDevelopment =
 
     let applyWeeklyExperienceDecay (current: ExperienceModifiers) : ExperienceModifiers =
         let decay = 0.95
+
         { ShootingConfidence = 1.0 + (current.ShootingConfidence - 1.0) * decay
           PassingRhythm = 1.0 + (current.PassingRhythm - 1.0) * decay
           DuelMentality = 1.0 + (current.DuelMentality - 1.0) * decay
@@ -344,10 +390,11 @@ module PlayerDevelopment =
                 |> Map.map (fun _ p ->
                     let schedule = Some p.TrainingSchedule
                     let developed = developPlayer gs.CurrentDate schedule p
+
                     let decayedExp =
                         { developed with
-                            ExperienceModifiers =
-                                applyWeeklyExperienceDecay developed.ExperienceModifiers }
+                            ExperienceModifiers = applyWeeklyExperienceDecay developed.ExperienceModifiers }
+
                     decayedExp) }
 
 module DevelopmentPhase =

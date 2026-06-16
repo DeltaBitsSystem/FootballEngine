@@ -22,8 +22,10 @@ let passEdgeCaseTests =
 
           test "PassAction.resolve returns BallUpdate in outputs when pass is attempted" {
               let home = [| makePlayer 1 MC 15; makePlayer 2 AMC 15; makePlayer 3 ST 15 |]
+
               let ctx, state =
                   buildSimState home [| 40.0, 34.0; 60.0, 34.0; 75.0, 34.0 |] [||] [||]
+
               state |> withBallAt 40.0 34.0 |> withBallControlledBy HomeClub 1 |> ignore
               let result = PassAction.resolve 0 ctx state defaultClock home.[2]
               // Pass may or may not fire depending on target availability,

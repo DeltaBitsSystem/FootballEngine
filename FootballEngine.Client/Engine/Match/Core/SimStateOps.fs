@@ -213,11 +213,9 @@ module SimStateOps =
         | Receiving(_, p, _) -> p = pid
         | _ -> false
 
-    let emitSemantic (event: SemanticEvent) (state: SimState) =
-        state.PendingSemanticEvents.Add(event)
+    let emitSemantic (event: SemanticEvent) (state: SimState) = state.PendingSemanticEvents.Add(event)
 
-    let drainSemanticEvents (state: SimState) : ResizeArray<SemanticEvent> =
-        state.PendingSemanticEvents
+    let drainSemanticEvents (state: SimState) : ResizeArray<SemanticEvent> = state.PendingSemanticEvents
 
     let losePossession (state: SimState) =
         match state.Ball.Control with

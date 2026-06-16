@@ -9,9 +9,9 @@ module TrainingSlice =
     let update (msg: TrainingMsg) (state: TrainingState) : TrainingState =
         match msg with
         | TrainingMsg.SelectPlayer id -> { state with SelectedPlayer = Some id }
-        | TrainingMsg.ClearSelection  -> { state with SelectedPlayer = None }
+        | TrainingMsg.ClearSelection -> { state with SelectedPlayer = None }
         | TrainingMsg.SetFocus _
-        | TrainingMsg.SetIntensity _  -> state
+        | TrainingMsg.SetIntensity _ -> state
 
     module Query =
 

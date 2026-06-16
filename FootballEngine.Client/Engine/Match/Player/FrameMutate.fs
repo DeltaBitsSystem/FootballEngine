@@ -15,8 +15,7 @@ module FrameMutate =
         frame.VelX[idx] <- float32 vx
         frame.VelY[idx] <- float32 vy
 
-    let setCondition (frame: TeamFrame) (idx: int) (cond: float32) : unit =
-        frame.Condition[idx] <- cond
+    let setCondition (frame: TeamFrame) (idx: int) (cond: float32) : unit = frame.Condition[idx] <- cond
 
     let setIntent
         (frame: IntentDataFrame)

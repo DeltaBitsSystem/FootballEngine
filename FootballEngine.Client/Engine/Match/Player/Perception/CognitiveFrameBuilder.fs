@@ -68,12 +68,14 @@ module CognitiveFrameModule =
                 | OccupancyKind.Active _ ->
                     let ox = ownFrame.Physics.PosX[i]
                     let oy = ownFrame.Physics.PosY[i]
+
                     for j = 0 to n - 1 do
                         if i <> j then
                             match ownFrame.Physics.Occupancy[j] with
                             | OccupancyKind.Active _ ->
                                 let tx = ownFrame.Physics.PosX[j]
                                 let ty = ownFrame.Physics.PosY[j]
+
                                 if not (passLaneClear ox oy tx ty oppFrame) then
                                     laneClear[i * n + j] <- false
                             | _ -> ()
@@ -161,11 +163,21 @@ module CognitiveFrameModule =
                             let dist = sqrt (float (dx * dx + dy * dy))
                             let laneBonus = if laneClear[baseIdx + j] then 0.2 else -0.3
                             let forwardX = float (px - ox)
-                            let forwardBonus = 
+
+                            let forwardBonus =
                                 match dir with
-                                | LeftToRight -> if forwardX > 5.0 then 0.35 elif forwardX < -10.0 then -0.25 else 0.0
-                                | RightToLeft -> if forwardX < -5.0 then 0.35 elif forwardX > 10.0 then -0.25 else 0.0
-                            let score = (1.0 / (1.0 + dist * 0.1)) + forwardBonus + laneBonus + visionWeight * 0.1
+                                | LeftToRight ->
+                                    if forwardX > 5.0 then 0.35
+                                    elif forwardX < -10.0 then -0.25
+                                    else 0.0
+                                | RightToLeft ->
+                                    if forwardX < -5.0 then 0.35
+                                    elif forwardX > 10.0 then -0.25
+                                    else 0.0
+
+                            let score =
+                                (1.0 / (1.0 + dist * 0.1)) + forwardBonus + laneBonus + visionWeight * 0.1
+
                             if score > bestPTScore then
                                 bestPTScore <- score
                                 bestPTIdx <- int16 j
@@ -174,7 +186,13 @@ module CognitiveFrameModule =
                 if bestPTIdx >= 0s then
                     bestPassIdx[i] <- bestPTIdx
                     let bi = int bestPTIdx
-                    bestPassPos[i] <- ValueSome (defaultSpatial (float ownFrame.Physics.PosX[bi] * 1.0<meter>) (float ownFrame.Physics.PosY[bi] * 1.0<meter>))
+
+                    bestPassPos[i] <-
+                        ValueSome(
+                            defaultSpatial
+                                (float ownFrame.Physics.PosX[bi] * 1.0<meter>)
+                                (float ownFrame.Physics.PosY[bi] * 1.0<meter>)
+                        )
 
             | _ -> ()
 

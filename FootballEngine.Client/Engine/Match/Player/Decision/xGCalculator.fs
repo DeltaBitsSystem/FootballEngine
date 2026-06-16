@@ -47,11 +47,3 @@ module xGCalculator =
         let xg4 = if model.IsOneOnOne then xg3 * w.OneOnOneMultiplier else xg3
         let xg5 = if model.IsSetPiece then xg4 * w.SetPieceMultiplier else xg4
         min 1.0 (max 0.0 xg5)
-
-    let calculateWithDefaults (model: xGModel) : float =
-        let w = BalanceConfig.defaultConfig.XG
-        calculate model w
-
-    let baseXGWithDefaults (dist: float<meter>) (angle: float) : float =
-        let w = BalanceConfig.defaultConfig.XG
-        baseXG dist angle w

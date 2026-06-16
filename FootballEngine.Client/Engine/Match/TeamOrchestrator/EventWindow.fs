@@ -26,7 +26,11 @@ module EventWindow =
           PressRate: float
           FlankRate: float }
 
-    let computeRates (windowSubTicks: int) (events: ResizeArray<MatchEvent>) (currentSubTick: int) : EventRates * MatchEvent list =
+    let computeRates
+        (windowSubTicks: int)
+        (events: ResizeArray<MatchEvent>)
+        (currentSubTick: int)
+        : EventRates * MatchEvent list =
         let halfLife = 10.0 * 40.0
         let weight age = System.Math.Exp(-float age / halfLife)
 
