@@ -246,11 +246,11 @@ module FoulAuthority =
         (foulerFoulCount: int)
         (ballX: float<meter>)
         (dir: AttackDir)
+        (minute: float)
         (teamFoulCountThisHalf: int)
         (isAdvantagePreserved: bool)
         : FoulDecision =
         let zone = classifyZone ballX dir
-        let minute = 0.0
         let phase = classifyMatchPhase minute
 
         decide severity foulerYellows foulerFoulCount zone phase teamFoulCountThisHalf isAdvantagePreserved

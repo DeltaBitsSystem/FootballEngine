@@ -131,6 +131,7 @@ module RefereeAgent =
         let fouls = ResizeArray<DomainEvent>(4)
         let ballX = state.Ball.Position.X
         let dir = state.HomeAttackDir
+        let minute = float (SimulationClock.toMatchMin clock state.SubTick)
 
         let teamFoulCount (side: ClubSide) : int =
             let mutable count = 0
@@ -141,6 +142,15 @@ module RefereeAgent =
 
                     if (side = HomeClub && isHome) || (side = AwayClub && not isHome) then
                         count <- count + 1
+
+            count
+
+        let playerFoulCount (pid: PlayerId) : int =
+            let mutable count = 0
+
+            for e in state.MatchEvents do
+                if e.Type = FoulCommitted && e.PlayerId = pid then
+                    count <- count + 1
 
             count
 
@@ -159,9 +169,18 @@ module RefereeAgent =
                     let clubId = if isHome then ctx.Home.Id else ctx.Away.Id
                     let yellows = getYellows state side |> Map.tryFind foulerId |> Option.defaultValue 0
                     let foulsThisHalf = teamFoulCount side
+                    let foulerFouls = playerFoulCount foulerId
 
                     let decision =
-                        FoulAuthority.decideFromContext severity yellows 0 ballX dir foulsThisHalf false
+                        FoulAuthority.decideFromContext
+                            severity
+                            yellows
+                            foulerFouls
+                            ballX
+                            dir
+                            minute
+                            foulsThisHalf
+                            false
 
                     match decision.Card with
                     | Some FoulAnalysis.CardDecision.Yellow ->
