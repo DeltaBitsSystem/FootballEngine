@@ -79,3 +79,9 @@ type StoppageTimeTracker() =
         decided
 
     member this.Entries = this.entries |> Seq.toList
+
+    member this.AccumulatedByCategory =
+        this.entries
+        |> Seq.groupBy (fun e -> e.Reason)
+        |> Seq.map (fun (reason, entries) -> reason, entries |> Seq.sumBy _.SecondsAdded)
+        |> Map.ofSeq

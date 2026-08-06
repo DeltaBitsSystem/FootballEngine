@@ -32,6 +32,7 @@ type TeamSimState() =
 
     member val Blackboard: TeamBlackboard = TeamBlackboard.empty with get, set
     member val LastCollectiveAction: CollectiveAction option = None with get, set
+    member val GKHoldViolations: Map<PlayerId, int> = Map.empty with get, set
 
 
 module TeamSimState =

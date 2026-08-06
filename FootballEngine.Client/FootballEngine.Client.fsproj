@@ -85,6 +85,7 @@
         <Compile Include="Engine\Match\Types\SlotRoleAssigner.fs"/>
         <Compile Include="Engine\Match\Types\SemanticEvent.fs"/>
         <Compile Include="Engine\Match\Types\StoppageTimeTracker.fs"/>
+        <Compile Include="Engine\Match\Types\TimeAdministrator.fs"/>
         <Compile Include="Engine\Match\Types\SystemOutput.fs"/>
         <Compile Include="Engine\Match\Types\UtilityTypes.fs"/>
 

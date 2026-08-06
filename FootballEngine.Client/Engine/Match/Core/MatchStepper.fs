@@ -547,7 +547,7 @@ module MatchStepper =
 
         if not state.HalfTimeHandled && state.SubTick >= ht && state.Flow = Live then
             state.HalfTimeHandled <- true
-            let halfAdded = state.StoppageTime.DecideHalfTime()
+            let halfAdded = TimeAdministrator.halfTimeAdded state.StoppageTime
 
             state.EffectiveFullTimeSubTick <-
                 max state.EffectiveFullTimeSubTick (ht + halfAdded * int clock.SubTicksPerSecond * 1<subtick>)
@@ -556,7 +556,7 @@ module MatchStepper =
 
         if not state.FullTimeHandled && state.SubTick >= state.EffectiveFullTimeSubTick then
             state.FullTimeHandled <- true
-            let fullAdded = state.StoppageTime.DecideFullTime()
+            let fullAdded = TimeAdministrator.fullTimeAdded state.StoppageTime
 
             let newFull =
                 max

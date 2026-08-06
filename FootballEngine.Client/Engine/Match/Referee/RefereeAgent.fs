@@ -110,7 +110,40 @@ module RefereeAgent =
                     ->
                     match state.Ball.Control with
                     | Controlled(side, _)
-                    | Receiving(side, _, _) -> [ AwardIndirectFreeKick(ClubSide.flip side) ]
+                    | Receiving(side, _, _) ->
+                        let team = if side = HomeClub then state.Home else state.Away
+                        let holdX = float state.Ball.Position.X
+
+                        let gkPid =
+                            team.Frame.Physics.Occupancy
+                            |> Array.tryFindIndex (function
+                                | OccupancyKind.Active ri ->
+                                    let roster = if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers
+                                    ri < roster.Length && roster[ri].Position = GK
+                                | _ -> false)
+                            |> Option.bind (fun idx ->
+                                match team.Frame.Physics.Occupancy[idx] with
+                                | OccupancyKind.Active ri ->
+                                    let roster = if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers
+                                    if ri < roster.Length then Some roster[ri].Id else None
+                                | _ -> None)
+
+                        match gkPid with
+                        | Some pid ->
+                            let violations = Map.tryFind pid team.GKHoldViolations |> Option.defaultValue 0
+
+                            if violations >= 1 then
+                                let clubId = if side = HomeClub then ctx.Home.Id else ctx.Away.Id
+
+                                [ AwardIndirectFreeKick(ClubSide.flip side)
+                                  IssueYellow(
+                                      (if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers)
+                                      |> Array.find (fun p -> p.Id = pid),
+                                      clubId
+                                  ) ]
+                            else
+                                [ AwardIndirectFreeKick(ClubSide.flip side) ]
+                        | None -> [ AwardIndirectFreeKick(ClubSide.flip side) ]
                     | _ -> []
                 | _ -> []
 
@@ -235,6 +268,44 @@ module RefereeAgent =
 
                 for e in actionEvents do
                     events.Add(e)
+
+            let hasGKTimeWasting =
+                refActions
+                |> List.exists (function
+                    | AwardIndirectFreeKick _ -> true
+                    | _ -> false)
+                && state.Ball.GKHoldSinceSubTick
+                   |> Option.exists (fun since ->
+                       state.SubTick - since
+                       >= SimulationClock.deltaToSubtick state.Config.GK.MaxHoldSubTicks)
+
+            if hasGKTimeWasting then
+                match state.Ball.Control with
+                | Controlled(side, _)
+                | Receiving(side, _, _) ->
+                    let team = if side = HomeClub then state.Home else state.Away
+
+                    let gkPidOpt =
+                        team.Frame.Physics.Occupancy
+                        |> Array.tryFindIndex (function
+                            | OccupancyKind.Active ri ->
+                                let roster = if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers
+                                ri < roster.Length && roster[ri].Position = GK
+                            | _ -> false)
+                        |> Option.bind (fun idx ->
+                            match team.Frame.Physics.Occupancy[idx] with
+                            | OccupancyKind.Active ri ->
+                                let roster = if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers
+                                if ri < roster.Length then Some roster[ri].Id else None
+                            | _ -> None)
+
+                    match gkPidOpt with
+                    | Some gkPid ->
+                        let current = Map.tryFind gkPid team.GKHoldViolations |> Option.defaultValue 0
+                        let updated = Map.add gkPid (current + 1) team.GKHoldViolations
+                        team.GKHoldViolations <- updated
+                    | None -> ()
+                | _ -> ()
 
             let hasDropBall =
                 refActions
