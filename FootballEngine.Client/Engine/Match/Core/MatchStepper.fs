@@ -519,7 +519,7 @@ module MatchStepper =
 
         if Scheduler.shouldRun refereeFreq time semanticEvents then
             state.TickDomainOutputs.Clear()
-            let result = RefereeAgent.agent ctx state clock
+            let result = RefereeAgent.agent ctx state clock semanticEvents
             state.TickDomainOutputs.AddRange(result)
             applyDomainEvents state events state.TickDomainOutputs
 

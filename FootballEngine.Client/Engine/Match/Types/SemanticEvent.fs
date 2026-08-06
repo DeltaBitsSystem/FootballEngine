@@ -9,7 +9,7 @@ type SemanticEvent =
     | BallLoose
     | PassLaunched of from: PlayerId * target: PlayerId
     | ShotLaunched of shooter: PlayerId
-    | FoulOccurred of fouler: PlayerId * fouled: PlayerId
+    | FoulOccurred of fouler: PlayerId * fouled: PlayerId * severity: FoulSeverity
     | GoalScored of side: ClubSide * scorer: PlayerId option
     | SetPieceAwarded of kind: SetPieceKind * team: ClubSide
     | PlayerConditionCritical of playerId: PlayerId * condition: int
@@ -24,7 +24,7 @@ module SemanticEvent =
         | BallLoose -> SemanticEventKind.BallLoose
         | PassLaunched(_, _) -> SemanticEventKind.PassLaunched
         | ShotLaunched(_) -> SemanticEventKind.ShotLaunched
-        | FoulOccurred(_, _) -> SemanticEventKind.FoulOccurred
+        | FoulOccurred(_, _, _) -> SemanticEventKind.FoulOccurred
         | GoalScored(_, _) -> SemanticEventKind.GoalScored
         | SetPieceAwarded(_, _) -> SemanticEventKind.SetPieceAwarded
         | PlayerConditionCritical(_, _) -> SemanticEventKind.PlayerConditionCritical

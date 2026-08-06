@@ -138,30 +138,13 @@ module DuelAction =
 
                     let severity = FoulAnalysis.classifySeverity foulCtx
 
-                    let yellows =
-                        getYellows state actx.Def.ClubSide
-                        |> Map.tryFind defP.Id
-                        |> Option.defaultValue 0
-
-                    let side = actx.Def.ClubSide
-                    let clubId = if side = HomeClub then ctx.Home.Id else ctx.Away.Id
-
-                    let cardActions, cardDomainEvents =
-                        match FoulAnalysis.decideCard severity yellows with
-                        | Some FoulAnalysis.CardDecision.Yellow ->
-                            [ IssueYellow(defP, clubId) ],
-                            [ DomainEvent.EmitSemantic(SemanticEvent.FoulOccurred(defP.Id, attP.Id)) ]
-                        | Some FoulAnalysis.CardDecision.Red ->
-                            [ IssueRed(defP, clubId) ],
-                            [ DomainEvent.EmitSemantic(SemanticEvent.FoulOccurred(defP.Id, attP.Id)) ]
-                        | None -> [], []
+                    let foulEvent =
+                        DomainEvent.EmitSemantic(SemanticEvent.FoulOccurred(defP.Id, attP.Id, severity))
 
                     let events = ResizeArray<DomainEvent>(8)
                     events.Add(DomainEvent.BallUpdate contestBall)
                     events.Add(DomainEvent.MomentumDelta mDelta)
-
-                    for de in cardDomainEvents do
-                        events.Add(de)
+                    events.Add(foulEvent)
 
                     events.Add(
                         DomainEvent.Emit
@@ -172,7 +155,7 @@ module DuelAction =
                               Context = EventContext.empty }
                     )
 
-                    { Events = events.ToArray() }, cardActions
+                    { Events = events.ToArray() }, []
                 else
                     let diff = float attScore - float defScore
                     let aX = float attFrame.Physics.PosX[attIdx] * 1.0<meter>
@@ -423,20 +406,8 @@ module DuelAction =
 
                     let severity = FoulAnalysis.classifySeverity foulCtx
 
-                    let yellows =
-                        getYellows state actx.Def.ClubSide
-                        |> Map.tryFind defender.Id
-                        |> Option.defaultValue 0
-
-                    let cardActions, cardDomainEvents =
-                        match FoulAnalysis.decideCard severity yellows with
-                        | Some FoulAnalysis.CardDecision.Yellow ->
-                            [ IssueYellow(defender, actx.Def.ClubId) ],
-                            [ DomainEvent.EmitSemantic(SemanticEvent.FoulOccurred(defender.Id, attacker.Id)) ]
-                        | Some FoulAnalysis.CardDecision.Red ->
-                            [ IssueRed(defender, actx.Def.ClubId) ],
-                            [ DomainEvent.EmitSemantic(SemanticEvent.FoulOccurred(defender.Id, attacker.Id)) ]
-                        | None -> [], []
+                    let foulEvent =
+                        DomainEvent.EmitSemantic(SemanticEvent.FoulOccurred(defender.Id, attacker.Id, severity))
 
                     let events = ResizeArray<DomainEvent>(8)
 
@@ -451,11 +422,9 @@ module DuelAction =
 
                     events.Add(DomainEvent.BallUpdate freeBall)
                     events.Add(DomainEvent.MomentumDelta mDelta)
+                    events.Add(foulEvent)
 
-                    for de in cardDomainEvents do
-                        events.Add(de)
-
-                    { Events = events.ToArray() }, cardActions
+                    { Events = events.ToArray() }, []
                 else
                     let mDelta = forwardX actx.Att.AttackDir * tCfg.SuccessMomentum
 

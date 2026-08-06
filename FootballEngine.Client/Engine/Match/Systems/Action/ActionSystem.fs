@@ -14,10 +14,6 @@ module ActionSystem =
         (outputs: ResizeArray<DomainEvent>)
         : unit =
 
-        let actionResult, refActions = ActionResolver.run subTick ctx state clock
+        let actionResult, _refActions = ActionResolver.run subTick ctx state clock
 
         outputs.AddRange(actionResult.Events)
-
-        for action in refActions do
-            let refEvents = RefereeApplicator.apply subTick action ctx state
-            outputs.AddRange(refEvents)

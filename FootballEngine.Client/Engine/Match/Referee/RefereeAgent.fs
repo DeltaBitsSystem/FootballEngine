@@ -145,7 +145,49 @@ module RefereeAgent =
             []
 
 
-    let agent ctx (state: SimState) (clock: SimulationClock) : DomainEvent[] =
+    let processFouls (ctx: MatchContext) (state: SimState) (events: ResizeArray<SemanticEvent>) : DomainEvent[] =
+        let fouls = ResizeArray<DomainEvent>(4)
+
+        for i = 0 to events.Count - 1 do
+            match events[i] with
+            | SemanticEvent.FoulOccurred(foulerId, _, severity) ->
+                let foulerOpt =
+                    ctx.HomePlayers
+                    |> Array.tryFind (fun p -> p.Id = foulerId)
+                    |> Option.orElseWith (fun () -> ctx.AwayPlayers |> Array.tryFind (fun p -> p.Id = foulerId))
+
+                match foulerOpt with
+                | Some fouler ->
+                    let isHome = playerOnSide ctx state HomeClub foulerId
+                    let side = if isHome then HomeClub else AwayClub
+                    let clubId = if isHome then ctx.Home.Id else ctx.Away.Id
+                    let yellows = getYellows state side |> Map.tryFind foulerId |> Option.defaultValue 0
+
+                    match FoulAnalysis.decideCard severity yellows with
+                    | Some FoulAnalysis.CardDecision.Yellow ->
+                        let actions =
+                            RefereeApplicator.apply (int state.SubTick) (IssueYellow(fouler, clubId)) ctx state
+
+                        for e in actions do
+                            fouls.Add(e)
+                    | Some FoulAnalysis.CardDecision.Red ->
+                        let actions =
+                            RefereeApplicator.apply (int state.SubTick) (IssueRed(fouler, clubId)) ctx state
+
+                        for e in actions do
+                            fouls.Add(e)
+                    | None -> ()
+                | None -> ()
+            | _ -> ()
+
+        fouls.ToArray()
+
+    let agent
+        ctx
+        (state: SimState)
+        (clock: SimulationClock)
+        (semanticEvents: ResizeArray<SemanticEvent>)
+        : DomainEvent[] =
         let isLive =
             match state.Flow with
             | Live -> true
@@ -240,4 +282,5 @@ module RefereeAgent =
             | Some flow -> events.Add(DomainEvent.FlowChange flow)
             | None -> ()
 
-            events.ToArray()
+            let foulEvents = processFouls ctx state semanticEvents
+            Array.append (events.ToArray()) foulEvents
