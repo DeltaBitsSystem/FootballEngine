@@ -6,11 +6,6 @@ open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
 open Stats
 
-type AdvantageState =
-    | NoAdvantage
-    | AdvantagePlaying of foulSubTick: int * fouledTeam: ClubSide * reason: string
-    | AdvantageCalledBack of foulSubTick: int
-
 type AdvantageDecision =
     | PlayOn of reason: string
     | StopPlay of reason: string

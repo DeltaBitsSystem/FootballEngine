@@ -786,7 +786,12 @@ type PartialRefereeWeights =
       InjuryBaseProb: float option
       InjuryStrengthInverseMult: float option
       FoulAggressionBase: float option
-      FoulAggressionMult: float option }
+      FoulAggressionMult: float option
+      HomeBonusCardThreshold: float option
+      MatchImportanceWeight: float option
+      DisciplineHistoryMitigation: float option
+      AdvantageWindowSeconds: float option
+      AdvantageCallBackWindow: float option }
 
 [<CLIMutable>]
 type PartialEnvironmentWeights =
@@ -1911,7 +1916,12 @@ module private Merger =
               InjuryBaseProb = opt d.InjuryBaseProb p.InjuryBaseProb
               InjuryStrengthInverseMult = opt d.InjuryStrengthInverseMult p.InjuryStrengthInverseMult
               FoulAggressionBase = opt d.FoulAggressionBase p.FoulAggressionBase
-              FoulAggressionMult = opt d.FoulAggressionMult p.FoulAggressionMult }
+              FoulAggressionMult = opt d.FoulAggressionMult p.FoulAggressionMult
+              HomeBonusCardThreshold = opt d.HomeBonusCardThreshold p.HomeBonusCardThreshold
+              MatchImportanceWeight = opt d.MatchImportanceWeight p.MatchImportanceWeight
+              DisciplineHistoryMitigation = opt d.DisciplineHistoryMitigation p.DisciplineHistoryMitigation
+              AdvantageWindowSeconds = opt d.AdvantageWindowSeconds p.AdvantageWindowSeconds
+              AdvantageCallBackWindow = opt d.AdvantageCallBackWindow p.AdvantageCallBackWindow }
 
     let mergeEnvironment (p: PartialEnvironmentWeights option) (d: EnvironmentWeights) : EnvironmentWeights =
         match p with

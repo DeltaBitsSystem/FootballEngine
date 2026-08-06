@@ -842,7 +842,12 @@ type RefereeWeights =
       InjuryBaseProb: float
       InjuryStrengthInverseMult: float
       FoulAggressionBase: float
-      FoulAggressionMult: float }
+      FoulAggressionMult: float
+      HomeBonusCardThreshold: float
+      MatchImportanceWeight: float
+      DisciplineHistoryMitigation: float
+      AdvantageWindowSeconds: float
+      AdvantageCallBackWindow: float }
 
 [<CLIMutable>]
 type EnvironmentWeights =
@@ -1638,7 +1643,12 @@ module BalanceConfig =
               InjuryBaseProb = 0.0008
               InjuryStrengthInverseMult = 0.00002
               FoulAggressionBase = 0.25
-              FoulAggressionMult = 0.35 }
+              FoulAggressionMult = 0.35
+              HomeBonusCardThreshold = 0.10
+              MatchImportanceWeight = 0.15
+              DisciplineHistoryMitigation = 0.05
+              AdvantageWindowSeconds = 2.0
+              AdvantageCallBackWindow = 3.0 }
           Environment =
             { WeatherClearModifier = 1.0
               WeatherLightRainModifier = 0.95

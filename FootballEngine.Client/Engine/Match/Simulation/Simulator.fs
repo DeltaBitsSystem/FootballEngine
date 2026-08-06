@@ -248,6 +248,14 @@ module MatchSimulator =
         state.HomeAttackDir <- LeftToRight
         state.BallXSmooth <- 52.5<meter>
 
+        let rng = System.Random()
+
+        state.RefereeProfile <-
+            match rng.Next(3) with
+            | 0 -> Permissive
+            | 1 -> Strict
+            | _ -> Balanced
+
         let homeTeam = TeamSimState.empty ()
         homeTeam.Frame <- homeFrame
         homeTeam.ShapeTargetX <- Array.zeroCreate homeFrame.SlotCount

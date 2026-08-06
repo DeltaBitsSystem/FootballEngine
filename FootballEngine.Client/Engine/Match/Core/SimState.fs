@@ -139,3 +139,5 @@ type SimState() =
     member val TickDomainOutputs: ResizeArray<DomainEvent> = ResizeArray<DomainEvent>(16) with get, set
     member val HomeXG: float = 0.0 with get, set
     member val AwayXG: float = 0.0 with get, set
+    member val RefereeProfile = FootballEngine.Types.RefereeProfile.Balanced with get, set
+    member val AdvantageState: AdvantageState = NoAdvantage with get, set

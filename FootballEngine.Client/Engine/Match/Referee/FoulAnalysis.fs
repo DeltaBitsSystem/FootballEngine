@@ -159,7 +159,7 @@ type FoulDecision =
 
 module FoulAuthority =
 
-    let private classifyZone (ballX: float<meter>) (dir: AttackDir) : PitchZone =
+    let classifyZone (ballX: float<meter>) (dir: AttackDir) : PitchZone =
         let effectiveX =
             match dir with
             | LeftToRight -> ballX
@@ -174,6 +174,26 @@ module FoulAuthority =
         elif minute < 70.0 then Midfield
         else Attack
 
+    let private profileCardThreshold (profile: RefereeProfile) : int =
+        match profile with
+        | Permissive -> 2
+        | Balanced -> 1
+        | Strict -> 0
+
+    let private profileAdvantageWillingness (profile: RefereeProfile) : float =
+        match profile with
+        | Permissive -> 0.8
+        | Balanced -> 0.6
+        | Strict -> 0.3
+
+    let private profileTolerance (profile: RefereeProfile) (rw: RefereeWeights) : float =
+        let baseTolerance = rw.CardBaseProb
+
+        match profile with
+        | Permissive -> baseTolerance * 1.3
+        | Balanced -> baseTolerance
+        | Strict -> baseTolerance * 0.7
+
     let decide
         (severity: FoulSeverity)
         (foulerYellows: int)
@@ -182,7 +202,31 @@ module FoulAuthority =
         (phase: MatchPhase)
         (teamFoulCountThisHalf: int)
         (isAdvantagePreserved: bool)
+        (profile: RefereeProfile)
+        (homeBonus: bool)
+        (matchImportance: float)
+        (disciplineHistory: int)
+        (rw: RefereeWeights)
         : FoulDecision =
+        let yellowThreshold = profileCardThreshold profile
+        let advantageWillingness = profileAdvantageWillingness profile
+        let _tolerance = profileTolerance profile rw
+
+        let adjustedYellows =
+            if homeBonus then
+                max 0 (foulerYellows - 1)
+            else
+                foulerYellows
+
+        let importanceMult = 1.0 + (matchImportance - 0.5) * 0.2
+
+        let disciplineMitigation =
+            if disciplineHistory <= 2 then 0.1
+            elif disciplineHistory >= 6 then -0.1
+            else 0.0
+
+        let effectiveAdvantageThreshold = advantageWillingness + disciplineMitigation
+
         match severity with
         | Trivial ->
             { Card = None
@@ -197,7 +241,7 @@ module FoulAuthority =
               Advantage = false
               Reason = "Violent conduct" }
         | DOGSO ->
-            if zone = AttackingZone && foulerYellows >= 1 then
+            if zone = AttackingZone && adjustedYellows >= yellowThreshold then
                 { Card = Some FoulAnalysis.Red
                   Advantage = false
                   Reason = "DOGSO — second yellow" }
@@ -210,7 +254,7 @@ module FoulAuthority =
                   Advantage = false
                   Reason = "DOGSO — denied opportunity outside box" }
         | ProfessionalFoul ->
-            if foulerYellows >= 1 then
+            if adjustedYellows >= yellowThreshold then
                 { Card = Some FoulAnalysis.Red
                   Advantage = false
                   Reason = "Professional foul — second yellow" }
@@ -218,12 +262,16 @@ module FoulAuthority =
                 { Card = Some FoulAnalysis.Yellow
                   Advantage = false
                   Reason = "Professional foul in attacking zone" }
+            elif isAdvantagePreserved && importanceMult < 1.1 then
+                { Card = None
+                  Advantage = true
+                  Reason = "Advantage played — professional foul" }
             else
                 { Card = Some FoulAnalysis.Yellow
                   Advantage = false
                   Reason = "Professional foul" }
         | TacticalFoul ->
-            if foulerYellows >= 1 then
+            if adjustedYellows >= yellowThreshold then
                 { Card = Some FoulAnalysis.Red
                   Advantage = false
                   Reason = "Tactical foul — second yellow" }
@@ -231,6 +279,10 @@ module FoulAuthority =
                 { Card = Some FoulAnalysis.Yellow
                   Advantage = false
                   Reason = "Tactical foul — team accumulation warning" }
+            elif isAdvantagePreserved && float importanceMult * effectiveAdvantageThreshold > 0.8 then
+                { Card = None
+                  Advantage = true
+                  Reason = "Advantage played — tactical foul" }
             elif isAdvantagePreserved then
                 { Card = None
                   Advantage = true
@@ -249,8 +301,25 @@ module FoulAuthority =
         (minute: float)
         (teamFoulCountThisHalf: int)
         (isAdvantagePreserved: bool)
+        (profile: RefereeProfile)
+        (homeBonus: bool)
+        (matchImportance: float)
+        (disciplineHistory: int)
+        (rw: RefereeWeights)
         : FoulDecision =
         let zone = classifyZone ballX dir
         let phase = classifyMatchPhase minute
 
-        decide severity foulerYellows foulerFoulCount zone phase teamFoulCountThisHalf isAdvantagePreserved
+        decide
+            severity
+            foulerYellows
+            foulerFoulCount
+            zone
+            phase
+            teamFoulCountThisHalf
+            isAdvantagePreserved
+            profile
+            homeBonus
+            matchImportance
+            disciplineHistory
+            rw

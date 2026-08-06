@@ -187,9 +187,17 @@ module RefereeAgent =
 
             count
 
+        let homeBonus = state.AttackingSide = HomeClub
+        let matchImportance = if ctx.IsKnockoutMatch then 0.9 else 0.5
+
+        let disciplineHistory =
+            let homeFouls = teamFoulCount HomeClub
+            let awayFouls = teamFoulCount AwayClub
+            max homeFouls awayFouls
+
         for i = 0 to events.Count - 1 do
             match events[i] with
-            | SemanticEvent.FoulOccurred(foulerId, _, severity) ->
+            | SemanticEvent.FoulOccurred(foulerId, fouledId, severity) ->
                 let foulerOpt =
                     ctx.HomePlayers
                     |> Array.tryFind (fun p -> p.Id = foulerId)
@@ -204,6 +212,22 @@ module RefereeAgent =
                     let foulsThisHalf = teamFoulCount side
                     let foulerFouls = playerFoulCount foulerId
 
+                    let fouledSide = if isHome then AwayClub else HomeClub
+
+                    let advDecision =
+                        AdvantageEngine.evaluate
+                            (float ballX * 1.0<meter>)
+                            (float state.Ball.Position.Y * 1.0<meter>)
+                            dir
+                            fouledSide
+                            state.Ball.Control
+                            (FoulAuthority.classifyZone ballX dir)
+
+                    let isAdvantagePreserved =
+                        match advDecision with
+                        | PlayOn _ -> true
+                        | StopPlay _ -> false
+
                     let decision =
                         FoulAuthority.decideFromContext
                             severity
@@ -213,31 +237,40 @@ module RefereeAgent =
                             dir
                             minute
                             foulsThisHalf
-                            false
+                            isAdvantagePreserved
+                            state.RefereeProfile
+                            homeBonus
+                            matchImportance
+                            disciplineHistory
+                            state.Config.Referee
 
                     match decision.Card with
                     | Some FoulAnalysis.CardDecision.Yellow ->
-                        let actions =
-                            RefereeApplicator.apply
-                                (int state.SubTick)
-                                (IssueYellow(fouler, clubId))
-                                ctx
-                                state
-                                (Some decision.Reason)
+                        if not decision.Advantage then
+                            let actions =
+                                RefereeApplicator.apply
+                                    (int state.SubTick)
+                                    (IssueYellow(fouler, clubId))
+                                    ctx
+                                    state
+                                    (Some decision.Reason)
 
-                        for e in actions do
-                            fouls.Add(e)
+                            for e in actions do
+                                fouls.Add(e)
                     | Some FoulAnalysis.CardDecision.Red ->
-                        let actions =
-                            RefereeApplicator.apply
-                                (int state.SubTick)
-                                (IssueRed(fouler, clubId))
-                                ctx
-                                state
-                                (Some decision.Reason)
+                        if not decision.Advantage then
+                            let actions =
+                                RefereeApplicator.apply
+                                    (int state.SubTick)
+                                    (IssueRed(fouler, clubId))
+                                    ctx
+                                    state
+                                    (Some decision.Reason)
 
-                        for e in actions do
-                            fouls.Add(e)
+                            for e in actions do
+                                fouls.Add(e)
+                    | None when decision.Advantage ->
+                        state.AdvantageState <- AdvantagePlaying(int state.SubTick, fouledSide, decision.Reason)
                     | None -> ()
                 | None -> ()
             | _ -> ()
@@ -259,6 +292,18 @@ module RefereeAgent =
             [||]
         else
             let subTick = state.SubTick
+
+            match state.AdvantageState with
+            | AdvantagePlaying(foulSubTick, fouledTeam, _) ->
+                let window =
+                    int (state.Config.Referee.AdvantageCallBackWindow * float clock.SubTicksPerSecond)
+
+                if AdvantageEngine.shouldCallBack foulSubTick (int subTick) state.Ball.Control fouledTeam then
+                    state.AdvantageState <- NoAdvantage
+                elif int subTick - foulSubTick > window then
+                    state.AdvantageState <- NoAdvantage
+            | _ -> ()
+
             let refActions = decide None None ctx state
 
             let events = ResizeArray<DomainEvent>(16)

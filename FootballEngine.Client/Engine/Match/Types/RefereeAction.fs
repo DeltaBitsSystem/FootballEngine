@@ -2,6 +2,15 @@ namespace FootballEngine.Types
 
 open FootballEngine.Domain
 
+type RefereeProfile =
+    | Permissive
+    | Balanced
+    | Strict
+
+type AdvantageState =
+    | NoAdvantage
+    | AdvantagePlaying of foulSubTick: int * fouledTeam: ClubSide * reason: string
+    | AdvantageCalledBack of foulSubTick: int
 
 type RefereeAction =
     | ConfirmGoal of scoringClub: ClubSide * scorerId: PlayerId option * isOwnGoal: bool

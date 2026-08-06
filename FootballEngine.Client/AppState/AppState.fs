@@ -155,7 +155,7 @@ module AppState =
                                 | Some l -> l
                                 | None ->
                                     { Formation = formation
-                                      Tactics = Balanced
+                                      Tactics = TeamTactics.Balanced
                                       Instructions = Some TacticalInstructions.defaultInstructions
                                       Slots = [] }
 
@@ -219,7 +219,7 @@ module AppState =
                         (fun currentLineupOpt ->
                             let defaultLineup =
                                 { Formation = state.SelectedTactics
-                                  Tactics = Balanced
+                                  Tactics = TeamTactics.Balanced
                                   Instructions = Some TacticalInstructions.defaultInstructions
                                   Slots =
                                     FormationData.getFormation state.SelectedTactics
