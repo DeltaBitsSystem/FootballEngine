@@ -18,7 +18,7 @@ Thank you for your interest in contributing to FootballEngine. This is a determi
    ```
 4. Run the tests:
    ```bash
-   dotnet test
+   dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj
    ```
 5. Create a branch for your contribution:
    ```bash
@@ -66,12 +66,17 @@ Follow the project's conventions to maintain consistency:
 ## Testing
 
 - **Write tests** for any changes you make
-- Follow the project's **3-layer structure** (Client, Core, Infrastructure)
+- Follow the project's **3-layer structure** (Layer1_E2E, Layer2_Systems, Layer3_EdgeCases)
 - Use the **test data builders** found in `Infrastructure/Builders.fs`
 - Ensure all tests pass before opening a PR:
   ```bash
-  dotnet test
+  # List all tests first
+  dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj -- --list-tests 2>&1 | grep -v "warning\|NU1"
+
+  # Run specific test suite (use FULL name with dots)
+  dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.GoalCycle"
   ```
+- **IMPORTANT:** This project uses **Expecto** (not xUnit/NUnit). `dotnet test --filter` does NOT work. Always use `dotnet run --project ... --filter "..."` with the full test name prefix.
 
 ## Pull Requests
 

@@ -27,7 +27,7 @@ dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Relea
 
 **Run the tests:**
 ```bash
-dotnet test FootballEngine.Tests/FootballEngine.Tests.fsproj
+dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj
 ```
 
 **Formatting (Fantomas):**
@@ -228,10 +228,21 @@ Tests use **Expecto** and are organized in 3 layers:
 - `Infrastructure/Assertions.fs` — Custom assertions
 
 **Run specific tests:**
+
+Tests use **Expecto** (not xUnit/NUnit), so `dotnet test --filter` does NOT work. Use `dotnet run` instead:
+
 ```bash
-dotnet test FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "Layer1"
-dotnet test FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "GoalCycle"
+# Step 1: List ALL test names (pipe through grep to remove warnings)
+dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj -- --list-tests 2>&1 | grep -v "warning\|NU1"
+
+# Step 2: Filter by FULL test name prefix (dots as separators)
+dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.GoalCycle"
+dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.Diagnostics"
+dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.FlowTransition"
+dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.MatchClock"
 ```
+
+**IMPORTANT:** The filter string must match the BEGINNING of the full test name. partial names like `"Layer1"` or `"GoalCycle"` do NOT work. Always run `-- --list-tests` first to get the exact names.
 
 ---
 
@@ -259,9 +270,9 @@ dotnet build
 dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release
 
 # Tests
-dotnet test FootballEngine.Tests/FootballEngine.Tests.fsproj
-dotnet test FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "Layer1"  # E2E only
-dotnet test FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "Layer2"  # systems only
+dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj -- --list-tests 2>&1 | grep -v "warning\|NU1"  # list all tests
+dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.GoalCycle"  # specific suite
+dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.Diagnostics"  # diagnostics only
 
 # Formatting
 dotnet fantomas .
