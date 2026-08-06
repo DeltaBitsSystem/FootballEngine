@@ -63,96 +63,98 @@ module RefereeAgent =
         else
             NoOut
 
-    let decide (att: Player option) (def: Player option) (ctx: MatchContext) (state: SimState) : RefereeAction list =
+    let decide
+        (att: Player option)
+        (def: Player option)
+        (ctx: MatchContext)
+        (state: SimState)
+        : RefereeAction ResizeArray =
+        let result = ResizeArray<RefereeAction>(6)
+
         match state.Flow with
         | MatchFlow.Live ->
-            let throwInIntent =
-                match ballOutOfBounds ctx state with
-                | ThrowIn team -> [ AwardThrowIn team ]
-                | Corner team -> [ AwardCorner team ]
-                | GoalKick team -> [ AwardGoalKick team ]
-                | NoOut -> []
+            match ballOutOfBounds ctx state with
+            | ThrowIn team -> result.Add(AwardThrowIn team)
+            | Corner team -> result.Add(AwardCorner team)
+            | GoalKick team -> result.Add(AwardGoalKick team)
+            | NoOut -> ()
 
-            let goalIntent =
-                match GoalDetector.detect state.Ball state.HomeAttackDir with
-                | Some team ->
-                    let scorerId, isOwn = GoalDetector.scorer team state.Ball ctx state
-                    [ ConfirmGoal(team, scorerId, isOwn) ]
-                | None -> []
+            match GoalDetector.detect state.Ball state.HomeAttackDir with
+            | Some team ->
+                let scorerId, isOwn = GoalDetector.scorer team state.Ball ctx state
+                result.Add(ConfirmGoal(team, scorerId, isOwn))
+            | None -> ()
 
-            let injuryIntent =
-                att
-                |> Option.filter (fun a -> bernoulli (injuryProbability state.Config.Referee a))
-                |> Option.map (fun a ->
+            att
+            |> Option.filter (fun a -> bernoulli (injuryProbability state.Config.Referee a))
+            |> Option.iter (fun a ->
+                result.Add(
                     IssueInjury(
                         a,
                         if playerOnSide ctx state HomeClub a.Id then
                             ctx.Home.Id
                         else
                             ctx.Away.Id
-                    ))
-                |> Option.toList
+                    )
+                ))
 
-            let stuckBallIntent =
-                match state.Ball.StationarySinceSubTick with
-                | Some since when
-                    state.SubTick - since
-                    >= SimulationClock.deltaToSubtick state.Config.Timing.StuckBallDelay
-                    ->
-                    [ DropBall state.AttackingSide ]
-                | _ -> []
+            match state.Ball.StationarySinceSubTick with
+            | Some since when
+                state.SubTick - since
+                >= SimulationClock.deltaToSubtick state.Config.Timing.StuckBallDelay
+                ->
+                result.Add(DropBall state.AttackingSide)
+            | _ -> ()
 
-            let gkTimeWastingIntent =
-                match state.Ball.GKHoldSinceSubTick with
-                | Some since when
-                    state.SubTick - since
-                    >= SimulationClock.deltaToSubtick state.Config.GK.MaxHoldSubTicks
-                    ->
-                    match state.Ball.Control with
-                    | Controlled(side, _)
-                    | Receiving(side, _, _) ->
-                        let team = if side = HomeClub then state.Home else state.Away
-                        let holdX = float state.Ball.Position.X
+            match state.Ball.GKHoldSinceSubTick with
+            | Some since when
+                state.SubTick - since
+                >= SimulationClock.deltaToSubtick state.Config.GK.MaxHoldSubTicks
+                ->
+                match state.Ball.Control with
+                | Controlled(side, _)
+                | Receiving(side, _, _) ->
+                    let team = if side = HomeClub then state.Home else state.Away
+                    let holdX = float state.Ball.Position.X
 
-                        let gkPid =
-                            team.Frame.Physics.Occupancy
-                            |> Array.tryFindIndex (function
-                                | OccupancyKind.Active ri ->
-                                    let roster = if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers
-                                    ri < roster.Length && roster[ri].Position = GK
-                                | _ -> false)
-                            |> Option.bind (fun idx ->
-                                match team.Frame.Physics.Occupancy[idx] with
-                                | OccupancyKind.Active ri ->
-                                    let roster = if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers
-                                    if ri < roster.Length then Some roster[ri].Id else None
-                                | _ -> None)
+                    let gkPid =
+                        team.Frame.Physics.Occupancy
+                        |> Array.tryFindIndex (function
+                            | OccupancyKind.Active ri ->
+                                let roster = if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers
+                                ri < roster.Length && roster[ri].Position = GK
+                            | _ -> false)
+                        |> Option.bind (fun idx ->
+                            match team.Frame.Physics.Occupancy[idx] with
+                            | OccupancyKind.Active ri ->
+                                let roster = if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers
+                                if ri < roster.Length then Some roster[ri].Id else None
+                            | _ -> None)
 
-                        match gkPid with
-                        | Some pid ->
-                            let violations = Map.tryFind pid team.GKHoldViolations |> Option.defaultValue 0
+                    match gkPid with
+                    | Some pid ->
+                        let violations = Map.tryFind pid team.GKHoldViolations |> Option.defaultValue 0
 
-                            if violations >= 1 then
-                                let clubId = if side = HomeClub then ctx.Home.Id else ctx.Away.Id
+                        if violations >= 1 then
+                            let clubId = if side = HomeClub then ctx.Home.Id else ctx.Away.Id
 
-                                [ AwardIndirectFreeKick(ClubSide.flip side)
-                                  IssueYellow(
-                                      (if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers)
-                                      |> Array.find (fun p -> p.Id = pid),
-                                      clubId
-                                  ) ]
-                            else
-                                [ AwardIndirectFreeKick(ClubSide.flip side) ]
-                        | None -> [ AwardIndirectFreeKick(ClubSide.flip side) ]
-                    | _ -> []
-                | _ -> []
+                            result.Add(AwardIndirectFreeKick(ClubSide.flip side))
 
-            throwInIntent
-            @ goalIntent
-            @ injuryIntent
-            @ stuckBallIntent
-            @ gkTimeWastingIntent
-        | _ -> []
+                            result.Add(
+                                IssueYellow(
+                                    (if side = HomeClub then ctx.HomePlayers else ctx.AwayPlayers)
+                                    |> Array.find (fun p -> p.Id = pid),
+                                    clubId
+                                )
+                            )
+                        else
+                            result.Add(AwardIndirectFreeKick(ClubSide.flip side))
+                    | None -> result.Add(AwardIndirectFreeKick(ClubSide.flip side))
+                | _ -> ()
+            | _ -> ()
+        | _ -> ()
+
+        result
 
 
     let processFouls
@@ -166,24 +168,39 @@ module RefereeAgent =
         let dir = state.HomeAttackDir
         let minute = float (SimulationClock.toMatchMin clock state.SubTick)
 
+        let homeFoulsMap = ResizeArray<PlayerId>()
+        let awayFoulsMap = ResizeArray<PlayerId>()
+
+        for e in state.MatchEvents do
+            if e.Type = FoulCommitted then
+                if e.ClubId = ctx.Home.Id then
+                    homeFoulsMap.Add(e.PlayerId)
+                else
+                    awayFoulsMap.Add(e.PlayerId)
+
         let teamFoulCount (side: ClubSide) : int =
-            let mutable count = 0
-
-            for e in state.MatchEvents do
-                if e.Type = FoulCommitted then
-                    let isHome = e.ClubId = ctx.Home.Id
-
-                    if (side = HomeClub && isHome) || (side = AwayClub && not isHome) then
-                        count <- count + 1
-
-            count
+            if side = HomeClub then
+                homeFoulsMap.Count
+            else
+                awayFoulsMap.Count
 
         let playerFoulCount (pid: PlayerId) : int =
             let mutable count = 0
+            let mutable i = 0
 
-            for e in state.MatchEvents do
-                if e.Type = FoulCommitted && e.PlayerId = pid then
+            while i < homeFoulsMap.Count do
+                if homeFoulsMap[i] = pid then
                     count <- count + 1
+
+                i <- i + 1
+
+            i <- 0
+
+            while i < awayFoulsMap.Count do
+                if awayFoulsMap[i] = pid then
+                    count <- count + 1
+
+                i <- i + 1
 
             count
 
@@ -308,17 +325,41 @@ module RefereeAgent =
 
             let events = ResizeArray<DomainEvent>(16)
 
-            for action in refActions do
-                let actionEvents = RefereeApplicator.apply (int subTick) action ctx state None
+            for i = 0 to refActions.Count - 1 do
+                let actionEvents =
+                    RefereeApplicator.apply (int subTick) refActions[i] ctx state None
 
                 for e in actionEvents do
                     events.Add(e)
 
+            let mutable hasAwardIndirectFreeKick = false
+            let mutable hasDropBall = false
+            let mutable hasConfirmGoal = false
+            let mutable restartOption = ValueNone
+            let mutable confirmGoalScorerId: PlayerId option = None
+            let mutable confirmGoalIsOwn = false
+
+            for i = 0 to refActions.Count - 1 do
+                match refActions[i] with
+                | AwardIndirectFreeKick _ -> hasAwardIndirectFreeKick <- true
+                | DropBall _ -> hasDropBall <- true
+                | ConfirmGoal(_, scorerId, isOwn) ->
+                    hasConfirmGoal <- true
+                    confirmGoalScorerId <- scorerId
+                    confirmGoalIsOwn <- isOwn
+                | AwardThrowIn team ->
+                    if restartOption = ValueNone then
+                        restartOption <- ValueSome(SetPieceKind.ThrowIn, team)
+                | AwardCorner team ->
+                    if restartOption = ValueNone then
+                        restartOption <- ValueSome(SetPieceKind.Corner, team)
+                | AwardGoalKick team ->
+                    if restartOption = ValueNone then
+                        restartOption <- ValueSome(SetPieceKind.GoalKick, team)
+                | _ -> ()
+
             let hasGKTimeWasting =
-                refActions
-                |> List.exists (function
-                    | AwardIndirectFreeKick _ -> true
-                    | _ -> false)
+                hasAwardIndirectFreeKick
                 && state.Ball.GKHoldSinceSubTick
                    |> Option.exists (fun since ->
                        state.SubTick - since
@@ -352,29 +393,22 @@ module RefereeAgent =
                     | None -> ()
                 | _ -> ()
 
-            let hasDropBall =
-                refActions
-                |> List.exists (function
-                    | DropBall _ -> true
-                    | _ -> false)
-
-            let hasConfirmGoal =
-                refActions
-                |> List.exists (function
-                    | ConfirmGoal _ -> true
-                    | _ -> false)
-
             let restart =
-                refActions
-                |> List.tryPick (function
-                    | AwardThrowIn team -> Some(SetPieceKind.ThrowIn, team)
-                    | AwardCorner team -> Some(SetPieceKind.Corner, team)
-                    | AwardGoalKick team -> Some(SetPieceKind.GoalKick, team)
-                    | AwardIndirectFreeKick team -> Some(SetPieceKind.FreeKick, team)
-                    | ConfirmGoal(team, scorerId, isOwn) -> Some(SetPieceKind.KickOff, team)
-                    | _ -> None)
-
-            let restart = if hasDropBall then None else restart
+                if hasDropBall then
+                    None
+                elif hasConfirmGoal then
+                    Some(
+                        SetPieceKind.KickOff,
+                        (match restartOption with
+                         | ValueSome(_, team) -> team
+                         | _ -> HomeClub)
+                    )
+                else if restartOption <> ValueNone then
+                    match restartOption with
+                    | ValueSome v -> Some v
+                    | _ -> None
+                else
+                    None
 
             let transition =
                 if hasDropBall then
@@ -382,23 +416,11 @@ module RefereeAgent =
                 elif hasConfirmGoal then
                     match restart with
                     | Some(SetPieceKind.KickOff, team) ->
-                        let scorerId =
-                            refActions
-                            |> List.tryPick (function
-                                | ConfirmGoal(_, sid, _) -> sid
-                                | _ -> None)
-
-                        let isOwn =
-                            refActions
-                            |> List.exists (function
-                                | ConfirmGoal(_, _, true) -> true
-                                | _ -> false)
-
                         Some(
                             MatchFlow.GoalPause
                                 { ScoringTeam = team
-                                  ScorerId = scorerId
-                                  IsOwnGoal = isOwn
+                                  ScorerId = confirmGoalScorerId
+                                  IsOwnGoal = confirmGoalIsOwn
                                   RemainingTicks = TickDelay.delayFrom clock state.Config.Timing.GoalDelay
                                   VARRequested = false }
                         )

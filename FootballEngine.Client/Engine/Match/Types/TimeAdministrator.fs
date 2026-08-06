@@ -25,7 +25,11 @@ module TimeAdministrator =
     let isFullTimeDecided (tracker: StoppageTimeTracker) = tracker.FullTimeDecided
 
     let entriesInHalf (tracker: StoppageTimeTracker) (halfTimeSubTick: int<subtick>) =
-        tracker.Entries |> List.filter (fun e -> e.SubTick <= int halfTimeSubTick)
+        tracker.Entries
+        |> Seq.filter (fun e -> e.SubTick <= int halfTimeSubTick)
+        |> Seq.toArray
 
     let entriesInSecondHalf (tracker: StoppageTimeTracker) (halfTimeSubTick: int<subtick>) =
-        tracker.Entries |> List.filter (fun e -> e.SubTick > int halfTimeSubTick)
+        tracker.Entries
+        |> Seq.filter (fun e -> e.SubTick > int halfTimeSubTick)
+        |> Seq.toArray

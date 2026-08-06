@@ -78,7 +78,7 @@ type StoppageTimeTracker() =
         this.FullTimeDecided <- true
         decided
 
-    member this.Entries = this.entries |> Seq.toList
+    member this.Entries = this.entries
 
     member this.AccumulatedByCategory =
         this.entries

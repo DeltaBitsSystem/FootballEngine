@@ -2,6 +2,7 @@ namespace FootballEngine.Types
 
 open FootballEngine.Domain
 
+[<Struct>]
 type RefereeProfile =
     | Permissive
     | Balanced

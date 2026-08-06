@@ -4,6 +4,7 @@ open FootballEngine.Domain
 open FootballEngine.Types
 open FootballEngine.Types.PhysicsContract
 
+[<Struct>]
 type FoulIntent =
     | Accidental
     | Tactical
@@ -137,6 +138,7 @@ module FoulAnalysis =
         else
             Trivial
 
+    [<Struct>]
     type CardDecision =
         | Yellow
         | Red
@@ -152,6 +154,7 @@ module FoulAnalysis =
         | SeriousFoulPlay, _ -> Some Red
         | ViolentConduct, _ -> Some Red
 
+[<Struct>]
 type FoulDecision =
     { Card: FoulAnalysis.CardDecision option
       Advantage: bool

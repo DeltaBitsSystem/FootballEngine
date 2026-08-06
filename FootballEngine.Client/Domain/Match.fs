@@ -12,6 +12,7 @@ module ClubSide =
         | HomeClub -> AwayClub
         | AwayClub -> HomeClub
 
+[<Struct>]
 type MatchPhase =
     | BuildUp
     | Midfield
