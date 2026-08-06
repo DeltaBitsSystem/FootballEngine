@@ -53,20 +53,6 @@ let weightsLoaderTests =
               Expect.equal actual.Shot.AngleSpreadBase expected.Shot.AngleSpreadBase "Shot.AngleSpreadBase"
               Expect.equal (float actual.Shot.VzBase) (float expected.Shot.VzBase) "Shot.VzBase"
               Expect.equal actual.Shot.VzVariance expected.Shot.VzVariance "Shot.VzVariance"
-              Expect.equal actual.Shot.OnTargetBase expected.Shot.OnTargetBase "Shot.OnTargetBase"
-              Expect.equal actual.Shot.OnTargetMultiplier expected.Shot.OnTargetMultiplier "Shot.OnTargetMultiplier"
-
-              Expect.equal
-                  actual.Shot.OnTargetDistDecayRate
-                  expected.Shot.OnTargetDistDecayRate
-                  "Shot.OnTargetDistDecayRate"
-
-              Expect.equal
-                  actual.Shot.OnTargetDistMaxPenalty
-                  expected.Shot.OnTargetDistMaxPenalty
-                  "Shot.OnTargetDistMaxPenalty"
-
-              Expect.equal actual.Shot.OnTargetDistDivisor expected.Shot.OnTargetDistDivisor "Shot.OnTargetDistDivisor"
 
               Expect.equal
                   (float actual.Shot.NormalisationDistance)
@@ -409,7 +395,6 @@ let weightsLoaderTests =
                   WeightsLoader.mergeWithDefaults emptyPartial BalanceConfig.defaultConfig
 
               Expect.equal result.Duel.DuelSteepness BalanceConfig.defaultConfig.Duel.DuelSteepness "DuelSteepness"
-              Expect.equal result.Shot.OnTargetBase BalanceConfig.defaultConfig.Shot.OnTargetBase "OnTargetBase"
 
               Expect.equal
                   result.Utility.PressZoneBonus_HighAttacking

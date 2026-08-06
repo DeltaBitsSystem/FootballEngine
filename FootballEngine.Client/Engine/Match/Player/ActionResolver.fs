@@ -156,12 +156,14 @@ module ActionResolver =
             result, []
 
         | OnBallIntent.LongBall _ ->
-            let result = PassAction.resolveLong subTick ctx state clock
-            result, []
+            match PassLauncher.launchLong subTick ctx state clock with
+            | Some launchResult -> { Events = launchResult.Events }, []
+            | None -> ActionResult.empty, []
 
         | OnBallIntent.PassIntoSpace targetCell ->
-            let result = PassAction.resolveIntoSpace subTick ctx state clock targetCell
-            result, []
+            match PassLauncher.launchSpace subTick ctx state clock targetCell with
+            | Some launchResult -> { Events = launchResult.Events }, []
+            | None -> ActionResult.empty, []
 
         | OnBallIntent.Tackle oppPid ->
             match findActivePlayer ctx state oppPid with
@@ -191,7 +193,10 @@ module ActionResolver =
                         let profile = roster.Profiles[meIdx]
 
                         match decideAction ctrl profile meIdx clubSide ctx state clock with
-                        | Some action -> resolveIntent subTick action ctx state clock
+                        | Some action ->
+                            match action with
+                            | OnBallIntent.Pass pid when pid = ctrl.Id -> ActionResult.empty, []
+                            | _ -> resolveIntent subTick action ctx state clock
                         | None ->
                             match state.Ball.Control with
                             | Controlled _

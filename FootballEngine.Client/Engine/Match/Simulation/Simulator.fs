@@ -72,7 +72,14 @@ module MatchSimulator =
 
         let finalState, events = runLoop ctx state clock takeSnapshotInt
 
-        JsonMatchDump.dumpMatch ctx.Home.Name ctx.Away.Name finalState.HomeScore finalState.AwayScore events
+        JsonMatchDump.dumpMatch
+            ctx.Home.Name
+            ctx.Away.Name
+            ctx.Home.Id
+            ctx.Away.Id
+            finalState.HomeScore
+            finalState.AwayScore
+            events
         |> ignore
 
         { Context = ctx

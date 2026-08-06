@@ -480,3 +480,8 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Generated profiling/telemetry (do not track)
+trace.nettrace
+trace.nettrace.etlx
+diag/

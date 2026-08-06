@@ -24,13 +24,7 @@ module ConfigValidation =
               <= 1.5,
               "Defender weights sum exceeds 1.5 — scores will be out of normalization range." ]
 
-    let validateShotConfig (cfg: ShotConfig) : ValidationError list =
-        errors
-            [ cfg.OnTargetBase >= 0.0 && cfg.OnTargetBase <= 1.0, "OnTargetBase must be in [0, 1]."
-              cfg.OnTargetDistMaxPenalty >= 0.0
-              && cfg.OnTargetDistMaxPenalty <= cfg.OnTargetBase,
-              "OnTargetDistMaxPenalty cannot exceed OnTargetBase (would produce negative probabilities)."
-              cfg.OnTargetDistDecayRate > 0.0, "OnTargetDistDecayRate must be positive." ]
+    let validateShotConfig (_cfg: ShotConfig) : ValidationError list = []
 
     let validateMatchVolumeConfig (cfg: MatchVolumeConfig) : ValidationError list =
         errors
@@ -64,12 +58,32 @@ module ConfigValidation =
             [ cfg.MaxTracesPerMatch >= 100 && cfg.MaxTracesPerMatch <= 10000,
               "MaxTracesPerMatch should be in [100, 10000]." ]
 
+    let validatePassConfig (cfg: PassConfig) : ValidationError list =
+        errors
+            [ cfg.FlightTimePerMeter > 0.0, "FlightTimePerMeter must be positive."
+              int cfg.FlightTimeMin > 0, "FlightTimeMin must be positive."
+              int cfg.FlightTimeMax > int cfg.FlightTimeMin, "FlightTimeMax must be greater than FlightTimeMin."
+              cfg.LongBallFlightTimePerMeter > 0.0, "LongBallFlightTimePerMeter must be positive."
+              int cfg.LongBallFlightTimeMin > 0, "LongBallFlightTimeMin must be positive."
+              int cfg.LongBallFlightTimeMax > int cfg.LongBallFlightTimeMin,
+              "LongBallFlightTimeMax must be greater than LongBallFlightTimeMin."
+              int cfg.ArrivalWindow > 0, "ArrivalWindow must be positive." ]
+
+    let validateGKPassConfig (cfg: GKConfig) : ValidationError list =
+        errors
+            [ int cfg.DistributionDecisionDelay >= 0, "DistributionDecisionDelay must be non-negative."
+              cfg.ShortDistributionBias >= 0.0 && cfg.ShortDistributionBias <= 1.0,
+              "ShortDistributionBias must be in [0, 1]."
+              float cfg.GKShortPassMaxDist > 0.0, "GKShortPassMaxDist must be positive." ]
+
     let validateAll (cfg: BalanceConfig) : ValidationError list =
         [ yield! validateDuelConfig cfg.Duel
           yield! validateShotConfig cfg.Shot
           yield! validateMatchVolumeConfig cfg.MatchVolume
           yield! validateMatchSituationConfig cfg.MatchSituation
           yield! validateDiagnosticsConfig cfg.Diagnostics
+          yield! validatePassConfig cfg.Pass
+          yield! validateGKPassConfig cfg.GK
           yield! validatePerformanceConfig PerformanceDefaults.duelPerformanceConfig
           yield! validatePerformanceConfig PerformanceDefaults.technicalPerformanceConfig
           yield! validatePerformanceConfig PerformanceDefaults.decisionPerformanceConfig ]

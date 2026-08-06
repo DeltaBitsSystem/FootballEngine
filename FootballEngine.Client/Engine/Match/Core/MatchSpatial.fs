@@ -206,7 +206,14 @@ module MatchSpatial =
             let ty = attFrame.Physics.PosY[targetIdx]
             passLaneClear bX bY tx ty defFrame
 
-        let visionWeight = float attRoster.Players[meIdx].Mental.Vision / 100.0
+        let visionWeight =
+            let ri =
+                match attFrame.Physics.Occupancy[meIdx] with
+                | OccupancyKind.Active ri -> ri
+                | _ -> meIdx
+
+            float attRoster.Players[ri].Mental.Vision / 100.0
+
         let mutable bestIdx = ValueNone
         let mutable bestScore = System.Double.MinValue
 

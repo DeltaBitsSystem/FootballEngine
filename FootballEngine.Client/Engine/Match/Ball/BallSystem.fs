@@ -45,7 +45,7 @@ module BallSystem =
             else
                 withStationary
 
-        let contact =
+        let contact, gkJudged =
             ContactResolver.find
                 withStationary
                 homeFrame
@@ -72,7 +72,13 @@ module BallSystem =
                 ctx
                 clock
 
-        let trajectoryAfter = updatedBall.Trajectory
+        let finalBall =
+            if gkJudged then
+                { updatedBall with GKJudged = true }
+            else
+                updatedBall
+
+        let trajectoryAfter = finalBall.Trajectory
 
         let launchDetected =
             match trajectoryBefore, trajectoryAfter with
@@ -80,7 +86,7 @@ module BallSystem =
             | Some t1, Some t2 -> int t1.LaunchSubTick <> int t2.LaunchSubTick
             | _ -> false
 
-        outputs.Add(DomainEvent.BallUpdate updatedBall)
+        outputs.Add(DomainEvent.BallUpdate finalBall)
 
         let delta =
             { PossessionChanged =

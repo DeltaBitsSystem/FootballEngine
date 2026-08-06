@@ -72,47 +72,35 @@ type DuelConfig =
     }
 
 type ShotConfig =
-    {
-        /// Base probability of shot going on target, before distance penalty.
-        /// Range: [0.30, 0.55]. Real football: ~33% on target overall.
-        OnTargetBase: float
-        /// Distance decay rate (meters) for exponential on-target penalty.
-        /// At 15.0: 10m→15% penalty, 20m→22%, 30m→26%.
-        OnTargetDistDecayRate: float
-        /// Maximum on-target penalty from distance. Must be < OnTargetBase.
-        OnTargetDistMaxPenalty: float
-        QualityGate: float
-        AngleSpreadBase: float
-        VzBase: float<meter / second>
-        VzVariance: float
-        OnTargetMultiplier: float
-        OnTargetDistDivisor: float
-        NormalisationDistance: float<meter>
-        DistanceToGoalMultiplier: float
-        FinishingMin: float
-        FinishingMax: float
-        FinishingBonusST: float
-        FinishingBonusAM: float
-        FinishingBonusMC: float
-        FinishingBonusOther: float
-        CondFactorDivisor: float
-        ComposureMultiplier: float
-        UrgencyMultiplier: float
-        BasePowerDivisor: float
-        SpinTopMultiplier: float
-        PositionDirectnessWeight: float
-        PositionDepthWeight: float
-        PositionCreativityWeight: float
-        DistNormWeight: float
-        PositionBonusWeight: float
-        HeavyTouchDivisor: float
-        HeavyTouchMultiplier: float
-        JitterStdDev: float
-        GkReflexesStatMult: float
-        GkOneOnOneStatMult: float
-        SaveDenominatorOffset: float
-        ShotWideMargin: float<meter>
-    }
+    { QualityGate: float
+      AngleSpreadBase: float
+      VzBase: float<meter / second>
+      VzVariance: float
+      NormalisationDistance: float<meter>
+      DistanceToGoalMultiplier: float
+      FinishingMin: float
+      FinishingMax: float
+      FinishingBonusST: float
+      FinishingBonusAM: float
+      FinishingBonusMC: float
+      FinishingBonusOther: float
+      CondFactorDivisor: float
+      ComposureMultiplier: float
+      UrgencyMultiplier: float
+      BasePowerDivisor: float
+      SpinTopMultiplier: float
+      PositionDirectnessWeight: float
+      PositionDepthWeight: float
+      PositionCreativityWeight: float
+      DistNormWeight: float
+      PositionBonusWeight: float
+      HeavyTouchDivisor: float
+      HeavyTouchMultiplier: float
+      JitterStdDev: float
+      GkReflexesStatMult: float
+      GkOneOnOneStatMult: float
+      SaveDenominatorOffset: float
+      ShotWideMargin: float<meter> }
 
 type PassConfig =
     { BaseMean: float
@@ -169,7 +157,14 @@ type PassConfig =
       ForwardDepthThreshold: float
       ForwardCreativityThreshold: float
       LongBallScrambleJitterMult: float
-      PassLeadFactor: float }
+      PassLeadFactor: float
+      FlightTimePerMeter: float
+      FlightTimeMin: int<subtick>
+      FlightTimeMax: int<subtick>
+      LongBallFlightTimePerMeter: float
+      LongBallFlightTimeMin: int<subtick>
+      LongBallFlightTimeMax: int<subtick>
+      ArrivalWindow: int<subtick> }
 
 type CrossConfig =
     { BaseMean: float
@@ -353,7 +348,10 @@ type GKConfig =
       SaveReflexesWeight: float
       SavePositioningWeight: float
       SaveSpeedFactor: float
-      SaveAngleFactor: float }
+      SaveAngleFactor: float
+      DistributionDecisionDelay: int<subtick>
+      ShortDistributionBias: float
+      GKShortPassMaxDist: float<meter> }
 
 type OutfieldReceptionConfig =
     { ReceptionBaseProbability: float
@@ -963,15 +961,10 @@ module BalanceConfig =
               FatigueThreshold = 50
               FatigueDecay = 0.04 }
           Shot =
-            { QualityGate = 0.15
-              AngleSpreadBase = 0.80
+            { QualityGate = 0.2
+              AngleSpreadBase = 0.15
               VzBase = LongBallVz
               VzVariance = 1.5
-              OnTargetBase = 0.25
-              OnTargetMultiplier = 0.20
-              OnTargetDistDecayRate = 15.0
-              OnTargetDistMaxPenalty = 0.15
-              OnTargetDistDivisor = 20.0
               NormalisationDistance = 30.0<meter>
               DistanceToGoalMultiplier = 0.15
               FinishingMin = 0.20
@@ -1052,7 +1045,14 @@ module BalanceConfig =
               ForwardDepthThreshold = 0.5
               ForwardCreativityThreshold = 0.4
               LongBallScrambleJitterMult = 2.0
-              PassLeadFactor = 0.30 }
+              PassLeadFactor = 0.30
+              FlightTimePerMeter = 1.5
+              FlightTimeMin = 40<subtick>
+              FlightTimeMax = 80<subtick>
+              LongBallFlightTimePerMeter = 1.0
+              LongBallFlightTimeMin = 60<subtick>
+              LongBallFlightTimeMax = 120<subtick>
+              ArrivalWindow = 10<subtick> }
           Cross =
             { BaseMean = 0.50
               CrossingWeight = 0.25
@@ -1172,7 +1172,10 @@ module BalanceConfig =
               SaveReflexesWeight = 0.30
               SavePositioningWeight = 0.20
               SaveSpeedFactor = 0.015
-              SaveAngleFactor = 0.01 }
+              SaveAngleFactor = 0.01
+              DistributionDecisionDelay = 10<subtick>
+              ShortDistributionBias = 0.6
+              GKShortPassMaxDist = 30.0<meter> }
           OutfieldReception =
             { ReceptionBaseProbability = 0.60
               BallControlWeight = 0.30

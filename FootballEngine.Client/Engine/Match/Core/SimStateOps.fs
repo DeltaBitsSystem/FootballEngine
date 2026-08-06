@@ -186,7 +186,8 @@ module SimStateOps =
           StationarySinceSubTick = None
           GKHoldSinceSubTick = None
           PlayerHoldSinceSubTick = None
-          Trajectory = None }
+          Trajectory = None
+          GKJudged = false }
 
     let resetBallForKickOff (receivingClub: ClubSide) (state: SimState) =
         state.LastAttackingClub <- receivingClub
@@ -215,7 +216,10 @@ module SimStateOps =
 
     let emitSemantic (event: SemanticEvent) (state: SimState) = state.PendingSemanticEvents.Add(event)
 
-    let drainSemanticEvents (state: SimState) : ResizeArray<SemanticEvent> = state.PendingSemanticEvents
+    let drainSemanticEvents (state: SimState) : ResizeArray<SemanticEvent> =
+        let copy = ResizeArray<SemanticEvent>(state.PendingSemanticEvents)
+        state.PendingSemanticEvents.Clear()
+        copy
 
     let losePossession (state: SimState) =
         match state.Ball.Control with

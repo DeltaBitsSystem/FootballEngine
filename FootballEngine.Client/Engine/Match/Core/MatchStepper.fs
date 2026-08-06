@@ -585,8 +585,6 @@ module MatchStepper =
             BallSystem.run ctx state clock state.TickDomainOutputs
             applyDomainEvents state events state.TickDomainOutputs
 
-            state.PendingSemanticEvents.Clear()
-
             runLiveSystems ctx clock state events time semanticEvents
 
         if

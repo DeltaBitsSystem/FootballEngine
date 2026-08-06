@@ -147,7 +147,14 @@ module CognitiveFrameModule =
                 pressure[i] <- minOppDistSq
 
                 // Best pass target using precomputed lane-clearance cache
-                let visionWeight = float ownRoster.Players[i].Mental.Vision / 100.0
+                let visionWeight =
+                    let ri =
+                        match ownFrame.Physics.Occupancy[i] with
+                        | OccupancyKind.Active ri -> ri
+                        | _ -> i
+
+                    float ownRoster.Players[ri].Mental.Vision / 100.0
+
                 let mutable bestPTIdx = -1s
                 let mutable bestPTScore = System.Double.MinValue
                 let baseIdx = i * n

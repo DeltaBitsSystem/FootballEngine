@@ -17,7 +17,6 @@ module ContactResolver =
         | Interceptor of Player * ClubSide
         | Contested of ClubSide
         | OutOfBounds of BoundarySide
-        | GoalScored
         | NoContact
 
     let private isBallArrivingToPlayer
@@ -46,7 +45,7 @@ module ContactResolver =
                     let normX = toPlayerX / toPlayerLen
                     let normY = toPlayerY / toPlayerLen
                     let convergence = float (ballPos.Vx * normX + ballPos.Vy * normY)
-                    convergence < float convergenceThreshold
+                    convergence > float convergenceThreshold
 
     let private checkFrame
         (frame: TeamFrame)
@@ -127,9 +126,9 @@ module ContactResolver =
         (ballPos: Spatial)
         (shotSpeed: float)
         (shotAngleDeg: float)
-        : Contact =
+        : Contact * bool =
         match findGK defFrame defRoster with
-        | None -> NoContact
+        | None -> NoContact, false
         | Some gkIdx ->
             let gk = defRoster.Players[defIdx defFrame gkIdx]
             let gkX = float defFrame.Physics.PosX[gkIdx] * 1.0<meter>
@@ -143,7 +142,7 @@ module ContactResolver =
             let saveRadius = gkCfg.DiveReach + gkCfg.CollectionRadius
 
             if gkDistToBall > float saveRadius then
-                NoContact
+                NoContact, false
             else
                 let reflexNorm = float gk.Mental.Positioning / 20.0
                 let positioningNorm = float gk.Mental.Vision / 20.0
@@ -162,9 +161,9 @@ module ContactResolver =
                 let clampedProb = max 0.0 (min 1.0 saveProb)
 
                 if Stats.bernoulli clampedProb then
-                    IntendedReceiver(gk, defSide)
+                    IntendedReceiver(gk, defSide), true
                 else
-                    NoContact
+                    NoContact, true
 
     let private evaluateArrival (iw: InterceptionWeights) (ctx: ArrivalContext) : Contact =
         let anticipationBonus =
@@ -181,7 +180,7 @@ module ContactResolver =
         let kickerId =
             match ctx.Intent with
             | Aimed(kickerId, _, _, _) -> Some kickerId
-            | Struck(kickerId, _, _, _) -> Some kickerId
+            | Struck(kickerId, _, _, _, _) -> Some kickerId
             | Cleared(kickerId) -> Some kickerId
             | Uncontrolled -> None
 
@@ -305,58 +304,47 @@ module ContactResolver =
         (traj: BallTrajectory option)
         (currentSubTick: int)
         (attDir: AttackDir)
-        : Contact =
+        : Contact * bool =
         let ballPos = ball.Position
 
         if ballPos.Y <= 0.1<meter> then
-            OutOfBounds Bottom
+            OutOfBounds Bottom, false
         elif ballPos.Y >= PitchWidth - 0.1<meter> then
-            OutOfBounds Top
-        elif ballPos.X <= 0.1<meter> then
-            OutOfBounds Left
-        elif ballPos.X >= PitchLength - 0.1<meter> then
-            OutOfBounds Right
+            OutOfBounds Top, false
+        elif ballPos.X <= GoalLineAway then
+            OutOfBounds Left, false
+        elif ballPos.X >= GoalLineHome then
+            OutOfBounds Right, false
         else
             match traj with
             | Some t ->
                 match t.Intent with
-                | Struck(shooterId, quality, shotSpeed, shotAngleDeg) ->
-                    let shooterClub =
-                        if homeRoster.Players |> Array.exists (fun p -> p.Id = shooterId) then
-                            HomeClub
-                        else
-                            AwayClub
+                | Struck(shooterId, quality, shotSpeed, shotAngleDeg, _xg) ->
+                    if ball.GKJudged then
+                        NoContact, false
+                    else
+                        let shooterClub =
+                            if homeRoster.Players |> Array.exists (fun p -> p.Id = shooterId) then
+                                HomeClub
+                            else
+                                AwayClub
 
-                    let defSide = ClubSide.flip shooterClub
-                    let defFrame = if defSide = HomeClub then homeFrame else awayFrame
-                    let defRoster = if defSide = HomeClub then homeRoster else awayRoster
+                        let defSide = ClubSide.flip shooterClub
+                        let defFrame = if defSide = HomeClub then homeFrame else awayFrame
+                        let defRoster = if defSide = HomeClub then homeRoster else awayRoster
 
-                    let gkResult =
-                        evaluateShotSave gkCfg defFrame defRoster defSide ballPos shotSpeed shotAngleDeg
+                        let gkResult, gkJudged =
+                            evaluateShotSave gkCfg defFrame defRoster defSide ballPos shotSpeed shotAngleDeg
 
-                    match gkResult with
-                    | IntendedReceiver _ -> gkResult
-                    | _ ->
-                        if
-                            shouldTriggerArrival ball homeFrame awayFrame homeRoster awayRoster cfg traj currentSubTick
-                        then
-                            let ctx =
-                                { BallPos = ballPos
-                                  TargetId = t.KickerId
-                                  Quality = quality
-                                  Intent = t.Intent
-                                  HomeFrame = homeFrame
-                                  AwayFrame = awayFrame
-                                  HomeRoster = homeRoster
-                                  AwayRoster = awayRoster
-                                  PhysicsCfg = cfg }
-
-                            evaluateArrival iw ctx
-                        else
-                            NoContact
+                        gkResult, gkJudged
 
                 | Aimed(passerId, targetId, quality, kind) ->
-                    if shouldTriggerArrival ball homeFrame awayFrame homeRoster awayRoster cfg traj currentSubTick then
+                    let arrivedByTime = currentSubTick >= int t.EstimatedArrivalSubTick
+
+                    if
+                        arrivedByTime
+                        && shouldTriggerArrival ball homeFrame awayFrame homeRoster awayRoster cfg traj currentSubTick
+                    then
                         let ctx =
                             { BallPos = ballPos
                               TargetId = targetId
@@ -368,9 +356,9 @@ module ContactResolver =
                               AwayRoster = awayRoster
                               PhysicsCfg = cfg }
 
-                        evaluateArrival iw ctx
+                        evaluateArrival iw ctx, false
                     else
-                        NoContact
+                        NoContact, false
 
                 | Cleared _
                 | Uncontrolled ->
@@ -386,9 +374,9 @@ module ContactResolver =
                               AwayRoster = awayRoster
                               PhysicsCfg = cfg }
 
-                        evaluateArrival iw ctx
+                        evaluateArrival iw ctx, false
                     else
-                        NoContact
+                        NoContact, false
 
             | None ->
                 if shouldTriggerArrival ball homeFrame awayFrame homeRoster awayRoster cfg traj currentSubTick then
@@ -403,6 +391,6 @@ module ContactResolver =
                           AwayRoster = awayRoster
                           PhysicsCfg = cfg }
 
-                    evaluateArrival iw ctx
+                    evaluateArrival iw ctx, false
                 else
-                    NoContact
+                    NoContact, false

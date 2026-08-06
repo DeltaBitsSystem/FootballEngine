@@ -365,19 +365,20 @@ module PassAction =
             let mutable bestFwdY = 0.0f
 
             for i = 0 to attFrame.SlotCount - 1 do
-                match attFrame.Physics.Occupancy[i] with
-                | OccupancyKind.Active _ ->
-                    let profile = attRoster.Profiles[i]
+                if i <> passerIdx then
+                    match attFrame.Physics.Occupancy[i] with
+                    | OccupancyKind.Active _ ->
+                        let profile = attRoster.Profiles[i]
 
-                    if
-                        profile.AttackingDepth > pc.ForwardDepthThreshold
-                        || profile.CreativityWeight > pc.ForwardCreativityThreshold
-                    then
-                        if bestFwdIdx < 0 then
-                            bestFwdIdx <- i
-                            bestFwdX <- attFrame.Physics.PosX[i]
-                            bestFwdY <- attFrame.Physics.PosY[i]
-                | _ -> ()
+                        if
+                            profile.AttackingDepth > pc.ForwardDepthThreshold
+                            || profile.CreativityWeight > pc.ForwardCreativityThreshold
+                        then
+                            if bestFwdIdx < 0 then
+                                bestFwdIdx <- i
+                                bestFwdX <- attFrame.Physics.PosX[i]
+                                bestFwdY <- attFrame.Physics.PosY[i]
+                    | _ -> ()
 
             let longMean =
                 pc.LongBallBaseMean

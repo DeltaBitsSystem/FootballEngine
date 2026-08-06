@@ -118,7 +118,7 @@ module AgentContext =
                             ValueNone
 
                     let bpIdx =
-                        if cf.BestPassTargetIdx[meIdx] >= 0s then
+                        if cf.BestPassTargetIdx[meIdx] >= 0s && int cf.BestPassTargetIdx[meIdx] <> meIdx then
                             ValueSome(int cf.BestPassTargetIdx[meIdx])
                         else
                             ValueNone

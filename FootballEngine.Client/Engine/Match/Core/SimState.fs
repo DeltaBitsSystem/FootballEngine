@@ -94,7 +94,8 @@ type SimState() =
           StationarySinceSubTick = None
           GKHoldSinceSubTick = None
           PlayerHoldSinceSubTick = None
-          Trajectory = None } with get, set
+          Trajectory = None
+          GKJudged = false } with get, set
 
     member val LastAttackingClub = HomeClub with get, set
 

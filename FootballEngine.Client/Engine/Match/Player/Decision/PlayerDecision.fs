@@ -1,5 +1,6 @@
 namespace FootballEngine.Player.Decision
 
+open FootballEngine
 open FootballEngine.Domain
 
 
@@ -118,8 +119,7 @@ module PlayerDecision =
 
                   match ctx.BestPassTargetIdx with
                   | ValueSome idx ->
-                      let targetPid = ctx.Team.OwnRoster.Players[idx].Id
-                      yield s, OnBallIntent.Pass targetPid
+                      yield s, OnBallIntent.Pass(SlotAccess.playerIdAtSlot ctx.Team.OwnFrame ctx.Team.OwnRoster idx)
                   | ValueNone -> ()
 
               match spacePassCandidate with
@@ -140,7 +140,7 @@ module PlayerDecision =
                   let s = float scores.LongBall * (1.0 + ctx.Urgency * 0.15)
 
                   if s > float longBallThreshold then
-                      let targetPid = ctx.Team.OwnRoster.Players[idx].Id
+                      let targetPid = SlotAccess.playerIdAtSlot ctx.Team.OwnFrame ctx.Team.OwnRoster idx
                       yield s, OnBallIntent.LongBall targetPid
               | _ -> () ]
 

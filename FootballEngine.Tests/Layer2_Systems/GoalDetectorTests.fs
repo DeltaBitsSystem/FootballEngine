@@ -21,7 +21,8 @@ let private makeBallAt (x: float<meter>) (y: float<meter>) (z: float<meter>) : B
       StationarySinceSubTick = None
       GKHoldSinceSubTick = None
       PlayerHoldSinceSubTick = None
-      Trajectory = None }
+      Trajectory = None
+      GKJudged = false }
 
 let goalDetectorTests =
     testList

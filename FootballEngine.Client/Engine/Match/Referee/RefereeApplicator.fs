@@ -18,7 +18,8 @@ module RefereeApplicator =
           StationarySinceSubTick = None
           GKHoldSinceSubTick = None
           PlayerHoldSinceSubTick = None
-          Trajectory = None }
+          Trajectory = None
+          GKJudged = false }
 
     let private awardGoal
         (scoringClub: ClubSide)

@@ -153,7 +153,7 @@ module PhysicsContract =
     let BallGroundRestitution = 0.55
 
     [<Literal>]
-    let BallGroundFriction = 0.92
+    let BallGroundFriction = 0.998
 
     [<Literal>]
     let BallPostRestitution = 0.65

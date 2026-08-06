@@ -17,15 +17,10 @@
     "FatigueDecay": 0.04
   },
   "Shot": {
-    "OnTargetBase": 0.25,
-    "OnTargetDistDecayRate": 15,
-    "OnTargetDistMaxPenalty": 0.15,
     "QualityGate": 0.35,
-    "AngleSpreadBase": 0.8,
+    "AngleSpreadBase": 0.15,
     "VzBase": 5,
     "VzVariance": 1.5,
-    "OnTargetMultiplier": 0.2,
-    "OnTargetDistDivisor": 20,
     "NormalisationDistance": 30,
     "DistanceToGoalMultiplier": 0.15,
     "FinishingMin": 0.2,

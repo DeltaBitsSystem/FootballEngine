@@ -39,37 +39,6 @@ module OutcomeResolver =
         | LeftToRight -> PitchLength
         | RightToLeft -> 0.0<meter>
 
-    let private shotAngle (ballPos: Spatial) (dir: AttackDir) : float =
-        let goalX = goalCenterX dir
-        let goalY = (PostNearY + PostFarY) / 2.0
-        let dx = float (goalX - ballPos.X)
-        let dy = float (goalY - ballPos.Y)
-        let dist = sqrt (dx * dx + dy * dy)
-
-        if dist < 0.01 then
-            180.0
-        else
-            let halfWidth = (PostFarY - PostNearY) / 2.0<meter>
-            let angleRad = atan (float halfWidth / dist)
-            angleRad * 180.0 / System.Math.PI * 2.0
-
-    let private shotDistance (ballPos: Spatial) (dir: AttackDir) : float<meter> =
-        let goalX = goalCenterX dir
-        let goalY = (PostNearY + PostFarY) / 2.0
-        let dx = goalX - ballPos.X
-        let dy = goalY - ballPos.Y
-        sqrt (dx * dx + dy * dy)
-
-    let private trackXG (state: SimState) (shooterClub: ClubSide) (ballPos: Spatial) (shootingDir: AttackDir) =
-        let dist = shotDistance ballPos shootingDir
-        let angle = shotAngle ballPos shootingDir
-        let xg = Player.Actions.xGCalculator.baseXG dist angle state.Config.XG
-
-        if shooterClub = HomeClub then
-            state.HomeXG <- state.HomeXG + xg
-        else
-            state.AwayXG <- state.AwayXG + xg
-
     let resolve
         (state: SimState)
         (contact: ContactResolver.Contact)
@@ -156,10 +125,16 @@ module OutcomeResolver =
             | Some traj ->
                 match traj.Intent with
                 | Aimed(passerId, targetId, quality, RegularPass)
-                | Aimed(passerId, targetId, quality, AimedKind.LongBall) ->
+                | Aimed(passerId, targetId, quality, AimedKind.LongBall)
+                | Aimed(passerId, targetId, quality, AimedKind.Cross) ->
                     let isLongBall =
                         match traj.Intent with
                         | Aimed(_, _, _, AimedKind.LongBall) -> true
+                        | _ -> false
+
+                    let isCross =
+                        match traj.Intent with
+                        | Aimed(_, _, _, AimedKind.Cross) -> true
                         | _ -> false
 
                     let attClubId =
@@ -174,6 +149,8 @@ module OutcomeResolver =
                     let passEvent success =
                         if isLongBall then
                             [ createEvent (subTick * 1<subtick>) passerId attClubId (MatchEventType.LongBall success) ]
+                        elif isCross then
+                            [ createEvent (subTick * 1<subtick>) passerId attClubId (PassCompleted(passerId, targetId)) ]
                         else
                             [ createEvent (subTick * 1<subtick>) passerId attClubId (PassCompleted(passerId, targetId)) ]
 
@@ -186,13 +163,15 @@ module OutcomeResolver =
                         - orCfg.BallSpeedPenalty
                           * float (sqrt (ball.Position.Vx * ball.Position.Vx + ball.Position.Vy * ball.Position.Vy))
 
+                    let controlProbClamped = clamp controlProb 0.0 orCfg.ReceptionMaxProbability
+
                     let withCtrl (e: MatchEvent) =
                         { e with
                             Context =
                                 { e.Context with
-                                    ControlProb = Some controlProb } }
+                                    ControlProb = Some controlProbClamped } }
 
-                    if bernoulli (clamp controlProb 0.0 orCfg.ReceptionMaxProbability) then
+                    if bernoulli controlProbClamped then
                         PossessionGained(club, player, passEvent true |> List.map withCtrl),
                         { ball with
                             Control = Controlled(club, player.Id)
@@ -204,7 +183,7 @@ module OutcomeResolver =
                             Control = Free
                             LastTouchBy = Some player.Id
                             Trajectory = None }
-                | Struck(shooterId, quality, shotSpeed, shotAngle) ->
+                | Struck(shooterId, quality, shotSpeed, shotAngle, xg) ->
                     let shootingDir = attDir
 
                     let shooterClub =
@@ -213,7 +192,10 @@ module OutcomeResolver =
                         else
                             AwayClub
 
-                    trackXG state shooterClub ball.Position shootingDir
+                    if shooterClub = HomeClub then
+                        state.HomeXG <- state.HomeXG + xg
+                    else
+                        state.AwayXG <- state.AwayXG + xg
 
                     if isInGoal ball.Position.X ball.Position.Y ball.Position.Z shootingDir then
                         GoalScored(shooterClub, Some shooterId),
@@ -221,6 +203,13 @@ module OutcomeResolver =
                             Control = Free
                             Trajectory = None }
                     else
+                        let onTargetEvt =
+                            createEvent
+                                (subTick * 1<subtick>)
+                                shooterId
+                                (if shooterClub = HomeClub then ctx.Home.Id else ctx.Away.Id)
+                                ShotOnTarget
+
                         let saveEvt =
                             createEvent
                                 (subTick * 1<subtick>)
@@ -231,7 +220,8 @@ module OutcomeResolver =
                         PossessionGained(
                             club,
                             player,
-                            [ { saveEvt with
+                            [ onTargetEvt
+                              { saveEvt with
                                   Context =
                                       { saveEvt.Context with
                                           GKSaveAttempt = Some true
@@ -293,30 +283,43 @@ module OutcomeResolver =
                 Control = Contesting club
                 Trajectory = None }
 
-        | ContactResolver.GoalScored ->
-            let shooterClub =
-                match ball.Trajectory with
-                | Some { Intent = Struck(shooterId, _, _, _) } ->
-                    if homeRoster.Players |> Array.exists (fun p -> p.Id = shooterId) then
-                        HomeClub
-                    else
-                        AwayClub
-                | _ -> state.AttackingSide
-
-            GoalScored(shooterClub, ball.LastTouchBy),
-            { ball with
-                Control = Free
-                Trajectory = None }
-
         | ContactResolver.NoContact ->
-            let vSq =
-                ball.Position.Vx * ball.Position.Vx
-                + ball.Position.Vy * ball.Position.Vy
-                + ball.Position.Vz * ball.Position.Vz
+            match ball.Trajectory with
+            | Some traj ->
+                match traj.Intent with
+                | Struck(shooterId, quality, shotSpeed, shotAngle, _xg) ->
+                    let shooterClub =
+                        if homeRoster.Players |> Array.exists (fun p -> p.Id = shooterId) then
+                            HomeClub
+                        else
+                            AwayClub
 
-            if vSq < 1.0<meter / second> * 1.0<meter / second> then
-                BallLoose [], { ball with Control = Free }
-            else
-                NoChange, ball
+                    if isInGoal ball.Position.X ball.Position.Y ball.Position.Z attDir then
+                        GoalScored(shooterClub, Some shooterId),
+                        { ball with
+                            Control = Free
+                            Trajectory = None }
+                    else
+                        BallInFlight, ball
+                | _ ->
+                    let vSq =
+                        ball.Position.Vx * ball.Position.Vx
+                        + ball.Position.Vy * ball.Position.Vy
+                        + ball.Position.Vz * ball.Position.Vz
+
+                    if vSq < 1.0<meter / second> * 1.0<meter / second> then
+                        BallLoose [], { ball with Control = Free }
+                    else
+                        NoChange, ball
+            | None ->
+                let vSq =
+                    ball.Position.Vx * ball.Position.Vx
+                    + ball.Position.Vy * ball.Position.Vy
+                    + ball.Position.Vz * ball.Position.Vz
+
+                if vSq < 1.0<meter / second> * 1.0<meter / second> then
+                    BallLoose [], { ball with Control = Free }
+                else
+                    NoChange, ball
 
         | _ -> NoChange, ball

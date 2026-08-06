@@ -88,7 +88,8 @@ module SetPlayAction =
                   EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
                   KickerId = kicker.Id
                   PeakHeight = vz * vz / (2.0 * 9.80665<meter / second^2>)
-                  Intent = Struck(kicker.Id, quality / 2.0, float spc.FreeKickSpeed, angle * 180.0 / System.Math.PI) }
+                  Intent =
+                    Struck(kicker.Id, quality / 2.0, float spc.FreeKickSpeed, angle * 180.0 / System.Math.PI, 0.0) }
 
             let wallSize = calculateWallSize distToGoal
             let wallPlayers = selectWallPlayers defRoster attFrame goalX bY wallSize
@@ -460,7 +461,7 @@ module SetPlayAction =
               EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
               KickerId = kicker.Id
               PeakHeight = vz * vz / (2.0 * 9.80665<meter / second^2>)
-              Intent = Struck(kicker.Id, kickerPower, float speed, angle * 180.0 / System.Math.PI) }
+              Intent = Struck(kicker.Id, kickerPower, float speed, angle * 180.0 / System.Math.PI, 0.0) }
 
         state.Ball <-
             { state.Ball with

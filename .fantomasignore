@@ -1,0 +1,11 @@
+paket-files/
+packages/
+node_modules/
+build/
+.git/
+**/obj/**
+**/bin/**
+Data/
+screenshots/
+.kilo/
+.opencode/

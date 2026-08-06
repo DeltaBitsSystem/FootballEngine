@@ -1,0 +1,12 @@
+{
+  "indent_size": 4,
+  "indent_style": "space",
+  "max_line_length": 120,
+  "newlines_before_comma_in_arg_list": 0,
+  "newlines_between_type_members": 1,
+  "newlines_before_record_definition": 0,
+  "newlines_before_with_keyword": 1,
+  "align_function_parameter_to_parenthesis": false,
+  "auto_open": "false",
+  "keep_max_number_of_blank_lines": 1
+}

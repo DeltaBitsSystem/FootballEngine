@@ -51,6 +51,7 @@
 
 
         <Compile Include="Engine\Match\Types\Primitives.fs"/>
+        <Compile Include="Engine\Match\Types\PassTarget.fs"/>
         <Compile Include="Engine\Match\Types\VARTypes.fs"/>
         <Compile Include="Engine\Match\Types\MatchPrimitives.fs"/>
 
@@ -93,6 +94,7 @@
         <Compile Include="Engine\Match\Core\MatchSpatial.fs"/>
         <Compile Include="Engine\Match\Core\MatchContext.fs"/>
         <Compile Include="Engine\Match\Core\SimStateOps.fs"/>
+        <Compile Include="Engine\Match\Core\SlotAccess.fs"/>
         <Compile Include="Engine\Match\Core\MatchSituationBuilder.fs"/>
         <Compile Include="Engine\Match\Core\MathPipelines.fs"/>
 
@@ -139,6 +141,8 @@
         <Compile Include="Engine\Match\Player\Actions\SetPiecePositioning.fs"/>
         <Compile Include="Engine\Match\Player\Actions\DuelAction.fs"/>
         <Compile Include="Engine\Match\Player\Actions\ShotAction.fs"/>
+        <Compile Include="Engine\Match\Player\Actions\PassDecision.fs"/>
+        <Compile Include="Engine\Match\Player\Actions\PassLauncher.fs"/>
         <Compile Include="Engine\Match\Player\Actions\PassAction.fs"/>
         <Compile Include="Engine\Match\Player\Actions\CrossAction.fs"/>
         <Compile Include="Engine\Match\Player\Actions\GKAction.fs"/>
@@ -168,7 +172,6 @@
 
         <Compile Include="Engine\Match\Ball\BallPhysics.fs"/>
         <Compile Include="Engine\Match\Ball\Interception.fs"/>
-        <Compile Include="Engine\Match\Ball\BallAgent.fs"/>
         <Compile Include="Engine\Match\Ball\ContactResolver.fs"/>
         <Compile Include="Engine\Match\Ball\OutcomeResolver.fs"/>
         <Compile Include="Engine\Match\Ball\BallSystem.fs"/>
@@ -190,6 +193,7 @@
         <Compile Include="Engine\Match\Simulation\Momentum.fs"/>
 
         <Compile Include="Engine\Match\Simulation\SnapshotBuilder.fs"/>
+        <Compile Include="Engine\Match\Logging\MatchAccumulator.fs"/>
         <Compile Include="Engine\Match\Logging\JsonMatchDump.fs"/>
         <Compile Include="Engine\Match\Simulation\Simulator.fs"/>
 

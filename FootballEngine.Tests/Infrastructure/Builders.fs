@@ -422,7 +422,8 @@ let defaultBallState: BallPhysicsState =
       StationarySinceSubTick = None
       GKHoldSinceSubTick = None
       PlayerHoldSinceSubTick = None
-      Trajectory = None }
+      Trajectory = None
+      GKJudged = false }
 
 let emptyInfluence =
     InfluenceTypes.emptyInfluenceFrame BalanceConfig.defaultConfig.Influence

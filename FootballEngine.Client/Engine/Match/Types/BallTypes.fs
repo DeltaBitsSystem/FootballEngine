@@ -11,7 +11,7 @@ type AimedKind =
 
 type InFlightIntent =
     | Aimed of passerId: PlayerId * targetId: PlayerId * quality: float * kind: AimedKind
-    | Struck of shooterId: PlayerId * quality: float * shotSpeed: float * shotAngleDeg: float
+    | Struck of shooterId: PlayerId * quality: float * shotSpeed: float * shotAngleDeg: float * xG: float
     | Cleared of playerId: PlayerId
     | Uncontrolled
 
@@ -42,7 +42,8 @@ type BallPhysicsState =
       StationarySinceSubTick: int<subtick> option
       GKHoldSinceSubTick: int<subtick> option
       PlayerHoldSinceSubTick: int<subtick> option
-      Trajectory: BallTrajectory option }
+      Trajectory: BallTrajectory option
+      GKJudged: bool }
 
 type ArrivalContext =
     { BallPos: Spatial

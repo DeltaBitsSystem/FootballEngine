@@ -64,14 +64,7 @@ module ShotAction =
 
             if not inChance then
                 losePossession state
-
-                { Events =
-                    [| Emit
-                           { SubTick = subTick
-                             PlayerId = shooter.Id
-                             ClubId = attClubId
-                             Type = ShotOffTarget
-                             Context = EventContext.empty } |] }
+                ActionResult.empty
             else
                 let quality =
                     let distToGoal = PhysicsContract.distToGoal bX actx.Att.AttackDir
@@ -86,14 +79,7 @@ module ShotAction =
 
                 if quality < sc.QualityGate then
                     losePossession state
-
-                    { Events =
-                        [| Emit
-                               { SubTick = subTick
-                                 PlayerId = shooter.Id
-                                 ClubId = attClubId
-                                 Type = ShotOffTarget
-                                 Context = EventContext.empty } |] }
+                    ActionResult.empty
                 else
                     let attTactics = getTactics state actx.Att.ClubSide
                     let attInstructions = getInstructions state actx.Att.ClubSide
@@ -157,17 +143,6 @@ module ShotAction =
                             * 1.0<radianPerSecond>
                           Side = 0.0<radianPerSecond> }
 
-                    let trajectory =
-                        { OriginX = bX
-                          OriginY = bY
-                          TargetX = goalX
-                          TargetY = targetY
-                          LaunchSubTick = subTick * 1<subtick>
-                          EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
-                          KickerId = shooter.Id
-                          PeakHeight = peakHeight
-                          Intent = Struck(shooter.Id, quality, float speed, angle * 180.0 / Math.PI) }
-
                     let angleToGoal =
                         let dy = abs (targetY - bY)
                         let dx = abs (goalX - bX)
@@ -189,6 +164,22 @@ module ShotAction =
 
                     let xgValue = xGCalculator.calculate xgModel state.Config.XG
 
+                    if actx.Att.ClubSide = HomeClub then
+                        state.HomeXG <- state.HomeXG + xgValue
+                    else
+                        state.AwayXG <- state.AwayXG + xgValue
+
+                    let trajectory =
+                        { OriginX = bX
+                          OriginY = bY
+                          TargetX = goalX
+                          TargetY = targetY
+                          LaunchSubTick = subTick * 1<subtick>
+                          EstimatedArrivalSubTick = arrivalSubTick * 1<subtick>
+                          KickerId = shooter.Id
+                          PeakHeight = peakHeight
+                          Intent = Struck(shooter.Id, quality, float speed, angle * 180.0 / Math.PI, xgValue) }
+
                     let newBall =
                         { state.Ball with
                             Position =
@@ -201,7 +192,8 @@ module ShotAction =
                             LastTouchBy = Some shooter.Id
                             Control = Airborne
                             Trajectory = Some trajectory
-                            PendingOffsideSnapshot = None }
+                            PendingOffsideSnapshot = None
+                            GKJudged = false }
 
                     let momentumDelta = forwardX actx.Att.AttackDir * ctx.Config.Duel.MomentumBonus
 

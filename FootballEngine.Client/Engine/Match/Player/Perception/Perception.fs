@@ -1,5 +1,6 @@
 namespace FootballEngine.Player.Perception
 
+open FootballEngine
 open FootballEngine.Domain
 open FootballEngine.MatchSpatial
 open FootballEngine.Types
@@ -194,7 +195,15 @@ module Perception =
         let mutable bestIdx = -1
         let mutable bestScore = -1.0
         let mutable bestPos = defaultSpatial 0.0<meter> 0.0<meter>
-        let visionWeight = float attRoster.Players[meIdx].Mental.Vision / 100.0
+
+        let visionWeight =
+            let ri =
+                match attFrame.Physics.Occupancy[meIdx] with
+                | OccupancyKind.Active ri -> ri
+                | _ -> meIdx
+
+            float attRoster.Players[ri].Mental.Vision / 100.0
+
         let forwardDir = if dir = LeftToRight then 1.0 else -1.0
 
         for i = 0 to attFrame.SlotCount - 1 do

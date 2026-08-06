@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="100%" style="stop-color:#020617"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:0.25"/>
+      <stop offset="60%" style="stop-color:#10b981;stop-opacity:0.08"/>
+      <stop offset="100%" style="stop-color:#10b981;stop-opacity:0"/>
+    </radialGradient>
+    <clipPath id="ballClip">
+      <circle cx="128" cy="128" r="85"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="256" height="256" rx="48" fill="url(#bg)"/>
+
+  <!-- Emerald glow -->
+  <circle cx="128" cy="128" r="110" fill="url(#glow)"/>
+
+  <!-- Ball clipped to circle -->
+  <g clip-path="url(#ballClip)">
+    <!-- White ball base -->
+    <circle cx="128" cy="128" r="85" fill="#f1f5f9"/>
+
+    <!-- Central dark pentagon -->
+    <polygon points="128,104 150.85,120.76 141.73,146.24 114.27,146.24 105.15,120.76" fill="#1e293b"/>
+
+    <!-- 5 white hexagons around center -->
+    <polygon points="139.4,104 147.3,109.15 147.3,120.15 139.4,125.3 131.5,120.15 131.5,109.15" fill="#f1f5f9"/>
+    <polygon points="150.85,120.76 155.93,130.66 149.34,139.67 140.42,139.67 133.83,130.66 138.91,120.76" fill="#f1f5f9"/>
+    <polygon points="141.73,146.24 139.48,156.83 131.0,160.65 123.5,156.83 121.25,146.24 129.73,142.42" fill="#f1f5f9"/>
+    <polygon points="114.27,146.24 109.19,156.83 100.71,160.65 93.21,156.83 90.96,146.24 99.44,142.42" fill="#f1f5f9"/>
+    <polygon points="105.15,120.76 100.07,130.66 93.48,139.67 84.56,139.67 77.97,130.66 83.05,120.76" fill="#f1f5f9"/>
+
+    <!-- 5 dark pentagons around the outer ring -->
+    <polygon points="159.45,88.19 169.48,95.4 165.58,106.44 153.32,106.44 149.42,95.4" fill="#1e293b"/>
+    <polygon points="173.3,133.39 176.09,145.04 168.1,153.67 157.99,148.23 155.19,136.59" fill="#1e293b"/>
+    <polygon points="144.67,171.45 140.29,182.49 131.19,185.52 124.81,182.49 120.43,171.45" fill="#1e293b"/>
+    <polygon points="96.33,161.39 88.34,170.02 80.35,164.58 83.14,152.94 92.5,147.74" fill="#1e293b"/>
+    <polygon points="82.7,113.39 79.91,101.74 87.9,93.11 98.01,98.55 100.81,110.19" fill="#1e293b"/>
+  </g>
+
+  <!-- Subtle ball outline for definition -->
+  <circle cx="128" cy="128" r="85" fill="none" stroke="#f1f5f9" stroke-width="0.5" opacity="0.3"/>
+</svg>

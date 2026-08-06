@@ -95,7 +95,15 @@ let private eventTypeToString (t: MatchEventType) : string * string option =
 
 let private toDto (e: MatchEvent) : MatchEvent = e
 
-let dumpMatch (homeName: string) (awayName: string) (homeScore: int) (awayScore: int) (events: MatchEvent list) =
+let dumpMatch
+    (homeName: string)
+    (awayName: string)
+    (homeId: ClubId)
+    (awayId: ClubId)
+    (homeScore: int)
+    (awayScore: int)
+    (events: MatchEvent list)
+    =
     let dir = DirectoryInfo("diag")
 
     if not dir.Exists then
@@ -137,4 +145,8 @@ let dumpMatch (homeName: string) (awayName: string) (homeScore: int) (awayScore:
     let options = JsonSerializerOptions(WriteIndented = true)
     let json = JsonSerializer.Serialize(dump, options)
     File.WriteAllText(fileName, json)
+
+    MatchAccumulator.appendMatch homeName awayName homeId awayId homeScore awayScore events
+    |> ignore
+
     fileName

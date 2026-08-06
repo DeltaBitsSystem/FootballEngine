@@ -23,15 +23,10 @@ let private defaultDuelConfig =
       FatigueDecay = 0.05 }
 
 let private defaultShotConfig =
-    { OnTargetBase = 0.40
-      OnTargetDistDecayRate = 15.0
-      OnTargetDistMaxPenalty = 0.30
-      QualityGate = 0.5
+    { QualityGate = 0.5
       AngleSpreadBase = 0.3
       VzBase = 25.0<meter / second>
       VzVariance = 3.0
-      OnTargetMultiplier = 1.0
-      OnTargetDistDivisor = 10.0
       NormalisationDistance = 16.5<meter>
       DistanceToGoalMultiplier = 1.0
       FinishingMin = 0.1
@@ -138,52 +133,7 @@ let configValidationTests =
                     Expect.isEmpty errors "Default shot config should be valid"
                 }
 
-                test "OnTargetBase < 0.0 returns error" {
-                    let cfg =
-                        { defaultShotConfig with
-                            OnTargetBase = -0.1 }
-
-                    let errors = ConfigValidation.validateShotConfig cfg
-                    Expect.isNonEmpty errors "Should fail with negative OnTargetBase"
-                }
-
-                test "OnTargetBase > 1.0 returns error" {
-                    let cfg =
-                        { defaultShotConfig with
-                            OnTargetBase = 1.5 }
-
-                    let errors = ConfigValidation.validateShotConfig cfg
-                    Expect.isNonEmpty errors "Should fail with OnTargetBase > 1.0"
-                }
-
-                test "OnTargetDistMaxPenalty > OnTargetBase returns error" {
-                    let cfg =
-                        { defaultShotConfig with
-                            OnTargetBase = 0.30
-                            OnTargetDistMaxPenalty = 0.40 }
-
-                    let errors = ConfigValidation.validateShotConfig cfg
-                    Expect.isNonEmpty errors "Should fail when MaxPenalty > Base"
-                }
-
-                test "OnTargetDistDecayRate <= 0 returns error" {
-                    let cfg =
-                        { defaultShotConfig with
-                            OnTargetDistDecayRate = 0.0 }
-
-                    let errors = ConfigValidation.validateShotConfig cfg
-                    Expect.isNonEmpty errors "Should fail with non-positive decay rate"
-                }
-
-                test "OnTargetDistMaxPenalty equal to Base is accepted" {
-                    let cfg =
-                        { defaultShotConfig with
-                            OnTargetDistMaxPenalty = 0.40 }
-
-                    let errors = ConfigValidation.validateShotConfig cfg
-                    let penaltyErrors = errors |> List.filter (fun e -> e.Contains "MaxPenalty")
-                    Expect.isEmpty penaltyErrors "MaxPenalty equal to Base should pass"
-                } ]
+                ]
 
           testList
               "validateMatchVolumeConfig"

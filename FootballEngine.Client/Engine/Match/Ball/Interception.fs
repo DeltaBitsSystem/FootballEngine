@@ -156,7 +156,7 @@ module Interception =
         (awayRoster: PlayerRoster)
         : Player option * Spatial option * bool =
         let mutable touchingCount = 0
-        let mutable touchingPlayer1 = Unchecked.defaultof<Player>
+        let mutable touchingPlayer1: Player option = None
 
         let mutable touchingPos1 =
             { X = 0.0<meter>
@@ -166,7 +166,7 @@ module Interception =
               Vy = 0.0<meter / second>
               Vz = 0.0<meter / second> }
 
-        let mutable touchingPlayer2 = Unchecked.defaultof<Player>
+        let mutable touchingPlayer2: Player option = None
 
         let mutable touchingPos2 =
             { X = 0.0<meter>
@@ -195,7 +195,7 @@ module Interception =
 
                 if dist <= captureRadius then
                     if touchingCount = 0 then
-                        touchingPlayer1 <- player
+                        touchingPlayer1 <- Some player
 
                         touchingPos1 <-
                             { X = px
@@ -205,7 +205,7 @@ module Interception =
                               Vy = 0.0<meter / second>
                               Vz = 0.0<meter / second> }
                     elif touchingCount = 1 then
-                        touchingPlayer2 <- player
+                        touchingPlayer2 <- Some player
 
                         touchingPos2 <-
                             { X = px
@@ -237,7 +237,7 @@ module Interception =
 
                 if dist <= captureRadius then
                     if touchingCount = 0 then
-                        touchingPlayer1 <- player
+                        touchingPlayer1 <- Some player
 
                         touchingPos1 <-
                             { X = px
@@ -247,7 +247,7 @@ module Interception =
                               Vy = 0.0<meter / second>
                               Vz = 0.0<meter / second> }
                     elif touchingCount = 1 then
-                        touchingPlayer2 <- player
+                        touchingPlayer2 <- Some player
 
                         touchingPos2 <-
                             { X = px
@@ -262,5 +262,5 @@ module Interception =
 
         match touchingCount with
         | 0 -> None, None, false
-        | 1 -> Some touchingPlayer1, Some touchingPos1, false
+        | 1 -> touchingPlayer1, Some touchingPos1, false
         | _ -> None, None, true
