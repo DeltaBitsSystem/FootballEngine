@@ -184,6 +184,52 @@ module RefereeApplicator =
                DomainEvent.BallUpdate fkBall |]
 
         | DropBall _ ->
+            let bx = float state.Ball.Position.X
+            let by = float state.Ball.Position.Y
+
+            let findNearest (frame: TeamFrame) (roster: PlayerRoster) =
+                let mutable bestDist = System.Double.MaxValue
+                let mutable bestPid = ValueNone
+
+                for i = 0 to frame.SlotCount - 1 do
+                    match frame.Physics.Occupancy[i] with
+                    | OccupancyKind.Active rosterIdx ->
+                        let px = float frame.Physics.PosX[i]
+                        let py = float frame.Physics.PosY[i]
+                        let dx = px - bx
+                        let dy = py - by
+                        let dist = sqrt (dx * dx + dy * dy)
+
+                        if dist < bestDist then
+                            bestDist <- dist
+                            bestPid <- ValueSome roster.Players[rosterIdx].Id
+                    | OccupancyKind.Sidelined _ -> ()
+
+                bestPid, bestDist
+
+            let homeFrame = getFrame state HomeClub
+            let awayFrame = getFrame state AwayClub
+            let homePidOpt, homeDist = findNearest homeFrame ctx.HomeRoster
+            let awayPidOpt, awayDist = findNearest awayFrame ctx.AwayRoster
+
+            let winner =
+                match homePidOpt, awayPidOpt with
+                | ValueSome pid, _ when homeDist <= 3.0 -> Some(HomeClub, pid)
+                | _, ValueSome pid when awayDist <= 3.0 -> Some(AwayClub, pid)
+                | ValueSome hPid, ValueSome aPid when homeDist <= 8.0 && awayDist <= 8.0 ->
+                    if homeDist <= awayDist then
+                        Some(HomeClub, hPid)
+                    else
+                        Some(AwayClub, aPid)
+                | ValueSome hPid, _ when homeDist <= 8.0 -> Some(HomeClub, hPid)
+                | _, ValueSome aPid when awayDist <= 8.0 -> Some(AwayClub, aPid)
+                | _ -> None
+
+            let control, lastTouch, gkHold =
+                match winner with
+                | Some(side, pid) -> Controlled(side, pid), Some pid, None
+                | None -> Free, None, None
+
             let dropBall =
                 { state.Ball with
                     Position =
@@ -193,7 +239,10 @@ module RefereeApplicator =
                             Vy = 0.0<meter / second>
                             Vz = 0.0<meter / second> }
                     Spin = Spin.zero
-                    Control = Free }
+                    Control = control
+                    Trajectory = None
+                    LastTouchBy = lastTouch
+                    GKHoldSinceSubTick = gkHold }
 
             [| DomainEvent.BallUpdate dropBall |]
 
