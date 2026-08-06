@@ -53,7 +53,13 @@ module RefereeApplicator =
 
         events.ToArray()
 
-    let apply (subTick: int) (action: RefereeAction) (ctx: MatchContext) (state: SimState) : DomainEvent[] =
+    let apply
+        (subTick: int)
+        (action: RefereeAction)
+        (ctx: MatchContext)
+        (state: SimState)
+        (description: string option)
+        : DomainEvent[] =
         match action with
         | RefereeIdle -> [||]
 
@@ -255,6 +261,7 @@ module RefereeApplicator =
 
             let newCount = currentYellows + 1
             let events = ResizeArray<DomainEvent>(4)
+            let ctx = EventContext.withDescription (defaultArg description "")
 
             if currentYellows >= 1 then
                 events.Add(
@@ -263,7 +270,7 @@ module RefereeApplicator =
                           PlayerId = player.Id
                           ClubId = clubId
                           Type = YellowCard
-                          Context = EventContext.empty }
+                          Context = ctx }
                 )
 
                 events.Add(
@@ -272,7 +279,7 @@ module RefereeApplicator =
                           PlayerId = player.Id
                           ClubId = clubId
                           Type = RedCard
-                          Context = EventContext.empty }
+                          Context = ctx }
                 )
 
                 events.Add(DomainEvent.YellowsWrite(side, player.Id, newCount))
@@ -286,7 +293,7 @@ module RefereeApplicator =
                           PlayerId = player.Id
                           ClubId = clubId
                           Type = YellowCard
-                          Context = EventContext.empty }
+                          Context = ctx }
                 )
 
                 events.Add(DomainEvent.YellowsWrite(side, player.Id, newCount))
@@ -297,13 +304,14 @@ module RefereeApplicator =
         | IssueRed(player, clubId) ->
             let isHome = clubId = ctx.Home.Id
             let side = if isHome then HomeClub else AwayClub
+            let ctx = EventContext.withDescription (defaultArg description "")
 
             [| DomainEvent.Emit
                    { SubTick = subTick
                      PlayerId = player.Id
                      ClubId = clubId
                      Type = RedCard
-                     Context = EventContext.empty }
+                     Context = ctx }
                DomainEvent.EmitSemantic(RedCardIssued player.Id)
                DomainEvent.SidelinedWrite(side, player.Id, SidelinedByRedCard)
                DomainEvent.StoppageTimeAdd(subTick, StoppageReason.CardDelay) |]

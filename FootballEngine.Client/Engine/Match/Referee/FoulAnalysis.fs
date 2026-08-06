@@ -151,3 +151,106 @@ module FoulAnalysis =
         | DOGSO, _ -> Some Red
         | SeriousFoulPlay, _ -> Some Red
         | ViolentConduct, _ -> Some Red
+
+type FoulDecision =
+    { Card: FoulAnalysis.CardDecision option
+      Advantage: bool
+      Reason: string }
+
+module FoulAuthority =
+
+    let private classifyZone (ballX: float<meter>) (dir: AttackDir) : PitchZone =
+        let effectiveX =
+            match dir with
+            | LeftToRight -> ballX
+            | RightToLeft -> PitchLength - ballX
+
+        if effectiveX < 30.0<meter> then DefensiveZone
+        elif effectiveX <= 70.0<meter> then MidfieldZone
+        else AttackingZone
+
+    let private classifyMatchPhase (minute: float) : MatchPhase =
+        if minute < 30.0 then BuildUp
+        elif minute < 70.0 then Midfield
+        else Attack
+
+    let decide
+        (severity: FoulSeverity)
+        (foulerYellows: int)
+        (foulerFoulCount: int)
+        (zone: PitchZone)
+        (phase: MatchPhase)
+        (teamFoulCountThisHalf: int)
+        (isAdvantagePreserved: bool)
+        : FoulDecision =
+        match severity with
+        | Trivial ->
+            { Card = None
+              Advantage = isAdvantagePreserved
+              Reason = "" }
+        | SeriousFoulPlay ->
+            { Card = Some FoulAnalysis.Red
+              Advantage = false
+              Reason = "Serious foul play" }
+        | ViolentConduct ->
+            { Card = Some FoulAnalysis.Red
+              Advantage = false
+              Reason = "Violent conduct" }
+        | DOGSO ->
+            if zone = AttackingZone && foulerYellows >= 1 then
+                { Card = Some FoulAnalysis.Red
+                  Advantage = false
+                  Reason = "DOGSO — second yellow" }
+            elif zone = AttackingZone then
+                { Card = Some FoulAnalysis.Red
+                  Advantage = false
+                  Reason = "DOGSO — denying obvious goal-scoring opportunity" }
+            else
+                { Card = Some FoulAnalysis.Yellow
+                  Advantage = false
+                  Reason = "DOGSO — denied opportunity outside box" }
+        | ProfessionalFoul ->
+            if foulerYellows >= 1 then
+                { Card = Some FoulAnalysis.Red
+                  Advantage = false
+                  Reason = "Professional foul — second yellow" }
+            elif zone = AttackingZone then
+                { Card = Some FoulAnalysis.Yellow
+                  Advantage = false
+                  Reason = "Professional foul in attacking zone" }
+            else
+                { Card = Some FoulAnalysis.Yellow
+                  Advantage = false
+                  Reason = "Professional foul" }
+        | TacticalFoul ->
+            if foulerYellows >= 1 then
+                { Card = Some FoulAnalysis.Red
+                  Advantage = false
+                  Reason = "Tactical foul — second yellow" }
+            elif zone = AttackingZone && teamFoulCountThisHalf >= 4 then
+                { Card = Some FoulAnalysis.Yellow
+                  Advantage = false
+                  Reason = "Tactical foul — team accumulation warning" }
+            elif isAdvantagePreserved then
+                { Card = None
+                  Advantage = true
+                  Reason = "Advantage played — tactical foul" }
+            else
+                { Card = Some FoulAnalysis.Yellow
+                  Advantage = false
+                  Reason = "Tactical foul" }
+
+    let decideFromContext
+        (severity: FoulSeverity)
+        (foulerYellows: int)
+        (foulerFoulCount: int)
+        (ballX: float<meter>)
+        (dir: AttackDir)
+        (teamFoulCountThisHalf: int)
+        (isAdvantagePreserved: bool)
+        : FoulDecision =
+        let zone = classifyZone ballX dir
+        let minute = 0.0
+        let phase = classifyMatchPhase minute
+
+        decide severity foulerYellows foulerFoulCount zone phase teamFoulCountThisHalf isAdvantagePreserved

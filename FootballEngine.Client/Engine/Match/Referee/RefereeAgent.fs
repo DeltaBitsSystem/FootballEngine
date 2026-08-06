@@ -121,32 +121,28 @@ module RefereeAgent =
             @ gkTimeWastingIntent
         | _ -> []
 
-    let decideCard (fouler: Player) (ctx: MatchContext) (state: SimState) : RefereeAction list =
-        let aggressionNorm = normaliseAttr fouler.Mental.Aggression
-        let rw = state.Config.Referee
 
-        let isHome = playerOnSide ctx state HomeClub fouler.Id
-
-        let clubId = if isHome then ctx.Home.Id else ctx.Away.Id
-        let yellows = getYellows state (if isHome then HomeClub else AwayClub)
-        let currentYellows = yellows |> Map.tryFind fouler.Id |> Option.defaultValue 0
-
-        let isSidelined =
-            getSidelined state (if isHome then HomeClub else AwayClub)
-            |> Map.containsKey fouler.Id
-
-        if isSidelined then
-            []
-        elif currentYellows >= 1 then
-            [ IssueRed(fouler, clubId) ]
-        elif bernoulli (rw.FoulAggressionBase + aggressionNorm * rw.FoulAggressionMult) then
-            [ IssueYellow(fouler, clubId) ]
-        else
-            []
-
-
-    let processFouls (ctx: MatchContext) (state: SimState) (events: ResizeArray<SemanticEvent>) : DomainEvent[] =
+    let processFouls
+        (ctx: MatchContext)
+        (state: SimState)
+        (clock: SimulationClock)
+        (events: ResizeArray<SemanticEvent>)
+        : DomainEvent[] =
         let fouls = ResizeArray<DomainEvent>(4)
+        let ballX = state.Ball.Position.X
+        let dir = state.HomeAttackDir
+
+        let teamFoulCount (side: ClubSide) : int =
+            let mutable count = 0
+
+            for e in state.MatchEvents do
+                if e.Type = FoulCommitted then
+                    let isHome = e.ClubId = ctx.Home.Id
+
+                    if (side = HomeClub && isHome) || (side = AwayClub && not isHome) then
+                        count <- count + 1
+
+            count
 
         for i = 0 to events.Count - 1 do
             match events[i] with
@@ -162,17 +158,31 @@ module RefereeAgent =
                     let side = if isHome then HomeClub else AwayClub
                     let clubId = if isHome then ctx.Home.Id else ctx.Away.Id
                     let yellows = getYellows state side |> Map.tryFind foulerId |> Option.defaultValue 0
+                    let foulsThisHalf = teamFoulCount side
 
-                    match FoulAnalysis.decideCard severity yellows with
+                    let decision =
+                        FoulAuthority.decideFromContext severity yellows 0 ballX dir foulsThisHalf false
+
+                    match decision.Card with
                     | Some FoulAnalysis.CardDecision.Yellow ->
                         let actions =
-                            RefereeApplicator.apply (int state.SubTick) (IssueYellow(fouler, clubId)) ctx state
+                            RefereeApplicator.apply
+                                (int state.SubTick)
+                                (IssueYellow(fouler, clubId))
+                                ctx
+                                state
+                                (Some decision.Reason)
 
                         for e in actions do
                             fouls.Add(e)
                     | Some FoulAnalysis.CardDecision.Red ->
                         let actions =
-                            RefereeApplicator.apply (int state.SubTick) (IssueRed(fouler, clubId)) ctx state
+                            RefereeApplicator.apply
+                                (int state.SubTick)
+                                (IssueRed(fouler, clubId))
+                                ctx
+                                state
+                                (Some decision.Reason)
 
                         for e in actions do
                             fouls.Add(e)
@@ -202,7 +212,7 @@ module RefereeAgent =
             let events = ResizeArray<DomainEvent>(16)
 
             for action in refActions do
-                let actionEvents = RefereeApplicator.apply (int subTick) action ctx state
+                let actionEvents = RefereeApplicator.apply (int subTick) action ctx state None
 
                 for e in actionEvents do
                     events.Add(e)
@@ -282,5 +292,5 @@ module RefereeAgent =
             | Some flow -> events.Add(DomainEvent.FlowChange flow)
             | None -> ()
 
-            let foulEvents = processFouls ctx state semanticEvents
+            let foulEvents = processFouls ctx state clock semanticEvents
             Array.append (events.ToArray()) foulEvents

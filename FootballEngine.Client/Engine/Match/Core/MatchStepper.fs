@@ -193,7 +193,7 @@ module MatchStepper =
         let scorerId, isOwnGoal = GoalDetector.scorer scoringClub state.Ball ctx state
 
         let goalEvents =
-            RefereeApplicator.apply (int state.SubTick) (ConfirmGoal(scoringClub, scorerId, isOwnGoal)) ctx state
+            RefereeApplicator.apply (int state.SubTick) (ConfirmGoal(scoringClub, scorerId, isOwnGoal)) ctx state None
 
         applyDomainEventsArray state events goalEvents
 

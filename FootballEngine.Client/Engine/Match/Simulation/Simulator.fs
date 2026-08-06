@@ -294,14 +294,24 @@ module MatchSimulator =
                     SetPlayAction.resolvePenalty homeSubTick ctx state homeKicker HomeClub clock
 
                 if homeScored then
-                    RefereeApplicator.apply homeSubTick (ConfirmGoal(HomeClub, Some homeKicker.Id, false)) ctx state
+                    RefereeApplicator.apply
+                        homeSubTick
+                        (ConfirmGoal(HomeClub, Some homeKicker.Id, false))
+                        ctx
+                        state
+                        None
                     |> ignore
 
                 let awayScored =
                     SetPlayAction.resolvePenalty awaySubTick ctx state awayKicker AwayClub clock
 
                 if awayScored then
-                    RefereeApplicator.apply awaySubTick (ConfirmGoal(AwayClub, Some awayKicker.Id, false)) ctx state
+                    RefereeApplicator.apply
+                        awaySubTick
+                        (ConfirmGoal(AwayClub, Some awayKicker.Id, false))
+                        ctx
+                        state
+                        None
                     |> ignore
 
                 let newHomeKicks = (homeKicker.Id, homeScored, kickNum) :: homeKicks

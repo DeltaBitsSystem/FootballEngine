@@ -80,7 +80,8 @@ type EventContext =
       GKSaveAttempt: bool option
       GKSaveProb: float option
       ShotSpeed: float option
-      ShotAngle: float option }
+      ShotAngle: float option
+      Description: string option }
 
 module EventContext =
     let empty =
@@ -96,11 +97,14 @@ module EventContext =
           GKSaveAttempt = None
           GKSaveProb = None
           ShotSpeed = None
-          ShotAngle = None }
+          ShotAngle = None
+          Description = None }
 
     let at x y =
         { empty with
             Position = Some { X = x; Y = y } }
+
+    let withDescription desc = { empty with Description = Some desc }
 
 
 type MatchEvent =
