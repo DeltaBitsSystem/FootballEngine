@@ -460,10 +460,14 @@ module MatchStepper =
             WhenFlow([ IsLive ], OnEventOrEveryN([ SemanticEventKind.BallSecured ], 20<tickDelta>))
 
         let refereeFreq =
-            OnEvent(
-                [ SemanticEventKind.BallLoose
-                  SemanticEventKind.FoulOccurred
-                  SemanticEventKind.GoalScored ]
+            WhenFlow(
+                [ IsLive ],
+                OnEventOrEveryN(
+                    [ SemanticEventKind.BallLoose
+                      SemanticEventKind.FoulOccurred
+                      SemanticEventKind.GoalScored ],
+                    80<tickDelta>
+                )
             )
 
         let teamFreq =

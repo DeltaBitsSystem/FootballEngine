@@ -46,6 +46,6 @@ module EventRouter =
 
         { RunCognition = cognitionTriggered || periodic
           RunAction = actionTriggered || periodic
-          RunReferee = runReferee
+          RunReferee = runReferee || periodic
           RunTeam = runTeam
           RunManager = runManager }
