@@ -1,0 +1,263 @@
+namespace FootballEngine.Core.Tests.Infrastructure
+
+open FootballEngine.Core.Match
+
+module TestBuilders =
+
+    let makeProfile (id: int) (role: SlotRole) : PlayerProfile =
+        let baseAttr =
+            match role with
+            | SlotRole.Goalkeeper -> 70.0f
+            | SlotRole.Striker -> 75.0f
+            | _ -> 65.0f
+
+        { Id = PlayerId id
+          Role = role
+          IsGK = role = SlotRole.Goalkeeper
+          Pace = baseAttr
+          Strength = baseAttr
+          Stamina = baseAttr
+          Agility = baseAttr
+          Vision = baseAttr
+          Passing = baseAttr
+          Finishing = baseAttr
+          Crossing = baseAttr
+          Dribbling = baseAttr
+          Tackling = baseAttr
+          Marking = baseAttr
+          Positioning = baseAttr
+          Anticipation = baseAttr
+          Composure = baseAttr
+          Aggression = baseAttr
+          Flair = baseAttr
+          Teamwork = baseAttr
+          DecisionMaking = baseAttr
+          Personality =
+            { Composure = 0.5f
+              Aggression = 0.5f
+              RiskTaking = 0.5f
+              Flair = 0.5f
+              Leadership = 0.5f
+              Consistency = 0.5f
+              BigGameMentality = 0.5f }
+          InjuryProne = 0.1f }
+
+    let makeLineup (slotCount: int) : Lineup =
+        let roles =
+            [| SlotRole.Goalkeeper
+               SlotRole.Defender
+               SlotRole.Defender
+               SlotRole.Defender
+               SlotRole.Defender
+               SlotRole.DefensiveMid
+               SlotRole.CenterMid
+               SlotRole.CenterMid
+               SlotRole.Winger
+               SlotRole.AttackingMid
+               SlotRole.Striker |]
+
+        let profiles =
+            [| for i in 0 .. slotCount - 1 -> makeProfile (i + 1) roles.[i % roles.Length] |]
+
+        let basePositions =
+            [| for i in 0 .. slotCount - 1 ->
+                   { X = -30.0<meter> + (float (i % 4) * 10.0<meter>)
+                     Y = -20.0<meter> + (float (i % 3) * 10.0<meter>)
+                     Z = 0.0<meter>
+                     Vx = 0.0<meterPerSecond>
+                     Vy = 0.0<meterPerSecond>
+                     Vz = 0.0<meterPerSecond> } |]
+
+        { Profiles = profiles
+          BasePositions = basePositions
+          SlotCount = slotCount }
+
+    let defaultCtx () : MatchContext =
+        { HomeClub =
+            { Id = 1UL
+              Name = "Home FC"
+              BaseTactics =
+                { Formation = "4-3-3"
+                  DefensiveLine = 0.5f
+                  PressIntensity = 0.5f
+                  Width = 0.5f
+                  Tempo = 0.5f
+                  Directness = 0.5f }
+              Chemistry = 0.6
+              HomeAdvantage =
+                { CrowdSupport = 0.5f
+                  Familiarity = 0.5f } }
+          AwayClub =
+            { Id = 2UL
+              Name = "Away FC"
+              BaseTactics =
+                { Formation = "4-4-2"
+                  DefensiveLine = 0.4f
+                  PressIntensity = 0.4f
+                  Width = 0.6f
+                  Tempo = 0.5f
+                  Directness = 0.4f }
+              Chemistry = 0.6
+              HomeAdvantage =
+                { CrowdSupport = 0.5f
+                  Familiarity = 0.5f } }
+          HomeLineup = makeLineup 11
+          AwayLineup = makeLineup 11
+          Config = BalanceConfig.defaultConfig
+          IsKnockout = false }
+
+    let emptyBall: BallState =
+        { Position =
+            { X = 0.0<meter>
+              Y = 0.0<meter>
+              Z = 0.0<meter>
+              Vx = 0.0<meterPerSecond>
+              Vy = 0.0<meterPerSecond>
+              Vz = 0.0<meterPerSecond> }
+          Spin =
+            { Top = 0.0<radianPerSecond>
+              Side = 0.0<radianPerSecond> }
+          Control = BallControl.Free
+          Trajectory = None
+          LastTouch = None
+          StationarySince = None
+          GKHoldSince = None
+          ArrivalGate = None }
+
+    let makeTeamWorld (lineup: Lineup) : TeamWorld =
+        let n = lineup.SlotCount
+        let allocF32 () = Array.init n (fun _ -> 0.0f)
+
+        let frame =
+            { PosX = allocF32 ()
+              PosY = allocF32 ()
+              VelX = allocF32 ()
+              VelY = allocF32 ()
+              Condition = Array.init n (fun _ -> 1.0f)
+              Mental =
+                { Composure = allocF32 ()
+                  Confidence = allocF32 ()
+                  Aggression = allocF32 ()
+                  Focus = allocF32 ()
+                  Risk = allocF32 () }
+              Intent =
+                { Kind = Array.init n (fun _ -> IntentCode.None)
+                  TargetX = allocF32 ()
+                  TargetY = allocF32 ()
+                  Phase = Array.init n (fun _ -> IntentPhase.None)
+                  CommittedUntil = Array.init n (fun _ -> 0<subtick>)
+                  CommittedAt = Array.init n (fun _ -> 0<subtick>)
+                  ExitTrigger = Array.init n (fun _ -> ExitTrigger.None) }
+              Occupancy = Array.init n (fun i -> OccupancyKind.Active i)
+              SlotRoles = Array.init n (fun i -> lineup.Profiles.[i].Role)
+              DefensiveRoles = Array.init n (fun _ -> DefensiveRole.Unassigned)
+              CollectiveIntents =
+                Array.init n (fun _ ->
+                    { Pressing = 1.0f
+                      Holding = 1.0f
+                      Attacking = 1.0f
+                      Balanced = 1.0f })
+              SupportX = allocF32 ()
+              SupportY = allocF32 ()
+              VisibilityTm = Array.init n (fun _ -> true)
+              VisibilityOpp = Array.init n (fun _ -> true)
+              RunLookup = System.Collections.Generic.Dictionary<int, RunAssignment>()
+              ActiveCount = n
+              SlotCount = n }
+
+        { Frame = frame
+          Memory =
+            Array.init n (fun _ ->
+                { LastTouchTick = 0<subtick>
+                  SuccessfulDuels = 0
+                  FailedDuels = 0
+                  PassesMade = 0
+                  PassesCompleted = 0
+                  ShotsTaken = 0 })
+          Cards = { Yellows = 0; Reds = 0 }
+          SubsUsed = 0
+          Shape =
+            { TargetsX = allocF32 ()
+              TargetsY = allocF32 () }
+          Directive =
+            { Kind = DirectiveKind.Balanced
+              SinceTick = 0<subtick>
+              Params =
+                { LineHeight = 42.0f
+                  PressIntensity = 0.5f
+                  Width = 0.5f } }
+          Blackboard =
+            { OurPhase = PhaseKind.Attacking
+              OpponentShape =
+                { TargetsX = allocF32 ()
+                  TargetsY = allocF32 () }
+              OpponentPressure = 0
+              ThreatZone = 0.0f
+              WeaknessZone = 0.0f
+              Urgency = 0.0f
+              MomentumStreak = 0
+              TransitionSince = 0<subtick> }
+          Emergent =
+            { Compactness = 0.5f
+              PressingIntensity = 0.5f
+              WingplayBias = 0.5f
+              FatigueFactor = 1.0f }
+          Stats =
+            { Shots = 0
+              OnTarget = 0
+              Passes = 0
+              PassesCompleted = 0
+              Fouls = 0
+              Corners = 0
+              Offsides = 0
+              Touches = 0 }
+          CFrame =
+            { LastPerceivedTick = 0<subtick>
+              LastDecidedTick = 0<subtick>
+              SupportAttackComputed = false }
+          EventWindow = EventWindow.create 1024 }
+
+    let minimalWorld () : World =
+        let ctx = defaultCtx ()
+
+        { State =
+            { Tick = 0<subtick>
+              Clock =
+                { Tick = 0<subtick>
+                  Phase = ClockPhase.FirstHalf }
+              Flow = MatchFlow.Live
+              HomeScore = 0
+              AwayScore = 0
+              Ball = emptyBall
+              Momentum = 0.0
+              LastAttackingClub = None
+              Possession =
+                { HomeTouches = 0
+                  AwayTouches = 0
+                  LastGainer = None }
+              Stoppage =
+                { FirstHalfAdded = 0<subtick>
+                  SecondHalfAdded = 0<subtick>
+                  Decided = false } }
+          Home = makeTeamWorld ctx.HomeLineup
+          Away = makeTeamWorld ctx.AwayLineup }
+
+    let worldWithBallAt (x: float<meter>) (y: float<meter>) (world: World) : World =
+        world.State <-
+            { world.State with
+                Ball =
+                    { world.State.Ball with
+                        Position =
+                            { world.State.Ball.Position with
+                                X = x
+                                Y = y } } }
+
+        world
+
+    let worldWithScore (home: int) (away: int) (world: World) : World =
+        world.State <-
+            { world.State with
+                HomeScore = home
+                AwayScore = away }
+
+        world

@@ -8,222 +8,6 @@
 
     <ItemGroup>
 
-        <Compile Include="Domain\DomainTypes.fs"/>
-        <Compile Include="Domain\Country.fs"/>
-        <Compile Include="Domain\Training.fs"/>
-        <Compile Include="Domain\ExperienceModifiers.fs"/>
-        <Compile Include="Domain\Player.fs"/>
-        <Compile Include="Domain\PlayerExperience.fs"/>
-        <Compile Include="Domain\Lineup.fs"/>
-        <Compile Include="Domain\CoordinationMemory.fs"/>
-        <Compile Include="Domain\Club.fs"/>
-        <Compile Include="Domain\Staff.fs"/>
-        <Compile Include="Domain\Match.fs"/>
-        <Compile Include="Domain\MatchMetrics.fs"/>
-        <Compile Include="Domain\Competition.fs"/>
-        <Compile Include="Domain\CountryData.fs"/>
-        <Compile Include="Domain\Negotiation.fs"/>
-        <Compile Include="Domain\Inbox.fs"/>
-        <Compile Include="Domain\GameState.fs"/>
-        <Compile Include="Domain\Transfer.fs"/>
-        <Compile Include="Domain\Manager.fs"/>
-        <Compile Include="Domain\FormationData.fs"/>
-        <Compile Include="Domain\LineupOps.fs"/>
-
-
-        <Compile Include="GameData\DomainEncoders.fs"/>
-        <Compile Include="GameData\JsonTypes.fs"/>
-        <Compile Include="GameData\JsonConverters.fs"/>
-        <Compile Include="GameData\ModTypes.fs"/>
-        <Compile Include="GameData\ModLoader.fs"/>
-        <Compile Include="GameData\DataRegistry.fs"/>
-        <Compile Include="GameData\ModValidator.fs"/>
-        <Compile Include="GameData\ModSaver.fs"/>
-        <Compile Include="GameData\ModPaths.fs"/>
-
-        <Compile Include="Engine\Stats.fs"/>
-
-        <Compile Include="Engine\Match\Types\PhysicsContract.fs"/>
-        <Compile Include="Engine\Match\Types\PitchZone.fs"/>
-        <Compile Include="Engine\Match\Types\SimulationClock.fs"/>
-        <Compile Include="Engine\Match\Types\BalanceConfig.fs"/>
-        <Compile Include="Engine\Match\Types\Probability.fs"/>
-
-
-        <Compile Include="Engine\Match\Types\Primitives.fs"/>
-        <Compile Include="Engine\Match\Types\PassTarget.fs"/>
-        <Compile Include="Engine\Match\Types\VARTypes.fs"/>
-        <Compile Include="Engine\Match\Types\MatchPrimitives.fs"/>
-
-
-        <Compile Include="Engine\Match\Types\MovementTypes.fs"/>
-        <Compile Include="Engine\Match\Types\RunAssignment.fs"/>
-
-
-        <Compile Include="Engine\Match\Types\InfluenceTypes.fs"/>
-
-
-        <Compile Include="Engine\Match\Types\IntentTypes.fs"/>
-        <Compile Include="Engine\Match\Types\TeamBlackboard.fs"/>
-        <Compile Include="Engine\Match\Types\MatchMemory.fs"/>
-
-        <Compile Include="Engine\Match\Types\DirectiveTypes.fs"/>
-
-        <Compile Include="Engine\Match\Types\RefereeAction.fs"/>
-        <Compile Include="Engine\Match\Types\SchedulingTypes.fs"/>
-        <Compile Include="Engine\Match\Types\TacticsConfig.fs"/>
-        <Compile Include="Engine\Match\Types\PlayerFrame.fs"/>
-        <Compile Include="Engine\Match\Types\SlotRole.fs"/>
-        <Compile Include="Engine\Match\Types\CollectiveIntent.fs"/>
-        <Compile Include="Engine\Match\Types\TeamFrame.fs"/>
-        <Compile Include="Engine\Match\Types\TeamContext.fs"/>
-        <Compile Include="Engine\Match\Types\BallTypes.fs"/>
-        <Compile Include="Engine\Match\Types\MatchSituation.fs"/>
-        <Compile Include="Engine\Match\Types\ActionContext.fs"/>
-        <Compile Include="Engine\Match\Types\AdaptiveTactics.fs"/>
-        <Compile Include="Engine\Match\Types\ShapeEngine.fs"/>
-        <Compile Include="Engine\Match\Types\SlotRoleAssigner.fs"/>
-        <Compile Include="Engine\Match\Types\SemanticEvent.fs"/>
-        <Compile Include="Engine\Match\Types\StoppageTimeTracker.fs"/>
-        <Compile Include="Engine\Match\Types\TimeAdministrator.fs"/>
-        <Compile Include="Engine\Match\Types\SystemOutput.fs"/>
-        <Compile Include="Engine\Match\Types\UtilityTypes.fs"/>
-
-        <Compile Include="Engine\Match\Core\ConfigValidation.fs"/>
-        <Compile Include="Engine\Match\Core\HomeBonus.fs"/>
-        <Compile Include="Engine\Match\Core\SimState.fs"/>
-        <Compile Include="Engine\Match\Core\MatchSpatial.fs"/>
-        <Compile Include="Engine\Match\Core\MatchContext.fs"/>
-        <Compile Include="Engine\Match\Core\SimStateOps.fs"/>
-        <Compile Include="Engine\Match\Core\SlotAccess.fs"/>
-        <Compile Include="Engine\Match\Core\MatchSituationBuilder.fs"/>
-        <Compile Include="Engine\Match\Core\MathPipelines.fs"/>
-
-        <Compile Include="Engine\Match\ML\WeightsLoader.fs"/>
-
-        <Compile Include="Engine\Match\Referee\FoulAnalysis.fs"/>
-        <Compile Include="Engine\Match\Referee\AdvantageEngine.fs"/>
-        <Compile Include="Engine\Match\Referee\HandballDetector.fs"/>
-
-        <Compile Include="Engine\Match\Referee\PendingGoal.fs"/>
-        <Compile Include="Engine\Match\Core\MatchFormulas.fs"/>
-
-        <Compile Include="Engine\Match\Core\Scheduler.fs"/>
-        <Compile Include="Engine\Match\Core\MatchCommands.fs"/>
-
-        <Compile Include="Engine\Match\Player\FrameMutate.fs"/>
-
-        <Compile Include="Engine\Match\Player\Perception\InfluenceFrame.fs"/>
-        <Compile Include="Engine\Match\Player\Perception\Perception.fs"/>
-        <Compile Include="Engine\Match\Player\Perception\CognitiveFrameBuilder.fs"/>
-
-
-        <Compile Include="Engine\Match\Player\Intent\IntentFrame.fs"/>
-        <Compile Include="Engine\Match\Player\Intent\IntentPhase.fs"/>
-
-        <Compile Include="Engine\Match\Player\Decision\ActionContext.fs"/>
-        <Compile Include="Engine\Match\Player\Decision\ActionMath.fs"/>
-        <Compile Include="Engine\Match\Player\Decision\ActionEligibility.fs"/>
-        <Compile Include="Engine\Match\Player\Decision\CollectiveModifiers.fs"/>
-        <Compile Include="Engine\Match\Player\Decision\MovementScorer.fs"/>
-        <Compile Include="Engine\Match\Player\Decision\SpaceScorer.fs"/>
-        <Compile Include="Engine\Match\Player\Decision\xGCalculator.fs"/>
-        <Compile Include="Engine\Match\Player\Decision\PlayerScorer.fs"/>
-        <Compile Include="Engine\Match\Player\Decision\PlayerPersonality.fs"/>
-        <Compile Include="Engine\Match\Player\Decision\DecisionTrace.fs"/>
-        <Compile Include="Engine\Match\Player\Decision\ReactiveLayer.fs"/>
-        <Compile Include="Engine\Match\Player\Decision\PlayerDecision.fs"/>
-
-        <Compile Include="Engine\Match\Player\Steering\FatiguePipeline.fs"/>
-        <Compile Include="Engine\Match\Player\Steering\OrganicDrift.fs"/>
-        <Compile Include="Engine\Match\Player\Steering\PlayerSteering.fs"/>
-        <Compile Include="Engine\Match\Player\Physics\PhysicsSystem.fs"/>
-
-        <Compile Include="Engine\Match\Player\Actions\SetPiecePositioning.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\DuelAction.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\ShotAction.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\PassDecision.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\PassLauncher.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\PassAction.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\CrossAction.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\GKAction.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\SetPieceRoutines.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\WallBehavior.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\SecondPhase.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\SetPlayAction.fs"/>
-        <Compile Include="Engine\Match\Player\Actions\SetPieceAgent.fs"/>
-
-        <Compile Include="Engine\Match\Player\PlayerAction.fs"/>
-        <Compile Include="Engine\Match\Player\PlayerContext.fs"/>
-        <Compile Include="Engine\Match\Player\ActionResolver.fs"/>
-        <Compile Include="Engine\Match\Player\PlayerAgent.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\UtilityActions.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\BlackboardBuilder.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\EmergentLoops.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\EventWindow.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\ChemistryTracker.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\CoordinationLoop.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\WinProbability.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\ReactiveLoop.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\StrategicLoop.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\TeamDirector.fs"/>
-        <Compile Include="Engine\Match\TeamOrchestrator\TeamExecutor.fs"/>
-        <Compile Include="Engine\Match\Systems\Cognition\CognitionSystem.fs"/>
-        <Compile Include="Engine\Match\Systems\Adaptive\AdaptiveSystem.fs"/>
-
-        <Compile Include="Engine\Match\Ball\BallPhysics.fs"/>
-        <Compile Include="Engine\Match\Ball\Interception.fs"/>
-        <Compile Include="Engine\Match\Ball\ContactResolver.fs"/>
-        <Compile Include="Engine\Match\Ball\OutcomeResolver.fs"/>
-        <Compile Include="Engine\Match\Ball\BallSystem.fs"/>
-
-        <Compile Include="Engine\Match\Referee\GoalDetector.fs"/>
-        <Compile Include="Engine\Match\Referee\RefereeApplicator.fs"/>
-        <Compile Include="Engine\Match\Systems\Action\ActionSystem.fs"/>
-        <Compile Include="Engine\Match\Referee\RefereeAgent.fs"/>
-        <Compile Include="Engine\Match\Referee\VAR\VARDetector.fs"/>
-        <Compile Include="Engine\Match\Referee\VAR\VARReview.fs"/>
-        <Compile Include="Engine\Match\Referee\VAR\VARApplicator.fs"/>
-
-        <Compile Include="Engine\Match\Manager\SubstitutionIntelligence.fs"/>
-        <Compile Include="Engine\Match\Manager\ManagerAction.fs"/>
-        <Compile Include="Engine\Match\Manager\ManagerAgent.fs"/>
-
-        <Compile Include="Engine\Match\Core\MatchStepper.fs"/>
-        <Compile Include="Engine\Match\Simulation\EnvironmentSystems.fs"/>
-        <Compile Include="Engine\Match\Simulation\Momentum.fs"/>
-
-        <Compile Include="Engine\Match\Simulation\SnapshotBuilder.fs"/>
-        <Compile Include="Engine\Match\Logging\MatchAccumulator.fs"/>
-        <Compile Include="Engine\Match\Logging\JsonMatchDump.fs"/>
-        <Compile Include="Engine\Match\Simulation\Simulator.fs"/>
-
-        <Compile Include="Engine\WorldGeneration\PlayerGen.fs"/>
-        <Compile Include="Engine\WorldGeneration\StaffGen.fs"/>
-        <Compile Include="Engine\WorldGeneration\ClubGen.fs"/>
-        <Compile Include="Engine\WorldGeneration\FixtureGen.fs"/>
-        <Compile Include="Engine\WorldGeneration\WorldGen.fs"/>
-        <Compile Include="Engine\WorldGeneration\SeasonGen.fs"/>
-
-        <Compile Include="Engine\World\Core\WorldTick.fs"/>
-        <Compile Include="Engine\World\Core\AgentTypes.fs"/>
-        <Compile Include="Engine\World\Core\WorldClock.fs"/>
-        <Compile Include="Engine\World\Core\ConflictTypes.fs"/>
-        <Compile Include="Engine\World\Agents\PlayerAgent.fs"/>
-        <Compile Include="Engine\World\Agents\ManagerAgent.fs"/>
-        <Compile Include="Engine\World\Agents\ClubAgent.fs"/>
-        <Compile Include="Engine\World\Supervisors\TransferSupervisor.fs"/>
-        <Compile Include="Engine\World\Supervisors\YouthSupervisor.fs"/>
-        <Compile Include="Engine\World\Supervisors\FinanceSupervisor.fs"/>
-        <Compile Include="Engine\World\Phases\MatchPhase.fs"/>
-        <Compile Include="Engine\World\Phases\TransferPhase.fs"/>
-        <Compile Include="Engine\World\Phases\DevelopmentPhase.fs"/>
-        <Compile Include="Engine\World\Phases\FinancePhase.fs"/>
-        <Compile Include="Engine\World\Phases\SeasonPhase.fs"/>
-        <Compile Include="Engine\World\WorldScheduler.fs"/>
-        <Compile Include="Engine\World\WorldRunner.fs"/>
-
-        <Compile Include="Engine\InboxMessages.fs"/>
         <Compile Include="Database\Entities.fs"/>
         <Compile Include="Database\Serializers.fs"/>
         <Compile Include="Database\Mappers.fs"/>
@@ -269,6 +53,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\FootballEngine.Core\FootballEngine.Core.fsproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <Content Include="..\Data\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <Link>Data\%(RecursiveDir)%(Filename)%(Extension)</Link>
@@ -282,7 +70,6 @@
         <PackageReference Include="Avalonia.Skia" Version="11.3.12"/>
         <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12"/>
         <PackageReference Include="Elmish" Version="5.0.2"/>
-        <PackageReference Include="FSharp.Stats" Version="0.6.0"/>
         <PackageReference Include="FsToolkit.ErrorHandling" Version="5.2.0"/>
         <PackageReference Include="Material.Icons.Avalonia" Version="3.0.0"/>
         <PackageReference Include="sqlite-net-pcl" Version="1.9.172"/>

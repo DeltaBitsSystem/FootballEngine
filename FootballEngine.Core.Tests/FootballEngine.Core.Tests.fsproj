@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <OtherFlags>--warnon:1182</OtherFlags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Infrastructure\TestRng.fs"/>
+        <Compile Include="Infrastructure\TestBuilders.fs"/>
+        <Compile Include="Contracts\RngTests.fs"/>
+        <Compile Include="Contracts\ClockTests.fs"/>
+        <Compile Include="Contracts\EventFlagTests.fs"/>
+        <Compile Include="Contracts\ConfigTests.fs"/>
+        <Compile Include="Contracts\ConfigMigrationTests.fs"/>
+        <Compile Include="Program.fs"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\FootballEngine.Core\FootballEngine.Core.fsproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Expecto" Version="10.2.1"/>
+    </ItemGroup>
+
+</Project>

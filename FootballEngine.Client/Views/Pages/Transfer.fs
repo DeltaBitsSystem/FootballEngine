@@ -728,7 +728,7 @@ module Transfers =
         match status with
         | Pending -> "Pending", Theme.Warning
         | AcceptedByClub -> "Club Accepted", Theme.Accent
-        | RejectedByClub -> "Rejected", Theme.Danger
+        | OfferStatus.RejectedByClub -> "Rejected", Theme.Danger
         | ContractOffered _ -> "Negotiating", Theme.AccentAlt
         | ContractRejectedByPlayer -> "Player Refused", Theme.Danger
         | Completed -> "Completed", Theme.Accent
