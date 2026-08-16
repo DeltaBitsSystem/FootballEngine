@@ -1,7 +1,9 @@
 namespace FootballEngine.Core.Match
 
-/// Pure ball physics: gravity, drag, ground friction, bounce, stop cutoff, Magnus, spin decay.
-/// Only the ball is touched. Runs every tick while the game is Live.
+/// The ball must behave believably with no agent acting on it: once struck,
+/// only physics owns it. Gravity, air drag, ground friction, bounce, stop
+/// cutoff, Magnus and spin decay are the whole model — no entity is consulted,
+/// so the motion is fully deterministic and can be replayed.
 module BallPhysics =
 
     let private integrate (ctx: SystemContext) (tick: int<subtick>) (ball: BallState) (cfg: BallConfig) : BallState =
@@ -23,7 +25,8 @@ module BallPhysics =
         let mutable vy = vy1 * 1.0<meterPerSecond>
         let mutable vz = vz1 * 1.0<meterPerSecond>
 
-        // Ground handling.
+        // On the ground the ball has two regimes: a bounce when it still has vertical
+        // speed, or a roll otherwise — each with its own friction.
         let grounded = float p.Z <= 0.0 && vz0 <= 0.0
 
         if grounded && -vz1 > float cfg.StopSpeedCutoff then

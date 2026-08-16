@@ -2,7 +2,8 @@ namespace FootballEngine.Core.Match
 
 open System.Text.Json
 
-/// Deterministic match dump (events + stats) for calibration. Filled by R11.
+/// Machine-readable record of a match (events + stats) for the calibration
+/// pipeline (R11): training consumes the same deterministic data the engine ran.
 module MatchDump =
 
     type private Metadata =

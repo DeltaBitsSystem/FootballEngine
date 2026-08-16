@@ -1,14 +1,19 @@
 namespace FootballEngine.Core.Match
 
-/// Team position (ex TeamShape): where the team stands. Orchestrates the
-/// collective positioning pipeline — HELIOS formation -> directive nudge ->
-/// lateral pairs -> Voronoi field evaluator — and writes team.Shape;
-/// everything else reads it. Single system in the scheduler; the Formation /
-/// FieldEvaluator / LateralPairs helpers are pure modules.
+/// Team position (ex TeamShape): where the team stands. Each pipeline stage
+/// fixes a failure the previous one cannot see: the HELIOS formation gives a
+/// coherent ball-tracking shape, the directive nudge carries the manager's
+/// intent, lateral pairs balance symmetric coverage, and the Voronoi field
+/// evaluator fixes the local spacing against real opponent positions. Writes
+/// team.Shape; everything else reads it, so positioning is decided once per
+/// scheduler pass — the Formation / FieldEvaluator / LateralPairs helpers are
+/// pure modules.
 module TeamPosition =
 
-    /// Ball-zone anchors in the team's attacking frame (attack = +X): center,
-    /// own third, attacking third, and both wings.
+    /// Ball-zone anchors in the team's attacking frame (attack = +X): the ball
+    /// lives in one of five corridors — center, own third, attacking third,
+    /// and both wings — and each corridor needs its own sample for the
+    /// interpolation to be well-conditioned everywhere.
     let private anchors: (float<meter> * float<meter>)[] =
         [| 0.0<meter>, 0.0<meter>
            -30.0<meter>, 0.0<meter>
@@ -16,9 +21,9 @@ module TeamPosition =
            12.0<meter>, -22.0<meter>
            12.0<meter>, 22.0<meter> |]
 
-    /// Forward/back nudge applied to the whole shape by the current directive
-    /// (replaces the old phaseShift/LineHeight/ballPull heuristic). Positive
-    /// pushes toward the rival goal.
+    /// The directive carries the manager's intent, so the whole shape is nudged
+    /// forward/back accordingly (replaces the old phaseShift/LineHeight/
+    /// ballPull heuristic). Positive pushes toward the rival goal.
     let private directiveNudge (kind: DirectiveKind) : float =
         match kind with
         | DirectiveKind.Attack -> 8.0
@@ -28,7 +33,9 @@ module TeamPosition =
         | DirectiveKind.ParkTheBus -> -12.0
         | DirectiveKind.Balanced -> 0.0
 
-    /// Symmetric lateral pairs (LB<->RB, LW<->RW) built from the lineup roles.
+    /// Symmetric lateral pairs (LB<->RB, LW<->RW) built from the lineup roles —
+    /// only these roles are mirrored across the pitch axis, so only they can
+    /// swap targets without breaking the shape.
     let private lateralPairs (ctx: MatchContext) (side: ClubSide) : (int * int)[] =
         let lineup = MatchWorld.lineup ctx side
 
@@ -44,9 +51,11 @@ module TeamPosition =
                if slots.Length = 2 then
                    yield slots.[0], slots.[1] |]
 
-    /// R7 — linear role assignment. Written only when the directive changes:
+    /// R7 — linear role assignment. The team needs exactly one designated
+    /// presser and one anchor on every ball, and position alone decides it:
     /// the slot closest to the ball presses, the most retarded anchors, two
-    /// intermediates cover, and everyone else supports. Deterministic: no Rng.
+    /// intermediates cover, everyone else supports. Reassigned only when the
+    /// directive changes so the roles do not thrash. Deterministic: no Rng.
     let private assignRoles (ctx: MatchContext) (world: World) (side: ClubSide) : unit =
         let team = MatchWorld.team world side
         let frame = team.Frame
@@ -57,7 +66,6 @@ module TeamPosition =
         let active = MatchWorld.activeSlots frame
 
         if active.Length > 0 then
-            // Nearest to the ball presses.
             let nearest =
                 active
                 |> Array.minBy (fun slot ->
@@ -66,7 +74,6 @@ module TeamPosition =
                     else
                         MatchMath.dist ball.X ball.Y (MatchWorld.posX frame slot) (MatchWorld.posY frame slot))
 
-            // Most retarded (farthest toward own goal) anchors a defensive spot.
             let anchor =
                 active
                 |> Array.maxBy (fun slot ->
@@ -79,7 +86,6 @@ module TeamPosition =
                             (MatchWorld.posX frame slot)
                             (MatchWorld.posY frame slot))
 
-            // Two intermediate candidates get the cover bias.
             let ranked =
                 active
                 |> Array.filter (fun slot -> slot <> nearest && slot <> anchor && slot <> 0)
@@ -101,7 +107,8 @@ module TeamPosition =
 
                 frame.RoleBias.[slot] <- float32 bias
 
-    /// Active positions of a team converted to the given team's attacking frame.
+    /// Active positions of a team converted to the given team's attacking frame —
+    /// the evaluator needs every side in the same frame to compare distances.
     let private activePositions (world: World) (side: ClubSide) (dir: float) : (float * float)[] =
         let frame = (MatchWorld.team world side).Frame
 
@@ -156,24 +163,27 @@ module TeamPosition =
 
         let nudge = directiveNudge team.Directive.Kind
 
-        // Base targets from the formation, nudged by the directive (team frame).
+        // The directive intent must reach the shape before local refinements apply,
+        // so the nudge happens on the raw formation targets (team frame).
         let baseTargets =
             Formation.query formation ballFx ballFy
             |> Array.map (fun (x, y) -> float x + nudge, float y)
 
-        // Slot-indexed current positions in this team's frame, for pair swaps.
+        // Pair swaps compare travel from where the slots are now, so the current
+        // positions must be in the same frame as the targets.
         let ownPositions =
             let frame = (MatchWorld.team world side).Frame
             Array.init frame.SlotCount (fun i -> float frame.PosX.[i] * dir, float frame.PosY.[i])
 
-        // Active opponent positions for the Voronoi evaluator (compact).
+        // The evaluator must see the opponents where they really stand, so their
+        // live positions (not the shape) feed the Voronoi term.
         let oppPositions = activePositions world (MatchWorld.oppOf side) dir
 
-        // Apply lateral pair swaps to the base targets.
         let pairedTargets =
             LateralPairs.solve pairParams ownPositions baseTargets (lateralPairs ctx side)
 
-        // Refine each slot with the Voronoi evaluator, then write to world frame.
+        // The formation cannot know the local spacing, so each slot's target is
+        // refined against live positions before being written to world frame.
         let active = MatchWorld.activeSlots frame
 
         let gkSlot =
@@ -204,7 +214,6 @@ module TeamPosition =
                 else
                     fx
 
-            // Back to world frame, then clamp to the pitch.
             let wx = fx' * dir
             let wy = fy
             let cx, cy = MatchMath.pitchClamp wx wy
@@ -218,7 +227,8 @@ module TeamPosition =
             for side in [ ClubSide.Home; ClubSide.Away ] do
                 let team = MatchWorld.team world side
 
-                // R7 — reassign roles only when the directive just changed.
+                // R7 — roles follow the directive; reassign only right after it changed,
+                // so the linear assignment does not fight the current plan.
                 if tick - team.Directive.SinceTick <= 240<subtick> then
                     assignRoles ctx.Ctx world side
 

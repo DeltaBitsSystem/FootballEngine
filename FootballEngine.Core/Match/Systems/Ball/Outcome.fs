@@ -1,7 +1,9 @@
 namespace FootballEngine.Core.Match
 
-/// Shot resolution (save/goal/off-target/post/blocked), out-of-bounds restarts,
-/// and stationary-loose-ball detection. Runs every tick while Live.
+/// A struck ball does not resolve at the moment of the shot: its outcome is
+/// decided when it reaches the target, so defenders and the GK can still react
+/// during flight. Also awards out-of-bounds restarts, so a ball leaving the
+/// pitch never just vanishes.
 module BallOutcome =
 
     let private emitSetPiece
@@ -16,18 +18,20 @@ module BallOutcome =
             { Tick = tick
               Data = EventData.SetPiece(kind, side) }
 
-    /// The team that defends the goal the ball crossed at (x, y).
+    /// Restart ownership follows who defends the crossed goal line: the defenders
+    /// of that line concede a corner or win a goal kick.
     let private goalLineDefender (x: float<meter>) : ClubSide =
         if x > 0.0<meter> then ClubSide.Away else ClubSide.Home
 
-    /// Check if the ball is geometrically within the goal frame at the goal line.
+    /// A goal is the real goal frame: inside the 7.32 m width and below the 2.44 m
+    /// crossbar at the line — anything outside is a miss, even inches away.
     let private isInGoal (ball: BallState) : bool =
         let absY = abs (float ball.Position.Y)
         let zOk = float ball.Position.Z < 2.44
         absY < float Pitch.GoalHalfWidth && zOk
 
-    /// Detect own goal: if the last touch before the shot reached the goal line
-    /// was from a defender, the goal is an own goal by that defender.
+    /// Attribution must follow the real rule: if the last touch before the line was
+    /// a defender's, the goal counts to that defender, not to the shooter.
     let private detectOwnGoal
         (ctx: SystemContext)
         (world: World)
@@ -63,7 +67,8 @@ module BallOutcome =
         let bx = ball.Position.X
         let by = ball.Position.Y
 
-        // Block attempt by a defender close to the flight path.
+        // A defender within reach of the flight path gets one last chance to stop
+        // the ball before arrival — resolving at arrival is what makes this possible.
         let blocker = MatchWorld.nearestOpponent ctx.Ctx world shooterSide bx by 3.0
 
         match blocker with
@@ -111,7 +116,7 @@ module BallOutcome =
             let absY = abs (float by)
 
             if absY < float Pitch.GoalHalfWidth then
-                // Inside the frame: the GK reacts.
+                // Inside the frame only the keeper can stop it — the shot must beat the save roll.
                 let gkSlot = 0
                 let gk = MatchWorld.profileOf ctx.Ctx defSide gkSlot
                 let gkX = MatchWorld.posX frame gkSlot
@@ -211,7 +216,7 @@ module BallOutcome =
 
                     rng'
             else
-                // Off target or off the post.
+                // A miss near the frame edges is not dead yet: the post can still keep it in play.
                 let postZone = absY < float Pitch.GoalHalfWidth + 0.5
 
                 if postZone then
@@ -259,7 +264,8 @@ module BallOutcome =
 
                     rng
 
-    /// Out-of-bounds detection and restart award.
+    /// A ball crossing a line must produce its restart immediately: without this
+    /// the ball would leave the pitch and possession would silently disappear.
     let private handleOutOfBounds
         (ctx: SystemContext)
         (world: World)
@@ -283,7 +289,7 @@ module BallOutcome =
                 let defender = goalLineDefender px
 
                 if lastSide = Some defender then
-                    // Defender's touch over their own goal line: corner for the attackers.
+                    // The defender of the crossed line concedes the corner — attackers get the restart.
                     emitSetPiece ctx world tick buffer SetPieceKind.Corner (MatchWorld.oppOf defender)
                 else
                     emitSetPiece ctx world tick buffer SetPieceKind.GoalKick defender

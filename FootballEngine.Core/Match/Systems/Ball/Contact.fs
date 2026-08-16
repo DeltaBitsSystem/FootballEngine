@@ -1,9 +1,10 @@
 namespace FootballEngine.Core.Match
 
-/// Resolves ball arrivals: pass/cross/clear reception races and interceptions.
-/// Aims a generic contest between ALL active players near the arrival point.
-/// The arrival ranking is a vectorized time-to-ball run (Pace/Condition/Intent),
-/// not raw distance: the first to actually REACH the ball wins.
+/// Pass reception cannot be a binary "receiver gets it": a ball arriving is
+/// contested by every active player near the arrival point, and the first to
+/// actually REACH it wins. Arrival ranking is a vectorized time-to-ball run
+/// (Pace/Condition/Intent), not raw distance, so a slow player standing close
+/// cannot beat a fast one arriving first.
 module BallContact =
 
     type Arrival =
@@ -21,8 +22,9 @@ module BallContact =
         | IntentCode.Support -> 0.75
         | _ -> 0.55
 
-    /// Time for the slot to reach (x, y): (d − captureRadius) / (vmax · condition · intent).
-    /// Lower is better. Pure: no Rng, no mutation. Shared with the loose-ball contest.
+    /// Time-to-ball must be a pure function: the same race must resolve
+    /// identically whether it happens here or in the loose-ball contest, and the
+    /// match is deterministic (no Rng, no mutation). Lower is better.
     let timeToBall
         (ctx: MatchContext)
         (world: World)
@@ -51,7 +53,8 @@ module BallContact =
         let captureRadius = float cfg.Weights.GK.CollectionRadius
         (d - captureRadius) / (vmax * conditionFactor * intentFactor * recoveryBoost)
 
-    /// Winner by arrival time; None if nobody is in reach. Tie by shorter distance.
+    /// The race is won by whoever REACHES first, not whoever is nearest: a close
+    /// slow player must not beat a faster one farther away. Distance only breaks ties.
     let private bestCandidate
         (ctx: MatchContext)
         (world: World)

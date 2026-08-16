@@ -1,8 +1,9 @@
 namespace FootballEngine.Core.Match
 
-/// VAR: offside snapshot markers + review verdict.
-/// The shot system leaves a marker (Phase = 250) in the scoring team's RunLookup;
-/// the referee uses it to decide overturns deterministically at review expiry.
+/// An offside review must be deterministic and reproducible: instead of
+/// re-simulating the scoring moment, the shot system stores a snapshot marker
+/// (Phase = 250) in the scoring team's RunLookup, and the referee reads that
+/// snapshot at review expiry to give the verdict.
 module RefereeVAR =
 
     let private markerKey (slot: int) : int = slot + 1000
@@ -36,7 +37,9 @@ module RefereeVAR =
         for k in keys do
             team.Frame.RunLookup.Remove k |> ignore
 
-    /// Deterministic verdict from the last snapshot. True = attacker was offside.
+    /// The verdict is read, not re-simulated: the same snapshot always gives the
+    /// same overturn, and only positions beyond the margin (VarOffsideMargin)
+    /// overturn the goal — marginal calls stand.
     let isOffside (ctx: MatchContext) (world: World) (scoringSide: ClubSide) : bool =
         let team = MatchWorld.team world scoringSide
         let dir = MatchMath.goalDirection scoringSide

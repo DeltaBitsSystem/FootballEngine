@@ -1,6 +1,7 @@
 namespace FootballEngine.Core.Match
 
-/// Physics constants, trajectory, contact, reception. (was PhysicsConfig + Interception + part of Pass)
+/// Ball behaviour — physics, trajectory, contact, reception. One record so ball
+/// tuning never leaks into agent code. (was PhysicsConfig + Interception + part of Pass)
 [<Struct>]
 type BallConfig =
     { Gravity: float<meterPerSecondSquared>
@@ -29,7 +30,8 @@ type BallConfig =
       InterceptionPaceWeight: float
       InterceptionIntentBoost: float }
 
-/// Speeds, acceleration, separation, fatigue decay, smoothing, scorer thresholds. (was Movement parts + scorer thresholds)
+/// Movement and fatigue — speeds, acceleration, separation, smoothing, decay and
+/// recovery, scorer thresholds. (was Movement parts + scorer thresholds)
 [<Struct>]
 type MovementConfig =
     { SprintSpeed: float<meterPerSecond>
@@ -48,7 +50,9 @@ type MovementConfig =
       IntentFloor: float
       IntentHysteresis: float }
 
-/// Pass/shot/duel/cross/GK/dribble knobs. (was PassConfig, ShotConfig, DuelConfig, CrossConfig, DribbleConfig, GKConfig, DecisionConfig + IndividualWeights)
+/// Action outcomes — pass, shot, duel, cross, GK and dribble success curves,
+/// tunable without touching agent logic. (was PassConfig, ShotConfig, DuelConfig,
+/// CrossConfig, DribbleConfig, GKConfig, DecisionConfig + IndividualWeights)
 [<Struct>]
 type ActionsConfig =
     { PassBaseQuality: float
@@ -86,6 +90,7 @@ type ActionsConfig =
       MemoryDuelWeight: float
       MemoryMentalDecay: float }
 
+/// Dead-ball pacing and geometry: restart delays, wall setup, corner/free-kick targets.
 [<Struct>]
 type SetPieceConfig =
     { KickoffDelay: float<second>
@@ -104,7 +109,9 @@ type SetPieceConfig =
       CornerNearZoneDist: float<meter>
       CornerFarZoneDist: float<meter> }
 
-/// Utility weights, emergent loops, blackboard windows, shape. (was CollectiveWeights + UtilityWeights + MatchSituation + Influence + TeamDirector/Reactive/WinProb weights)
+/// The collective mind — utility weights, emergent loops, blackboard windows,
+/// shape. (was CollectiveWeights + UtilityWeights + MatchSituation + Influence +
+/// TeamDirector/Reactive/WinProb weights)
 [<Struct>]
 type TeamConfig =
     { UtilityAttackingWeight: float
@@ -138,7 +145,8 @@ type TeamConfig =
       PatternCenterBias: float
       PatternWingBias: float }
 
-/// Foul severity, cards, VAR, advantage, home-card. (was FoulAnalysis consts + RefereeWeights + HomeAdvantage card parts)
+/// Referee behaviour — foul severity, cards, VAR, advantage, home-card bias.
+/// (was FoulAnalysis consts + RefereeWeights + HomeAdvantage card parts)
 [<Struct>]
 type RefereeConfig =
     { FoulMinorChance: float
@@ -155,7 +163,8 @@ type RefereeConfig =
       PromisingAttackFactor: float
       ZoneFactor: float }
 
-/// Sub windows and thresholds. (was ManagerConfig + TimingConfig parts)
+/// Manager behaviour — substitution windows and thresholds. (was ManagerConfig +
+/// TimingConfig parts)
 [<Struct>]
 type ManagerConfig =
     { MaxSubs: int
@@ -177,7 +186,8 @@ type EnvironmentConfig =
       WeatherEffect: float
       PitchQuality: float }
 
-/// Volume, stoppage, match importance. (was MatchVolumeConfig + TimingConfig parts)
+/// Match flow — stoppage, pause durations, match importance. (was
+/// MatchVolumeConfig + TimingConfig parts)
 [<Struct>]
 type MatchConfig =
     { MatchImportanceWeight: float
@@ -233,6 +243,8 @@ type SituationConfig = { LeadSteps: int }
 type PassInterceptConfig =
     { BaseRisk: int; OffsideCrossRisk: int }
 
+/// The single tuning surface: every behavior-affecting number in the engine
+/// lives here, nowhere else.
 type BalanceConfig =
     { Ball: BallConfig
       Movement: MovementConfig

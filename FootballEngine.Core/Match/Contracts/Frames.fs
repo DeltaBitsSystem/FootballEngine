@@ -127,8 +127,9 @@ type RunAssignment =
       Phase: int
       ExpiresAt: int<subtick> }
 
-/// SoA — ONE source of truth per property. Every array is length SlotCount.
-/// No duplicated flat arrays; the factory allocates everything (no defaultof).
+/// SoA — ONE source of truth per property, every array length SlotCount: no two
+/// copies of a value can desync. The factory below allocates everything — no
+/// defaultof, no uninitialized slots.
 [<Struct>]
 type TeamFrame =
     { mutable PosX: float32[]

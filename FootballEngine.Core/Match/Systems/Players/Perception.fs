@@ -1,8 +1,10 @@
 namespace FootballEngine.Core.Match
 
-/// Visibility and cognitive perception: who each player can see, how pressed
-/// they are, which lanes are open and which receivers can see the carrier.
-/// Also refreshes per-player cognitive vitality and decays R6 memory in batch.
+/// What each player is allowed to know before deciding: who they can see, how
+/// pressed they are, which lanes are open and which receivers can see the
+/// carrier. Everything downstream is gated by this — a player cannot react to
+/// what perception says he does not see. Also refreshes cognitive vitality and
+/// decays R6 memory in batch so streaks fade on a schedule.
 module PlayerPerception =
 
     let private pressRadius = 3.5
@@ -36,8 +38,10 @@ module PlayerPerception =
                             StreakMod = mem.StreakMod * factor
                             LastMemoryDecayTick = tick }
 
-    /// Distance from point p to the infinite line through a→b, plus whether the
-    /// projection falls within the segment. Used for lane-clear detection.
+    /// Geometry behind lane-clear: distance from a point to the segment a→b
+    /// and whether the projection lies inside it. An opponent only blocks a
+    /// pass when he is near the segment itself — someone beyond its ends is
+    /// irrelevant.
     let private offsetFromSegment
         (ax: float)
         (ay: float)
@@ -59,7 +63,7 @@ module PlayerPerception =
             let cy = ay + clamped * dy
             sqrt ((px - cx) * (px - cx) + (py - cy) * (py - cy)), t > 0.1 && t < 0.9
 
-    /// R3: build the fysical and cognitive perception frame for one team.
+    /// R3 — build the physical and cognitive perception frame for one team.
     let private perceiveTeam (ctx: MatchContext) (world: World) (side: ClubSide) (tick: int<subtick>) : unit =
         let team = MatchWorld.team world side
         let frame = team.Frame
@@ -114,7 +118,8 @@ module PlayerPerception =
                     let tx = float frame.PosX.[slot]
                     let ty = float frame.PosY.[slot]
 
-                    // LaneClear: fewer than two opponents block the segment carrier→teammate.
+                    // A single opponent on the segment does not kill a lane —
+                    // the pass can still beat him — but two bodies make a wall.
                     let mutable blockers = 0
 
                     for opp in MatchWorld.activeSlots (MatchWorld.team world (MatchWorld.oppOf side)).Frame do
@@ -128,7 +133,8 @@ module PlayerPerception =
 
                     frame.LaneClear.[slot] <- blockers < 2
 
-                    // FaceCone: the teammate sees the carrier.
+                    // R3 — a receiver who cannot see the carrier cannot react
+                    // to the ball; the cone is that visibility check.
                     if slot = 0 then
                         frame.FaceCone.[slot] <- true
                     else

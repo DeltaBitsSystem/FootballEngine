@@ -5,8 +5,9 @@ open System.Reflection
 open System.Text.Json
 open Microsoft.FSharp.Reflection
 
-/// Generic partial merge: JSON with case-insensitive field names, option-typed overrides,
-/// applied over defaults via reflection. Replaces WeightsLoader.fs (2,060 lines).
+/// One generic reflection-based merge replaces the hand-written WeightsLoader
+/// (2,060 lines): new balance fields get JSON overrides for free, with no
+/// per-field parsing code to maintain.
 module WeightMerge =
 
     let private getFields (t: Type) : PropertyInfo[] =

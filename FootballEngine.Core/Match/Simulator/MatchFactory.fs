@@ -1,6 +1,8 @@
 namespace FootballEngine.Core.Match
 
-/// Builds a fresh World from a MatchContext. Every array allocated here; no defaults.
+/// Builds a fresh World for every run so matches share no mutable state: every
+/// array is allocated here and nothing falls back to defaults — identical seeds
+/// therefore produce identical matches.
 module MatchFactory =
 
     let private makeTeam (ctx: MatchContext) (side: ClubSide) (lineup: Lineup) : TeamWorld =

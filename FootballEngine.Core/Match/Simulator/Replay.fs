@@ -1,6 +1,8 @@
 namespace FootballEngine.Core.Match
 
-/// Compact match replay: per-snapshot team positions, ball, score, flow marker.
+/// Lightweight per-snapshot record (positions, ball, score, flow) kept in
+/// compact binary form so matches can be viewed and analyzed without
+/// re-running the engine.
 module Replay =
 
     type ReplayMeta = { Version: int }

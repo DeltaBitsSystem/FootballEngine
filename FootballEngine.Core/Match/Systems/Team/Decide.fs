@@ -1,7 +1,8 @@
 namespace FootballEngine.Core.Match
 
-/// Team-level decision: which directive to play, with hysteresis so the team
-/// doesn't flinch every tick.
+/// The team commits to one directive (press, park the bus, ...) and holds it
+/// through hysteresis — reacting to every tick would make the shape and the
+/// pressing thrash instead of playing one coherent plan.
 module TeamDecide =
 
     let private decideTeam (ctx: MatchContext) (world: World) (side: ClubSide) (tick: int<subtick>) : unit =

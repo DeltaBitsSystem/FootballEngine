@@ -1,10 +1,11 @@
 namespace FootballEngine.Core.Match
 
 /// HELIOS "position pairs" (HELIOS base, `setPositionPair`): symmetric pairs
-/// such as LB<->RB or LW<->RW may swap their assigned targets to balance
-/// coverage without breaking the formation. Pure and deterministic: for each
-/// pair we compare the total travel of keeping vs. swapping, and swap only when
-/// the gain exceeds a hysteresis threshold (so the team never flips every tick).
+/// such as LB<->RB or LW<->RW may swap their assigned targets, so the pair
+/// balances coverage of its corridor without breaking the formation. Pure and
+/// deterministic: for each pair we compare the total travel of keeping vs.
+/// swapping, and swap only when the gain exceeds a hysteresis threshold (so
+/// the team never flips every tick).
 module LateralPairs =
 
     type PairParams = { SwapThreshold: float }
@@ -23,9 +24,12 @@ module LateralPairs =
             (float32 (fst tr))
             (float32 (snd tr))
 
-    /// Apply swap decisions. `pairs` is a list of (slotL, slotR) where slotL
-    /// sits on the left (negative Y) and slotR on the right (positive Y) in the
-    /// team's resting shape. Returns the targets with swaps applied.
+    /// Apply swap decisions, comparing only the two alternatives (keep vs. swap)
+    /// because both slots cover the same corridor — a swap is worthwhile only
+    /// when it clearly shortens total travel. `pairs` is a list of (slotL,
+    /// slotR) where slotL sits on the left (negative Y) and slotR on the
+    /// right (positive Y) in the team's resting shape. Returns the targets
+    /// with swaps applied.
     let solve
         (params: PairParams)
         (current: (float * float)[])

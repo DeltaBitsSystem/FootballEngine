@@ -1,10 +1,12 @@
 namespace FootballEngine.Core.Match
 
-/// Referee decisions on fouls: advantage, contextual severity, card, penalty, set-piece emission.
-/// A single system emits both the Foul event (from Duel) and the resulting SetPiece event.
+/// A foul must get one coherent referee response — advantage or restart, plus a
+/// card — so a single system decides both: the Duel emits the Foul, this system
+/// answers with the SetPiece, and the two can never disagree.
 module RefereeFouls =
 
-    /// Evaluate whether the fouled team has a promising attack and should get advantage.
+    /// Stopping play for every foul would kill attacking flow: advantage is only
+    /// played when the fouled team is actually advancing with a teammate ahead.
     let private shouldPlayAdvantage
         (ctx: MatchContext)
         (world: World)
@@ -15,10 +17,10 @@ module RefereeFouls =
         let cfg = ctx.Config.Referee
         let dir = MatchMath.goalDirection fouledSide
 
-        // Ball is moving toward the fouled team's attacking goal.
+        // Advantage only pays off if the play is heading toward the fouled team's goal.
         let advancing = float fx * dir > 0.0
 
-        // Teammate is in a dangerous position nearby.
+        // And there must be a teammate ahead — otherwise continuing play gains nothing.
         let team = MatchWorld.team world fouledSide
         let mutable bestTeammateFwd = 0.0
 
@@ -32,7 +34,8 @@ module RefereeFouls =
 
         advancing && bestTeammateFwd > 8.0
 
-    /// Check if foul location is inside the fouled team's penalty area.
+    /// The restart depends on the spot: inside the box it is a penalty, anywhere
+    /// else a free kick — location alone decides.
     let private isFoulInBox (fouledSide: ClubSide) (fx: float<meter>) : bool =
         let goalX = MatchMath.goalX fouledSide
         abs (float fx - float goalX) < 16.5
@@ -111,7 +114,8 @@ module RefereeFouls =
             rng'
         | _ -> rng
 
-    /// Process a foul: decide advantage vs. set-piece, emit the restart event.
+    /// Every foul needs a visible consequence: either the game continues (advantage)
+    /// or a restart event is emitted — decided once so the viewer always sees it.
     let private processFoul
         (ctx: SystemContext)
         (world: World)
@@ -132,12 +136,10 @@ module RefereeFouls =
                 // The advantage window is implicit — no tick overhead.
                 ()
             elif inBox then
-                // Penalty kick.
                 buffer.Events.Add
                     { Tick = tick
                       Data = EventData.SetPiece(SetPieceKind.Penalty, fouledSide) }
             else
-                // Free kick at the spot.
                 buffer.Events.Add
                     { Tick = tick
                       Data = EventData.SetPiece(SetPieceKind.FreeKick, fouledSide) }

@@ -1,5 +1,7 @@
 namespace FootballEngine.Core.Match
 
+/// 40 Hz physics cadence: 2400 whole subticks per match minute keep minute
+/// arithmetic exact and integer (see minuteSubticks).
 type SimulationClock = { SubTicksPerSecond: int }
 
 module SimulationClock =
@@ -9,6 +11,8 @@ module SimulationClock =
     let dt (clock: SimulationClock) : float<second> =
         (1.0<second> / float clock.SubTicksPerSecond)
 
+    /// Players perceive and decide at half the physics rate (20 Hz) — cognition
+    /// is the amortized layer; ball physics is not.
     let dtPlayer (clock: SimulationClock) : float<second> =
         (2.0<second> / float clock.SubTicksPerSecond)
 

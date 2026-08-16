@@ -1,10 +1,13 @@
 namespace FootballEngine.Core.Match
 
-/// Duel execution: the carrier tries to beat the nearest defender (dribble),
-/// or the defender wins the ball (tackle). Fouls come from failed dribbles.
+/// Duel execution: the carrier's dribble against the nearest defender's
+/// tackle. A lost duel gives the ball away, and a foul is the price of a
+/// failed dribble — the two are coupled so beating a man is never free.
 module Duel =
 
-    /// Determine foul severity from duel context (position, last man, recklessness).
+    /// Severity follows the same rules everywhere: derived from position,
+    /// last-man status and a position-seeded roll, so the same foul in the
+    /// same place always gets the same punishment — never the referee's mood.
     let private foulSeverity
         (ctx: MatchContext)
         (world: World)
@@ -21,7 +24,8 @@ module Duel =
         let nearOwnBox = distToOwnGoal < 20.0
         let nearAttGoal = distToAttGoal < 30.0
 
-        // Check if we're the last defender (only GK behind).
+        // A foul with no defender behind is a denied clear goalscoring
+        // chance — that is what makes it red-worthy, not the position itself.
         let mutable lastMan = false
 
         if nearAttGoal then

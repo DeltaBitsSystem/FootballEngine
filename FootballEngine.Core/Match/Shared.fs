@@ -1,6 +1,7 @@
 namespace FootballEngine.Core.Match
 
-/// Pure math helpers shared by all systems. No state, no globals.
+/// Deterministic math shared by every system. Pure and global-free, so the
+/// same inputs always yield the same outputs — nothing here can break determinism.
 module MatchMath =
 
     let inline clamp (lo: float) (hi: float) (v: float) : float = min hi (max lo v)
@@ -56,7 +57,8 @@ module MatchMath =
 
     let distanceToGoal (side: ClubSide) (x: float<meter>) (y: float<meter>) : float = dist x y (goalX side) 0.0<meter>
 
-/// World/team access helpers. Every system reads positions/teams through here.
+/// Every system reads positions/teams through here so derived concepts
+/// (nearest opponent, offside line, ball carrier) are computed identically everywhere.
 module MatchWorld =
 
     let team (world: World) (side: ClubSide) : TeamWorld =
@@ -142,7 +144,8 @@ module MatchWorld =
 
         if bestSlot < 0 then None else Some(bestSlot, bestD)
 
-    /// Nearest opponent within maxDist, if any.
+    /// Distance to the closest opponent is the core pressure signal: duels,
+    /// shot blocking and perception all judge urgency from it.
     let nearestOpponent
         (ctx: MatchContext)
         (world: World)
@@ -164,7 +167,8 @@ module MatchWorld =
 
         if best < 0 then None else Some best
 
-    /// Count of opponents within maxDist of (x, y).
+    /// Crowding count: how many opponents press the point. Decisions that weigh
+    /// space vs. pressure (shots, dribbles, GK distribution, fouls) rely on it.
     let opponentsNear
         (ctx: MatchContext)
         (world: World)

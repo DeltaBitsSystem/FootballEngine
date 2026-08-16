@@ -1,6 +1,8 @@
 namespace FootballEngine.Core.Match
 
-/// Card bookkeeping: second yellow becomes a red, reds sideline the player.
+/// A card changes nothing by itself: this system makes it matter — two yellows
+/// become a red when the rule is enabled, and totals are tracked so discipline
+/// has real consequences.
 module RefereeCards =
 
     let private applyCard

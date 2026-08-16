@@ -1,11 +1,12 @@
 namespace FootballEngine.Core.Match
 
 /// Bit i = EventKind i occurred this tick. Scheduler matches flags in O(1).
-/// Bit i = EventKind i occurred this tick. Scheduler matches flags in O(1).
 [<Struct>]
 type EventFlags = { Bits: uint64 }
 
-/// <= 64 cases. Tag order fixed at P1 — flags depend on it.
+/// The flag table is a uint64, so this DU is capped at 64 cases and its tag
+/// order is frozen (P1): each case's index IS its flag bit — inserting or
+/// reordering a case silently corrupts flag matching.
 type EventKind =
     | PossessionGained
     | PossessionLost
@@ -124,7 +125,8 @@ type MatchEvent = { Tick: int<subtick>; Data: EventData }
 
 module MatchEvent =
 
-    /// Total function, compiler-checked. The only boilerplate in the system — it enables the flag table.
+    /// The one sanctioned boilerplate: keeps the EventKind -> bit mapping total
+    /// and compiler-checked.
     let kind (ev: MatchEvent) : EventKind =
         match ev.Data with
         | EventData.Possession _ -> EventKind.PossessionGained

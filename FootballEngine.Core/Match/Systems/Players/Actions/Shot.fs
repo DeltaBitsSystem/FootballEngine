@@ -1,8 +1,10 @@
 namespace FootballEngine.Core.Match
 
-/// Shot execution: strike the ball at the goal, leave a VAR offside marker for
-/// close-range attempts, and record the attempt in memory. The Shot event is
-/// emitted by BallOutcome at resolution (one Shot event per attempt).
+/// Shot execution: strike the ball and leave behind everything a goal may be
+/// judged on — a VAR offside snapshot for close-range attempts (the ones that
+/// get disputed) and a memory record so goal-less runs cool shooting (R6).
+/// The Shot event is emitted by BallOutcome at resolution, one per attempt,
+/// so the viewer sees the shot when it resolves.
 module Shot =
 
     let launch (ctx: SystemContext) (rng: Rng) (world: World) (buffer: EventBuffer) (side: ClubSide) (slot: int) : Rng =

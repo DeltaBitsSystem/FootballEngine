@@ -1,11 +1,13 @@
 namespace FootballEngine.Core.Match
 
-/// F4 — pass feasibility with the RoboCup interceptor model. The carrier
-/// rejects any pass the fastest opponent can reach before the receiver, plus a
-/// configurable risk margin. Pure, deterministic, reuses InterceptTable.
+/// F4 — a pass is only a real option if it beats the fastest interceptor: the
+/// carrier rejects any delivery an opponent can reach before the receiver,
+/// plus a configurable risk margin. Pure and deterministic so the decision
+/// layer can rely on the verdict, reusing InterceptTable's flight math.
 module PassIntercept =
 
-    /// Airborne pass params: only air drag per tick (dt = 1/40).
+    /// Flight params for an airborne pass: the ball is in the air, so the only
+    /// decay is air drag per tick (dt = 1/40) — no ground friction to model.
     let passParams
         (intercept: InterceptConfig)
         (movement: MovementConfig)
@@ -18,7 +20,9 @@ module PassIntercept =
           ControlRadius = intercept.ControlRadius
           MaxSteps = intercept.MaxSteps }
 
-    /// Steps for the fastest non-GK opponent to intercept the launched ball.
+    /// The binding constraint: steps for the fastest non-GK opponent to reach
+    /// the ball. The GK is excluded — a keeper never leaves his line for a
+    /// pass interception.
     let interceptorStep (p: InterceptTable.InterceptParams) (world: World) (side: ClubSide) (ball: Spatial) : int =
         let frame = (MatchWorld.team world (MatchWorld.oppOf side)).Frame
 
@@ -30,7 +34,8 @@ module PassIntercept =
 
         if steps.Length = 0 then p.MaxSteps else Array.min steps
 
-    /// Steps for the receiver slot to control the launched ball.
+    /// Steps for the receiver to get the delivery under control — the number
+    /// the fastest interceptor must beat for the pass to be worth playing.
     let passArrivalStep
         (p: InterceptTable.InterceptParams)
         (world: World)
@@ -41,9 +46,9 @@ module PassIntercept =
         let frame = (MatchWorld.team world side).Frame
         InterceptTable.stepsToReach p ball (MatchWorld.posX frame receiverSlot) (MatchWorld.posY frame receiverSlot)
 
-    /// Risk for this pass to a receiver slot given the launched ball: base risk
-    /// plus OffsideCrossRisk when the receiver is beyond the offside line and
-    /// the pass arrives diagonally.
+    /// The risk premium on a pass: a delivery beyond the offside line is
+    /// dangerous on its own, and a diagonal one is the case the judge can get
+    /// wrong — so the risk rises exactly at that intersection, nowhere else.
     let riskFor
         (cfg: PassInterceptConfig)
         (ctx: MatchContext)
@@ -66,7 +71,9 @@ module PassIntercept =
         let diagonal = abs (float ball.Vy) > abs (float ball.Vx) * 0.5
         cfg.BaseRisk + (if offside && diagonal then cfg.OffsideCrossRisk else 0)
 
-    /// True when feasible: interceptorStep + risk > passArrivalStep.
+    /// Feasibility = the receiver wins the race with margin:
+    /// `interceptorStep + risk > passArrivalStep`. The margin is what turns a
+    /// coin-flip pass into a safe one.
     let feasible
         (cfg: PassInterceptConfig)
         (ctx: MatchContext)

@@ -1,7 +1,9 @@
 namespace FootballEngine.Core.Match
 
-/// Goalkeeper distribution: short pass to an open defender when unpressured,
-/// long punt forward when under pressure.
+/// Goalkeeper distribution: restart the attack from the back with the least
+/// risky option. The target is the same under any pressure — the teammate who
+/// is nearest and least marked — but pressure spoils the delivery: a hurried
+/// GK passes worse than a calm one.
 module GK =
 
     let distribute (ctx: SystemContext) (rng: Rng) (world: World) (buffer: EventBuffer) (side: ClubSide) : Rng =

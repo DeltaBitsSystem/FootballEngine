@@ -183,7 +183,8 @@ module EventApply =
                     AwayScore = away
                     LastAttackingClub = Some side }
 
-            // VAR check: if offside markers exist for the scoring side, enter review.
+            // A goal can only be reviewed if an offside snapshot was recorded at
+            // shot time (Phase 250 marker) — no snapshot, nothing to review.
             let hasMarkers =
                 let team = MatchWorld.team world side
                 team.Frame.RunLookup.Values |> Seq.exists (fun v -> v.Phase = 250)

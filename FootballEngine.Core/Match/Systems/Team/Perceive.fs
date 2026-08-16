@@ -1,7 +1,9 @@
 namespace FootballEngine.Core.Match
 
-/// Team-level perception: phase, opponent pressure, threat/weakness zones,
-/// urgency, momentum streak. Written to the blackboard.
+/// The team needs one shared read of the situation before anyone decides, so
+/// this system derives the phase, opponent pressure, threat/weakness zones,
+/// urgency and momentum streak and writes them to the blackboard — every
+/// other system reads that single view instead of re-interpreting events.
 module TeamPerceive =
 
     let private perceiveTeam (ctx: MatchContext) (world: World) (side: ClubSide) (tick: int<subtick>) : unit =

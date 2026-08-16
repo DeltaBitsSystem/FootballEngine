@@ -38,7 +38,8 @@ type BallState =
       GKHoldSince: int<subtick> option
       ArrivalGate: int<subtick> option }
 
-/// O(1) counters; the pressure window lives in TeamWorld.EventWindow.
+/// O(1) counters only — the pressure window lives in TeamWorld.EventWindow, so
+/// one fact is never stored in two places.
 [<Struct>]
 type PossessionBook =
     { HomeTouches: int
@@ -66,6 +67,8 @@ type MatchFlow =
     | FullTimeReview of remaining: int<tickDelta>
     | MatchEnded
 
+/// The canonical match truth: tick, clock, flow, score, ball and momentum in
+/// one place, read and written by every system.
 [<Struct>]
 type MatchState =
     { Tick: int<subtick>

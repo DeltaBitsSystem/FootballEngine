@@ -1,6 +1,7 @@
 namespace FootballEngine.Core.Match
 
-/// Emergent team traits derived from what actually happens on the pitch.
+/// Traits derived from what the team actually does on the pitch, so the team's
+/// behavior responds to its own play instead of only to the configured tactics.
 module TeamEmergent =
 
     let private emergentTeam (ctx: MatchContext) (world: World) (side: ClubSide) (tick: int<subtick>) : unit =
@@ -69,8 +70,8 @@ module TeamEmergent =
                   * 0.4
             )
 
-        // R9 — adaptive channels: EMA of which corridor the attack comes from,
-        // based on the ball's Y position when events happen.
+        // R9 — adaptive channels: an EMA of the ball's corridor lets the team
+        // bias its play toward the corridor that is actually producing attacks.
         let by = float world.State.Ball.Position.Y
         let centerNudge = if abs by < 10.0 then 1.0 else 0.0
         let leftNudge = if by <= -10.0 then 1.0 else 0.0
@@ -95,7 +96,9 @@ module TeamEmergent =
                 + alpha * (rightNudge - float team.Emergent.ChannelRight)
             )
 
-        // Normalize the three EMA counters so Cross-vs-Pass bias is a clean fraction.
+        // Only the relative distribution of the corridors matters, and the raw EMAs
+        // drift with how often the ball is sampled; normalizing keeps the three
+        // channels comparable as a fraction regardless of that.
         let cSum =
             float team.Emergent.ChannelCenter
             + float team.Emergent.ChannelLeft

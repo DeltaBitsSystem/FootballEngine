@@ -1,9 +1,10 @@
 namespace FootballEngine.Core.Match
 
-/// The actions controller: one place where the carrier's stored decision
-/// (marker Phase 200), forced set-piece routines (marker Phase 201) and
-/// pressure duels are executed. This is the single "do" point for player
-/// actions; every other system only proposes.
+/// The single "do" point for player actions. Other systems only propose —
+/// PlayerDecision stores the carrier's choice as a marker (Phase 200) and
+/// SetPieceRoutines forces a routine (Phase 201) — and every proposal is
+/// executed here, so each action has exactly one execution path and deciding
+/// stays decoupled from doing.
 module Actions =
 
     let private executeDecision

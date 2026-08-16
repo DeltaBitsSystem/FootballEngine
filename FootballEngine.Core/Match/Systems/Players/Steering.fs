@@ -1,7 +1,11 @@
 namespace FootballEngine.Core.Match
 
-/// Steering: intents become motion. Arrive behaviour, separation, fatigue
-/// scaling, smoothing. Velocity is written back so carries read it.
+/// Steering turns intents into motion with the behaviours a player needs to
+/// look alive: arrive (decelerate into the target instead of overshooting),
+/// separation (never stack on a teammate), fatigue scaling (tired legs run
+/// slower) and smoothing (no teleporting direction changes). Velocity is
+/// written back to the frame because other systems — carries, perception —
+/// read it.
 module PlayerSteering =
 
     let private stepPlayer
@@ -34,6 +38,9 @@ module PlayerSteering =
 
         if dist > 0.05 then
             let cond = float frame.Condition.[slot]
+
+            // Fatigue scales the whole desired speed: an exhausted player is
+            // not just slower — his movement range shrinks with his condition.
             let fatigue = 1.0 - (1.0 - cond) * float cfg.FatigueSpeedDecay
 
             let phaseBoost =
@@ -54,6 +61,8 @@ module PlayerSteering =
                 (float cfg.JogSpeed + (float cfg.SprintSpeed - float cfg.JogSpeed) * speedMult)
                 * fatigue
 
+            // Arrive behaviour: inside the reactive radius the player eases
+            // into the target, so he stops instead of oscillating around it.
             let speed =
                 if dist < float cfg.ReactiveRadius then
                     desiredSpeed * (dist / float cfg.ReactiveRadius)
@@ -74,6 +83,8 @@ module PlayerSteering =
 
             let teamFrame = frame
 
+            // Separation: teammates repel within the separation radius, so a
+            // compact shape never collapses into players standing on each other.
             for s2 in MatchWorld.activeSlots teamFrame do
                 if s2 <> slot then
                     let ox = float teamFrame.PosX.[s2]
@@ -119,6 +130,8 @@ module PlayerSteering =
                 let c = float frame.Condition.[slot]
 
                 if ticking then
+                    // Tiredness follows effort: condition decays by actual
+                    // running speed, and stops (halftime) recover it.
                     let running =
                         sqrt (
                             float frame.VelX.[slot] * float frame.VelX.[slot]

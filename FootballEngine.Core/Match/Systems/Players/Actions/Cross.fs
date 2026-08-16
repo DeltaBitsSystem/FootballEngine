@@ -1,7 +1,10 @@
 namespace FootballEngine.Core.Match
 
-/// Cross execution: aim the ball at the best attacker in the box. Resolution
-/// in BallContact like any pass; the CrossAttempt event is emitted here.
+/// Cross execution: picks the best attacker in the box and aims the delivery
+/// at him. A cross is a pass in disguise — resolution reuses the ordinary
+/// BallContact path so one receiving physics serves every aerial ball. The
+/// CrossAttempt event is emitted here because this is the moment the action
+/// starts.
 module Cross =
 
     let launch (ctx: SystemContext) (rng: Rng) (world: World) (buffer: EventBuffer) (side: ClubSide) (slot: int) : Rng =

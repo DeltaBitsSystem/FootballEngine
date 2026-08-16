@@ -1,8 +1,10 @@
 namespace FootballEngine.Core.Match
 
-/// Set-piece routines: when a restart is awarded, pick the executor (nearest
-/// active player to the spot) and leave a forced-action marker (key slot+2000,
-/// Phase 201) that the Actions controller executes once the delay elapses.
+/// Set-piece routines: a restart must never be improvised. When one is
+/// awarded, the nearest active player to the spot is appointed executor and a
+/// forced-action marker (key slot+2000, Phase 201) is left for the Actions
+/// controller to execute once the restart delay elapses — the routine happens
+/// exactly as the rules prescribe, outside the free decision system.
 module SetPieceRoutines =
 
     let private planSpot
@@ -46,7 +48,9 @@ module SetPieceRoutines =
 
         best
 
-    /// Box zones the set-piece delivery needs (near post, far post, edge of box).
+    /// The box zones a delivery must threaten to be a real set piece: near
+    /// post, far post and the edge of the box give the taker distinct targets
+    /// instead of a random crowd.
     let private zoneTargets
         (ctx: MatchContext)
         (world: World)
@@ -67,11 +71,11 @@ module SetPieceRoutines =
               gx - float Pitch.PenaltyAreaDepth * dir, signY * 11.0 ]
         | _ -> []
 
-    /// Set-piece arrangement (stub): during the restart delay both teams push
-    /// their outfield players toward the near/far post and edge-of-box zones so
-    /// deliveries have real targets.  The player nearest to the ball on the
-    /// kicking side (the probable taker) is left alone; everyone else is placed
-    /// directly (Frame) and given the zone as shape target.
+    /// During the restart delay both teams arrange into the delivery zones so
+    /// a set piece is never delivered into empty space. The probable taker is
+    /// left in place — moving him would break the routine — and everyone else
+    /// is placed directly (Frame) and given the zone as shape target so they
+    /// keep it once the ball is live.
     module SetPiecePlacement =
 
         let place (ctx: MatchContext) (world: World) (kind: SetPieceKind) (side: ClubSide) : unit =
@@ -126,10 +130,11 @@ module SetPieceRoutines =
                             team.Shape.TargetsX.[slot] <- float32 px
                             team.Shape.TargetsY.[slot] <- float32 py
 
-    /// Defensive wall for direct free kicks (≤ DirectFreeKickRange): the
-    /// WallPlayers nearest outfield defenders of the defending team line up on
-    /// the chord perpendicular to ball→goal, WallDistance away from the ball.
-    /// Writes the wall straight into the opponent frame positions.
+    /// The wall exists to shrink the shooting angle: the WallPlayers nearest
+    /// outfield defenders stand on a chord WallDistance from the ball,
+    /// perpendicular to ball→goal, for direct free kicks inside
+    /// DirectFreeKickRange. Positions are written straight into the frame —
+    /// during the restart delay there is no time to steer, only to stand.
     module WallPlacer =
 
         let place (ctx: MatchContext) (world: World) (side: ClubSide) : unit =
@@ -253,8 +258,9 @@ module SetPieceRoutines =
 
             best
         | SetPieceKind.ThrowIn ->
-            // A throw-in must be thrown INTO the pitch, not along the touchline.
-            // Prefer a teammate clearly inside the field, reasonably advanced.
+            // A throw-in that lands along the touchline is illegal, so only
+            // teammates clearly inside the pitch and reasonably advanced are
+            // valid targets.
             let mutable best = -1
             let mutable bestScore = -1000000.0
 
@@ -274,7 +280,8 @@ module SetPieceRoutines =
                             best <- slot
 
             if best < 0 then
-                // Fallback: the most inside teammate near the thrower.
+                // A legal throw must always be possible, so fall back to the most
+                // inside teammate near the thrower.
                 let mutable fallback = -1
                 let mutable fallbackScore = -1000000.0
 
@@ -348,10 +355,12 @@ module SetPieceRoutines =
         let x, y = planSpot kind side ball.X ball.Y
         let slot = nearestTo ctx.Ctx world side x y
 
-        // Place both teams' players into delivery zones (no-op for non-scoring kinds).
+        // Both teams must be arranged into delivery zones before the ball goes
+        // live, or the delivery lands in empty space (no-op for non-scoring kinds).
         SetPiecePlacement.place ctx.Ctx world kind side
 
-        // Defensive wall for direct free kicks inside range.
+        // The wall shortens the shooting angle — the only tool a team has
+        // against a direct free kick in range.
         if kind = SetPieceKind.FreeKick then
             WallPlacer.place ctx.Ctx world side
 

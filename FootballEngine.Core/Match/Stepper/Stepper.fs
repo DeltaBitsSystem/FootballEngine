@@ -1,7 +1,8 @@
 namespace FootballEngine.Core.Match
 
-/// The per-tick pipeline. Fixed order: drain applied events -> flow machine ->
-/// systems (router order) -> clock/boundaries -> tick advance.
+/// The per-tick pipeline. The order is fixed and is itself the determinism
+/// contract: drain events -> flow machine -> systems -> clock. Any reordering
+/// would change every match produced from the same seed.
 module Stepper =
 
     let rec private evalTrigger (tick: int<subtick>) (flow: MatchFlow) (flags: EventFlags) (t: Trigger) : bool =
@@ -75,6 +76,8 @@ module Stepper =
         elif minute = 89<matchMin> && not world.State.Stoppage.Decided then
             let fp1 = world.State.Stoppage.Half1Fingerprint
             let fp2 = stoppageFingerprint world
+            // Only second-half incidents count for added time: the first-half
+            // fingerprint is subtracted, so stoppage is never double-counted.
             let h2 = max 0 (fp2 - fp1)
             let g2 = h2 / 10000
             let rem = h2 % 10000
@@ -114,7 +117,6 @@ module Stepper =
         buffer.Flags <- flags
         buffer.Events.Clear()
 
-        // Flow machine.
         let prevFlow = world.State.Flow
         let flow', flowEvents = Flow.tick ctx.Clock ctx.Ctx.Config world tick prevFlow
 
@@ -123,9 +125,9 @@ module Stepper =
 
         world.State <- { world.State with Flow = flow' }
 
-        // Restart expiry: possession handover to the kicking side's set-piece
-        // executor (the one carrying a Phase 201 routine marker), or to the
-        // nearest active player as a fallback.
+        // Restart expiry: the ball must have a controller when play resumes. Hand
+        // over to the side's set-piece executor (Phase 201 routine marker) so
+        // the planned routine is actually taken; nearest active is the fallback.
         match prevFlow, flow' with
         | MatchFlow.RestartDelay(_, plan), MatchFlow.Live ->
             let executor =
@@ -163,7 +165,8 @@ module Stepper =
             | None -> ()
         | _ -> ()
 
-        // VAR review expiry: deterministic verdict from the offside snapshot.
+        // VAR verdict is decided only at review expiry, from the snapshot taken at
+        // goal time — never re-simulated, so the outcome is deterministic.
         match flow' with
         | MatchFlow.VARReview(0<tickDelta>, _) ->
             let scoring = world.State.LastAttackingClub |> Option.defaultValue ClubSide.Home
@@ -181,7 +184,8 @@ module Stepper =
                   Data = EventData.VARDecision verdict }
         | _ -> ()
 
-        // Systems, in router order.
+        // Systems run strictly in scheduler order: each may read what earlier systems
+        // wrote this same tick — order is part of determinism.
         let mutable rng = rng
 
         // R10 — knockout draw at full time goes to a deterministic shootout.
@@ -213,7 +217,8 @@ module Stepper =
             if fire tick world.State.Flow flags spec.Triggers then
                 rng <- spec.Step ctx rng world buffer
 
-        // Stoppage decisions and half boundaries.
+        // Stoppage must be computed before boundary checks: the half ends at
+        // 90 + added, so added time has to exist before the whistle fires.
         decideStoppage ctx world tick
 
         match world.State.Clock.Phase with
@@ -244,7 +249,8 @@ module Stepper =
                     Clock = { c with Tick = c.Tick + 1<subtick> } }
         | _ -> ()
 
-        // Momentum decays toward 0.
+        // Momentum is transient by design: it must decay, or one lucky run would
+        // color the rest of the match.
         if abs world.State.Momentum > 0.0001 then
             world.State <-
                 { world.State with

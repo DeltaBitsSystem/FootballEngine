@@ -1,11 +1,14 @@
 namespace FootballEngine.Core.Match
 
-/// Linear win-probability model feeding the directive choice. R9.
+/// R9 — a bare scoreboard read distorts late-game decisions (a 1–0 lead is
+/// not always "winning"), so a linear win-probability model feeds the
+/// directive choice with live goal, xG, momentum and time signals:
 /// p = 0.5 + wGD·goalDiff + wXG·xGdiff + wMomentum·momentum + wMinute·(min/90 − 0.5)
 module WinProbability =
 
-    /// Win probability from the `side`'s perspective, computed from live data.
-    /// Pure and deterministic — no Rng, no mutation.
+    /// Win probability from the `side`'s perspective — home and away read the
+    /// same scoreboard from opposite sides, so every consumer must ask for
+    /// its own perspective. Pure and deterministic — no Rng, no mutation.
     let estimate (ctx: MatchContext) (world: World) (side: ClubSide) : float =
         let cfg = ctx.Config.Team
         let team = MatchWorld.team world side

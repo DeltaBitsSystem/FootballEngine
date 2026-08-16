@@ -10,7 +10,8 @@ module Shootout =
     let private onTargetP (p: PlayerProfile) : float =
         MatchMath.clamp01 (0.5 + (float p.Finishing - 60.0) / 100.0 + 0.2)
 
-    /// The five takers of a side: active outfield players by Finishing desc.
+    /// Kicks go to the five best active outfield finishers (GK excluded), so
+    /// the strongest shooters take the early kicks.
     let private takers (ctx: MatchContext) (world: World) (side: ClubSide) : PlayerProfile list =
         MatchWorld.activeSlots (MatchWorld.team world side).Frame
         |> Array.toList
@@ -49,7 +50,8 @@ module Shootout =
         let mutable away = 0
         let rounds = cfg.ShootoutRounds
 
-        // Regulated rounds.
+        // Regulated phase: all five pairs always run, win or lose — sudden
+        // death only ever starts from a tied regulated score.
         for i in 0 .. rounds - 1 do
             let hp = List.tryItem i homeTakers |> Option.defaultValue (List.head homeTakers)
             let scored, r' = kick ctx r ClubSide.Home hp
@@ -65,7 +67,7 @@ module Shootout =
             if scoredA then
                 away <- away + 1
 
-        // Sudden death.
+        // Sudden death: pairs continue until one side leads after an equal exchange.
         let mutable doneNow = home <> away
         let mutable round = rounds
 

@@ -56,6 +56,8 @@ module Simulator =
         | Some _ -> snaps.Add(Replay.capture world)
         | None -> ()
 
+        // Safety valve: if the loop never reaches MatchEnded, force termination
+        // instead of hanging the simulation.
         let mutable guard = 0
 
         while world.State.Flow <> MatchFlow.MatchEnded do
@@ -74,6 +76,8 @@ module Simulator =
                     { world.State with
                         Flow = MatchFlow.MatchEnded }
 
+        // FNV-1a fingerprint of the whole event stream: two runs from the same seed
+        // are identical iff these hashes match.
         let mutable hash = 1469598103934665603UL
 
         for ev in allEvents do

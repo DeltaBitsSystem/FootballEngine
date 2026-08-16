@@ -1,8 +1,9 @@
 namespace FootballEngine.Core.Match
 
-/// Pass execution: aim the ball at a teammate, offside check at launch,
-/// quality from attributes + distance + jitter. Resolution happens in
-/// BallContact (which emits the Pass event).
+/// Pass execution: launches an aimed delivery at a teammate, judging offside
+/// at the moment of the pass — the law applies when the ball is played, not
+/// when it lands. Resolution lives in BallContact (which emits the Pass
+/// event), so launching and resolving stay one step each.
 module Pass =
 
     let private flagOffside
@@ -27,7 +28,8 @@ module Pass =
         team.Stats.Offsides <- team.Stats.Offsides + 1
 
     /// Launch a pass to a teammate slot. `qualityBonus` lets the GK system
-    /// cheapen short distribution; `maxDist` guards sanity.
+    /// make distribution easier (positive) or hurried (negative); passes
+    /// beyond 65 m are refused as a sanity cap on delivery.
     let launch
         (ctx: SystemContext)
         (rng: Rng)

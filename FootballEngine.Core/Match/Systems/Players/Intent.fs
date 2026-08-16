@@ -1,7 +1,9 @@
 namespace FootballEngine.Core.Match
 
-/// Per-player cognitive intent: what each player is trying to do and where they
-/// want to go. The steering system turns intents into motion.
+/// The declarative bridge between cognition and motion: what each player is
+/// trying to do and where they want to go. Intent only describes — steering is
+/// the sole consumer that turns it into movement — so how a player thinks is
+/// never tangled with how he walks.
 module PlayerIntent =
 
     let private setIntent

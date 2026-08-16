@@ -1,12 +1,16 @@
 namespace FootballEngine.Core.Match
 
-/// The carrier's decision: build a small option set (shot/pass/cross/dribble/
-/// clear) with utility weights, gate by thresholds, pick by softmax, and leave
-/// a marker (Phase 200) the Actions controller executes. Deterministic: all
-/// randomness comes from the threaded Rng.
+/// The carrier's mind: turns football judgement into one bounded choice so
+/// behaviour is a utility-weighted selection from a small option set
+/// (shot/pass/cross/dribble/clear), never a scripted trigger. The choice is
+/// stored as a marker (Phase 200) that Actions executes later — deciding and
+/// doing stay decoupled. Deterministic: all randomness comes from the threaded
+/// Rng, so the same situation always picks the same option.
 module PlayerDecision =
 
-    /// xG preview shared with the shot system (same formula as Shot.launch).
+    /// One formula for xG, shared with the shot system: the carrier's belief
+    /// and the strike's value must agree, or decisions would chase a different
+    /// number than physics delivers.
     let xGValue (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : float =
         let p = MatchWorld.profileOf ctx side slot
 
@@ -40,18 +44,21 @@ module PlayerDecision =
 
     // R6 — pure memory terms, shared by `choose` and the test suite so the
     // behaviour is verifiable without simulating a whole match.
-    /// Pass penalty in [0, ~0.4]: grows as the carrier keeps failing passes.
+    /// R6 — failing passes cool the next one: the penalty grows with the
+    /// memory of failures, so a player in a bad streak chooses safer options.
     let passMemoryPenalty (cfg: MatchContext) (mem: PlayerMemory) : float =
         if mem.PassFailMod > 0.25 then
             cfg.Config.Actions.MemoryPassFailWeight * mem.PassFailMod
         else
             0.0
 
-    /// Duel bias: successful duel memory makes dribbling more attractive.
+    /// R6 — duel form feeds confidence: past success makes dribbling more
+    /// attractive and past failure less, so risk-taking follows the streak.
     let duelMemoryBias (cfg: MatchContext) (mem: PlayerMemory) : float =
         cfg.Config.Actions.MemoryDuelWeight * (mem.DuelSuccessMod - mem.DuelFailMod)
 
-    /// Shot bias: a goal-less run (negative ShotSuccessMod) cools shooting.
+    /// R6 — a goal-less run cools shooting: only negative shot memory ever
+    /// damps the shot, so form can hold a player back but never inflate him.
     let shotMemoryBias (cfg: MatchContext) (mem: PlayerMemory) : float =
         cfg.Config.Actions.MemoryPassFailWeight
         * (if mem.ShotSuccessMod < 0.0 then mem.ShotSuccessMod else 0.0)
@@ -61,9 +68,9 @@ module PlayerDecision =
         let baseT = cfg.Weights.Decision.DecisionTemperature
         max 0.05 (baseT * (0.4 + 0.6 * cognitive))
 
-    /// Pass options for the carrier: every active teammate with a utility above
-    /// the pass threshold whose pass is feasible under the interceptor model.
-    /// Shared by `choose` and the test suite.
+    /// The pass option set, filtered by feasibility so the softmax can never
+    /// pick a delivery the interceptor model would reject. Shared by `choose`
+    /// and the test suite so pass selection is verifiable in isolation.
     let passOptionsFor (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : (float * int * float) list =
         let team = MatchWorld.team world side
         let frame = team.Frame

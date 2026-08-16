@@ -1,10 +1,12 @@
 namespace FootballEngine.Core.Match
 
 /// Voronoi-style field evaluator (Gliders2D-inspired, adapted to be pure and
-/// deterministic). Refines a base target by scoring a small cloud of candidate
-/// points: reward being far from opponents (Voronoi), far enough from
-/// teammates (no clumping), and making progress toward the rival goal. No Rng,
-/// no World — positions are passed in the team's attacking frame (attack +X).
+/// deterministic). The formation cannot know the local spacing of a given
+/// moment, so the base target is refined against the actual positions: a
+/// candidate scores well when it is far from opponents (Voronoi), far enough
+/// from teammates (no clumping), and making progress toward the rival goal.
+/// No Rng, no World — positions are passed in the team's attacking frame
+/// (attack +X).
 module FieldEvaluator =
 
     type EvaluatorParams =
@@ -17,9 +19,10 @@ module FieldEvaluator =
           MinTeammateDist: float
           OffsideX: float option }
 
-    /// Deterministic candidate cloud: the base point plus evenly-spaced points
-    /// on a circle of `SearchRadius` around it, and (when an offside line is
-    /// provided) a point one metre behind that line on the base Y.
+    /// The search space for refinement: a fixed, evenly-spaced cloud around
+    /// the base point (reproducible every tick, unlike random sampling) plus,
+    /// when an offside line is known, a legal option one metre behind it on
+    /// the base Y — otherwise the refinement could pick an offside spot.
     let candidates (p: EvaluatorParams) (cx: float) (cy: float) : (float * float)[] =
         let count = max 1 p.CandidateCount
         let extra = if p.OffsideX.IsSome then 1 else 0
@@ -47,8 +50,9 @@ module FieldEvaluator =
 
         best
 
-    /// Score a candidate in [0,1] (higher is better), in the team's attacking
-    /// frame where attack = +X.
+    /// Quantify how good a candidate spot is (higher is better), so `refine`
+    /// can compare every point on one scale. In the team's attacking frame
+    /// where attack = +X.
     let score
         (p: EvaluatorParams)
         (teammates: (float * float)[])
@@ -56,12 +60,14 @@ module FieldEvaluator =
         (x: float)
         (y: float)
         : float =
-        // spread: reward being at least MinTeammateDist from the nearest teammate.
+        // spread: a candidate too close to a teammate is wasteful, so reward
+        // standing at least MinTeammateDist away from the nearest one.
         let spread =
             let d = nearestDist teammates x y
             MatchMath.clamp01 ((d - p.MinTeammateDist) / (max 1.0 p.SearchRadius))
 
-        // avoid: reward being far from the nearest opponent (Voronoi behaviour).
+        // avoid: staying far from the nearest opponent (Voronoi behaviour) keeps
+        // the receiver in free space rather than contested ground.
         let avoid =
             if opponents.Length = 0 then
                 1.0
@@ -81,7 +87,9 @@ module FieldEvaluator =
         + p.ProgressWeight * progress
         + p.OppOurWeight * openness
 
-    /// Refine a base target to the best-scoring candidate.
+    /// Adjust a coarse formation target using the current local spacing — the
+    /// formation cannot see the opponents, so the best-scoring candidate of
+    /// the surrounding cloud replaces it.
     let refine
         (p: EvaluatorParams)
         (teammates: (float * float)[])

@@ -1,11 +1,13 @@
 namespace FootballEngine.Core.Match
 
-/// Pure goalkeeper math shared by BallOutcome (open play) and Shootout
-/// (penalties), so the save physics is never duplicated.
+/// One save formula for every shot on goal: shared by BallOutcome (open play)
+/// and Shootout (penalties) so the save physics is judged identically
+/// everywhere and never duplicated.
 module Goalkeeping =
 
-    /// Pure save probability for a shot with `speed` crossing near the GK at
-    /// `gkDist`. Range [0,1]. Same formula BallOutcome uses.
+    /// Save probability for a shot with `speed` crossing near the GK at
+    /// `gkDist`. Clamped to [0,1] so every caller can use it directly as a
+    /// Bernoulli weight; the same formula BallOutcome uses, by design.
     let saveProbability (cfg: BalanceConfig) (attrs: float) (speed: float<meterPerSecond>) (gkDist: float) : float =
         MatchMath.clamp01 (
             cfg.Ball.ShotSaveBaseProbability

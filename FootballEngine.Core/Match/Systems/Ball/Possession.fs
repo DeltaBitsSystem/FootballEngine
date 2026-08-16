@@ -1,6 +1,9 @@
 namespace FootballEngine.Core.Match
 
-/// Possession mechanics: dribble carry, reception grace, loose-ball contests, GK hold.
+/// Control of the ball must keep behaving like football in every state: a
+/// carried ball follows the dribbler, a received ball gets a grace period
+/// before it is fully under control, and a free ball cannot stay dead —
+/// someone eventually claims it.
 module BallPossession =
 
     /// 50/50 duel for a loose ball. A small foul chance keeps free-ball
@@ -85,7 +88,8 @@ module BallPossession =
             rng
         | None, None -> rng
 
-    /// A long-stopped free ball is picked up by whoever reaches it.
+    /// A free ball nobody claims would freeze the game: after a long stop the
+    /// first player to reach it simply picks it up — no duel worth modeling remains.
     let private pickupFreeBall
         (ctx: MatchContext)
         (rng: Rng)

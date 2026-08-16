@@ -16,7 +16,8 @@ module Rng =
         let z = (z ^^^ (z >>> 27)) * 0x94D049BB133111EBUL
         z ^^^ (z >>> 31)
 
-    /// SplitMix64 from a 64-bit seed. Same seed -> same stream, always.
+    /// SplitMix64, the standard xoshiro seeding pass: stretches one 64-bit seed
+    /// into four well-mixed state words.
     let ofSeed (seed: uint64) : Rng =
         let a = splitMix64 seed
         let b = splitMix64 a
@@ -52,7 +53,8 @@ module Rng =
         let d, rng' = double rng
         (lo + int (int64 (floor (d * float width)))), rng'
 
-    /// Box-Muller, one draw at a time (no cache).
+    /// Box-Muller: two uniform draws per sample, drawn one at a time (no cached
+    /// spare) so the RNG stream stays positionally pure and deterministic.
     let normal (mean: float) (std: float) (rng: Rng) : float * Rng =
         let u1, rng1 = double rng
         let u2, rng2 = double rng1
