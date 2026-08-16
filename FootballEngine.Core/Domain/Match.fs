@@ -18,103 +18,6 @@ type MatchPhase =
     | Midfield
     | Attack
 
-type MatchEventType =
-    | Goal
-    | GoalKick
-    | OwnGoal
-    | Assist
-    | YellowCard
-    | RedCard
-    | Injury of description: string
-    | SubstitutionIn
-    | SubstitutionOut
-    | PenaltyAwarded of isScored: bool
-    | FreeKick of isScored: bool
-    | Corner
-    | PassCompleted of fromPlayer: PlayerId * toPlayer: PlayerId
-    | PassLaunched of fromPlayer: PlayerId * toPlayer: PlayerId
-    | PassIncomplete of fromPlayer: PlayerId
-    | PassDeflected of fromPlayer: PlayerId * deflectedById: PlayerId
-    | PassIntercepted of fromPlayer: PlayerId * interceptorId: PlayerId
-    | PassMisplaced of fromPlayer: PlayerId * toPlayer: PlayerId
-    | DribbleSuccess
-    | DribbleFail
-    | DribbleKeep
-    | TackleSuccess
-    | TackleFail
-    | CrossAttempt of isSuccessful: bool
-    | CrossLaunched of fromPlayer: PlayerId * toPlayer: PlayerId
-    | LongBall of isSuccessful: bool
-    | ShotBlocked
-    | ShotLaunched
-    | ShotOnTarget
-    | ShotOffTarget
-    | Save
-    | SaveCaught of shooterId: PlayerId * gkId: PlayerId
-    | SaveParried of shooterId: PlayerId * gkId: PlayerId
-    | GKPunch of gkId: PlayerId
-    | GKDistribution of gkId: PlayerId * targetId: PlayerId
-    | IndirectFreeKickAwarded of team: ClubSide
-    | FoulCommitted
-    | KickOff
-
-
-type PitchPos = { X: float; Y: float }
-
-type EventSecondary =
-    | Deflected
-    | Rebound
-    | BlockedByWall
-    | DeflectedOffPost
-    | KeeperParried
-
-type EventContext =
-    { Position: PitchPos option
-      Quality: float option
-      ExpectedGoal: float option
-      AssistId: PlayerId option
-      SecondaryResult: EventSecondary option
-      PassMean: float option
-      DistancePenalty: float option
-      ControlProb: float option
-      InterceptorId: PlayerId option
-      GKSaveAttempt: bool option
-      GKSaveProb: float option
-      ShotSpeed: float option
-      ShotAngle: float option
-      Description: string option }
-
-module EventContext =
-    let empty =
-        { Position = None
-          Quality = None
-          ExpectedGoal = None
-          AssistId = None
-          SecondaryResult = None
-          PassMean = None
-          DistancePenalty = None
-          ControlProb = None
-          InterceptorId = None
-          GKSaveAttempt = None
-          GKSaveProb = None
-          ShotSpeed = None
-          ShotAngle = None
-          Description = None }
-
-    let at x y =
-        { empty with
-            Position = Some { X = x; Y = y } }
-
-    let withDescription desc = { empty with Description = Some desc }
-
-
-type MatchEvent =
-    { SubTick: int
-      PlayerId: PlayerId
-      ClubId: ClubId
-      Type: MatchEventType
-      Context: EventContext }
-
 type MatchFixture =
     { Id: MatchId
       CompetitionId: CompetitionId
@@ -125,7 +28,7 @@ type MatchFixture =
       Played: bool
       HomeScore: int option
       AwayScore: int option
-      Events: MatchEvent list }
+      Events: FootballEngine.Core.Match.MatchEvent list }
 
 type AttackDir =
     | LeftToRight
@@ -191,3 +94,11 @@ module MatchFixture =
             elif f.AwayClubId = clubId then Some(a, h)
             else None
         | _ -> None
+
+    /// True for knockout rounds (a draw must be resolved by extra time/shootout).
+    let isKnockout (f: MatchFixture) =
+        match f.Round with
+        | Some(KnockoutRound _)
+        | Some Final
+        | Some ThirdPlace -> true
+        | _ -> false

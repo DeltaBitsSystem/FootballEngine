@@ -1,9 +1,8 @@
 namespace FootballEngine.Client.Views.Components
 
 open FootballEngine
+open FootballEngine.Core.Match
 open FootballEngine.Domain
-open FootballEngine.Simulation
-open FootballEngine.Types
 
 type Vector2 = { X: float; Y: float }
 
@@ -55,110 +54,60 @@ type RenderFrame =
 
 module MatchProjection =
 
-    let private deriveVisualState (vel: Vector2) =
-        let speed = Vector2.magnitude vel
-
-        if speed < 0.3 then Idle
-        elif speed < 1.5 then Walking
-        elif speed < 4.0 then Running
-        else Sprinting
-
     let private shortName (name: string) =
         let parts = name.Split([| ' ' |])
         if parts.Length >= 2 then parts[parts.Length - 1] else name
 
-    let project (ctx: MatchContext) (snapshot: SimSnapshot) (timeSeconds: float) : RenderFrame =
-        let controlledBy =
-            match snapshot.Control with
-            | Controlled(_, pid)
-            | Receiving(_, pid, _) -> Some pid
-            | _ -> None
+    let private projectTeam (isHome: bool) (xs: float32[]) (ys: float32[]) (names: string[]) : RenderPlayer[] =
+        xs
+        |> Array.mapi (fun i x ->
+            let name =
+                if i < names.Length && not (System.String.IsNullOrEmpty names[i]) then
+                    shortName names[i]
+                else
+                    $"{i + 1}"
 
-        let projectTeam
-            (isHome: bool)
-            (positions: Spatial[])
-            (players: Player[])
-            (conditions: int[])
-            (sidelined: Map<PlayerId, PlayerOut>)
-            =
-            positions
-            |> Array.mapi (fun i (spatial: Spatial) ->
-                let player =
-                    if i < players.Length then
-                        players[i]
-                    else
-                        Unchecked.defaultof<Player>
+            { Id = i + 1
+              Position = { X = float x; Y = float ys[i] }
+              Velocity = Vector2.zero
+              Acceleration = Vector2.zero
+              State = Idle
+              JerseyNumber = i + 1
+              ShortName = name
+              Condition = 100
+              IsHome = isHome
+              HasBall = false
+              IsSidelined = false })
 
-                let condition = if i < conditions.Length then conditions[i] else 100
-                let isSidelined = Map.containsKey player.Id sidelined
-                let hasBall = controlledBy |> Option.exists (fun id -> id = player.Id)
-
-                { Id = player.Id
-                  Position =
-                    { X = float spatial.X
-                      Y = float spatial.Y }
-                  Velocity =
-                    { X = float spatial.Vx
-                      Y = float spatial.Vy }
-                  Acceleration = Vector2.zero
-                  State =
-                    deriveVisualState
-                        { X = float spatial.Vx
-                          Y = float spatial.Vy }
-                  JerseyNumber = i + 1
-                  ShortName = shortName player.Name
-                  Condition = condition
-                  IsHome = isHome
-                  HasBall = hasBall
-                  IsSidelined = isSidelined })
-
-        let homePlayers =
-            projectTeam true snapshot.HomePositions ctx.HomePlayers snapshot.HomeConditions snapshot.HomeSidelined
-
-        let awayPlayers =
-            projectTeam false snapshot.AwayPositions ctx.AwayPlayers snapshot.AwayConditions snapshot.AwaySidelined
+    let project
+        (homeNames: string[])
+        (awayNames: string[])
+        (homeName: string)
+        (awayName: string)
+        (snapshot: Replay.ReplaySnapshot)
+        (timeSeconds: float)
+        : RenderFrame =
+        let homePlayers = projectTeam true snapshot.HomeX snapshot.HomeY homeNames
+        let awayPlayers = projectTeam false snapshot.AwayX snapshot.AwayY awayNames
 
         let renderBall =
             { Position =
                 { X = float snapshot.BallX
                   Y = float snapshot.BallY }
-              Velocity =
-                { X = float snapshot.BallVx
-                  Y = float snapshot.BallVy }
-              VelocityZ = float snapshot.BallVz
-              Spin =
-                { X = float snapshot.BallSpinSide
-                  Y = float snapshot.BallSpinTop }
+              Velocity = Vector2.zero
+              VelocityZ = float snapshot.BallZ
+              Spin = Vector2.zero
               Height = float snapshot.BallZ }
-
-        let attackingClubId =
-            match snapshot.Control with
-            | Controlled(club, _)
-            | Receiving(club, _, _)
-            | Contesting(club) ->
-                if club = HomeClub then
-                    Some ctx.Home.Id
-                else
-                    Some ctx.Away.Id
-            | Airborne
-            | Free ->
-                match snapshot.Flow with
-                | RestartDelay r ->
-                    if r.Team = HomeClub then
-                        Some ctx.Home.Id
-                    else
-                        Some ctx.Away.Id
-                | _ -> None
 
         { Players = Array.append homePlayers awayPlayers
           Ball = renderBall
           TimeSeconds = timeSeconds
           HomeScore = snapshot.HomeScore
           AwayScore = snapshot.AwayScore
-          AttackingClubId = attackingClubId
-          Momentum = snapshot.Momentum
-          HomeName = ctx.Home.Name
-          AwayName = ctx.Away.Name }
+          AttackingClubId = None
+          Momentum = 0.0
+          HomeName = homeName
+          AwayName = awayName }
 
 module MatchInterp =
 

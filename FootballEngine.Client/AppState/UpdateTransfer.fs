@@ -93,7 +93,7 @@ module UpdateTransfer =
         (buyer: Club)
         (seller: Club)
         (fee: decimal)
-        (negId: int)
+        (_negId: int)
         (gs: GameState)
         (state: State)
         : State * Cmd<Msg> =

@@ -1,9 +1,9 @@
 namespace FootballEngine
 
-open FootballEngine.Domain
-open FootballEngine.Simulation
+open FootballEngine.Core.Match
 open FootballEngine.World
 open ModEditorTypes
+open FootballEngine.Domain
 
 module AppTypes =
 
@@ -93,7 +93,7 @@ module AppTypes =
     type MatchLabState =
         { HomeClubId: ClubId option
           AwayClubId: ClubId option
-          Result: MatchReplay option
+          Result: Replay.ReplayData option
           Snapshot: int }
 
     type SquadState =
@@ -108,7 +108,9 @@ module AppTypes =
     type InboxState = { SelectedMessageId: int option }
 
     type MatchState =
-        { ActiveReplay: MatchReplay option
+        { ActiveReplay: Replay.ReplayData option
+          HomeClubId: ClubId option
+          AwayClubId: ClubId option
           Snapshot: int
           IsPlaying: bool
           PlaybackSpeed: int
@@ -194,6 +196,8 @@ module AppTypes =
           Inbox = { SelectedMessageId = None }
           Match =
             { ActiveReplay = None
+              HomeClubId = None
+              AwayClubId = None
               Snapshot = 0
               IsPlaying = false
               PlaybackSpeed = 20

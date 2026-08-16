@@ -1,34 +1,26 @@
 namespace Training
 
-open FootballEngine
-open FootballEngine.Domain
-open FootballEngine.Types
-open FootballEngine.Simulation
+open FootballEngine.Core.Match
 
+/// Validation: run matches with a config and print a table against targets.
 module Validator =
 
-    let validate
-        (validationMatches: int)
-        (home: Club)
-        (away: Club)
-        (players: Map<PlayerId, Player>)
-        (staff: Map<StaffId, Staff>)
-        (profileMap: Map<PlayerId, BehavioralProfile>)
-        (targets: Training.CalibrationTargets)
-        (originalWeights: BalanceConfig)
-        (candidateWeights: BalanceConfig)
-        (originalError: float)
-        : Result<BalanceConfig, string> =
-        let results =
-            SimulatorRunner.runBatch candidateWeights validationMatches home away players staff profileMap
+    let validate (cfg: BalanceConfig) (seedBase: uint64) (n: int) : MatchMetrics list =
+        SimulatorRunner.runMatches cfg seedBase n
 
-        if List.isEmpty results then
-            Error "Validator: no matches simulated"
-        else
-            let matchMetrics, _ = MetricsAggregator.aggregate results
-            let newError, _ = ErrorCalculator.computeError matchMetrics targets
+    let print (label: string) (metrics: MatchMetrics list) : unit =
+        let agg = Metrics.aggregate metrics
+        let pairs = Metrics.toPairs agg
+        let n = metrics.Length
 
-            if newError < originalError then
-                Ok candidateWeights
-            else
-                Error(sprintf "Validation failed: original error %.4f, new error %.4f" originalError newError)
+        printfn "== %s (%d matches) ==" label n
+
+        for t in ErrorCalculator.targets do
+            let v = pairs |> List.find (fun (name, _) -> name = t.Name) |> snd
+            let ok = v >= t.Lo && v <= t.Hi
+            let marker = if ok then "OK " else "BAD"
+
+            printfn "  %-12s %6.1f  (target %.1f, band [%.1f..%.1f]) %s" t.Name v t.Target t.Lo t.Hi marker
+
+        let total = ErrorCalculator.error metrics
+        printfn "  total error: %.3f" total

@@ -18,7 +18,7 @@ module UpdateModEditor =
           Clubs = []
           Cups = [] }
 
-    let createEmptyLeague name =
+    let createEmptyLeague _name =
         { LeagueRulesDto.PointsForWin = 3
           PointsForDraw = 1
           Tiebreakers = [ "GoalDifference"; "GoalsScored" ]
@@ -225,7 +225,7 @@ module UpdateModEditor =
 
         | Validate ->
             let allErrors =
-                [ for KeyValue(code, data) in state.Countries do
+                [ for KeyValue(_, data) in state.Countries do
                       yield! ModValidator.validateCountryData state.Manifest.Name data ]
 
             { state with Errors = allErrors }, Elmish.Cmd.none

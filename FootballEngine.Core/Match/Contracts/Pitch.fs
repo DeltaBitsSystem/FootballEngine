@@ -46,3 +46,8 @@ module Pitch =
 
     [<Literal>]
     let MaxTrajectory = 70.0<meter>
+
+    /// How far inside the touchline a throw-in ball is placed by the referee.
+    /// Keeps the restart legally in-bounds and off the band.
+    [<Literal>]
+    let ThrowInInset = 0.3<meter>

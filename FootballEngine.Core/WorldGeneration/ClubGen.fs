@@ -4,7 +4,6 @@ open System
 open FootballEngine.Domain
 open FootballEngine.Domain.LineupOps
 open FootballEngine.Stats
-open FootballEngine.Types
 
 module ClubGen =
 

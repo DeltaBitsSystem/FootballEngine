@@ -146,8 +146,20 @@ type TeamFrame =
       mutable SupportY: float32[]
       mutable VisibilityTm: bool[]
       mutable VisibilityOpp: bool[]
+      // R3 — cognitive perception, built once per team/tick by PlayerPerception.
+      mutable OppsNear: int[] // opponents within 7 m of the slot
+      mutable PressCount: int[] // opponents pressing the slot
+      // R3 — channel geometry. laneClear[i] = no blocker on carrier→i segment;
+      // faceCone[i] = teammate i faces the carrier (a receiver that can't see
+      // the ball is not a target). Only meaningful while a carrier exists.
+      mutable LaneClear: bool[]
+      mutable FaceCone: bool[]
+      // R5 — cognitive vitality, sigmoid(condition), refreshed in batch.
+      mutable Cognitive: float32[]
+      // R7 — collective role bias, reassigned only on directive change.
+      mutable RoleBias: float32[]
       mutable RunLookup: System.Collections.Generic.Dictionary<int, RunAssignment>
-      ActiveCount: int
+      mutable ActiveCount: int
       SlotCount: int }
 
 [<Struct>]
@@ -157,7 +169,19 @@ type PlayerMemory =
       mutable FailedDuels: int
       mutable PassesMade: int
       mutable PassesCompleted: int
-      mutable ShotsTaken: int }
+      mutable ShotsTaken: int
+      mutable Yellows: int
+      mutable CriticalFlagged: bool
+      // R6 — exponentially-decaying floats read by PlayerDecision as:
+      // passFailureMod / streakMod / duelHistoryMod. Updated by EventApply/Duel,
+      // decayed in batch every MemoryDecayIntervalSubTicks.
+      mutable PassFailMod: float
+      mutable PassSuccessMod: float
+      mutable DuelFailMod: float
+      mutable DuelSuccessMod: float
+      mutable ShotSuccessMod: float
+      mutable StreakMod: float
+      mutable LastMemoryDecayTick: int<subtick> }
 
 [<Struct>]
 type CardsBook =
@@ -213,7 +237,23 @@ type EmergentState =
     { mutable Compactness: float32
       mutable PressingIntensity: float32
       mutable WingplayBias: float32
-      mutable FatigueFactor: float32 }
+      mutable FatigueFactor: float32
+      // R9 — adaptive channel counters (windowed by PatternWindow): which flank
+      // the team has been attacking from. Feed the Cross-vs-Pass bias.
+      mutable ChannelCenter: float32
+      mutable ChannelLeft: float32
+      mutable ChannelRight: float32
+      mutable DefenseLine: float32 }
+
+[<Struct>]
+type InterceptState =
+    { mutable ComputedAt: int<subtick>
+      mutable SelfStep: int
+      mutable TeammateStep: int
+      mutable OpponentStep: int
+      mutable BallStep: int
+      // Per-slot intercept steps (indexed by slot; GK/sidelined/inactive -> MaxSteps).
+      mutable SlotSteps: int[] }
 
 [<Struct>]
 type TeamStats =
@@ -224,7 +264,10 @@ type TeamStats =
       mutable Fouls: int
       mutable Corners: int
       mutable Offsides: int
-      mutable Touches: int }
+      mutable Touches: int
+      mutable Dribbles: int
+      mutable Crosses: int
+      mutable XgSum: float }
 
 [<Struct>]
 type CognitiveFrame =
@@ -248,7 +291,7 @@ module EventWindow =
           Length = 0
           Ticks = Array.zeroCreate capacity
           Kinds = Array.zeroCreate capacity
-          Counts = Array.zeroCreate 28 }
+          Counts = Array.zeroCreate 32 }
 
     /// O(1) amortized: evict entries older than (tick - capacity).
     let push (window: EventWindow) (tick: int<subtick>) (kind: EventKind) : unit =
@@ -300,3 +343,51 @@ module EventWindow =
             n <- n - 1
 
         count
+
+/// The ONLY sanctioned TeamFrame factory — allocates every array at length
+/// slotCount, defaults conditions/mental to neutral values.
+module TeamFrame =
+
+    let create (slotCount: int) : TeamFrame =
+        { PosX = Array.zeroCreate<float32> slotCount
+          PosY = Array.zeroCreate<float32> slotCount
+          VelX = Array.zeroCreate<float32> slotCount
+          VelY = Array.zeroCreate<float32> slotCount
+          Condition = Array.create slotCount 1.0f
+          Mental =
+            { Composure = Array.create slotCount 1.0f
+              Confidence = Array.create slotCount 1.0f
+              Aggression = Array.create slotCount 0.5f
+              Focus = Array.create slotCount 1.0f
+              Risk = Array.create slotCount 0.5f }
+          Intent =
+            { Kind = Array.zeroCreate<byte> slotCount
+              TargetX = Array.zeroCreate<float32> slotCount
+              TargetY = Array.zeroCreate<float32> slotCount
+              Phase = Array.zeroCreate<byte> slotCount
+              CommittedUntil = Array.zeroCreate<int<subtick>> slotCount
+              CommittedAt = Array.zeroCreate<int<subtick>> slotCount
+              ExitTrigger = Array.zeroCreate<byte> slotCount }
+          Occupancy = Array.init slotCount (fun i -> OccupancyKind.Active i)
+          SlotRoles = Array.create slotCount SlotRole.CenterMid
+          DefensiveRoles = Array.create slotCount DefensiveRole.Unassigned
+          CollectiveIntents =
+            Array.create
+                slotCount
+                { Pressing = 0.0f
+                  Holding = 0.0f
+                  Attacking = 0.0f
+                  Balanced = 1.0f }
+          SupportX = Array.zeroCreate<float32> slotCount
+          SupportY = Array.zeroCreate<float32> slotCount
+          VisibilityTm = Array.create slotCount true
+          VisibilityOpp = Array.create slotCount true
+          OppsNear = Array.zeroCreate<int> slotCount
+          PressCount = Array.zeroCreate<int> slotCount
+          LaneClear = Array.create<bool> slotCount true
+          FaceCone = Array.create<bool> slotCount true
+          Cognitive = Array.create<float32> slotCount 1.0f
+          RoleBias = Array.create<float32> slotCount 1.0f
+          RunLookup = System.Collections.Generic.Dictionary<int, RunAssignment>()
+          ActiveCount = slotCount
+          SlotCount = slotCount }

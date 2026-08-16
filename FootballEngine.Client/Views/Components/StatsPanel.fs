@@ -4,6 +4,7 @@ open Avalonia
 open Avalonia.Controls
 open Avalonia.Layout
 open Avalonia.Media
+open FootballEngine.Core.Match
 open FootballEngine.Domain
 
 module StatsPanel =
@@ -24,73 +25,45 @@ module StatsPanel =
           HomeReds: int
           AwayReds: int }
 
-    let computeStats (homeClubId: ClubId) (events: MatchEvent list) : MatchStats =
-        let mutable homeShots = 0
-        let mutable awayShots = 0
-        let mutable homeOnTarget = 0
-        let mutable awayOnTarget = 0
-        let mutable homeCorners = 0
-        let mutable awayCorners = 0
-        let mutable homeFouls = 0
-        let mutable awayFouls = 0
-        let mutable homeYellows = 0
-        let mutable awayYellows = 0
-        let mutable homeReds = 0
-        let mutable awayReds = 0
+    let private unwrapPid (FootballEngine.Core.Match.PlayerId n) = n
 
-        for e in events do
-            let isHome = e.ClubId = homeClubId
+    let computeStats
+        (homeClubId: ClubId)
+        (awayClubId: ClubId)
+        (events: MatchEvent list)
+        (clubOfPlayer: PlayerId -> ClubId option)
+        : MatchStats =
+        let m = MatchMetrics.extract events homeClubId awayClubId clubOfPlayer
 
-            match e.Type with
-            | MatchEventType.ShotOnTarget ->
-                if isHome then
-                    homeOnTarget <- homeOnTarget + 1
-                else
-                    awayOnTarget <- awayOnTarget + 1
+        let homeYellows, homeReds, awayYellows, awayReds =
+            events
+            |> List.fold
+                (fun (hy, hr, ay, ar) ev ->
+                    match ev.Data with
+                    | EventData.Card(player, CardColor.Yellow) ->
+                        if clubOfPlayer (unwrapPid player) = Some homeClubId then
+                            (hy + 1, hr, ay, ar)
+                        else
+                            (hy, hr, ay + 1, ar)
+                    | EventData.Card(player, CardColor.Red)
+                    | EventData.RedCardIssued player ->
+                        if clubOfPlayer (unwrapPid player) = Some homeClubId then
+                            (hy, hr + 1, ay, ar)
+                        else
+                            (hy, hr, ay, ar + 1)
+                    | _ -> (hy, hr, ay, ar))
+                (0, 0, 0, 0)
 
-                if isHome then
-                    homeShots <- homeShots + 1
-                else
-                    awayShots <- awayShots + 1
-            | MatchEventType.ShotOffTarget
-            | MatchEventType.ShotLaunched
-            | MatchEventType.ShotBlocked ->
-                if isHome then
-                    homeShots <- homeShots + 1
-                else
-                    awayShots <- awayShots + 1
-            | MatchEventType.Corner ->
-                if isHome then
-                    homeCorners <- homeCorners + 1
-                else
-                    awayCorners <- awayCorners + 1
-            | MatchEventType.FoulCommitted ->
-                if isHome then
-                    homeFouls <- homeFouls + 1
-                else
-                    awayFouls <- awayFouls + 1
-            | MatchEventType.YellowCard ->
-                if isHome then
-                    homeYellows <- homeYellows + 1
-                else
-                    awayYellows <- awayYellows + 1
-            | MatchEventType.RedCard ->
-                if isHome then
-                    homeReds <- homeReds + 1
-                else
-                    awayReds <- awayReds + 1
-            | _ -> ()
-
-        { HomePossession = 50.0
-          AwayPossession = 50.0
-          HomeShots = homeShots
-          AwayShots = awayShots
-          HomeShotsOnTarget = homeOnTarget
-          AwayShotsOnTarget = awayOnTarget
-          HomeCorners = homeCorners
-          AwayCorners = awayCorners
-          HomeFouls = homeFouls
-          AwayFouls = awayFouls
+        { HomePossession = m.PossessionHome * 100.0
+          AwayPossession = m.PossessionAway * 100.0
+          HomeShots = m.ShotsHome
+          AwayShots = m.ShotsAway
+          HomeShotsOnTarget = m.ShotsOnTargetHome
+          AwayShotsOnTarget = m.ShotsOnTargetAway
+          HomeCorners = m.CornersHome
+          AwayCorners = m.CornersAway
+          HomeFouls = m.FoulsHome
+          AwayFouls = m.FoulsAway
           HomeYellows = homeYellows
           AwayYellows = awayYellows
           HomeReds = homeReds

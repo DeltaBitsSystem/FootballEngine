@@ -47,9 +47,13 @@ type PossessionBook =
 
 [<Struct>]
 type StoppageBook =
-    { FirstHalfAdded: int<subtick>
-      SecondHalfAdded: int<subtick>
-      Decided: bool }
+    {
+        FirstHalfAdded: int<subtick>
+        SecondHalfAdded: int<subtick>
+        Decided: bool
+        /// goals*10000 + fouls*100 + cards*10 + subs at the 44th minute — lets the 89th-minute decision subtract half-1 events.
+        Half1Fingerprint: int
+    }
 
 /// Countdown states. Exactly ONE path can start a goal flow: the Goal event apply.
 type MatchFlow =

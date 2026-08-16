@@ -42,7 +42,7 @@ module TestBuilders =
               BigGameMentality = 0.5f }
           InjuryProne = 0.1f }
 
-    let makeLineup (slotCount: int) : Lineup =
+    let makeLineup (offset: int) (slotCount: int) : Lineup =
         let roles =
             [| SlotRole.Goalkeeper
                SlotRole.Defender
@@ -57,7 +57,7 @@ module TestBuilders =
                SlotRole.Striker |]
 
         let profiles =
-            [| for i in 0 .. slotCount - 1 -> makeProfile (i + 1) roles.[i % roles.Length] |]
+            [| for i in 0 .. slotCount - 1 -> makeProfile (offset + i + 1) roles.[i % roles.Length] |]
 
         let basePositions =
             [| for i in 0 .. slotCount - 1 ->
@@ -71,6 +71,39 @@ module TestBuilders =
         { Profiles = profiles
           BasePositions = basePositions
           SlotCount = slotCount }
+
+    /// A realistic 4-3-3 with per-role base positions (Home attacks +X).
+    /// Roles and coordinates are chosen so a geometric position test can assert
+    /// GK in goal, defenders deep, striker forward and wingers wide.
+    let makeFormationLineup (offset: int) : Lineup =
+        let rolesAndPos =
+            [| SlotRole.Goalkeeper, (-45.0, 0.0)
+               SlotRole.FullBack, (-30.0, -20.0)
+               SlotRole.Defender, (-35.0, -6.0)
+               SlotRole.Defender, (-35.0, 6.0)
+               SlotRole.FullBack, (-30.0, 20.0)
+               SlotRole.CenterMid, (-15.0, 0.0)
+               SlotRole.CenterMid, (-12.0, -12.0)
+               SlotRole.CenterMid, (-12.0, 12.0)
+               SlotRole.Winger, (-5.0, -26.0)
+               SlotRole.Striker, (6.0, 0.0)
+               SlotRole.Winger, (-5.0, 26.0) |]
+
+        let profiles =
+            [| for i, (r, _) in rolesAndPos |> Array.indexed -> makeProfile (offset + i + 1) r |]
+
+        let basePositions =
+            [| for _, (x, y) in rolesAndPos ->
+                   { X = x * 1.0<meter>
+                     Y = y * 1.0<meter>
+                     Z = 0.0<meter>
+                     Vx = 0.0<meterPerSecond>
+                     Vy = 0.0<meterPerSecond>
+                     Vz = 0.0<meterPerSecond> } |]
+
+        { Profiles = profiles
+          BasePositions = basePositions
+          SlotCount = rolesAndPos.Length }
 
     let defaultCtx () : MatchContext =
         { HomeClub =
@@ -101,8 +134,8 @@ module TestBuilders =
               HomeAdvantage =
                 { CrowdSupport = 0.5f
                   Familiarity = 0.5f } }
-          HomeLineup = makeLineup 11
-          AwayLineup = makeLineup 11
+          HomeLineup = makeLineup 0 11
+          AwayLineup = makeLineup 100 11
           Config = BalanceConfig.defaultConfig
           IsKnockout = false }
 
@@ -161,6 +194,12 @@ module TestBuilders =
               SupportY = allocF32 ()
               VisibilityTm = Array.init n (fun _ -> true)
               VisibilityOpp = Array.init n (fun _ -> true)
+              OppsNear = Array.zeroCreate<int> n
+              PressCount = Array.zeroCreate<int> n
+              LaneClear = Array.init n (fun _ -> true)
+              FaceCone = Array.init n (fun _ -> true)
+              Cognitive = Array.init n (fun _ -> 1.0f)
+              RoleBias = Array.init n (fun _ -> 1.0f)
               RunLookup = System.Collections.Generic.Dictionary<int, RunAssignment>()
               ActiveCount = n
               SlotCount = n }
@@ -173,7 +212,16 @@ module TestBuilders =
                   FailedDuels = 0
                   PassesMade = 0
                   PassesCompleted = 0
-                  ShotsTaken = 0 })
+                  ShotsTaken = 0
+                  Yellows = 0
+                  CriticalFlagged = false
+                  PassFailMod = 0.0
+                  PassSuccessMod = 0.0
+                  DuelFailMod = 0.0
+                  DuelSuccessMod = 0.0
+                  ShotSuccessMod = 0.0
+                  StreakMod = 0.0
+                  LastMemoryDecayTick = 0<subtick> })
           Cards = { Yellows = 0; Reds = 0 }
           SubsUsed = 0
           Shape =
@@ -201,7 +249,18 @@ module TestBuilders =
             { Compactness = 0.5f
               PressingIntensity = 0.5f
               WingplayBias = 0.5f
-              FatigueFactor = 1.0f }
+              FatigueFactor = 1.0f
+              ChannelCenter = 0.0f
+              ChannelLeft = 0.0f
+              ChannelRight = 0.0f
+              DefenseLine = 0.0f }
+          Intercept =
+            { ComputedAt = 0<subtick>
+              SelfStep = 0
+              TeammateStep = 0
+              OpponentStep = 0
+              BallStep = 0
+              SlotSteps = Array.create n 0 }
           Stats =
             { Shots = 0
               OnTarget = 0
@@ -210,7 +269,10 @@ module TestBuilders =
               Fouls = 0
               Corners = 0
               Offsides = 0
-              Touches = 0 }
+              Touches = 0
+              Dribbles = 0
+              Crosses = 0
+              XgSum = 0.0 }
           CFrame =
             { LastPerceivedTick = 0<subtick>
               LastDecidedTick = 0<subtick>
@@ -238,7 +300,8 @@ module TestBuilders =
               Stoppage =
                 { FirstHalfAdded = 0<subtick>
                   SecondHalfAdded = 0<subtick>
-                  Decided = false } }
+                  Decided = false
+                  Half1Fingerprint = 0 } }
           Home = makeTeamWorld ctx.HomeLineup
           Away = makeTeamWorld ctx.AwayLineup }
 
@@ -259,5 +322,28 @@ module TestBuilders =
             { world.State with
                 HomeScore = home
                 AwayScore = away }
+
+        world
+
+    /// A ctx whose two lineups use the realistic 4-3-3 base positions.
+    let formationCtx () : MatchContext =
+        { (defaultCtx ()) with
+            HomeLineup = makeFormationLineup 0
+            AwayLineup = makeFormationLineup 100 }
+
+    /// A world built from the realistic formation lineups, with each team's
+    /// frame pre-placed on its base positions (as MatchFactory does).
+    let formationWorld () : World =
+        let ctx = formationCtx ()
+        let world = minimalWorld ()
+
+        for side, lineup in [ ClubSide.Home, ctx.HomeLineup; ClubSide.Away, ctx.AwayLineup ] do
+            let team = MatchWorld.team world side
+
+            for i in 0 .. lineup.SlotCount - 1 do
+                let bx = lineup.BasePositions.[i]
+                let x = if side = ClubSide.Home then bx.X else -bx.X
+                team.Frame.PosX.[i] <- float32 x
+                team.Frame.PosY.[i] <- float32 bx.Y
 
         world

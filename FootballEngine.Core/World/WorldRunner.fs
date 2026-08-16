@@ -1,14 +1,10 @@
 namespace FootballEngine.World
 
 
-open FootballEngine.Domain
-
-open FootballEngine.Simulation
-open FootballEngine.Simulation.MatchSimulator
-open FootballEngine.TeamOrchestrator
-open FootballEngine.Types
+open FootballEngine.Core.Match
 open FootballEngine.World.Phases
 open MatchOutcome
+open FootballEngine.Domain
 
 module WorldRunner =
 
@@ -31,7 +27,7 @@ module WorldRunner =
 
     type UserMatchResult =
         { DayResult: DayResult
-          MatchReplay: MatchReplay }
+          MatchReplay: Replay.ReplayData option }
 
     let private parallelMapLimited (f: 'T -> 'U) (arr: 'T[]) : 'U[] =
         let maxThreads = max 1 (System.Environment.ProcessorCount - 1)
@@ -130,49 +126,19 @@ module WorldRunner =
                         dayFixtures
                         |> Array.ofList
                         |> parallelMapLimited (fun (id, fixture) ->
-                            let home = gsReady.Clubs[fixture.HomeClubId]
-                            let away = gsReady.Clubs[fixture.AwayClubId]
-
-                            id,
-                            fixture,
-                            trySimulateMatch
-                                BalanceConfig.defaultConfig
-                                home
-                                away
-                                gsReady.Players
-                                gsReady.Staff
-                                gsReady.ProfileCache)
+                            match MatchPhase.simulateFixture id fixture gsReady with
+                            | Some o -> Some o
+                            | None -> None)
                         |> Array.fold
-                            (fun (outs, errs) (id, fixture, result) ->
-                                match result with
-                                | Ok(h, a, _, finalState) ->
-                                    let injured =
-                                        finalState.Home.Sidelined
-                                        |> Map.toSeq
-                                        |> Seq.append (finalState.Away.Sidelined |> Map.toSeq)
-                                        |> Seq.choose (fun (pid, s) ->
-                                            if s = SidelinedByInjury then Some pid else None)
-                                        |> Set.ofSeq
-
-                                    { FixtureId = id
-                                      Fixture =
-                                        { fixture with
-                                            Played = true
-                                            HomeScore = Some h
-                                            AwayScore = Some a
-                                            Events = [] }
-                                      HomeScore = h
-                                      AwayScore = a
-                                      InjuredPlayers = injured
-                                      HomePlayerStats = [||]
-                                      AwayPlayerStats = [||] }
-                                    :: outs,
-                                    errs
-                                | Error e -> outs, string e :: errs)
+                            (fun (outs, errs) o ->
+                                match o with
+                                | Some x -> x :: outs, errs
+                                | None -> outs, $"Could not line up fixture for date {date}" :: errs)
                             ([], [])
 
                     if errs.IsEmpty then
                         currentGs <- applyOutcomes (fixtureToCompMap gsReady) (Array.ofList outcomes) gsReady
+
                         currentGs <- { currentGs with CurrentDate = date }
                     else
                         errors <- errs
@@ -219,107 +185,89 @@ module WorldRunner =
                 |> LineupOps.ensureForClub fixture.HomeClubId
                 |> LineupOps.ensureForClub fixture.AwayClubId
 
-            let home = gsReady.Clubs[fixture.HomeClubId]
-            let away = gsReady.Clubs[fixture.AwayClubId]
+            match MatchContextBuilder.build gsReady fixture BalanceConfig.defaultConfig with
+            | None -> Error "Match simulation failed: missing lineup"
+            | Some ctx ->
+                let result =
+                    Simulator.runMatch
+                        Scheduler.systems
+                        ctx
+                        (MatchContextBuilder.seedOf fixtureId)
+                        (Simulator.RunMode.Replay 20<tickDelta>)
+                        None
 
-            match
-                trySimulateMatchFull
-                    BalanceConfig.defaultConfig
-                    home
-                    away
-                    gsReady.Players
-                    gsReady.Staff
-                    gsReady.ProfileCache
-            with
-            | Error e -> Error $"Match simulation failed: {e}"
-            | Ok replay ->
-                let h = replay.Final.HomeScore
-                let a = replay.Final.AwayScore
+                match result.Replay with
+                | None -> Error "Match simulation failed: replay unavailable"
+                | Some replay ->
+                    let h = result.Final.State.HomeScore
+                    let a = result.Final.State.AwayScore
 
-                let injured =
-                    replay.Final.Home.Sidelined
-                    |> Map.toSeq
-                    |> Seq.append (replay.Final.Away.Sidelined |> Map.toSeq)
-                    |> Seq.choose (fun (pid, s) -> if s = SidelinedByInjury then Some pid else None)
-                    |> Set.ofSeq
+                    let outcome =
+                        { FixtureId = fixtureId
+                          Fixture =
+                            { fixture with
+                                Played = true
+                                HomeScore = Some h
+                                AwayScore = Some a
+                                Events = result.Events }
+                          HomeScore = h
+                          AwayScore = a
+                          InjuredPlayers = MatchContextBuilder.injuredOf result.Events
+                          HomePlayerStats = [||]
+                          AwayPlayerStats = [||] }
 
-                let outcome =
-                    { FixtureId = fixtureId
-                      Fixture =
-                        { fixture with
-                            Played = true
-                            HomeScore = Some h
-                            AwayScore = Some a
-                            Events = replay.Events }
-                      HomeScore = h
-                      AwayScore = a
-                      InjuredPlayers = injured
-                      HomePlayerStats = [||]
-                      AwayPlayerStats = [||] }
+                    let finalGs = applyOutcomes (fixtureToCompMap gsReady) [| outcome |] gsReady
 
-                let finalGs = applyOutcomes (fixtureToCompMap gsReady) [| outcome |] gsReady
+                    let clubOfPlayer =
+                        fun pid -> gsReady.Players |> Map.tryFind pid |> Option.bind Player.clubOf
 
-                let metrics =
-                    MatchMetrics.extract replay.Events fixture.HomeClubId fixture.AwayClubId
+                    let metrics =
+                        MatchMetrics.extract result.Events fixture.HomeClubId fixture.AwayClubId clubOfPlayer
 
-                let w = BalanceConfig.defaultConfig.Collective
+                    let updateCoord (clubId: ClubId) (isHome: bool) (gs: GameState) : GameState =
+                        let passRate =
+                            if isHome then
+                                metrics.PassAccuracyHome
+                            else
+                                metrics.PassAccuracyAway
 
-                let homeCoord =
-                    CoordinationLoop.updateFromMatch
-                        metrics.PassAccuracyHome
-                        0.5
-                        0
-                        0
-                        finalGs.Clubs[fixture.HomeClubId].CoordinationMemory
-                        w
+                        let club = gs.Clubs[clubId]
+                        let injuredCount = outcome.InjuredPlayers |> Set.count
+                        let decay = System.Math.Clamp(1.0 - 0.05 * float injuredCount, 0.5, 1.0)
 
-                let awayCoord =
-                    CoordinationLoop.updateFromMatch
-                        metrics.PassAccuracyAway
-                        0.5
-                        0
-                        0
-                        finalGs.Clubs[fixture.AwayClubId].CoordinationMemory
-                        w
+                        let updatedCoord =
+                            { club.CoordinationMemory with
+                                PressingCoordination =
+                                    System.Math.Clamp(
+                                        (club.CoordinationMemory.PressingCoordination + (passRate - 0.5) * 0.1) * decay,
+                                        0.5,
+                                        1.5
+                                    ) }
 
-                let homeInjured = outcome.InjuredPlayers |> Set.count
-                let awayInjured = outcome.InjuredPlayers |> Set.count
+                        { gs with
+                            Clubs =
+                                gs.Clubs
+                                |> Map.add
+                                    clubId
+                                    { club with
+                                        CoordinationMemory = updatedCoord } }
 
-                let finalHomeCoord =
-                    if homeInjured > 0 then
-                        CoordinationLoop.applySquadChangeDecay homeInjured homeCoord
-                    else
-                        homeCoord
+                    let gsWithCoord =
+                        finalGs
+                        |> updateCoord fixture.HomeClubId true
+                        |> updateCoord fixture.AwayClubId false
 
-                let finalAwayCoord =
-                    if awayInjured > 0 then
-                        CoordinationLoop.applySquadChangeDecay awayInjured awayCoord
-                    else
-                        awayCoord
+                    let clock1 = WorldClockOps.advance clock
 
-                let gsWithCoord =
-                    { finalGs with
-                        Clubs =
-                            finalGs.Clubs
-                            |> Map.add
-                                fixture.HomeClubId
-                                { finalGs.Clubs[fixture.HomeClubId] with
-                                    CoordinationMemory = finalHomeCoord }
-                            |> Map.add
-                                fixture.AwayClubId
-                                { finalGs.Clubs[fixture.AwayClubId] with
-                                    CoordinationMemory = finalAwayCoord } }
-
-                let clock1 = WorldClockOps.advance clock
-
-                Ok
-                    { DayResult =
-                        { GameState = gsWithCoord
-                          WorldClock = clock1
-                          PlayedMatches = [ fixtureId, outcome.Fixture ]
-                          Logs = [ $"{home.Name} {h}-{a} {away.Name}" ]
-                          SeasonComplete = isSeasonComplete gsWithCoord }
-                      MatchReplay = replay }
+                    Ok
+                        { DayResult =
+                            { GameState = gsWithCoord
+                              WorldClock = clock1
+                              PlayedMatches = [ fixtureId, outcome.Fixture ]
+                              Logs =
+                                [ $"{gsReady.Clubs[fixture.HomeClubId].Name} {h}-{a} {gsReady.Clubs[fixture.AwayClubId].Name}" ]
+                              SeasonComplete = isSeasonComplete gsWithCoord }
+                          MatchReplay = Some replay }
 
     let hasUserMatchToday (gs: GameState) : bool =
         gs.Competitions

@@ -4,7 +4,6 @@ open Elmish
 open FootballEngine.AppMsgs
 open FootballEngine.Domain
 open AppTypes
-open FootballEngine.Types
 open FootballEngine.World
 open FootballEngine.Data
 
@@ -25,6 +24,8 @@ module AppState =
           Inbox = { SelectedMessageId = None }
           Match =
             { ActiveReplay = None
+              HomeClubId = None
+              AwayClubId = None
               Snapshot = 0
               IsPlaying = false
               PlaybackSpeed = 20

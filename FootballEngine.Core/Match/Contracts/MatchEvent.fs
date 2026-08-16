@@ -35,6 +35,7 @@ type EventKind =
     | MomentumShifted
     | ConditionCritical
     | RedCard
+    | ShootoutGoal
 
 module EventFlags =
 
@@ -71,6 +72,7 @@ module EventFlags =
             | EventKind.MomentumShifted -> 25
             | EventKind.ConditionCritical -> 26
             | EventKind.RedCard -> 27
+            | EventKind.ShootoutGoal -> 28
 
         { Bits = 1UL <<< bit }
 
@@ -78,8 +80,8 @@ module EventFlags =
 
     let intersects (a: EventFlags) (b: EventFlags) : bool = (a.Bits &&& b.Bits) <> 0UL
 
-    /// Union of every kind bit (all 28 events of P1).
-    let all: EventFlags = { Bits = 0x0FFFFFFFUL }
+    /// Union of every kind bit (all 29 events of P1+R10).
+    let all: EventFlags = { Bits = 0x1FFFFFFFUL }
 
 [<Struct>]
 type ShotResult =
@@ -116,6 +118,7 @@ type EventData =
     | FullTime
     | ConditionCritical of player: PlayerId * condition: int
     | RedCardIssued of player: PlayerId
+    | ShootoutGoal of side: ClubSide
 
 type MatchEvent = { Tick: int<subtick>; Data: EventData }
 
@@ -133,6 +136,7 @@ module MatchEvent =
         | EventData.SetPiece(SetPieceKind.ThrowIn, _) -> EventKind.ThrowIn
         | EventData.SetPiece(SetPieceKind.Corner, _) -> EventKind.Corner
         | EventData.SetPiece(SetPieceKind.GoalKick, _) -> EventKind.GoalKick
+        | EventData.SetPiece(SetPieceKind.KickOff, _) -> EventKind.KickOff
         | EventData.SetPiece _ -> EventKind.SetPieceAwarded
         | EventData.BallLoose _ -> EventKind.BallLoose
         | EventData.Interception _ -> EventKind.Interception
@@ -149,6 +153,7 @@ module MatchEvent =
         | EventData.FullTime -> EventKind.FullTime
         | EventData.ConditionCritical _ -> EventKind.ConditionCritical
         | EventData.RedCardIssued _ -> EventKind.RedCard
+        | EventData.ShootoutGoal _ -> EventKind.ShootoutGoal
 
     /// For tests/diagnostics only — the viewer derives its own text from EventData.
     let describe (ev: MatchEvent) : string =
@@ -175,3 +180,4 @@ module MatchEvent =
         | EventData.FullTime -> "Full time"
         | EventData.ConditionCritical(_, condition) -> sprintf "Condition critical %d" condition
         | EventData.RedCardIssued _ -> "Red card issued"
+        | EventData.ShootoutGoal side -> sprintf "Shootout goal: %A" side

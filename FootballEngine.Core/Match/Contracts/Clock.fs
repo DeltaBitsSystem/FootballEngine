@@ -18,6 +18,9 @@ module SimulationClock =
     let toMatchMinute (tick: int<subtick>) : int<matchMin> =
         int (float tick / (float defaultClock.SubTicksPerSecond * 60.0)) * 1<matchMin>
 
+    let minuteSubticks: int<subtick> =
+        int (60.0 * float defaultClock.SubTicksPerSecond) * 1<subtick>
+
 [<Struct>]
 type ClockPhase =
     | FirstHalf

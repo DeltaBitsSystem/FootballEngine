@@ -4,12 +4,56 @@ open System
 open FootballEngine.Domain
 open FootballEngine.Stats
 open FootballEngine.World
-open FootballEngine.ML
-open FootballEngine.Types
+
+type private DevelopmentWeights =
+    { AgeBracket_MaxDelta_U21: int
+      AgeBracket_MaxDelta_U25: int
+      AgeBracket_MaxDelta_U28: int
+      AgeBracket_MaxDelta_U31: int
+      AgeBracket_MaxDelta_U34: int
+      FocusMultiplier_Goalkeeping: float
+      FocusMultiplier_PhysicalBase: float
+      FocusMultiplier_Physical_Pressing: float
+      FocusMultiplier_Physical_Positional: float
+      FocusMultiplier_Mental: float
+      FocusMultiplier_TechnicalBase: float
+      FocusMultiplier_Technical_Creativity: float
+      FocusMultiplier_Technical_Directness: float
+      WeeklyDeltaDivisor: float
+      StatFocus_DirectnessThreshold: float
+      StatFocus_AttackingDepthThreshold: float
+      StatFocus_DefensiveHeightThreshold: float
+      StatFocus_CreativityThreshold: float
+      MaybeStat_PositiveThreshold: float
+      MaybeStat_NegativeThreshold: float }
+
+module private DevelopmentDefaults =
+
+    let dev: DevelopmentWeights =
+        { AgeBracket_MaxDelta_U21 = 4
+          AgeBracket_MaxDelta_U25 = 3
+          AgeBracket_MaxDelta_U28 = 2
+          AgeBracket_MaxDelta_U31 = 1
+          AgeBracket_MaxDelta_U34 = 0
+          FocusMultiplier_Goalkeeping = 1.5
+          FocusMultiplier_PhysicalBase = 0.5
+          FocusMultiplier_Physical_Pressing = 1.0
+          FocusMultiplier_Physical_Positional = 0.5
+          FocusMultiplier_Mental = 1.2
+          FocusMultiplier_TechnicalBase = 0.5
+          FocusMultiplier_Technical_Creativity = 1.0
+          FocusMultiplier_Technical_Directness = 0.5
+          WeeklyDeltaDivisor = 120.0
+          StatFocus_DirectnessThreshold = 0.5
+          StatFocus_AttackingDepthThreshold = 0.5
+          StatFocus_DefensiveHeightThreshold = 0.5
+          StatFocus_CreativityThreshold = 0.5
+          MaybeStat_PositiveThreshold = 0.35
+          MaybeStat_NegativeThreshold = 0.50 }
 
 module TrainingEngine =
 
-    let private dev = BalanceConfig.defaultConfig.Development
+    open DevelopmentDefaults
 
     let focusMultiplier (focus: TrainingFocus) (profile: BehavioralProfile) : float =
         match focus with
@@ -137,7 +181,7 @@ module TrainingEngine =
             age
             playerWithCondition.CurrentSkill
             playerWithCondition.PotentialSkill
-            (Player.profile playerWithCondition BalanceConfig.defaultConfig.ProfileWeights)
+            (Player.profile playerWithCondition ProfileWeightDefaults.defaults)
             playerWithCondition
 
     let applyRemainingSeasonTraining
@@ -175,7 +219,7 @@ module TrainingEngine =
 
 module PlayerDevelopment =
 
-    let private dev = BalanceConfig.defaultConfig.Development
+    open DevelopmentDefaults
 
     let private skillDelta
         (age: int)
@@ -364,7 +408,7 @@ module PlayerDevelopment =
 
     let developPlayer (currentDate: DateTime) (schedule: TrainingSchedule option) (p: Player) : Player =
         let a = Player.age currentDate p
-        let prof = Player.profile p BalanceConfig.defaultConfig.ProfileWeights
+        let prof = Player.profile p ProfileWeightDefaults.defaults
         let delta = skillDelta a p.CurrentSkill p.PotentialSkill schedule prof
         let newCA = clamp 1 p.PotentialSkill (p.CurrentSkill + delta)
 

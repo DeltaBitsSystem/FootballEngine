@@ -1,16 +1,15 @@
 namespace FootballEngine
 
-open FootballEngine.Simulation
+open FootballEngine.Core.Match
 open FootballEngine.AppTypes
 open AppMsgs
 
 module MatchSlice =
 
+    let private totalOf (replay: Replay.ReplayData) : int = max 0 (replay.Count - 1)
+
     let update (msg: MatchMsg) (state: MatchState) : MatchState =
-        let total =
-            state.ActiveReplay
-            |> Option.map (fun r -> r.Snapshots.Length - 1)
-            |> Option.defaultValue 0
+        let total = state.ActiveReplay |> Option.map totalOf |> Option.defaultValue 0
 
         match msg with
         | MatchMsg.Step delta ->
@@ -21,6 +20,8 @@ module MatchSlice =
 
         | MatchMsg.Close ->
             { ActiveReplay = None
+              HomeClubId = None
+              AwayClubId = None
               Snapshot = 0
               IsPlaying = false
               PlaybackSpeed = 20
@@ -42,10 +43,15 @@ module MatchSlice =
 
                 let effectiveSpeed =
                     match state.ActiveReplay with
-                    | Some replay when state.Snapshot < replay.Snapshots.Length ->
-                        match replay.Snapshots[state.Snapshot].Flow with
-                        | Types.MatchFlow.Live -> state.PlaybackSpeed
-                        | _ -> max 1 (state.PlaybackSpeed / 4)
+                    | Some replay when state.Snapshot < replay.Count ->
+                        let snaps = Replay.read replay |> Seq.toArray
+
+                        if state.Snapshot < snaps.Length then
+                            match snaps[state.Snapshot].Flow with
+                            | 0uy -> state.PlaybackSpeed
+                            | _ -> max 1 (state.PlaybackSpeed / 4)
+                        else
+                            state.PlaybackSpeed
                     | _ -> state.PlaybackSpeed
 
                 let snapInterval = 125.0 / float effectiveSpeed

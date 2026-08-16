@@ -10,9 +10,7 @@ open Avalonia.FuncUI.Types
 open Avalonia.Platform
 open Avalonia.Rendering.SceneGraph
 open Avalonia.Skia
-open FootballEngine.Simulation
-open FootballEngine.Types
-open FootballEngine.Types.SimulationClock
+open FootballEngine.Core.Match
 open SkiaSharp
 open FootballEngine
 open FootballEngine.Domain
@@ -33,11 +31,14 @@ module PitchCoords =
     let PitchH = 680.0f
 
     let inline toCanvas (x: float) (y: float) : float32 * float32 =
-        float32 x * PitchW / float32 PhysicsContract.PitchLength,
-        float32 y * PitchH / float32 PhysicsContract.PitchWidth
+        let cx = x + float Pitch.Length / 2.0
+        let cy = y + float Pitch.Width / 2.0
+        float32 cx * PitchW / float32 Pitch.Length, float32 cy * PitchH / float32 Pitch.Width
 
     let inline toCanvasF (x: float32) (y: float32) : float32 * float32 =
-        x * PitchW / float32 PhysicsContract.PitchLength, y * PitchH / float32 PhysicsContract.PitchWidth
+        let cx = x + float32 Pitch.Length / 2.0f
+        let cy = y + float32 Pitch.Width / 2.0f
+        cx * PitchW / float32 Pitch.Length, cy * PitchH / float32 Pitch.Width
 
     let inline lerp (t: float32) (a: float32) (b: float32) : float32 =
         let t' = t * t * (3.0f - 2.0f * t)
@@ -48,23 +49,27 @@ module PitchCoords =
 
 module PitchGeometry =
 
-    open PhysicsContract
+    let private CircleRadiusM = 9.15<meter>
+    let private ArcRadiusM = 9.15<meter>
+    let private CornerArcM = 1.0<meter>
+    let private PostNearYM = Pitch.Width / 2.0 - Pitch.GoalHalfWidth
+    let private PostFarYM = Pitch.Width / 2.0 + Pitch.GoalHalfWidth
 
     let inline private toCanvasX (meters: float<meter>) : float32 =
-        float32 (float meters) * PitchCoords.PitchW / float32 PitchLength
+        float32 (float meters) * PitchCoords.PitchW / float32 Pitch.Length
 
     let inline private toCanvasY (meters: float<meter>) : float32 =
-        float32 (float meters) * PitchCoords.PitchH / float32 PitchWidth
+        float32 (float meters) * PitchCoords.PitchH / float32 Pitch.Width
 
-    let PenaltyAreaDepthX = toCanvasX PenaltyAreaDepth
-    let PenaltyAreaHalfW = toCanvasY PenaltyAreaHalfWidth
-    let GoalAreaDepthX = toCanvasX GoalAreaDepth
-    let GoalAreaHalfW = toCanvasY GoalAreaHalfWidth
-    let CenterCircleRadius = toCanvasX CenterCircleRadius
-    let PenaltyArcRadius = toCanvasX PenaltyArcRadius
-    let CornerArcRadius = toCanvasX CornerArcRadius
-    let PenaltySpotX = toCanvasX PenaltySpotDistance
-    let GoalHalfW = toCanvasY (PostFarY - PostNearY) / 2.0f
+    let PenaltyAreaDepthX = toCanvasX Pitch.PenaltyAreaDepth
+    let PenaltyAreaHalfW = toCanvasY Pitch.PenaltyAreaHalfWidth
+    let GoalAreaDepthX = toCanvasX Pitch.GoalAreaDepth
+    let GoalAreaHalfW = toCanvasY Pitch.GoalAreaHalfWidth
+    let CenterCircleRadius = toCanvasX CircleRadiusM
+    let PenaltyArcRadius = toCanvasX ArcRadiusM
+    let CornerArcRadius = toCanvasX CornerArcM
+    let PenaltySpotX = toCanvasX Pitch.PenaltySpotDistance
+    let GoalHalfW = toCanvasY (PostFarYM - PostNearYM) / 2.0f
     let GoalDepth = 16.0f
 
 
@@ -708,9 +713,7 @@ module HudRenderer =
 
 open FootballEngine.Client.Views.Components // For RenderFrame, RenderPlayer, RenderBall, MatchInterp
 
-type MatchDrawOp
-    (ctx: MatchContext, renderFrame: RenderFrame, snapshot: SimSnapshot, userClubId: ClubId option, bounds: Rect) =
-    let isUserAway = userClubId |> Option.exists (fun id -> id = ctx.Away.Id)
+type MatchDrawOp(homeClubId: ClubId, awayClubId: ClubId, renderFrame: RenderFrame, flow: byte, bounds: Rect) =
 
     interface ICustomDrawOperation with
         member _.Bounds = bounds
@@ -765,45 +768,6 @@ type MatchDrawOp
                             rp.IsHome
                             rp.HasBall)
 
-                // ── Ball trajectory line ───────────────────────────────────────
-
-                match snapshot.BallTrajectory with
-                | Some traj ->
-                    let progress =
-                        if traj.EstimatedArrivalSubTick > traj.LaunchSubTick then
-                            float32 (snapshot.SubTick - int traj.LaunchSubTick)
-                            / float32 (int traj.EstimatedArrivalSubTick - int traj.LaunchSubTick)
-                        else
-                            1.0f
-
-                    if progress >= 0.0f && progress <= 1.0f then
-                        // Verificar que la pelota interpolada esté cerca del origen de la trayectoria
-                        // Si no lo está, significa que el interpolador la movió antes de que se lance
-                        // y la línea quedaría desconectada visualmente
-                        let bx = float renderFrame.Ball.Position.X
-                        let by = float renderFrame.Ball.Position.Y
-                        let odx = bx - float traj.OriginX
-                        let ody = by - float traj.OriginY
-                        let distFromOriginSq = odx * odx + ody * ody
-
-                        if distFromOriginSq < 25.0 then // solo dibujar si la pelota está dentro de ~5m del origen
-                            use trajPaint =
-                                new SKPaint(
-                                    Color = SKColor(255uy, 200uy, 50uy, 80uy),
-                                    IsAntialias = true,
-                                    Style = SKPaintStyle.Stroke,
-                                    StrokeWidth = 2.0f,
-                                    PathEffect = SKPathEffect.CreateDash([| 4.0f; 4.0f |], 0.0f)
-                                )
-
-                            let path = new SKPath()
-                            let ox, oy = PitchCoords.toCanvas (float traj.OriginX) (float traj.OriginY)
-                            let tx, ty = PitchCoords.toCanvas (float traj.TargetX) (float traj.TargetY)
-                            path.MoveTo(ox, oy)
-                            path.LineTo(tx, ty)
-                            canvas.DrawPath(path, trajPaint)
-                | None -> ()
-
                 // ── Ball ───────────────────────────────────────────────────────
 
                 let ballX = renderFrame.Ball.Position.X
@@ -829,8 +793,8 @@ type MatchDrawOp
 
                 let possessingName, possessingIsHome =
                     match renderFrame.AttackingClubId with
-                    | Some clubId when clubId = ctx.Home.Id -> renderFrame.HomeName, true
-                    | Some clubId when clubId = ctx.Away.Id -> renderFrame.AwayName, false
+                    | Some clubId when clubId = homeClubId -> renderFrame.HomeName, true
+                    | Some clubId when clubId = awayClubId -> renderFrame.AwayName, false
                     | _ -> "", false // Default if no club is attacking or ID not matched
 
                 if possessingName <> "" then
@@ -841,19 +805,12 @@ type MatchDrawOp
                 let bannerYellow = SKColor(245uy, 158uy, 11uy, 255uy)
                 let bannerGreen = SKColor(16uy, 185uy, 129uy, 255uy)
 
-                match snapshot.Flow with
-                | MatchFlow.GoalPause _ -> HudRenderer.drawSituationBanner canvas "⚽  GOAL!" bannerGreen
-                | MatchFlow.RestartDelay { Kind = SetPieceKind.Corner } ->
-                    HudRenderer.drawSituationBanner canvas "Corner Kick" bannerYellow
-                | MatchFlow.RestartDelay { Kind = SetPieceKind.GoalKick } ->
-                    HudRenderer.drawSituationBanner canvas "Goal Kick" bannerYellow
-                | MatchFlow.RestartDelay { Kind = SetPieceKind.ThrowIn } ->
-                    HudRenderer.drawSituationBanner canvas "Throw In" bannerYellow
-                | MatchFlow.RestartDelay { Kind = SetPieceKind.FreeKick } ->
-                    HudRenderer.drawSituationBanner canvas "Free Kick" bannerYellow
-                | MatchFlow.RestartDelay { Kind = SetPieceKind.KickOff } ->
-                    HudRenderer.drawSituationBanner canvas "Kick Off" bannerYellow
-                | MatchFlow.InjuryPause _ -> HudRenderer.drawSituationBanner canvas "Injury" bannerYellow
+                match flow with
+                | 1uy -> HudRenderer.drawSituationBanner canvas "GOAL!" bannerGreen
+                | 2uy -> HudRenderer.drawSituationBanner canvas "VAR Review" bannerYellow
+                | 3uy -> HudRenderer.drawSituationBanner canvas "Injury" bannerYellow
+                | 4uy -> HudRenderer.drawSituationBanner canvas "Restart" bannerYellow
+                | 5uy -> HudRenderer.drawSituationBanner canvas "Half Time" bannerYellow
                 | _ -> ()
 
                 canvas.Restore()
@@ -867,54 +824,69 @@ type MatchDrawOp
 type MatchPitchControl() =
     inherit Control()
 
-    static let ctxProp =
-        AvaloniaProperty.Register<MatchPitchControl, MatchContext option>("MatchCtx", None)
+    static let homeIdProp =
+        AvaloniaProperty.Register<MatchPitchControl, ClubId option>("HomeClubId", None)
+
+    static let awayIdProp =
+        AvaloniaProperty.Register<MatchPitchControl, ClubId option>("AwayClubId", None)
 
     static let renderFrameProp =
         AvaloniaProperty.Register<MatchPitchControl, RenderFrame option>("RenderFrame", None)
 
-    static let snapshotProp =
-        AvaloniaProperty.Register<MatchPitchControl, SimSnapshot option>("Snapshot", None)
+    static let flowProp = AvaloniaProperty.Register<MatchPitchControl, byte>("Flow", 0uy)
 
     static let userProp =
         AvaloniaProperty.Register<MatchPitchControl, ClubId option>("UserClubId", None)
 
-    static member MatchCtxProperty = ctxProp
+    static member HomeClubIdProperty = homeIdProp
+    static member AwayClubIdProperty = awayIdProp
     static member RenderFrameProperty = renderFrameProp
-    static member SnapshotProperty = snapshotProp
+    static member FlowProperty = flowProp
     static member UserClubIdProperty = userProp
 
     override this.OnPropertyChanged(change: AvaloniaPropertyChangedEventArgs) =
         base.OnPropertyChanged(change)
 
         if
-            change.Property = ctxProp
+            change.Property = homeIdProp
+            || change.Property = awayIdProp
             || change.Property = renderFrameProp
-            || change.Property = snapshotProp
+            || change.Property = flowProp
             || change.Property = userProp
         then
             this.InvalidateVisual()
 
-    member this.MatchCtx
-        with get () = this.GetValue(ctxProp)
-        and set v = this.SetValue(ctxProp, v) |> ignore
+    member this.HomeClubId
+        with get () = this.GetValue(homeIdProp)
+        and set v = this.SetValue(homeIdProp, v) |> ignore
+
+    member this.AwayClubId
+        with get () = this.GetValue(awayIdProp)
+        and set v = this.SetValue(awayIdProp, v) |> ignore
 
     member this.RenderFrame
         with get () = this.GetValue(renderFrameProp)
         and set v = this.SetValue(renderFrameProp, v) |> ignore
 
-    member this.Snapshot
-        with get () = this.GetValue(snapshotProp)
-        and set v = this.SetValue(snapshotProp, v) |> ignore
+    member this.Flow
+        with get () = this.GetValue(flowProp)
+        and set v = this.SetValue(flowProp, v) |> ignore
 
     member this.UserClubId
         with get () = this.GetValue(userProp)
         and set v = this.SetValue(userProp, v) |> ignore
 
     override this.Render(drawingContext) =
-        match this.MatchCtx, this.RenderFrame, this.Snapshot with
-        | Some ctx, Some renderFrame, Some snapshot ->
-            let op = new MatchDrawOp(ctx, renderFrame, snapshot, this.UserClubId, this.Bounds)
+        match this.RenderFrame with
+        | Some renderFrame ->
+            let op =
+                new MatchDrawOp(
+                    this.HomeClubId |> Option.defaultValue 0,
+                    this.AwayClubId |> Option.defaultValue 0,
+                    renderFrame,
+                    this.Flow,
+                    this.Bounds
+                )
 
             drawingContext.Custom(op)
         | _ -> ()
@@ -931,17 +903,20 @@ module MatchPitchView =
 
     type MatchPitchControl with
 
-        static member matchCtx<'t when 't :> MatchPitchControl>(v: MatchContext option) : IAttr<'t> =
-            AttrBuilder<'t>.CreateProperty<MatchContext option>(MatchPitchControl.MatchCtxProperty, v, ValueNone)
+        static member homeClubId<'t when 't :> MatchPitchControl>(v: ClubId option) : IAttr<'t> =
+            AttrBuilder<'t>.CreateProperty<ClubId option>(MatchPitchControl.HomeClubIdProperty, v, ValueNone)
+
+        static member awayClubId<'t when 't :> MatchPitchControl>(v: ClubId option) : IAttr<'t> =
+            AttrBuilder<'t>.CreateProperty<ClubId option>(MatchPitchControl.AwayClubIdProperty, v, ValueNone)
 
         static member renderFrame<'t when 't :> MatchPitchControl>(v: RenderFrame option) : IAttr<'t> =
             AttrBuilder<'t>.CreateProperty<RenderFrame option>(MatchPitchControl.RenderFrameProperty, v, ValueNone)
 
+        static member flow<'t when 't :> MatchPitchControl>(v: byte) : IAttr<'t> =
+            AttrBuilder<'t>.CreateProperty<byte>(MatchPitchControl.FlowProperty, v, ValueNone)
+
         static member userClubId<'t when 't :> MatchPitchControl>(v: ClubId option) : IAttr<'t> =
             AttrBuilder<'t>.CreateProperty<ClubId option>(MatchPitchControl.UserClubIdProperty, v, ValueNone)
-
-        static member snapshot<'t when 't :> MatchPitchControl>(v: SimSnapshot option) : IAttr<'t> =
-            AttrBuilder<'t>.CreateProperty<SimSnapshot option>(MatchPitchControl.SnapshotProperty, v, ValueNone)
 
 
 // ---------------------------------------------------------------------------
@@ -953,16 +928,18 @@ module MatchViewer =
     open MatchPitchView
 
     let view
-        (ctx: MatchContext)
+        (homeClubId: ClubId)
+        (awayClubId: ClubId)
         (renderFrame: RenderFrame)
-        (snapshot: SimSnapshot option)
+        (flow: byte)
         (userClubId: ClubId option)
         : IView =
         let pitch =
             create
-                [ MatchPitchControl.matchCtx (Some ctx)
+                [ MatchPitchControl.homeClubId (Some homeClubId)
+                  MatchPitchControl.awayClubId (Some awayClubId)
                   MatchPitchControl.renderFrame (Some renderFrame)
-                  MatchPitchControl.snapshot snapshot
+                  MatchPitchControl.flow flow
                   MatchPitchControl.userClubId userClubId ]
 
         Border.create [ Border.child pitch; Border.margin (Thickness(8.0, 12.0, 8.0, 12.0)) ]
@@ -982,50 +959,104 @@ module MatchDayView =
               TextBlock.verticalAlignment VerticalAlignment.Center ]
         :> IView
 
+    let private fixtureNames (gs: GameState) (clubId: ClubId) : string[] =
+        match GameState.headCoach clubId gs with
+        | Some coach ->
+            coach.Attributes.Coaching.Lineup
+            |> Option.map (fun lu ->
+                lu.Slots
+                |> List.filter (fun s -> s.PlayerId.IsSome)
+                |> List.sortBy _.Index
+                |> List.choose (fun s -> s.PlayerId |> Option.bind (fun pid -> gs.Players |> Map.tryFind pid))
+                |> List.map _.Name
+                |> Array.ofList)
+            |> Option.defaultValue [||]
+        | None -> [||]
+
+    let private userFixtureEvents (gs: GameState) : MatchEvent list =
+        gs.Competitions
+        |> Map.toSeq
+        |> Seq.collect (fun (_, comp) -> comp.Fixtures |> Map.toSeq)
+        |> Seq.tryPick (fun (_, f) ->
+            if MatchFixture.involves gs.UserClubId f && not f.Events.IsEmpty then
+                Some f.Events
+            else
+                None)
+        |> Option.defaultValue []
+
     let view (state: State) (dispatch: Msg -> unit) : IView =
         match state.Match.ActiveReplay with
         | None -> noMatchView ()
         | Some replay ->
-            let snapCount = replay.Snapshots.Length
+            let snaps = Replay.read replay |> Seq.toArray
 
-            if snapCount = 0 then
+            if snaps.Length = 0 then
                 noMatchView ()
             else
 
-                let snapIdx = min state.Match.Snapshot (snapCount - 1)
-                let currSnap = replay.Snapshots[snapIdx]
+                let snapIdx = min state.Match.Snapshot (snaps.Length - 1)
+                let currSnap = snaps[snapIdx]
 
-                let ctx = replay.Context
-                let clock = defaultClock
+                let clock = SimulationClock.defaultClock
+
+                let homeClubId = state.Match.HomeClubId |> Option.defaultValue 0
+                let awayClubId = state.Match.AwayClubId |> Option.defaultValue 0
+
+                let homeName, awayName, homeNames, awayNames, userClubId, clubOfPlayer, fixtureEvents =
+                    match state.Mode with
+                    | AppMode.InGame(gs, _) ->
+                        let hName =
+                            gs.Clubs
+                            |> Map.tryFind homeClubId
+                            |> Option.map _.Name
+                            |> Option.defaultValue "Home"
+
+                        let aName =
+                            gs.Clubs
+                            |> Map.tryFind awayClubId
+                            |> Option.map _.Name
+                            |> Option.defaultValue "Away"
+
+                        hName,
+                        aName,
+                        fixtureNames gs homeClubId,
+                        fixtureNames gs awayClubId,
+                        Some gs.UserClubId,
+                        (fun pid -> gs.Players |> Map.tryFind pid |> Option.bind Player.clubOf),
+                        userFixtureEvents gs
+                    | _ -> "Home", "Away", [||], [||], None, (fun _ -> None), []
 
                 let currFrame =
-                    MatchProjection.project ctx currSnap (subTicksToSeconds clock (currSnap.SubTick * 1<subtick>))
+                    MatchProjection.project
+                        homeNames
+                        awayNames
+                        homeName
+                        awayName
+                        currSnap
+                        (float currSnap.Tick / float clock.SubTicksPerSecond)
 
                 let renderFrame =
                     let t = float32 state.Match.InterpolationT
 
-                    if snapIdx + 1 < snapCount && t > 0.0f then
-                        let nextSnap = replay.Snapshots[snapIdx + 1]
+                    if snapIdx + 1 < snaps.Length && t > 0.0f then
+                        let nextSnap = snaps[snapIdx + 1]
 
                         let nextFrame =
                             MatchProjection.project
-                                ctx
+                                homeNames
+                                awayNames
+                                homeName
+                                awayName
                                 nextSnap
-                                (subTicksToSeconds clock (nextSnap.SubTick * 1<subtick>))
+                                (float nextSnap.Tick / float clock.SubTicksPerSecond)
 
-                        let actualDt =
-                            float (nextSnap.SubTick - currSnap.SubTick) / float clock.SubTicksPerSecond
+                        let actualDt = float (nextSnap.Tick - currSnap.Tick) / float clock.SubTicksPerSecond
 
                         MatchInterp.hermite currFrame nextFrame (float t) actualDt
                     else
                         currFrame
 
-                let userClubId =
-                    match state.Mode with
-                    | AppMode.InGame(gs, _) -> Some gs.UserClubId
-                    | _ -> None
-
-                let totalSnaps = snapCount - 1
+                let totalSnaps = snaps.Length - 1
 
                 let progressPct =
                     if totalSnaps > 0 then
@@ -1033,10 +1064,10 @@ module MatchDayView =
                     else
                         0.0
 
-                let stats = StatsPanel.computeStats ctx.Home.Id replay.Events
+                let stats = StatsPanel.computeStats homeClubId awayClubId fixtureEvents clubOfPlayer
                 let statsPanel = StatsPanel.buildStatsPanel stats
 
-                let lastEvent = replay.Events |> List.tryLast
+                let lastEvent = fixtureEvents |> List.tryLast
 
                 let commentary =
                     match lastEvent with
@@ -1146,5 +1177,5 @@ module MatchDayView =
                                   ) ]
 
                             // ── Pitch ─────────────────────────────────────────
-                            MatchViewer.view ctx renderFrame (Some currSnap) userClubId ] ]
+                            MatchViewer.view homeClubId awayClubId renderFrame currSnap.Flow userClubId ] ]
                 :> IView

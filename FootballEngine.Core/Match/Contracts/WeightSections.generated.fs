@@ -499,7 +499,17 @@ type WeightSectionsDecision =
       PersonalityTeamworkWeight: float
       PersonalityConsistencyMod: float
       ShootBraveryPressureMod: float
-      PassAnticipationBonus: float }
+      PassAnticipationBonus: float
+      PassBaseUtility: float
+      ShotBaseUtility: float
+      DribbleBaseUtility: float
+      CrossBaseUtility: float
+      ShotXGMultiplier: float
+      ShotDepthBonusAttacking: float
+      ShotDepthBonusDefending: float
+      DribbleZoneAttackingMult: float
+      DribblePhaseBonusMult: float
+      PassHighPressFactor: float }
 
 [<Struct>]
 type WeightSectionsPerception =
@@ -977,7 +987,7 @@ module WeightSections =
           LongBallDirectnessBonus = 0.2
           CreativityWeight = 0.1
           DirectnessWeight = 0.06
-          DecisionTemperature = 0.15
+          DecisionTemperature = 0.2625
           ShootMinThreshold = 0.35
           ShootDirectnessThresholdMod = 0.1
           PassMinThreshold = 0.25
@@ -1004,7 +1014,17 @@ module WeightSections =
           PersonalityTeamworkWeight = 0.45
           PersonalityConsistencyMod = 0.3
           ShootBraveryPressureMod = 0.2
-          PassAnticipationBonus = 0.12 }
+          PassAnticipationBonus = 0.12
+          PassBaseUtility = 0.57
+          ShotBaseUtility = 0.05
+          DribbleBaseUtility = 0.06
+          CrossBaseUtility = 0.095
+          ShotXGMultiplier = 1.2
+          ShotDepthBonusAttacking = 0.10
+          ShotDepthBonusDefending = 0.2
+          DribbleZoneAttackingMult = 0.5
+          DribblePhaseBonusMult = 0.15
+          PassHighPressFactor = 0.5 }
 
     let defaultWeightsPerception: WeightSectionsPerception =
         { VisionRadiusBase = 20

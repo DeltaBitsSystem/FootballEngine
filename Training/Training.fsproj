@@ -4,18 +4,17 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="CalibrationTypes.fs"/>
-    <Compile Include="ExperienceMetrics.fs"/>
-    <Compile Include="SimulatorRunner.fs"/>
-    <Compile Include="MetricsAggregator.fs"/>
+    <Compile Include="Types.fs"/>
+    <Compile Include="Metrics.fs"/>
     <Compile Include="ErrorCalculator.fs"/>
-    <Compile Include="GradientTuner.fs"/>
+    <Compile Include="SimulatorRunner.fs"/>
+    <Compile Include="AutoTuner.fs"/>
     <Compile Include="Validator.fs"/>
     <Compile Include="Program.fs"/>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../FootballEngine.Client/FootballEngine.Client.fsproj"/>
+    <ProjectReference Include="../FootballEngine.Core/FootballEngine.Core.fsproj"/>
+    <ProjectReference Include="../FootballEngine.Core.Tests/FootballEngine.Core.Tests.fsproj"/>
     <PackageReference Update="FSharp.Core" Version="10.1.201"/>
-    <PackageReference Include="FSharp.Stats" Version="0.6.0"/>
   </ItemGroup>
 </Project>

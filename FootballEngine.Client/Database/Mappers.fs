@@ -4,7 +4,6 @@ open System
 open System.Text.Json
 open FootballEngine.Domain
 open FootballEngine.Database.Serializers
-open FootballEngine.ML
 
 module Mappers =
 
@@ -127,10 +126,7 @@ module Mappers =
           ContractExpiry = contractExpiry
           TrainingFocus = trainingFocusToString player.TrainingSchedule.Focus
           TrainingIntensity = trainingIntensityToString player.TrainingSchedule.Intensity
-          BehavioralProfile =
-            behavioralProfileToString (
-                Player.profile player FootballEngine.Types.BalanceConfig.defaultConfig.ProfileWeights
-            ) }
+          BehavioralProfile = behavioralProfileToString (Player.profile player ProfileWeightDefaults.defaults) }
 
     let toPlayerDomain (e: PlayerEntity) : Player =
         let status =

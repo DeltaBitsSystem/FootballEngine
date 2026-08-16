@@ -1,0 +1,150 @@
+namespace FootballEngine.Core.Match
+
+/// Duel execution: the carrier tries to beat the nearest defender (dribble),
+/// or the defender wins the ball (tackle). Fouls come from failed dribbles.
+module Duel =
+
+    /// Determine foul severity from duel context (position, last man, recklessness).
+    let private foulSeverity
+        (ctx: MatchContext)
+        (world: World)
+        (side: ClubSide)
+        (slot: int)
+        (x: float<meter>)
+        (y: float<meter>)
+        : FoulSeverity =
+        let cfg = ctx.Config.Actions
+        let dir = MatchMath.goalDirection side
+        let distToOwnGoal = abs (float x - float (MatchMath.ownGoalX side))
+        let distToAttGoal = abs (float x - float (MatchMath.goalX side))
+
+        let nearOwnBox = distToOwnGoal < 20.0
+        let nearAttGoal = distToAttGoal < 30.0
+
+        // Check if we're the last defender (only GK behind).
+        let mutable lastMan = false
+
+        if nearAttGoal then
+            let frame = (MatchWorld.team world side).Frame
+            let mutable behind = 0
+
+            for s2 in MatchWorld.activeSlots frame do
+                if s2 <> slot && s2 <> 0 then
+                    let sx = MatchWorld.posX frame s2
+
+                    if dir > 0.0 && float sx < float x then
+                        behind <- behind + 1
+
+                    if dir < 0.0 && float sx > float x then
+                        behind <- behind + 1
+
+            lastMan <- behind = 0
+
+        let baseRoll, _ =
+            Rng.double (Rng.ofSeed (uint64 (abs (int (float x * 100.0 + float y * 100.0)))))
+        // ^ deterministic from position, so same duel position → same severity
+
+        let severity =
+            if nearAttGoal && lastMan then
+                FoulSeverity.RedWorthy
+            elif nearAttGoal && baseRoll < 0.33 then
+                FoulSeverity.YellowWorthy
+            elif nearOwnBox && baseRoll < 0.25 then
+                FoulSeverity.YellowWorthy
+            elif baseRoll < cfg.DuelFoulSeverityBias then
+                FoulSeverity.Tactical
+            else
+                FoulSeverity.Minor
+
+        severity
+
+    let adjudicate
+        (ctx: SystemContext)
+        (rng: Rng)
+        (world: World)
+        (buffer: EventBuffer)
+        (side: ClubSide)
+        (slot: int)
+        : Rng =
+        let tick = world.State.Tick
+        let cfg = ctx.Ctx.Config
+        let p = MatchWorld.profileOf ctx.Ctx side slot
+        let pid = p.Id
+        let frame = (MatchWorld.team world side).Frame
+
+        let x = MatchWorld.posX frame slot
+        let y = MatchWorld.posY frame slot
+
+        match MatchWorld.nearestOpponent ctx.Ctx world side x y 3.0 with
+        | None -> rng
+        | Some dSlot ->
+            let dPid = (MatchWorld.lineup ctx.Ctx (MatchWorld.oppOf side)).Profiles.[dSlot].Id
+            let d = MatchWorld.profileOf ctx.Ctx (MatchWorld.oppOf side) dSlot
+
+            let att =
+                (float p.Dribbling + float p.Agility + float p.Composure) / 300.0
+                - (float d.Tackling + float d.Anticipation + float d.Strength) / 300.0
+                + world.State.Momentum * cfg.Actions.DuelMomentumBonus
+
+            let pWin = MatchMath.clamp01 (MatchMath.sigmoid cfg.Actions.DuelSteepness att)
+
+            let r, rng' = Rng.double rng
+            let foulRoll, rng'' = Rng.double rng'
+            let foul = foulRoll < cfg.Actions.DuelFoulChance
+
+            let mem = (MatchWorld.team world side).Memory
+            let defMem = (MatchWorld.team world (MatchWorld.oppOf side)).Memory
+
+            if foul then
+                let severity = foulSeverity ctx.Ctx world side slot x y
+
+                buffer.Events.Add
+                    { Tick = tick
+                      Data = EventData.Foul(pid, dPid, severity, CardDecision.NoCard, (x, y)) }
+
+                buffer.Events.Add
+                    { Tick = tick
+                      Data = EventData.BallLoose(x, y) }
+
+                mem.[slot].FailedDuels <- mem.[slot].FailedDuels + 1
+                mem.[slot].DuelFailMod <- min 1.5 (mem.[slot].DuelFailMod + 0.35)
+
+                MatchWorld.updateBall world (fun b ->
+                    { b with
+                        Control = BallControl.Contesting side
+                        Trajectory = None
+                        ArrivalGate = None })
+
+                rng''
+            elif r < pWin then
+                buffer.Events.Add
+                    { Tick = tick
+                      Data = EventData.Dribble(pid, true) }
+
+                mem.[slot].SuccessfulDuels <- mem.[slot].SuccessfulDuels + 1
+                mem.[slot].DuelSuccessMod <- min 1.5 (mem.[slot].DuelSuccessMod + 0.25)
+
+                rng''
+            else
+                buffer.Events.Add
+                    { Tick = tick
+                      Data = EventData.Dribble(pid, false) }
+
+                buffer.Events.Add
+                    { Tick = tick
+                      Data = EventData.Tackle(dPid, pid) }
+
+                buffer.Events.Add
+                    { Tick = tick
+                      Data = EventData.Possession(MatchWorld.oppOf side, dPid) }
+
+                mem.[slot].FailedDuels <- mem.[slot].FailedDuels + 1
+                mem.[slot].DuelFailMod <- min 1.5 (mem.[slot].DuelFailMod + 0.35)
+                defMem.[dSlot].SuccessfulDuels <- defMem.[dSlot].SuccessfulDuels + 1
+
+                MatchWorld.updateBall world (fun b ->
+                    { b with
+                        Control = BallControl.Controlled(MatchWorld.oppOf side, dPid)
+                        LastTouch = Some dPid })
+
+                rng''

@@ -9,8 +9,6 @@ open FootballEngine.World
 open TacticalInstructions
 open FootballEngine.Database
 open FootballEngine.Database.Mappers
-open FootballEngine.ML
-open FootballEngine.Types
 open SQLite
 
 module Db =
@@ -270,8 +268,7 @@ module Db =
                               PendingNegotiations = Map.empty
                               NextNegotiationId = 1
                               ProfileCache =
-                                players
-                                |> Map.map (fun _ p -> Player.profile p BalanceConfig.defaultConfig.ProfileWeights)
+                                players |> Map.map (fun _ p -> Player.profile p ProfileWeightDefaults.defaults)
                               PlayerExperiences = Map.empty },
                             restoredClock
                         )

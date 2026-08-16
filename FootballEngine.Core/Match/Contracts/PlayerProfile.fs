@@ -39,36 +39,61 @@ type PlayerProfile =
 
 module Projection =
 
+    let private norm (v: int) = float32 v
+
+    let private norm01 (v: int) = float32 v / 100.0f
+
+    let private roleOf (pos: FootballEngine.Domain.Position) : SlotRole =
+        match pos with
+        | FootballEngine.Domain.Position.GK -> SlotRole.Goalkeeper
+        | FootballEngine.Domain.Position.DC -> SlotRole.Defender
+        | FootballEngine.Domain.Position.DL
+        | FootballEngine.Domain.Position.DR
+        | FootballEngine.Domain.Position.WBL
+        | FootballEngine.Domain.Position.WBR -> SlotRole.FullBack
+        | FootballEngine.Domain.Position.DM -> SlotRole.DefensiveMid
+        | FootballEngine.Domain.Position.MC -> SlotRole.CenterMid
+        | FootballEngine.Domain.Position.AMC -> SlotRole.AttackingMid
+        | FootballEngine.Domain.Position.ML
+        | FootballEngine.Domain.Position.MR
+        | FootballEngine.Domain.Position.AML
+        | FootballEngine.Domain.Position.AMR -> SlotRole.Winger
+        | FootballEngine.Domain.Position.ST -> SlotRole.Striker
+
     /// Domain Player -> engine PlayerProfile. The ONLY place Domain types appear in the match engine.
-    /// Placeholder mapping — the real projection lands in P9.
-    let toProfile (_player: FootballEngine.Domain.Player) : PlayerProfile =
-        { Id = PlayerId 0
-          Role = SlotRole.CenterMid
-          IsGK = false
-          Pace = 60.0f
-          Strength = 60.0f
-          Stamina = 60.0f
-          Agility = 60.0f
-          Vision = 60.0f
-          Passing = 60.0f
-          Finishing = 60.0f
-          Crossing = 60.0f
-          Dribbling = 60.0f
-          Tackling = 60.0f
-          Marking = 60.0f
-          Positioning = 60.0f
-          Anticipation = 60.0f
-          Composure = 60.0f
-          Aggression = 60.0f
-          Flair = 60.0f
-          Teamwork = 60.0f
-          DecisionMaking = 60.0f
+    let toProfile (p: FootballEngine.Domain.Player) : PlayerProfile =
+        let phys = p.Physical
+        let tech = p.Technical
+        let mental = p.Mental
+        let gk = p.Goalkeeping
+
+        { Id = PlayerId p.Id
+          Role = roleOf p.Position
+          IsGK = p.Position = FootballEngine.Domain.Position.GK
+          Pace = norm phys.Pace
+          Strength = norm phys.Strength
+          Stamina = norm phys.Stamina
+          Agility = norm phys.Agility
+          Vision = norm mental.Vision
+          Passing = norm tech.Passing
+          Finishing = norm tech.Finishing
+          Crossing = norm tech.Crossing
+          Dribbling = norm tech.Dribbling
+          Tackling = norm tech.Tackling
+          Marking = norm tech.Marking
+          Positioning = norm mental.Positioning
+          Anticipation = norm mental.Concentration
+          Composure = norm mental.Composure
+          Aggression = norm mental.Aggression
+          Flair = norm tech.BallControl
+          Teamwork = norm mental.WorkRate
+          DecisionMaking = norm mental.Concentration
           Personality =
-            { Composure = 0.5f
-              Aggression = 0.5f
-              RiskTaking = 0.5f
-              Flair = 0.5f
-              Leadership = 0.5f
-              Consistency = 0.5f
-              BigGameMentality = 0.5f }
+            { Composure = norm01 mental.Composure
+              Aggression = norm01 mental.Aggression
+              RiskTaking = norm01 mental.Bravery
+              Flair = norm01 tech.BallControl
+              Leadership = norm01 mental.Leadership
+              Consistency = norm01 mental.Concentration
+              BigGameMentality = norm01 p.Morale }
           InjuryProne = 0.1f }

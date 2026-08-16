@@ -1,5 +1,8 @@
 namespace FootballEngine.Domain
 
+open FootballEngine.Core.Match
+open FootballEngine.Domain
+
 type MatchMetrics =
     { GoalsHome: int
       GoalsAway: int
@@ -25,156 +28,145 @@ type MatchMetrics =
 
 module MatchMetrics =
 
-    let private countByClub (events: MatchEvent list) (clubId: ClubId) (filter: MatchEventType -> bool) : int =
-        events
-        |> List.filter (fun e -> e.ClubId = clubId && filter e.Type)
-        |> List.length
+    let private unwrapPid (FootballEngine.Core.Match.PlayerId n) = n
 
-    let private countAll (events: MatchEvent list) (filter: MatchEventType -> bool) : int =
-        events |> List.filter (fun e -> filter e.Type) |> List.length
+    let private sideOf (s: FootballEngine.Core.Match.ClubSide) (homeId: ClubId) (awayId: ClubId) : ClubId =
+        match s with
+        | FootballEngine.Core.Match.ClubSide.Home -> homeId
+        | FootballEngine.Core.Match.ClubSide.Away -> awayId
 
-    let extract (events: MatchEvent list) (homeId: ClubId) (awayId: ClubId) : MatchMetrics =
-        let goalsHome =
-            countByClub events homeId (function
-                | MatchEventType.Goal -> true
-                | _ -> false)
+    /// Extracts match statistics from the engine event stream.
+    /// `clubOfPlayer` resolves an engine player to its club (from the game state).
+    let extract
+        (events: MatchEvent list)
+        (homeId: ClubId)
+        (awayId: ClubId)
+        (clubOfPlayer: PlayerId -> ClubId option)
+        : MatchMetrics =
+        let ofSide side = sideOf side homeId awayId
 
-        let goalsAway =
-            countByClub events awayId (function
-                | MatchEventType.Goal -> true
-                | _ -> false)
+        let goalsHome, goalsAway =
+            events
+            |> List.fold
+                (fun (gh, ga) ev ->
+                    match ev.Data with
+                    | EventData.Goal(side, _, _, _) -> if ofSide side = homeId then (gh + 1, ga) else (gh, ga + 1)
+                    | _ -> (gh, ga))
+                (0, 0)
 
-        let shotsHome =
-            countByClub events homeId (function
-                | MatchEventType.ShotOnTarget
-                | MatchEventType.ShotOffTarget
-                | MatchEventType.ShotBlocked
-                | MatchEventType.Save -> true
-                | _ -> false)
+        let shotsHome, shotsAway, sotHome, sotAway =
+            events
+            |> List.fold
+                (fun (sh, sa, sth, sta) ev ->
+                    match ev.Data with
+                    | EventData.Shot(shooter, result, _, _) ->
+                        let isHome = clubOfPlayer (unwrapPid shooter) = Some homeId
 
-        let shotsAway =
-            countByClub events awayId (function
-                | MatchEventType.ShotOnTarget
-                | MatchEventType.ShotOffTarget
-                | MatchEventType.ShotBlocked
-                | MatchEventType.Save -> true
-                | _ -> false)
+                        let onTarget =
+                            match result with
+                            | ShotResult.OnTarget _
+                            | ShotResult.Post -> 1
+                            | _ -> 0
 
-        let shotsOnTargetHome =
-            countByClub events homeId (function
-                | MatchEventType.ShotOnTarget
-                | MatchEventType.Save -> true
-                | _ -> false)
+                        if isHome then
+                            (sh + 1, sa, sth + onTarget, sta)
+                        else
+                            (sh, sa + 1, sth, sta + onTarget)
+                    | _ -> (sh, sa, sth, sta))
+                (0, 0, 0, 0)
 
-        let shotsOnTargetAway =
-            countByClub events awayId (function
-                | MatchEventType.ShotOnTarget
-                | MatchEventType.Save -> true
-                | _ -> false)
+        let passesHome, passesAway, pcHome, pcAway =
+            events
+            |> List.fold
+                (fun (ph, pa, pch, pca) ev ->
+                    match ev.Data with
+                    | EventData.Pass(passer, _, _, _, completed) ->
+                        let isHome = clubOfPlayer (unwrapPid passer) = Some homeId
+                        let done' = if completed then 1 else 0
 
-        let passesHome =
-            countByClub events homeId (function
-                | MatchEventType.PassCompleted _
-                | MatchEventType.PassIncomplete _
-                | MatchEventType.PassDeflected _
-                | MatchEventType.PassIntercepted _
-                | MatchEventType.PassMisplaced _ -> true
-                | _ -> false)
+                        if isHome then
+                            (ph + 1, pa, pch + done', pca)
+                        else
+                            (ph, pa + 1, pch, pca + done')
+                    | _ -> (ph, pa, pch, pca))
+                (0, 0, 0, 0)
 
-        let passesAway =
-            countByClub events awayId (function
-                | MatchEventType.PassCompleted _
-                | MatchEventType.PassIncomplete _
-                | MatchEventType.PassDeflected _
-                | MatchEventType.PassIntercepted _
-                | MatchEventType.PassMisplaced _ -> true
-                | _ -> false)
+        let dribblesHome, dribblesAway =
+            events
+            |> List.fold
+                (fun (dh, da) ev ->
+                    match ev.Data with
+                    | EventData.Dribble(dribbler, _) ->
+                        if clubOfPlayer (unwrapPid dribbler) = Some homeId then
+                            (dh + 1, da)
+                        else
+                            (dh, da + 1)
+                    | _ -> (dh, da))
+                (0, 0)
 
-        let passesCompletedHome =
-            countByClub events homeId (function
-                | MatchEventType.PassCompleted _ -> true
-                | _ -> false)
+        let cornersHome, cornersAway =
+            events
+            |> List.fold
+                (fun (ch, ca) ev ->
+                    match ev.Data with
+                    | EventData.SetPiece(SetPieceKind.Corner, side) ->
+                        if ofSide side = homeId then (ch + 1, ca) else (ch, ca + 1)
+                    | _ -> (ch, ca))
+                (0, 0)
 
-        let passesCompletedAway =
-            countByClub events awayId (function
-                | MatchEventType.PassCompleted _ -> true
-                | _ -> false)
+        let foulsHome, foulsAway =
+            events
+            |> List.fold
+                (fun (fh, fa) ev ->
+                    match ev.Data with
+                    | EventData.Foul(fouler, _, _, _, _) ->
+                        if clubOfPlayer (unwrapPid fouler) = Some homeId then
+                            (fh + 1, fa)
+                        else
+                            (fh, fa + 1)
+                    | _ -> (fh, fa))
+                (0, 0)
+
+        let possHome, possAway =
+            events
+            |> List.fold
+                (fun (ph, pa) ev ->
+                    match ev.Data with
+                    | EventData.Possession(side, _) -> if ofSide side = homeId then (ph + 1, pa) else (ph, pa + 1)
+                    | _ -> (ph, pa))
+                (0, 0)
+
+        let totalPoss = float (possHome + possAway)
+        let possessionHome = if totalPoss > 0.0 then float possHome / totalPoss else 0.5
 
         let passAccuracyHome =
             if passesHome > 0 then
-                float passesCompletedHome / float passesHome
+                float pcHome / float passesHome
             else
                 0.0
 
         let passAccuracyAway =
             if passesAway > 0 then
-                float passesCompletedAway / float passesAway
+                float pcAway / float passesAway
             else
                 0.0
-
-        let dribblesHome =
-            countByClub events homeId (function
-                | MatchEventType.DribbleSuccess
-                | MatchEventType.DribbleFail
-                | MatchEventType.DribbleKeep -> true
-                | _ -> false)
-
-        let dribblesAway =
-            countByClub events awayId (function
-                | MatchEventType.DribbleSuccess
-                | MatchEventType.DribbleFail
-                | MatchEventType.DribbleKeep -> true
-                | _ -> false)
-
-        let cornersHome =
-            countByClub events homeId (function
-                | MatchEventType.Corner -> true
-                | _ -> false)
-
-        let cornersAway =
-            countByClub events awayId (function
-                | MatchEventType.Corner -> true
-                | _ -> false)
-
-        let foulsHome =
-            countByClub events homeId (function
-                | MatchEventType.FoulCommitted -> true
-                | _ -> false)
-
-        let foulsAway =
-            countByClub events awayId (function
-                | MatchEventType.FoulCommitted -> true
-                | _ -> false)
 
         let isHomeWin = goalsHome > goalsAway
         let isDraw = goalsHome = goalsAway
         let isAwayWin = goalsAway > goalsHome
 
-        let totalEvents = float (List.length events)
-
-        let possessionHome =
-            if totalEvents > 0.0 then
-                let homeEvents =
-                    events |> List.filter (fun e -> e.ClubId = homeId) |> List.length |> float
-
-                homeEvents / totalEvents
-            else
-                0.5
-
-        let possessionAway = 1.0 - possessionHome
-
         { GoalsHome = goalsHome
           GoalsAway = goalsAway
           ShotsHome = shotsHome
           ShotsAway = shotsAway
-          ShotsOnTargetHome = shotsOnTargetHome
-          ShotsOnTargetAway = shotsOnTargetAway
+          ShotsOnTargetHome = sotHome
+          ShotsOnTargetAway = sotAway
           PassesHome = passesHome
           PassesAway = passesAway
           PassAccuracyHome = passAccuracyHome
           PassAccuracyAway = passAccuracyAway
           PossessionHome = possessionHome
-          PossessionAway = possessionAway
+          PossessionAway = 1.0 - possessionHome
           DribblesHome = dribblesHome
           DribblesAway = dribblesAway
           CornersHome = cornersHome

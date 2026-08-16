@@ -2,13 +2,13 @@ namespace FootballEngine
 
 open System.Threading.Tasks
 open Elmish
+open FootballEngine.Core.Match
 open FootballEngine.Domain
 open FootballEngine.Icons
-open FootballEngine.Types
 open AppTypes
 open AppMsgs
-open FootballEngine.Types.SimulationClock
 open FootballEngine.World.WorldRunner
+open FootballEngine.World.Phases
 
 
 module UpdateSim =
@@ -38,16 +38,14 @@ module UpdateSim =
             let goals =
                 fixture.Events
                 |> List.choose (fun ev ->
-                    if ev.Type = Goal || ev.Type = OwnGoal then
-                        let minutes = int (subTicksToSeconds defaultClock (ev.SubTick * 1<subtick>) / 60.0)
+                    match ev.Data with
+                    | EventData.Goal(_, scorer, _, _) ->
+                        let minutes = int (SimulationClock.toMatchMinute ev.Tick)
 
-                        gs.Players
-                        |> Map.tryFind ev.PlayerId
-                        |> Option.map (fun p ->
-                            let suffix = if ev.Type = OwnGoal then " (OG)" else ""
-                            $"{p.Name}{suffix} {minutes}'")
-                    else
-                        None)
+                        scorer
+                        |> Option.bind (fun sid -> gs.Players |> Map.tryFind (MatchContextBuilder.unwrapPid sid))
+                        |> Option.map (fun p -> $"{p.Name} {minutes}'")
+                    | _ -> None)
 
             let body =
                 if goals.IsEmpty then
@@ -225,18 +223,6 @@ module UpdateSim =
             else
                 let gs = getGs ()
 
-                let totalF =
-                    gs.Competitions
-                    |> Map.toSeq
-                    |> Seq.sumBy (fun (_, c) -> c.Fixtures |> Map.count)
-
-                let playedF =
-                    gs.Competitions
-                    |> Map.toSeq
-                    |> Seq.sumBy (fun (_, c) -> c.Fixtures |> Map.filter (fun _ f -> f.Played) |> Map.count)
-
-
-
                 let prevSkills =
                     GameState.getUserSquad gs
                     |> List.map (fun p -> p.Id, p.CurrentSkill)
@@ -291,11 +277,18 @@ module UpdateSim =
 
             let nextState = applyDayResult matchDay.DayResult state
 
+            let homeClubId, awayClubId =
+                match matchDay.DayResult.PlayedMatches with
+                | (_, f) :: _ -> Some f.HomeClubId, Some f.AwayClubId
+                | [] -> None, None
+
             let withMatch =
                 { nextState with
                     Match =
                         { nextState.Match with
-                            ActiveReplay = Some matchDay.MatchReplay
+                            ActiveReplay = matchDay.MatchReplay
+                            HomeClubId = homeClubId
+                            AwayClubId = awayClubId
                             Snapshot = 0 }
                     CurrentPage = Match }
 
@@ -310,7 +303,7 @@ module UpdateSim =
                     [ saveCmd matchDay.DayResult.GameState state.WorldClock
                       Cmd.ofMsg (SimMsg SimulateAiFixtures) ]
 
-        | UserMatchDone(Error e) ->
+        | UserMatchDone(Error _) ->
 
             { state with IsProcessing = false }, Cmd.none
 

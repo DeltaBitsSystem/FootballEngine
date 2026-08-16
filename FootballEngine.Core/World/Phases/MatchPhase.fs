@@ -1,11 +1,11 @@
 namespace FootballEngine.World.Phases
 
-open FootballEngine.Domain
-open FootballEngine.Simulation.MatchSimulator
+open System
+open FootballEngine.Core.Match.Simulator
+open FootballEngine.Core.Match
 open FootballEngine.Stats
-open FootballEngine.TeamOrchestrator
-open FootballEngine.Types
 open FootballEngine.World
+open FootballEngine.Domain
 
 module MatchOutcome =
 
@@ -26,20 +26,14 @@ module MatchOutcome =
 
     let extractPlayerStatsFromEvents (events: MatchEvent list) =
         let goals = System.Collections.Generic.Dictionary<PlayerId, int>()
-        let assists = System.Collections.Generic.Dictionary<PlayerId, int>()
 
         for e in events do
-            match e.Type with
-            | MatchEventType.Goal ->
-                goals[e.PlayerId] <-
-                    match goals.TryGetValue(e.PlayerId) with
-                    | true, v -> v + 1
-                    | _ -> 1
-            | MatchEventType.Assist ->
-                let scorer = e.PlayerId
+            match e.Data with
+            | EventData.Goal(_, Some scorer, _, _) ->
+                let n = MatchContextBuilder.unwrapPid scorer
 
-                assists[scorer] <-
-                    match assists.TryGetValue(scorer) with
+                goals[n] <-
+                    match goals.TryGetValue n with
                     | true, v -> v + 1
                     | _ -> 1
             | _ -> ()
@@ -47,14 +41,8 @@ module MatchOutcome =
         goals.Keys
         |> Seq.map (fun pid ->
             { PlayerId = pid
-              GoalsScored =
-                match goals.TryGetValue(pid) with
-                | true, v -> v
-                | _ -> 0
-              AssistsGiven =
-                match assists.TryGetValue(pid) with
-                | true, v -> v
-                | _ -> 0
+              GoalsScored = goals[pid]
+              AssistsGiven = 0
               MinutesPlayed = 90 })
         |> Array.ofSeq
 
@@ -133,21 +121,12 @@ module MatchOutcome =
         |> Map.ofList
 
     let private isHighPressureMatch (events: MatchEvent list) : bool =
-        let hasGoal =
-            events
-            |> List.exists (fun e ->
-                match e.Type with
-                | MatchEventType.Goal -> true
-                | _ -> false)
-
-        let hasRedCard =
-            events
-            |> List.exists (fun e ->
-                match e.Type with
-                | MatchEventType.RedCard -> true
-                | _ -> false)
-
-        hasGoal || hasRedCard
+        events
+        |> List.exists (fun e ->
+            match e.Data with
+            | EventData.Goal _
+            | EventData.RedCardIssued _ -> true
+            | _ -> false)
 
     let private updatePlayerExperiences (gs: GameState) (outcome: FixtureOutcome) : GameState =
         let fixture = outcome.Fixture
@@ -155,36 +134,17 @@ module MatchOutcome =
         let drew = outcome.HomeScore = outcome.AwayScore
         let wasHighPressure = isHighPressureMatch fixture.Events
 
-        let homeStatsMap =
-            outcome.HomePlayerStats |> Array.map (fun st -> st.PlayerId, st) |> Map.ofArray
-
-        let awayStatsMap =
-            outcome.AwayPlayerStats |> Array.map (fun st -> st.PlayerId, st) |> Map.ofArray
-
         let processSide (clubId: ClubId) (rivalId: ClubId) (gs: GameState) : GameState =
             let club = gs.Clubs[clubId]
             let mutable acc = gs
 
             for playerId in club.PlayerIds do
-                let goals =
-                    homeStatsMap
-                    |> Map.tryFind playerId
-                    |> Option.map _.GoalsScored
-                    |> Option.defaultValue 0
-
-                let assists =
-                    homeStatsMap
-                    |> Map.tryFind playerId
-                    |> Option.map _.AssistsGiven
-                    |> Option.defaultValue 0
-
                 let exp =
                     match acc.PlayerExperiences |> Map.tryFind playerId with
                     | Some e -> e
                     | None -> PlayerExperience.empty
 
-                let newExp =
-                    PlayerExperience.recordMatch goals assists wasHighPressure rivalId won drew exp
+                let newExp = PlayerExperience.recordMatch 0 0 wasHighPressure rivalId won drew exp
 
                 acc <-
                     { acc with
@@ -196,7 +156,10 @@ module MatchOutcome =
         processSide fixture.AwayClubId fixture.HomeClubId gs1
 
     let private injurySeverityWeights =
-        [ 0.30, Minor; 0.40, Moderate; 0.20, Major; 0.10, Severe ]
+        [ 0.30, InjurySeverity.Minor
+          0.40, InjurySeverity.Moderate
+          0.20, InjurySeverity.Major
+          0.10, InjurySeverity.Severe ]
 
     let applyOutcomes
         (fixtureToComp: Map<MatchId, CompetitionId>)
@@ -255,10 +218,10 @@ module MatchOutcome =
 
                         let until =
                             match severity with
-                            | Minor -> currentDate.AddDays 7.0
-                            | Moderate -> currentDate.AddDays 21.0
-                            | Major -> currentDate.AddDays 60.0
-                            | Severe -> currentDate.AddDays 120.0
+                            | InjurySeverity.Minor -> currentDate.AddDays 7.0
+                            | InjurySeverity.Moderate -> currentDate.AddDays 21.0
+                            | InjurySeverity.Major -> currentDate.AddDays 60.0
+                            | InjurySeverity.Severe -> currentDate.AddDays 120.0
 
                         { p with
                             Status = Injured(severity, until) }))
@@ -295,53 +258,57 @@ module MatchPhase =
                 && f.AwayClubId <> state.UserClubId))
         |> List.ofSeq
 
+    /// Simulates a fixture with the Core engine. Returns the outcome or None
+    /// when the fixture cannot be lined up (missing coach/lineup).
+    let simulateFixture (fixtureId: MatchId) (fixture: MatchFixture) (gs: GameState) : FixtureOutcome option =
+        // R11 — production calibration: if weights.json exists next to the
+        // executable it is merged over the defaults once per match.
+        let weightsPath =
+            let dir = System.AppContext.BaseDirectory
+            let candidate = System.IO.Path.Combine(dir, "weights.json")
+
+            if System.IO.File.Exists candidate then
+                Some candidate
+            else
+                None
+
+        match MatchContextBuilder.build gs fixture BalanceConfig.defaultConfig with
+        | None -> None
+        | Some ctx ->
+            let result =
+                Simulator.runMatch Scheduler.systems ctx (MatchContextBuilder.seedOf fixtureId) RunMode.Fast weightsPath
+
+            let finalWorld = result.Final
+
+            let outcome =
+                { FixtureId = fixtureId
+                  Fixture =
+                    { fixture with
+                        Played = true
+                        HomeScore = Some finalWorld.State.HomeScore
+                        AwayScore = Some finalWorld.State.AwayScore
+                        Events = result.Events }
+                  HomeScore = finalWorld.State.HomeScore
+                  AwayScore = finalWorld.State.AwayScore
+                  InjuredPlayers = MatchContextBuilder.injuredOf result.Events
+                  HomePlayerStats = [||]
+                  AwayPlayerStats = [||] }
+
+            Some outcome
+
     let runFixtures (fixtures: (MatchId * MatchFixture) list) (state: GameState) =
         let gsReady = LineupOps.ensureForFixtures fixtures state
 
         let outcomes =
             fixtures
             |> Array.ofList
-            |> parallelMapLimited (fun (id, fixture) ->
-                let home = gsReady.Clubs[fixture.HomeClubId]
-                let away = gsReady.Clubs[fixture.AwayClubId]
-
-                id,
-                fixture,
-                trySimulateMatch
-                    BalanceConfig.defaultConfig
-                    home
-                    away
-                    gsReady.Players
-                    gsReady.Staff
-                    gsReady.ProfileCache)
-            |> Array.choose (fun (id, fixture, result) ->
-                match result with
-                | Ok(h, a, events, finalState) ->
-                    let injured =
-                        finalState.Home.Sidelined
-                        |> Map.toSeq
-                        |> Seq.append (finalState.Away.Sidelined |> Map.toSeq)
-                        |> Seq.choose (fun (pid, s) -> if s = SidelinedByInjury then Some pid else None)
-                        |> Set.ofSeq
-
-                    Some
-                        { FixtureId = id
-                          Fixture =
-                            { fixture with
-                                Played = true
-                                HomeScore = Some h
-                                AwayScore = Some a
-                                Events = events }
-                          HomeScore = h
-                          AwayScore = a
-                          InjuredPlayers = injured
-                          HomePlayerStats = [||]
-                          AwayPlayerStats = [||] }
-                | Error _ -> None)
+            |> parallelMapLimited (fun (id, fixture) -> simulateFixture id fixture gsReady)
+            |> Array.choose id
 
         let afterOutcomes = applyOutcomes (fixtureToCompMap gsReady) outcomes gsReady
 
-        let w = BalanceConfig.defaultConfig.Collective
+        let clubOfPlayer =
+            fun pid -> gsReady.Players |> Map.tryFind pid |> Option.bind Player.clubOf
 
         let updateClubCoord (clubId: ClubId) (gs: GameState) : GameState =
             let outcome =
@@ -354,22 +321,23 @@ module MatchPhase =
                 let isHome = o.Fixture.HomeClubId = clubId
 
                 let m =
-                    MatchMetrics.extract o.Fixture.Events o.Fixture.HomeClubId o.Fixture.AwayClubId
+                    MatchMetrics.extract o.Fixture.Events o.Fixture.HomeClubId o.Fixture.AwayClubId clubOfPlayer
 
                 let passRate = if isHome then m.PassAccuracyHome else m.PassAccuracyAway
 
                 let club = gs.Clubs[clubId]
 
+                let injuredCount = o.InjuredPlayers |> Set.count
+                let decay = Math.Clamp(1.0 - 0.05 * float injuredCount, 0.5, 1.0)
+
                 let updatedCoord =
-                    CoordinationLoop.updateFromMatch passRate 0.5 0 0 club.CoordinationMemory w
-
-                let playersChanged = o.InjuredPlayers |> Set.count
-
-                let finalCoord =
-                    if playersChanged > 0 then
-                        CoordinationLoop.applySquadChangeDecay playersChanged updatedCoord
-                    else
-                        updatedCoord
+                    { club.CoordinationMemory with
+                        PressingCoordination =
+                            Math.Clamp(
+                                (club.CoordinationMemory.PressingCoordination + (passRate - 0.5) * 0.1) * decay,
+                                0.5,
+                                1.5
+                            ) }
 
                 { gs with
                     Clubs =
@@ -377,7 +345,7 @@ module MatchPhase =
                         |> Map.add
                             clubId
                             { club with
-                                CoordinationMemory = finalCoord } }
+                                CoordinationMemory = updatedCoord } }
 
         let affectedClubs =
             outcomes

@@ -33,7 +33,8 @@ module EventFlagTests =
           EventKind.FullTime
           EventKind.MomentumShifted
           EventKind.ConditionCritical
-          EventKind.RedCard ]
+          EventKind.RedCard
+          EventKind.ShootoutGoal ]
 
     /// Runtime-exhaustive: one event value per EventData constructor.
     let private sampleEvents () : MatchEvent list =
