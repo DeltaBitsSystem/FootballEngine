@@ -78,7 +78,7 @@ module BallOutcome =
             if blocked then
                 buffer.Events.Add
                     { Tick = tick
-                      Data = EventData.Shot(shooter, ShotResult.Blocked, xG, speed) }
+                      Data = EventData.Shot(shooter, ShotResult.Blocked, xG, speed, bx, by) }
 
                 let outForCorner, rng'' = Rng.bernoulli 0.25 rng'
 
@@ -139,7 +139,7 @@ module BallOutcome =
                 if saved && parriedOver then
                     buffer.Events.Add
                         { Tick = tick
-                          Data = EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed) }
+                          Data = EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, bx, by) }
 
                     buffer.Events.Add
                         { Tick = tick
@@ -165,7 +165,7 @@ module BallOutcome =
 
                     buffer.Events.Add
                         { Tick = tick
-                          Data = EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed) }
+                          Data = EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, bx, by) }
 
                     buffer.Events.Add
                         { Tick = tick
@@ -198,7 +198,7 @@ module BallOutcome =
 
                     buffer.Events.Add
                         { Tick = tick
-                          Data = EventData.Shot(shooter, ShotResult.OnTarget false, xG, speed) }
+                          Data = EventData.Shot(shooter, ShotResult.OnTarget false, xG, speed, bx, by) }
 
                     let scorer, assist = detectOwnGoal ctx world shooterSide shooter
 
@@ -225,7 +225,7 @@ module BallOutcome =
                     if post then
                         buffer.Events.Add
                             { Tick = tick
-                              Data = EventData.Shot(shooter, ShotResult.Post, xG, speed) }
+                              Data = EventData.Shot(shooter, ShotResult.Post, xG, speed, bx, by) }
 
                         let lastSide = MatchWorld.lastTouchSide ctx.Ctx world |> Option.defaultValue defSide
 
@@ -255,7 +255,7 @@ module BallOutcome =
                 else
                     buffer.Events.Add
                         { Tick = tick
-                          Data = EventData.Shot(shooter, ShotResult.OffTarget, xG, speed) }
+                          Data = EventData.Shot(shooter, ShotResult.OffTarget, xG, speed, bx, by) }
 
                     MatchWorld.updateBall world (fun b ->
                         { b with

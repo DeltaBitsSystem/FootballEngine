@@ -21,17 +21,20 @@ module PlayerDecision =
         let d = MatchMath.distanceToGoal side x y
         let near = MatchWorld.opponentsNear ctx world side x y 6.0
         let openness = 1.0 - 0.3 * MatchMath.clamp01 (float near / 4.0)
-        exp (-0.07 * d - 0.9) * (0.6 + float p.Finishing / 150.0) * openness
+        MatchMath.xGFrom d (float p.Finishing) openness
 
-    let private offsideRisk (ctx: MatchContext) (world: World) (side: ClubSide) (receiverSlot: int) : bool =
-        let rx = MatchWorld.posX (MatchWorld.team world side).Frame receiverSlot
-        let line = MatchWorld.offsideLine ctx world side
+    let private offsideRiskFromLine (line: float<meter>) (side: ClubSide) (rx: float<meter>) : bool =
         let dir = MatchMath.goalDirection side
 
         if dir > 0.0 then
             float rx > float line
         else
             float rx < float line
+
+    let private offsideRisk (ctx: MatchContext) (world: World) (side: ClubSide) (receiverSlot: int) : bool =
+        let rx = MatchWorld.posX (MatchWorld.team world side).Frame receiverSlot
+        let line = MatchWorld.offsideLine ctx world side
+        offsideRiskFromLine line side rx
 
     let private spaceAt
         (ctx: MatchContext)
@@ -90,6 +93,13 @@ module PlayerDecision =
         let passing = float p.Passing
         let vision = float p.Vision
         let launchSpeed = ctx.Config.Actions.PassLaunchSpeed
+        // Hoisted out of the per-candidate loop: the pass model and the offside
+        // line do not depend on the receiver, so recomputing them for every
+        // candidate would multiply constant work by the team size.
+        let pparams =
+            PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball
+
+        let offsideLine = MatchWorld.offsideLine ctx world side
 
         let mutable options: (float * int * float) list = []
 
@@ -101,16 +111,13 @@ module PlayerDecision =
                 let space = spaceAt ctx world side rx ry
                 let longBall = d > float ctx.Config.Actions.PassLongThreshold
 
-                let offside = offsideRisk ctx world side s2
+                let offside = offsideRiskFromLine offsideLine side rx
 
                 // R3 — a receiver that can't see the carrier, or a blocked lane,
                 // is not a target.
                 let laneOk = frame.LaneClear.[s2] && frame.FaceCone.[s2]
 
                 // F4 — the launched pass must beat the fastest interceptor.
-                let pparams =
-                    PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball
-
                 let dM = max d 0.5 * 1.0<meter>
 
                 let launched =
@@ -121,7 +128,7 @@ module PlayerDecision =
                       Vy = (ry - y) / dM * launchSpeed
                       Vz = 0.0<meterPerSecond> }
 
-                if PassIntercept.feasible ctx.Config.PassIntercept ctx pparams world side s2 launched then
+                if PassIntercept.feasible ctx.Config.PassIntercept pparams world side s2 launched offsideLine then
                     let uPass =
                         w.PassBaseUtility
                         + w.PassPassingWeight * ((passing - 60.0) / 40.0)
@@ -249,6 +256,17 @@ module PlayerDecision =
         if uDribble >= w.DribbleMinThreshold && pressure <= 1 then
             options <- (uDribble, 3, -1.0) :: options
 
+        let chainState = Planner.project ctx world side slot
+        let plannerOpts = options |> List.map (fun (u, code, tgt) -> (code, int tgt, u))
+
+        let pparams =
+            PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball
+
+        let chainEvals =
+            Planner.search ctx.Config.Planner ctx.Config.Weights.Planner pparams chainState plannerOpts
+
+        let d, rng' = Rng.double rng
+
         let chosen, targetSlot =
             match options with
             | [] -> 3, -1.0
@@ -256,30 +274,57 @@ module PlayerDecision =
                 // R5 — a cognitively tired carrier decides with a hotter (more
                 // random, less discerning) softmax.
                 let effTemp = effectiveTemperature ctx.Config cognitive
-                let exps = options |> List.map (fun (u, _, _) -> exp (u / effTemp))
+
+                let exps =
+                    if chainEvals.Length > 0 then
+                        chainEvals |> List.map (fun e -> exp (e.Value / effTemp))
+                    else
+                        options |> List.map (fun (u, _, _) -> exp (u / effTemp))
+
                 let sum = List.sum exps
-                let d, rng' = Rng.double rng
                 let mutable acc = 0.0
                 let mutable picked = 3
                 let mutable pickedTarget = -1.0
                 let mutable found = false
-                let mutable remaining = options
+                let mutable idx = 0
 
-                while not found && not remaining.IsEmpty do
-                    let (u, code, tgt) = remaining.Head
-                    acc <- acc + exp (u / effTemp) / sum
+                if chainEvals.Length > 0 then
+                    let mutable remaining = chainEvals
 
-                    if d <= acc then
-                        picked <- code
-                        pickedTarget <- tgt
-                        found <- true
+                    while not found && not remaining.IsEmpty do
+                        let e = remaining.Head
+                        acc <- acc + exp (e.Value / effTemp) / sum
 
-                    remaining <- remaining.Tail
+                        if d <= acc then
+                            picked <- e.ActionCode
+                            pickedTarget <- float e.TargetSlot
+                            found <- true
+
+                        remaining <- remaining.Tail
+                        idx <- idx + 1
+                else
+                    let mutable remaining = options
+
+                    while not found && not remaining.IsEmpty do
+                        let (u, code, tgt) = remaining.Head
+                        acc <- acc + exp (u / effTemp) / sum
+
+                        if d <= acc then
+                            picked <- code
+                            pickedTarget <- tgt
+                            found <- true
+
+                        remaining <- remaining.Tail
 
                 if not found then
-                    let (_, code, tgt) = options |> List.last
-                    picked <- code
-                    pickedTarget <- tgt
+                    if chainEvals.Length > 0 then
+                        let last = chainEvals |> List.last
+                        picked <- last.ActionCode
+                        pickedTarget <- float last.TargetSlot
+                    else
+                        let (_, code, tgt) = options |> List.last
+                        picked <- code
+                        pickedTarget <- tgt
 
                 picked, pickedTarget
 
@@ -295,15 +340,69 @@ module PlayerDecision =
         frame.Intent.Phase.[slot] <- IntentPhase.Committed
         frame.Intent.CommittedUntil.[slot] <- tick + 480<subtick>
 
-        rng
+        // The plan must support the action the softmax actually picked, or
+        // receivers would run for a move the carrier never makes. The chain
+        // that was chosen is the one whose first action matches the marker.
+        let chosenEval =
+            chainEvals
+            |> List.tryFind (fun e -> e.ActionCode = chosen && float e.TargetSlot = targetSlot)
+
+        match chosenEval with
+        | Some eval ->
+            let futureReceivers =
+                eval.Chain
+                |> List.choose (fun action ->
+                    match action with
+                    | Planner.Pass(slot, x, y) -> Some(slot, x, y)
+                    | _ -> None)
+                |> List.toArray
+                // A plan never steers its own carrier: his movement is the
+                // shape system's job, and steering him would fight the
+                // receive logic when the ball comes back to him.
+                |> Array.filter (fun (s, _, _) -> s <> slot)
+
+            if futureReceivers.Length > 0 then
+                team.ActivePlan <-
+                    Some
+                        { FutureReceivers = futureReceivers
+                          ExpiresAt = tick + ctx.Config.Planner.PlanTTL }
+        | None -> ()
+
+        rng'
 
     let step: SystemStep =
         fun ctx rng world _ ->
             let tick = world.State.Tick
 
+            // Clear expired plans
+            for side in [ ClubSide.Home; ClubSide.Away ] do
+                let team = MatchWorld.team world side
+
+                match team.ActivePlan with
+                | Some plan when plan.ExpiresAt <= tick -> team.ActivePlan <- None
+                | _ -> ()
+
+            // Plan bookkeeping happens BEFORE choose: possession loss and
+            // carrier changes invalidate whatever plan exists, and the new
+            // carrier's own plan (written below) is the only one that may
+            // survive. Wiping after choose would destroy the plan on the very
+            // tick it was born.
             match MatchWorld.ballCarrier ctx.Ctx world with
-            | Some(side, slot, _) when slot <> 0 ->
-                let mutable r = rng
-                r <- choose ctx.Ctx world side slot tick r
-                r
-            | _ -> rng
+            | Some(side, slot, _) ->
+                (MatchWorld.team world (MatchWorld.oppOf side)).ActivePlan <- None
+
+                if slot <> 0 then
+                    let team = MatchWorld.team world side
+
+                    if
+                        team.ActivePlan.IsSome
+                        && team.LastCarrierSlot <> -1
+                        && team.LastCarrierSlot <> slot
+                    then
+                        team.ActivePlan <- None
+
+                    team.LastCarrierSlot <- slot
+                    choose ctx.Ctx world side slot tick rng
+                else
+                    rng
+            | None -> rng

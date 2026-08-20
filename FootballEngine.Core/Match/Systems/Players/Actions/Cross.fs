@@ -41,7 +41,7 @@ module Cross =
 
         buffer.Events.Add
             { Tick = tick
-              Data = EventData.CrossAttempt(pid) }
+              Data = EventData.CrossAttempt(pid, x, y) }
 
         if bestSlot >= 0 then
             let d =

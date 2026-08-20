@@ -109,7 +109,9 @@ module MatchFactory =
             { LastPerceivedTick = 0<subtick>
               LastDecidedTick = 0<subtick>
               SupportAttackComputed = false }
-          EventWindow = EventWindow.create ctx.Config.Weights.Timing.EventWindowSubTicks }
+          EventWindow = EventWindow.create ctx.Config.Weights.Timing.EventWindowSubTicks
+          ActivePlan = None
+          LastCarrierSlot = -1 }
 
     let create (ctx: MatchContext) : World =
         let kickoffDelay =

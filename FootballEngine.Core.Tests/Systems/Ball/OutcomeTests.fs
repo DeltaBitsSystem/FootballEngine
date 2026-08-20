@@ -59,7 +59,7 @@ module OutcomeTests =
                       buf.Events
                       (fun ev ->
                           match ev.Data with
-                          | EventData.Shot(_, ShotResult.OnTarget _, _, _) -> true
+                          | EventData.Shot(_, ShotResult.OnTarget _, _, _, _, _) -> true
                           | _ -> false)
                       "shot on target emitted"
 
@@ -84,7 +84,7 @@ module OutcomeTests =
                       buf.Events
                       (fun ev ->
                           match ev.Data with
-                          | EventData.Shot(_, ShotResult.OffTarget, _, _) -> true
+                          | EventData.Shot(_, ShotResult.OffTarget, _, _, _, _) -> true
                           | _ -> false)
                       "off target shot emitted")
 

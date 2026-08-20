@@ -130,6 +130,17 @@ type RunAssignment =
 /// SoA — ONE source of truth per property, every array length SlotCount: no two
 /// copies of a value can desync. The factory below allocates everything — no
 /// defaultof, no uninitialized slots.
+/// Active-slots cache: activeSlots is queried every tick by every system, and
+/// rebuilding the array on each call allocates. Occupancy only changes on
+/// substitutions/injuries, so a revision counter invalidates the cache exactly
+/// when reality changes. A class box (not a struct field) so every copy of the
+/// TeamFrame shares the same cache. `Revision` is bumped on every Occupancy
+/// write; `ComputedFor` records the revision the cached array was built at.
+type ActiveSlotsCache() =
+    member val Slots: int[] = [||] with get, set
+    member val Revision: int = 1 with get, set
+    member val ComputedFor: int = 0 with get, set
+
 [<Struct>]
 type TeamFrame =
     { mutable PosX: float32[]
@@ -161,7 +172,8 @@ type TeamFrame =
       mutable RoleBias: float32[]
       mutable RunLookup: System.Collections.Generic.Dictionary<int, RunAssignment>
       mutable ActiveCount: int
-      SlotCount: int }
+      SlotCount: int
+      mutable ActiveCache: ActiveSlotsCache }
 
 [<Struct>]
 type PlayerMemory =
@@ -391,4 +403,5 @@ module TeamFrame =
           RoleBias = Array.create<float32> slotCount 1.0f
           RunLookup = System.Collections.Generic.Dictionary<int, RunAssignment>()
           ActiveCount = slotCount
-          SlotCount = slotCount }
+          SlotCount = slotCount
+          ActiveCache = ActiveSlotsCache() }

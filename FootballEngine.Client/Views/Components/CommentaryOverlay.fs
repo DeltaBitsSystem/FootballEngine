@@ -18,9 +18,9 @@ module CommentaryOverlay =
         | EventData.Save _ -> $"Great save!"
         | EventData.SetPiece(SetPieceKind.Corner, _) -> $"Corner kick"
         | EventData.Foul _ -> $"Foul!"
-        | EventData.Shot(_, ShotResult.OnTarget _, _, _) -> $"Shot on target!"
-        | EventData.Shot(_, ShotResult.OffTarget, _, _) -> $"Shot off target"
-        | EventData.Pass(_, _, _, _, true) -> $"Nice pass"
+        | EventData.Shot(_, ShotResult.OnTarget _, _, _, _, _) -> $"Shot on target!"
+        | EventData.Shot(_, ShotResult.OffTarget, _, _, _, _) -> $"Shot off target"
+        | EventData.Pass(_, _, _, _, true, _, _, _, _) -> $"Nice pass"
         | _ -> ""
 
     let buildCommentary (text: string) : TextBlock =

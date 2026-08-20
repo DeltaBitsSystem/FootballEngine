@@ -59,7 +59,7 @@ module MatchMetrics =
             |> List.fold
                 (fun (sh, sa, sth, sta) ev ->
                     match ev.Data with
-                    | EventData.Shot(shooter, result, _, _) ->
+                    | EventData.Shot(shooter, result, _, _, _, _) ->
                         let isHome = clubOfPlayer (unwrapPid shooter) = Some homeId
 
                         let onTarget =
@@ -80,7 +80,7 @@ module MatchMetrics =
             |> List.fold
                 (fun (ph, pa, pch, pca) ev ->
                     match ev.Data with
-                    | EventData.Pass(passer, _, _, _, completed) ->
+                    | EventData.Pass(passer, _, _, _, completed, _, _, _, _) ->
                         let isHome = clubOfPlayer (unwrapPid passer) = Some homeId
                         let done' = if completed then 1 else 0
 
@@ -96,7 +96,7 @@ module MatchMetrics =
             |> List.fold
                 (fun (dh, da) ev ->
                     match ev.Data with
-                    | EventData.Dribble(dribbler, _) ->
+                    | EventData.Dribble(dribbler, _, _, _) ->
                         if clubOfPlayer (unwrapPid dribbler) = Some homeId then
                             (dh + 1, da)
                         else

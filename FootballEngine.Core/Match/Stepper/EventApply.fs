@@ -120,7 +120,7 @@ module EventApply =
                     ArrivalGate = None
                     StationarySince = Some tick
                     Position = { b.Position with X = x; Y = y } })
-        | EventData.Pass(passer, receiver, _, _, completed) ->
+        | EventData.Pass(passer, receiver, _, _, completed, _, _, _, _) ->
             match MatchWorld.teamOfPlayer ctx passer with
             | Some side ->
                 let team = MatchWorld.team world side
@@ -140,7 +140,7 @@ module EventApply =
                         team.Memory.[slot].StreakMod <- max -2.0 (team.Memory.[slot].StreakMod - 0.25)
                 | None -> ()
             | None -> ()
-        | EventData.Shot(shooter, result, xG, _) ->
+        | EventData.Shot(shooter, result, xG, _, _, _) ->
             match MatchWorld.teamOfPlayer ctx shooter with
             | Some side ->
                 let team = MatchWorld.team world side
@@ -254,13 +254,13 @@ module EventApply =
         | EventData.Interception _ -> ()
         | EventData.Tackle _ -> ()
         | EventData.Save _ -> ()
-        | EventData.CrossAttempt(crosser) ->
+        | EventData.CrossAttempt(crosser, _, _) ->
             match MatchWorld.teamOfPlayer ctx crosser with
             | Some side ->
                 let team = MatchWorld.team world side
                 team.Stats.Crosses <- team.Stats.Crosses + 1
             | None -> ()
-        | EventData.Dribble(dribbler, succeeded) ->
+        | EventData.Dribble(dribbler, succeeded, _, _) ->
             match MatchWorld.teamOfPlayer ctx dribbler with
             | Some side ->
                 let team = MatchWorld.team world side
@@ -303,6 +303,8 @@ module EventApply =
                         OccupancyKind.Sidelined
                             { Id = playerOut
                               Reason = PlayerOutReason.Substituted }
+
+                    team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
 
                     let mem = team.Memory.[outSlot]
 
@@ -419,6 +421,8 @@ module EventApply =
                         OccupancyKind.Sidelined
                             { Id = player
                               Reason = PlayerOutReason.RedCard }
+
+                    team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
 
                     let mutable frame = team.Frame
                     frame.ActiveCount <- max 0 (frame.ActiveCount - 1)

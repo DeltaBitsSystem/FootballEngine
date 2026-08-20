@@ -96,7 +96,7 @@ module ContactTests =
                       buf.Events
                       (fun ev ->
                           match ev.Data with
-                          | EventData.Pass(_, Some r, _, _, true) -> r = receiver
+                          | EventData.Pass(_, Some r, _, _, true, _, _, _, _) -> r = receiver
                           | _ -> false)
                       "completed pass emitted"
 
@@ -231,7 +231,7 @@ module ContactTests =
                       buf.Events
                       (fun ev ->
                           match ev.Data with
-                          | EventData.Pass(_, Some r, _, _, true) -> r = receiver
+                          | EventData.Pass(_, Some r, _, _, true, _, _, _, _) -> r = receiver
                           | _ -> false)
                       "completed pass to the fast receiver"
 
@@ -282,7 +282,7 @@ module ContactTests =
                       buf.Events
                       (fun ev ->
                           match ev.Data with
-                          | EventData.Pass(_, Some r, _, _, true) -> r = receiver
+                          | EventData.Pass(_, Some r, _, _, true, _, _, _, _) -> r = receiver
                           | _ -> false)
                       "completed pass to the intended receiver"
 

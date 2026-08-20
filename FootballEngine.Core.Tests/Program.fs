@@ -16,12 +16,18 @@ open FootballEngine.Core.Tests.Stepper.MatchClockTests
 open FootballEngine.Core.Tests.Stepper.StepperTests
 open FootballEngine.Core.Tests.Stepper.DeterminismTests
 open FootballEngine.Core.Tests.Stepper.MatchFactoryTests
+open FootballEngine.Core.Tests.Stepper.ChainSequenceTests
 open FootballEngine.Core.Tests.Systems.Referee.FoulsTests
 open FootballEngine.Core.Tests.Systems.Referee.VARTests
 open FootballEngine.Core.Tests.Systems.Referee.CardsTests
 open FootballEngine.Core.Tests.Systems.Ball.GoalDetectionTests
 open FootballEngine.Core.Tests.Systems.Players.PerceptionTests
 open FootballEngine.Core.Tests.Systems.Players.DecisionTests
+open FootballEngine.Core.Tests.Systems.Players.PlannerTests
+open FootballEngine.Core.Tests.Systems.Players.PlannerEvaluatorTests
+open FootballEngine.Core.Tests.Systems.Players.ChainIntegrationTests
+open FootballEngine.Core.Tests.Systems.Players.ChainLifetimeTests
+open FootballEngine.Core.Tests.Systems.Players.PlannerBudgetTests
 open FootballEngine.Core.Tests.Systems.Players.Actions.PassTests
 open FootballEngine.Core.Tests.Systems.Players.Actions.SetPieceTests
 open FootballEngine.Core.Tests.Systems.Players.Actions.ShootoutTests
@@ -40,6 +46,9 @@ open FootballEngine.Core.Tests.Systems.Manager.ManagerTests
 open FootballEngine.Core.Tests.Stepper.EventApplyTests
 open FootballEngine.Core.Tests.Stepper.RestartContractTests
 open FootballEngine.Core.Tests.Contracts.StatsTests
+open FootballEngine.Core.Tests.Contracts.ScoutingTests
+open FootballEngine.Core.Tests.Contracts.SquadPlannerTests
+open FootballEngine.Core.Tests.Contracts.ScoutingWorldTests
 
 [<EntryPoint>]
 let main argv =
@@ -61,12 +70,18 @@ let main argv =
               stepperTests
               determinismTests
               matchFactoryTests
+              chainSequenceTests
               foulsTests
               varTests
               cardsTests
               goalDetectionTests
               perceptionTests
               decisionTests
+              plannerTests
+              plannerEvaluatorTests
+              chainIntegrationTests
+              chainLifetimeTests
+              plannerBudgetTests
               passTests
               setPieceTests
               shootoutTests
@@ -84,6 +99,9 @@ let main argv =
               managerTests
               eventApplyTests
               restartContractTests
-              statsTests ]
+              statsTests
+              scoutingTests
+              squadPlannerTests
+              scoutingWorldTests ]
 
     runTestsWithCLIArgs [] argv tests

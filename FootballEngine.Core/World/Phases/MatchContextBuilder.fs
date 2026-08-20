@@ -52,12 +52,41 @@ module MatchContextBuilder =
           Tempo = float32 i.Tempo
           Directness = float32 i.Directness }
 
-    let private clubRef (gs: GameState) (clubId: ClubId) (lu: Lineup) : ClubRef =
+    /// The signature is what the scouting memory keys its trust on: the same
+    /// identity check CounterPlan.ofMemory runs, so both sides agree on what
+    /// counts as "the rival changed".
+    let private signatureOf (lu: Lineup) : string * TacticalInstructions =
+        (string lu.Formation, lu.Instructions |> Option.defaultValue TacticalInstructions.defaultInstructions)
+
+    /// The counter-planning injection seam: the club counters only rivals it
+    /// has seen before, and a rival it has never met gets the club's own plan.
+    let adjustTactics
+        (counterConfig: CounterConfig)
+        (mem: Map<ClubId, OpponentMemory>)
+        (opponent: ClubId)
+        (opponentSignature: string * TacticalInstructions)
+        (baseTactics: TacticsConfig)
+        : TacticsConfig =
+        match mem |> Map.tryFind opponent with
+        | None -> baseTactics
+        | Some memory ->
+            CounterPlan.apply counterConfig baseTactics (CounterPlan.ofMemory counterConfig opponentSignature memory)
+
+    let private clubRef
+        (counter: CounterConfig)
+        (gs: GameState)
+        (clubId: ClubId)
+        (rivalId: ClubId)
+        (rivalSignature: string * TacticalInstructions)
+        (lu: Lineup)
+        : ClubRef =
         let club = gs.Clubs[clubId]
 
         { Id = uint64 clubId
           Name = club.Name
-          BaseTactics = tacticsOf lu
+          // The counter leans on what the club already believes about this
+          // specific rival; no memory means the club's own tactics stand.
+          BaseTactics = adjustTactics counter club.ScoutingMemory rivalId rivalSignature (tacticsOf lu)
           Chemistry = club.CoordinationMemory.PressingCoordination
           HomeAdvantage =
             { CrowdSupport = 1.0f
@@ -73,8 +102,8 @@ module MatchContextBuilder =
             let! al = lineupOf gs fixture.AwayClubId
 
             return
-                { HomeClub = clubRef gs fixture.HomeClubId hlu
-                  AwayClub = clubRef gs fixture.AwayClubId alu
+                { HomeClub = clubRef config.Counter gs fixture.HomeClubId fixture.AwayClubId (signatureOf alu) hlu
+                  AwayClub = clubRef config.Counter gs fixture.AwayClubId fixture.HomeClubId (signatureOf hlu) alu
                   HomeLineup = hl
                   AwayLineup = al
                   Config = config

@@ -71,46 +71,35 @@ module InterceptTable =
         let ball = world.State.Ball.Position
         let maxSteps = p.MaxSteps
 
-        let sideSteps (side: ClubSide) : int[] * (int * int)[] =
+        let sideInfo (side: ClubSide) : int[] * int * int * int =
+            // Single pass: fill SlotSteps and track the team aggregate minima
+            // (self, best slot, next-best) without allocating filter/map arrays.
             let frame = (MatchWorld.team world side).Frame
             let steps = Array.create frame.SlotCount maxSteps
+            let mutable bestSlot = -1
+            let mutable bestStep = maxSteps
+            let mutable secondStep = maxSteps
+            let mutable found = false
 
             for slot in MatchWorld.activeSlots frame do
                 if slot <> 0 then
-                    steps.[slot] <- stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+                    let s =
+                        stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
 
-            let activeOutfield =
-                MatchWorld.activeSlots frame
-                |> Array.filter (fun slot -> slot <> 0)
-                |> Array.map (fun slot -> slot, steps.[slot])
+                    steps.[slot] <- s
+                    found <- true
 
-            steps, activeOutfield
+                    if s < bestStep then
+                        secondStep <- bestStep
+                        bestStep <- s
+                        bestSlot <- slot
+                    elif s < secondStep then
+                        secondStep <- s
 
-        let ourSteps, our = sideSteps side
-        let _, opp = sideSteps (MatchWorld.oppOf side)
+            steps, (if found then bestStep else maxSteps), bestSlot, (if found then secondStep else maxSteps)
 
-        let selfStep =
-            if our.Length = 0 then
-                maxSteps
-            else
-                our |> Array.map snd |> Array.min
-
-        let bestSlot = if our.Length = 0 then -1 else our |> Array.minBy snd |> fst
-
-        let teammateStep =
-            if our.Length <= 1 then
-                maxSteps
-            else
-                our
-                |> Array.filter (fun (slot, _) -> slot <> bestSlot)
-                |> Array.map snd
-                |> Array.min
-
-        let opponentStep =
-            if opp.Length = 0 then
-                maxSteps
-            else
-                opp |> Array.map snd |> Array.min
+        let ourSteps, selfStep, bestSlot, teammateStep = sideInfo side
+        let _, opponentStep, _, _ = sideInfo (MatchWorld.oppOf side)
 
         let ballStep = min selfStep (min teammateStep opponentStep)
 

@@ -207,7 +207,8 @@ module Mappers =
           Budget = club.Budget
           Morale = club.Morale
           BoardObjective = boardObjectiveToString club.BoardObjective
-          CoordinationMemory = JsonSerializer.Serialize(club.CoordinationMemory) }
+          CoordinationMemory = JsonSerializer.Serialize(club.CoordinationMemory)
+          ScoutingMemory = serializeScoutingMemory club.ScoutingMemory }
 
     let toClubDomain (players: Map<PlayerId, Player>) (staff: Map<StaffId, Staff>) (ce: ClubEntity) : ClubId * Club =
         let playerIds =
@@ -247,7 +248,8 @@ module Mappers =
                 try
                     JsonSerializer.Deserialize<CoordinationMemory>(json)
                 with _ ->
-                    CoordinationMemory.defaultMemory }
+                    CoordinationMemory.defaultMemory
+          ScoutingMemory = deserializeScoutingMemory ce.ScoutingMemory }
 
     let toStaffEntity (staff: Staff) : StaffEntity =
         let contractClubId, contractSalary, contractExpiry =

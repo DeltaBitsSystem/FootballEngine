@@ -10,32 +10,17 @@ module LateralPairs =
 
     type PairParams = { SwapThreshold: float }
 
-    let private optionCost
-        (current: (float * float)[])
-        (l: int)
-        (r: int)
-        (tl: float * float)
-        (tr: float * float)
-        : float =
-        MatchMath.distF32 (float32 (fst current.[l])) (float32 (snd current.[l])) (float32 (fst tl)) (float32 (snd tl))
-        + MatchMath.distF32
-            (float32 (fst current.[r]))
-            (float32 (snd current.[r]))
-            (float32 (fst tr))
-            (float32 (snd tr))
+    let private optionCost (current: FPoint[]) (l: int) (r: int) (tl: FPoint) (tr: FPoint) : float =
+        MatchMath.distF32 (float32 current.[l].X) (float32 current.[l].Y) (float32 tl.X) (float32 tl.Y)
+        + MatchMath.distF32 (float32 current.[r].X) (float32 current.[r].Y) (float32 tr.X) (float32 tr.Y)
 
     /// Apply swap decisions, comparing only the two alternatives (keep vs. swap)
     /// because both slots cover the same corridor — a swap is worthwhile only
     /// when it clearly shortens total travel. `pairs` is a list of (slotL,
     /// slotR) where slotL sits on the left (negative Y) and slotR on the
-    /// right (positive Y) in the team's resting shape. Returns the targets
-    /// with swaps applied.
-    let solve
-        (params: PairParams)
-        (current: (float * float)[])
-        (targets: (float * float)[])
-        (pairs: (int * int)[])
-        : (float * float)[] =
+    /// right (positive Y) in the team's resting shape. Returns a fresh array;
+    /// the caller's `targets` is left untouched so the function stays pure.
+    let solve (params: PairParams) (current: FPoint[]) (targets: FPoint[]) (pairs: (int * int)[]) : FPoint[] =
         let result = Array.copy targets
 
         for (l, r) in pairs do

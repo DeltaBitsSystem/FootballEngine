@@ -140,6 +140,8 @@ The UI uses **Avalonia.FuncUI** with the Elmish pattern:
 
 8. **Agents live in event time, not clock time.** Agents don't wake up because N ticks passed — they wake up because something relevant to them happened.
 
+9. **Comments justify, they don't narrate.** Every comment must answer "why" — a branch, a constant, an order, a guard. "What" comments are deleted, not kept.
+
 ---
 
 ## Code Conventions
@@ -171,8 +173,9 @@ The UI uses **Avalonia.FuncUI** with the Elmish pattern:
 - Use `State.LogMessages` and `State.pushNotification` for user-facing information
 
 ### Comments
-- **Do not add comments unless explicitly requested**
-- Documentation goes in separate `.md` files, not inline
+- **Comments explain WHY, never WHAT.** The code says what it does; a comment that restates the code is noise. A comment earns its place when it explains the reason a reader cannot see: *why this branch exists, why this value, why this order, what failure it prevents.*
+- When a review flags a suspicious block, the first question is: *does this code look arbitrary because it lacks a why-comment, or is it actually wrong?* Every deliberate tuning constant, guard, or ordering decision gets a one-line why.
+- If a comment says "what", rewrite it to "why" or delete it. A `why` comment may accompany a non-obvious `what` (e.g. the physics units), but the default is: no comment unless there is a reason.
 
 ---
 

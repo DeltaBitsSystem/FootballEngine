@@ -202,7 +202,8 @@ module TestBuilders =
               RoleBias = Array.init n (fun _ -> 1.0f)
               RunLookup = System.Collections.Generic.Dictionary<int, RunAssignment>()
               ActiveCount = n
-              SlotCount = n }
+              SlotCount = n
+              ActiveCache = ActiveSlotsCache() }
 
         { Frame = frame
           Memory =
@@ -277,7 +278,9 @@ module TestBuilders =
             { LastPerceivedTick = 0<subtick>
               LastDecidedTick = 0<subtick>
               SupportAttackComputed = false }
-          EventWindow = EventWindow.create 1024 }
+          EventWindow = EventWindow.create 1024
+          ActivePlan = None
+          LastCarrierSlot = -1 }
 
     let minimalWorld () : World =
         let ctx = defaultCtx ()

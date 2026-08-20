@@ -81,6 +81,27 @@ module BallContact =
 
         best |> Option.map (fun (s, slot, pid, t, _) -> s, slot, pid, t)
 
+    /// Passer's position at resolution time, plus the measured distance to the
+    /// arrival point: the scouting layer needs the origin (corridor/directness),
+    /// and the fallback keeps the event well-formed even if the passer is gone.
+    let private passerOriginAndDist
+        (ctx: MatchContext)
+        (world: World)
+        (passer: PlayerId)
+        (rx: float<meter>)
+        (ry: float<meter>)
+        : float<meter> * float<meter> * float<meter> =
+        match MatchWorld.teamOfPlayer ctx passer with
+        | Some pSide ->
+            match MatchWorld.slotOf ctx pSide passer with
+            | Some pSlot ->
+                let f = (MatchWorld.team world pSide).Frame
+                let px = MatchWorld.posX f pSlot
+                let py = MatchWorld.posY f pSlot
+                px, py, MatchMath.dist px py rx ry * 1.0<meter>
+            | None -> 10.0<meter>, 10.0<meter>, 10.0<meter>
+        | None -> 10.0<meter>, 10.0<meter>, 10.0<meter>
+
     let resolve (ctx: SystemContext) (rng: Rng) (world: World) (tick: int<subtick>) (buffer: EventBuffer) : Rng =
         let ball = world.State.Ball
         let cfg = ctx.Ctx.Config
@@ -181,17 +202,7 @@ module BallContact =
 
                     let ok, rng' = Rng.bernoulli receptionP rng
 
-                    let passDist =
-                        match MatchWorld.teamOfPlayer ctx.Ctx passer with
-                        | Some pSide ->
-                            match MatchWorld.slotOf ctx.Ctx pSide passer with
-                            | Some pSlot ->
-                                let f = (MatchWorld.team world pSide).Frame
-
-                                MatchMath.dist (MatchWorld.posX f pSlot) (MatchWorld.posY f pSlot) rx ry
-                                * 1.0<meter>
-                            | None -> 10.0<meter>
-                        | None -> 10.0<meter>
+                    let px, py, passDist = passerOriginAndDist ctx.Ctx world passer rx ry
 
                     if ok then
                         MatchWorld.updateBall world (fun b ->
@@ -205,11 +216,11 @@ module BallContact =
 
                         buffer.Events.Add
                             { Tick = tick
-                              Data = EventData.Pass(passer, Some pid, passDist, quality, true) }
+                              Data = EventData.Pass(passer, Some pid, passDist, quality, true, px, py, rx, ry) }
                     else
                         buffer.Events.Add
                             { Tick = tick
-                              Data = EventData.Pass(passer, Some pid, passDist, quality, false) }
+                              Data = EventData.Pass(passer, Some pid, passDist, quality, false, px, py, rx, ry) }
 
                         let lastSide = MatchWorld.lastTouchSide ctx.Ctx world |> Option.defaultValue side
 
@@ -228,21 +239,11 @@ module BallContact =
                             Control = BallControl.Controlled(side, pid)
                             LastTouch = Some pid })
 
-                    let passDist =
-                        match MatchWorld.teamOfPlayer ctx.Ctx passer with
-                        | Some pSide ->
-                            match MatchWorld.slotOf ctx.Ctx pSide passer with
-                            | Some pSlot ->
-                                let f = (MatchWorld.team world pSide).Frame
-
-                                MatchMath.dist (MatchWorld.posX f pSlot) (MatchWorld.posY f pSlot) rx ry
-                                * 1.0<meter>
-                            | None -> 10.0<meter>
-                        | None -> 10.0<meter>
+                    let px, py, passDist = passerOriginAndDist ctx.Ctx world passer rx ry
 
                     buffer.Events.Add
                         { Tick = tick
-                          Data = EventData.Pass(passer, Some receiver, passDist, quality, false) }
+                          Data = EventData.Pass(passer, Some receiver, passDist, quality, false, px, py, rx, ry) }
 
                     buffer.Events.Add
                         { Tick = tick
@@ -257,21 +258,11 @@ module BallContact =
                     let a = MatchWorld.profileOf ctx.Ctx aSide aSlot
                     let d = MatchWorld.profileOf ctx.Ctx (MatchWorld.oppOf aSide) dSlot
 
-                    let passDist =
-                        match MatchWorld.teamOfPlayer ctx.Ctx passer with
-                        | Some pSide ->
-                            match MatchWorld.slotOf ctx.Ctx pSide passer with
-                            | Some pSlot ->
-                                let f = (MatchWorld.team world pSide).Frame
-
-                                MatchMath.dist (MatchWorld.posX f pSlot) (MatchWorld.posY f pSlot) rx ry
-                                * 1.0<meter>
-                            | None -> 10.0<meter>
-                        | None -> 10.0<meter>
+                    let px, py, passDist = passerOriginAndDist ctx.Ctx world passer rx ry
 
                     buffer.Events.Add
                         { Tick = tick
-                          Data = EventData.Pass(passer, Some receiver, passDist, quality, false) }
+                          Data = EventData.Pass(passer, Some receiver, passDist, quality, false, px, py, rx, ry) }
 
                     let attackerWin =
                         MatchMath.clamp01 (

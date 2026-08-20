@@ -102,7 +102,7 @@ module Formation =
     /// continuously as the ball moves instead of snapping between zones (a
     /// practical equivalent of HELIOS's Delaunay/Gouraud interpolation,
     /// always well-defined). Returns targets in the team's attacking frame.
-    let query (formation: Formation) (ballX: float<meter>) (ballY: float<meter>) : (float32 * float32)[] =
+    let query (formation: Formation) (ballX: float<meter>) (ballY: float<meter>) : FPoint[] =
         let nearest: (FormationSample * float)[] =
             formation.Samples
             |> Array.map (fun s -> s, MatchMath.dist ballX ballY s.BallX s.BallY)
@@ -117,8 +117,7 @@ module Formation =
         let total = invDists |> Array.sum
         let weights = invDists |> Array.map (fun w -> w / total)
 
-        let resultX = Array.zeroCreate<float32> formation.SlotCount
-        let resultY = Array.zeroCreate<float32> formation.SlotCount
+        let result = Array.zeroCreate formation.SlotCount
 
         for k in 0 .. formation.SlotCount - 1 do
             let mutable sx = 0.0
@@ -130,7 +129,6 @@ module Formation =
                 sy <- sy + float (s.SlotY.[k]) * weights.[j]
 
             let cx, cy = MatchMath.pitchClamp sx sy
-            resultX.[k] <- float32 cx
-            resultY.[k] <- float32 cy
+            result.[k] <- FPoint.ofXY (float cx) (float cy)
 
-        Array.zip resultX resultY
+        result

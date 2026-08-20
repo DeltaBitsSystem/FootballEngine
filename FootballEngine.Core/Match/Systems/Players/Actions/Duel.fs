@@ -123,7 +123,7 @@ module Duel =
             elif r < pWin then
                 buffer.Events.Add
                     { Tick = tick
-                      Data = EventData.Dribble(pid, true) }
+                      Data = EventData.Dribble(pid, true, x, y) }
 
                 mem.[slot].SuccessfulDuels <- mem.[slot].SuccessfulDuels + 1
                 mem.[slot].DuelSuccessMod <- min 1.5 (mem.[slot].DuelSuccessMod + 0.25)
@@ -132,7 +132,7 @@ module Duel =
             else
                 buffer.Events.Add
                     { Tick = tick
-                      Data = EventData.Dribble(pid, false) }
+                      Data = EventData.Dribble(pid, false, x, y) }
 
                 buffer.Events.Add
                     { Tick = tick

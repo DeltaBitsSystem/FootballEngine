@@ -104,7 +104,7 @@ module ConfigTests =
                       | _ -> failwithf "config field %s missing" path
               }
 
-              test "defaultConfig has all 10 sections" {
+              test "defaultConfig has all 14 sections" {
                   let t = typeof<BalanceConfig>
 
                   for section in
@@ -117,7 +117,11 @@ module ConfigTests =
                         "Manager"
                         "Environment"
                         "Match"
-                        "Weights" ] do
+                        "Planner"
+                        "Weights"
+                        "Scout"
+                        "Counter"
+                        "Transfer" ] do
                       Expect.isTrue
                           (FSharpType.GetRecordFields(t) |> Array.exists (fun f -> f.Name = section))
                           (sprintf "section %s must exist" section)
@@ -182,6 +186,30 @@ module ConfigTests =
                   match WeightMerge.mergeWithDefaults "{ not json" BalanceConfig.defaultConfig with
                   | Error _ -> ()
                   | Ok _ -> failtest "invalid JSON must error"
+              }
+
+              test "WeightMerge: self-contradictory planner config -> Error" {
+                  match
+                      WeightMerge.mergeWithDefaults
+                          """{ "Planner": { "MaxChainLength": 0, "MaxEvaluateLimit": 1 } }"""
+                          BalanceConfig.defaultConfig
+                  with
+                  | Error msg -> Expect.stringContains msg "MaxChainLength" "error must name the invalid field"
+                  | Ok _ -> failtest "MaxChainLength 0 must error"
+
+                  match
+                      WeightMerge.mergeWithDefaults """{ "Planner": { "PlanTTL": -10 } }""" BalanceConfig.defaultConfig
+                  with
+                  | Error msg -> Expect.stringContains msg "PlanTTL" "error must name the invalid field"
+                  | Ok _ -> failtest "negative PlanTTL must error"
+
+                  match
+                      WeightMerge.mergeWithDefaults
+                          """{ "Planner": { "MaxEvaluateLimit": 0 } }"""
+                          BalanceConfig.defaultConfig
+                  with
+                  | Error msg -> Expect.stringContains msg "MaxEvaluateLimit" "error must name the invalid field"
+                  | Ok _ -> failtest "MaxEvaluateLimit 0 must error"
               }
 
               test "WeightMerge: load with missing file -> Ok defaults" {

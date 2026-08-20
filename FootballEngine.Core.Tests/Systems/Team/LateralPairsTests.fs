@@ -16,16 +16,16 @@ module LateralPairsTests =
             "FootballEngine.Core.Systems.Team.LateralPairsTests"
             [ testCase "swaps when players have crossed" (fun _ ->
                   // Left slot is now at the right target and vice-versa.
-                  let current = [| (5.0, 5.0); (-5.0, -5.0) |]
-                  let targets = [| (-5.0, -5.0); (5.0, 5.0) |]
+                  let current = [| FPoint.ofXY 5.0 5.0; FPoint.ofXY -5.0 -5.0 |]
+                  let targets = [| FPoint.ofXY -5.0 -5.0; FPoint.ofXY 5.0 5.0 |]
                   let pairs = [| 0, 1 |]
                   let result = LateralPairs.solve p current targets pairs
                   Expect.equal result.[0] targets.[1] "left slot takes the right target"
                   Expect.equal result.[1] targets.[0] "right slot takes the left target")
 
               testCase "keeps symmetry when already settled" (fun _ ->
-                  let current = [| (-5.0, -5.0); (5.0, 5.0) |]
-                  let targets = [| (-5.0, -5.0); (5.0, 5.0) |]
+                  let current = [| FPoint.ofXY -5.0 -5.0; FPoint.ofXY 5.0 5.0 |]
+                  let targets = [| FPoint.ofXY -5.0 -5.0; FPoint.ofXY 5.0 5.0 |]
                   let pairs = [| 0, 1 |]
                   let result = LateralPairs.solve p current targets pairs
                   Expect.equal result.[0] targets.[0] "left target unchanged"
@@ -33,16 +33,16 @@ module LateralPairsTests =
 
               testCase "does not swap a marginal gain below the threshold" (fun _ ->
                   // Crossed by less than the threshold: keep the assignment.
-                  let current = [| (-4.0, 0.0); (6.0, 0.0) |]
-                  let targets = [| (-5.0, 0.0); (5.0, 0.0) |]
+                  let current = [| FPoint.ofXY -4.0 0.0; FPoint.ofXY 6.0 0.0 |]
+                  let targets = [| FPoint.ofXY -5.0 0.0; FPoint.ofXY 5.0 0.0 |]
                   let pairs = [| 0, 1 |]
                   let result = LateralPairs.solve p current targets pairs
                   Expect.equal result.[0] targets.[0] "left target kept"
                   Expect.equal result.[1] targets.[1] "right target kept")
 
               testCase "is deterministic" (fun _ ->
-                  let current = [| (5.0, 5.0); (-5.0, -5.0); (0.0, 3.0) |]
-                  let targets = [| (-5.0, -5.0); (5.0, 5.0); (0.0, -3.0) |]
+                  let current = [| FPoint.ofXY 5.0 5.0; FPoint.ofXY -5.0 -5.0; FPoint.ofXY 0.0 3.0 |]
+                  let targets = [| FPoint.ofXY -5.0 -5.0; FPoint.ofXY 5.0 5.0; FPoint.ofXY 0.0 -3.0 |]
                   let pairs = [| 0, 1; 2, 1 |]
                   let a = LateralPairs.solve p current targets pairs
                   let b = LateralPairs.solve p current targets pairs

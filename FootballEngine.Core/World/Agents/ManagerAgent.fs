@@ -1,5 +1,6 @@
 namespace FootballEngine.World.Agents
 
+open FootballEngine.Core.Match
 open FootballEngine.Domain
 open FootballEngine.World
 
@@ -36,7 +37,41 @@ module ManagerAgent =
         | Some coach ->
             let needs = SquadAnalysis.assessNeeds state.CurrentDate squad
             let candidates = transferCandidates clubId state
-            let targets = TargetSelection.selectTargets coach club needs candidates
+
+            // SquadPlanner is the "always buy well" gate on every AI signing:
+            // refineTargets closes roles already saturated with bench warmers,
+            // and cappedFee only tolerates overpay when the gap is real.
+            let config = BalanceConfig.defaultConfig
+
+            let targets =
+                TargetSelection.selectTargets coach club needs candidates
+                |> SquadPlanner.refineTargets
+                    config.Transfer
+                    state.CurrentDate
+                    squad
+                    state.PlayerExperiences
+                    state.Players
+                |> List.map (fun target ->
+                    // Matching ladder follows the invariant: a positional gap
+                    // outranks a depth gap, and a covered role only signs as a
+                    // quality upgrade (no overpay). refineTargets already proved
+                    // the target lives in state.Players, so the lookup is total;
+                    // cappedFee branches on the case only, so the fallback
+                    // aboveSkill payload is irrelevant.
+                    let need =
+                        match Map.tryFind target.PlayerId state.Players with
+                        | Some player ->
+                            needs
+                            |> List.tryFind (function
+                                | NeedsPosition p
+                                | NeedsDepth p -> p = player.Position
+                                | NeedsQualityUpgrade _ -> false)
+                            |> Option.defaultWith (fun () -> NeedsQualityUpgrade 0)
+                        | None -> NeedsQualityUpgrade 0
+
+                    { target with
+                        MaxFee = SquadPlanner.cappedFee config.Transfer need target.MaxFee })
+
             ManagerView(club, targets)
 
     let private decide (view: AgentView) : Intent<ManagerIntent> list =

@@ -21,6 +21,7 @@ open FootballEngine.Pages.Setup.Setup
 open FootballEngine.Pages.Squad
 open FootballEngine.Pages.Tactics
 open FootballEngine.Pages.Training
+open FootballEngine.Pages.Scouting
 open FootballEngine.Pages.Transfers
 
 open Material.Icons.Avalonia
@@ -65,7 +66,7 @@ module Views =
                                 | Squad -> squadView state dispatch
                                 | Tactics -> tacticView state dispatch
                                 | Training -> trainingView state dispatch
-                                | Scouting -> failwith "todo"
+                                | Scouting -> Scouting.scoutingView state dispatch
                                 | Transfers -> transfersView state dispatch
                                 | Finances -> failwith "todo"
                                 | Settings -> failwith "todo"

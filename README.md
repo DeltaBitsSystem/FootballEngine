@@ -13,6 +13,16 @@
 
 ---
 
+## Why Football Engine
+
+**Results have causes.** A 2-1 is a chain of linked decisions: a corridor the winger keeps finding, a defensive line that dropped as fatigue built up, a counter-plan your rival prepared after studying your last match. Every event in the engine is resolved from the state of the game -- never from a dice roll.
+
+**Deterministic and fully offline.** One self-contained executable. No installer, no internet connection, no external services. The same seed produces the same match, replayable and reproducible -- which also makes every AI decision auditable.
+
+**The adaptive coach AI learns from you.** The active P0 program builds an adaptive rival: it studies your patterns -- preferred corridors, pass length, formation, instructions -- keeps that memory between matches with temporal decay in the local database, and adjusts its match plan before facing you. You receive the same tool, but biased: your staff's reports carry the noise of real scouting, while the AI reads the truth. Difficulty emerges from the rival's intelligence, not from artificial modifiers. Your rival remembers how you beat them last week; you have to innovate, like in real football. The counter-plan is a pure function of persisted history: same seed plus same history still produces the same match. See [docs/ADAPTIVE_AI_PLAN.md](docs/ADAPTIVE_AI_PLAN.md).
+
+**A market that buys well.** The transfer AI signs by need: role coverage, real minutes played, value discipline. No redundant 29-to-31-year-old purchases piling up on the bench.
+
 ## Overview
 
 Football Engine resolves matches through a full 2D spatial simulation running at 40Hz on a 105x68 metre pitch. Players move with steering behaviours, perceive the field through limited vision cones, and make cognitive decisions based on their attributes, tactical instructions, and the current state of play. The ball follows aerodynamic physics including drag, ground friction, restitution, and Magnus effect spin.
@@ -145,29 +155,31 @@ All database content is decoupled from the executable. Nations, leagues, cup for
 
 The mod system validates loaded data against a strict schema. Errors surface with precise messages: invalid JSON, schema version mismatch, duplicate country code, duplicate competition name, missing dependency, path traversal attempt, oversized file.
 
-A built-in mod editor allows creation, modification, and patching of data from within the application. 
+A built-in mod editor allows creation, modification, and patching of data from within the application.
 
 ## Architecture
 
 Football Engine enforces a functional, immutable-by-default architecture. The match simulation hot path uses mutable `TeamFrame` arrays in Structure-of-Arrays layout for cache performance at 40Hz.
 
 ```
-MatchStepper (40Hz)
-  |-- BallPhysics (Magnus, drag, restitution, post collision)
-  |-- PlayerAgent
-  |     |-- Perception (FOV, visibility mask)
-  |     |-- Cognition (intent pipeline, influence maps)
-  |     |-- Steering (seek, pursue, separate, shape)
-  |     |-- Actions (pass, shot, cross, duel, set piece)
-  |-- Referee (fouls, advantage, VAR, handball, offside)
-  |-- TeamDirector / TeamExecutor (shape, tactics, blackboard)
-  |-- ManagerAgent (substitutions)
+Match simulation (40 Hz) -- FootballEngine.Core/Match
+  |-- Stepper
+  |     |-- SystemsTable (Ball, Players, Referee, Team, Manager)
+  |     |-- EventApply, Flow, Scheduler, Shootout
+  |-- Systems
+  |     |-- Ball      # possession, contacts, outcomes, physics
+  |     |-- Players   # Perception -> Decision -> Intent -> Planner -> Steering -> Actions
+  |     |-- Referee   # fouls, cards, VAR
+  |     |-- Team      # Decide, TeamEmergent, Formation, Pressing, InterceptTable
+  |     └-- Manager   # substitutions, directives
+  |-- Contracts       # MatchContext, BalanceConfig, MatchEvent, Frames, Rng, Units
+  └-- Simulator       # Simulator, Replay, MatchDump
 
-World Engine (daily / weekly / monthly tick)
-  |-- Transfers (FSM)
-  |-- Development (probabilistic, age-gated)
-  |-- Finance
-  |-- Season progression
+World layer (daily / weekly / monthly) -- FootballEngine.Core/World
+  |-- Phases         # SeasonPhase, MatchPhase, TransferPhase, DevelopmentPhase, FinancePhase
+  |-- Agents         # ClubAgent, ManagerAgent, PlayerAgent
+  |-- Supervisors    # Finance, Transfer, Youth
+  └-- Core           # WorldClock, WorldTick, agent types
 ```
 
 | Layer | Technology |
@@ -175,7 +187,7 @@ World Engine (daily / weekly / monthly tick)
 | Language | F# (.NET 10), Units of Measure for physics |
 | UI | Avalonia FuncUI + Elmish (MVU, unidirectional data flow) |
 | Rendering | SkiaSharp via ICustomDrawOperation for live pitch |
-| Statistics | FSharp.Stats -- Normal, Beta, Poisson distributions |
+| Statistics | Deterministic distributions (Normal, Beta, Poisson) seeded from the match RNG |
 | Persistence | SQLite (sqlite-net-pcl), transactional save/load |
 | Error Handling | Result types and FsToolkit.ErrorHandling |
 
@@ -183,28 +195,36 @@ World Engine (daily / weekly / monthly tick)
 
 ```
 FootballEngine/
-├── FootballEngine.Client/
-│   ├── AppState/          # Elmish model, messages, update functions
-│   ├── Database/          # SQLite entities, mappers, repository
-│   ├── Domain/            # Core types: Player, Club, Competition, Transfer, Staff
-│   ├── Engine/
-│   │   ├── Match/         # Simulator, ball physics, player agents, referee, set pieces
-│   │   └── World/         # Season phases, transfer logic, development, finance
-│   ├── GameData/          # JSON mod loader, validator, registry, mod editor
-│   └── Views/             # Avalonia FuncUI pages and components
+├── FootballEngine.Core/          # Engine and domain, no UI
+│   ├── Domain/                   # Player, Club, Staff, Transfer, MatchMetrics, CoordinationMemory
+│   ├── Match/                    # 40 Hz match simulation
+│   │   ├── Contracts/            # MatchContext, BalanceConfig, MatchEvent (29 kinds), Frames, Rng
+│   │   ├── Config/               # ConfigValidation, weight merging
+│   │   ├── Stepper/              # SystemsTable, MatchFlow, MatchClock
+│   │   ├── Simulator/            # Simulator, Replay, match dump
+│   │   └── Systems/              # Ball, Players, Referee, Team, Manager
+│   ├── World/                    # Season, match, transfer, development, finance phases
+│   │   ├── Agents/               # ClubAgent, ManagerAgent, PlayerAgent
+│   │   ├── Phases/               # SeasonPhase, MatchPhase, TransferPhase, DevelopmentPhase, FinancePhase
+│   │   └── Supervisors/          # Finance, Transfer, Youth supervisors
+│   ├── WorldGeneration/          # Player, club and fixture generation
+│   └── GameData/                 # Mod loader, validator, registry, saver
 │
-├── FootballEngine.Tests/
-│   ├── Layer1_E2E/        # Flow transitions, GK distribution, goal cycle, set pieces
-│   ├── Layer2_Systems/    # Adaptive tactics, ball system, chemistry, VAR, handball
-│   └── Layer3_EdgeCases/  # GK, pass, shot, personality edge cases
+├── FootballEngine.Client/        # Avalonia FuncUI + Elmish desktop application
+│   ├── AppState/                 # Elmish model, messages, update functions, slices
+│   ├── Database/                 # SQLite entities, mappers, serializers, repository
+│   └── Views/                    # Pages, components, shared controls
 │
-└── FootballEngine.Benchmarks/  # BenchmarkDotNet profiling
+├── FootballEngine.Core.Tests/    # Expecto test suite
+├── FootballEngine.Benchmarks/    # BenchmarkDotNet profiling
+├── Data/Builtins/                # Six bundled JSON mods
+└── Training/                     # Weight calibration pipeline (outside the solution)
 ```
 
 ## Testing
 
 ```bash
-dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj
+dotnet run --project FootballEngine.Core.Tests/FootballEngine.Core.Tests.fsproj
 dotnet run --project FootballEngine.Benchmarks/FootballEngine.Benchmarks.fsproj -c Release
 ```
 
@@ -212,44 +232,14 @@ The test suite covers physics invariants (ball trajectory, restitution), offside
 
 ## Roadmap
 
-**Completed**
-- 40Hz physics engine with Magnus effect
-- Cognitive processing with limited vision and FOV
-- Influence maps with position-aware Gaussian kernel
-- Adaptive tactics with emergent feedback loops
-- VAR, handball detection, advantage engine
-- Mod system with schema validator and in-app editor
-- Six bundled data mods (ARG, BRA, ENG, ESP, CONMEBOL, UEFA)
+The roadmap is organized around one principle: the AI plays the same game the human plays -- same information, same incentives, same consequences. Difficulty comes from the AI's intelligence, never from artificial modifiers.
 
-**In Progress**
-- Improved goalkeeper AI
-- Live commentary engine
+- **P0 -- Adaptive coach AI (Phase 1):** cross-match memory. The AI extracts your patterns (corridors, pass length, formation, instructions), persists them with temporal decay, and counter-plans before each match. You get the same tool, biased by your staff. Parallel track: a transfer AI that always buys well -- need by role, real minutes, value discipline -- with a 10-season CI test.
+- **P1:** Phase 2 (live in-match adaptation), plus manager AI: distinct philosophies, causal morale, causal market value, load-driven injuries, modern newgen archetypes.
+- **P2:** advanced statistics (xG, xA, pass maps, heatmaps -- unlocked by event positions), finances dashboard, match ratings, staff hiring, set piece designer, youth academy.
+- **P3:** community: more league mods, exportable match data, documentation for mod authors.
 
-**Planned**
-
-Core Features
-- Finances dashboard -- budget, wages, matchday income, sponsorship (data exists, UI pending)
-- Player match ratings and performance statistics
-- Staff hiring, search, and assignment interface
-- Contract renewal negotiations
-
-Match Intelligence
-- Influence map overlay on the match pitch (territorial control, pass safety, threat zones)
-- Advanced match stats: xG, xA, pass maps, player heatmaps
-- Causal match analysis -- trace why results happened, not just what happened
-- Behavioral profile visualization per player
-
-Gameplay Depth
-- Scouting system with knowledge areas and player recommendations
-- Set piece designer -- customize corners and free kick routines
-- Youth academy page with annual intake and facility ratings
-- Player interaction and morale meetings
-- Loan system with recall and management
-
-Community
-- Expanded league mods contributed by the community
-- Exportable match data and statistics API
-- Documentation for mod authors
+Every item closes with a test in `FootballEngine.Core.Tests` -- balance is measured, not felt. Full detail: [ROADMAP.md](ROADMAP.md).
 
 ## Contributing
 

@@ -4,6 +4,11 @@ namespace FootballEngine.Core.Match
 /// carrier rejects any delivery an opponent can reach before the receiver,
 /// plus a configurable risk margin. Pure and deterministic so the decision
 /// layer can rely on the verdict, reusing InterceptTable's flight math.
+///
+/// No function here takes a MatchContext: the only ctx-derived input was the
+/// offside line, and it is constant for a whole pass scan, so the decision
+/// layer precomputes it once and passes it in — per-candidate recomputation
+/// would multiply a linear pass by the team size.
 module PassIntercept =
 
     /// Flight params for an airborne pass: the ball is in the air, so the only
@@ -25,14 +30,20 @@ module PassIntercept =
     /// pass interception.
     let interceptorStep (p: InterceptTable.InterceptParams) (world: World) (side: ClubSide) (ball: Spatial) : int =
         let frame = (MatchWorld.team world (MatchWorld.oppOf side)).Frame
+        let mutable best = p.MaxSteps
+        let mutable found = false
 
-        let steps =
-            MatchWorld.activeSlots frame
-            |> Array.filter (fun slot -> slot <> 0)
-            |> Array.map (fun slot ->
-                InterceptTable.stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot))
+        for slot in MatchWorld.activeSlots frame do
+            if slot <> 0 then
+                let s =
+                    InterceptTable.stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
 
-        if steps.Length = 0 then p.MaxSteps else Array.min steps
+                if s < best then
+                    best <- s
+
+                found <- true
+
+        if found then best else p.MaxSteps
 
     /// Steps for the receiver to get the delivery under control — the number
     /// the fastest interceptor must beat for the pass to be worth playing.
@@ -49,43 +60,44 @@ module PassIntercept =
     /// The risk premium on a pass: a delivery beyond the offside line is
     /// dangerous on its own, and a diagonal one is the case the judge can get
     /// wrong — so the risk rises exactly at that intersection, nowhere else.
+    /// `offsideLine` is precomputed by the caller because it is constant for
+    /// the whole pass scan.
     let riskFor
         (cfg: PassInterceptConfig)
-        (ctx: MatchContext)
         (world: World)
         (side: ClubSide)
         (receiverSlot: int)
         (ball: Spatial)
+        (offsideLine: float<meter>)
         : int =
         let frame = (MatchWorld.team world side).Frame
         let rx = MatchWorld.posX frame receiverSlot
-        let line = MatchWorld.offsideLine ctx world side
         let dir = MatchMath.goalDirection side
 
         let offside =
             if dir > 0.0 then
-                float rx > float line
+                float rx > float offsideLine
             else
-                float rx < float line
+                float rx < float offsideLine
 
         let diagonal = abs (float ball.Vy) > abs (float ball.Vx) * 0.5
         cfg.BaseRisk + (if offside && diagonal then cfg.OffsideCrossRisk else 0)
 
     /// Feasibility = the receiver wins the race with margin:
     /// `interceptorStep + risk > passArrivalStep`. The margin is what turns a
-    /// coin-flip pass into a safe one.
+    /// coin-flip pass into a safe one. `offsideLine` is precomputed by the
+    /// caller (constant within the pass scan).
     let feasible
         (cfg: PassInterceptConfig)
-        (ctx: MatchContext)
         (p: InterceptTable.InterceptParams)
         (world: World)
         (side: ClubSide)
         (receiverSlot: int)
         (ball: Spatial)
+        (offsideLine: float<meter>)
         : bool =
-        interceptorStep p world side ball + riskFor cfg ctx world side receiverSlot ball > passArrivalStep
-            p
-            world
-            side
-            receiverSlot
-            ball
+        let margin =
+            interceptorStep p world side ball
+            + riskFor cfg world side receiverSlot ball offsideLine
+
+        margin > passArrivalStep p world side receiverSlot ball

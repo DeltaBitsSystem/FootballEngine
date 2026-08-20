@@ -28,7 +28,8 @@ type Club =
       Budget: decimal
       Morale: int
       BoardObjective: BoardObjective
-      CoordinationMemory: CoordinationMemory }
+      CoordinationMemory: CoordinationMemory
+      ScoutingMemory: Map<ClubId, OpponentMemory> }
 
 module Club =
 

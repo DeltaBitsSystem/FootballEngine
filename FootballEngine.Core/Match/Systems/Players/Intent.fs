@@ -154,6 +154,19 @@ module PlayerIntent =
                 let team = MatchWorld.team world side
                 let frame = team.Frame
 
+                // Plan-override: before roleIntent, steer planned receivers
+                // toward their designated positions.
+                match team.ActivePlan with
+                | Some plan when plan.ExpiresAt > tick ->
+                    for (slot, px, py) in plan.FutureReceivers do
+                        if
+                            slot > 0
+                            && slot < frame.Intent.Kind.Length
+                            && frame.Intent.Kind.[slot] = IntentCode.None
+                        then
+                            setIntent frame slot IntentCode.ExecuteRun (float32 px) (float32 py) tick
+                | _ -> ()
+
                 for slot in MatchWorld.activeSlots frame do
                     receiveIntent ctx.Ctx world side slot tick
                     roleIntent ctx.Ctx world side slot tick

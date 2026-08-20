@@ -459,3 +459,19 @@ module Serializers =
         match JsonConverters.countryDataFromDto dto with
         | Ok cd -> cd
         | Error msg -> failwithf $"deserializeCountryData: %s{msg}"
+
+    /// Scouting memory serializes as a plain map of records; Map sorts by key
+    /// and records keep field order, so the JSON is deterministic per memory.
+    let serializeScoutingMemory (mem: Map<ClubId, OpponentMemory>) : string =
+        System.Text.Json.JsonSerializer.Serialize(mem)
+
+    /// A corrupt or missing blob must not kill the save load: forgetting is
+    /// the sanctioned failure mode, exactly like CoordinationMemory.
+    let deserializeScoutingMemory (json: string) : Map<ClubId, OpponentMemory> =
+        if System.String.IsNullOrEmpty json then
+            ScoutingMemory.empty
+        else
+            try
+                System.Text.Json.JsonSerializer.Deserialize<Map<ClubId, OpponentMemory>>(json)
+            with _ ->
+                ScoutingMemory.empty

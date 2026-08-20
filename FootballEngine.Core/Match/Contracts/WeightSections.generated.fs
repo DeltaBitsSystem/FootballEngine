@@ -526,6 +526,15 @@ type WeightSectionsPerception =
       BlindPassComposureThreshold: int
       BlindPassSuccessPenalty: float }
 
+[<Struct>]
+type WeightSectionsPlanner =
+    { ProgressionWeight: float
+      ShootValueWeight: float
+      ShootFinishingAssumption: float
+      DangerBase: float[]
+      DangerZoneWeights: float[]
+      PossessionSecurityWeight: float }
+
 type WeightSections =
     { Duel: WeightSectionsDuel
       Shot: WeightSectionsShot
@@ -542,7 +551,8 @@ type WeightSections =
       Manager: WeightSectionsManager
       BuildUp: WeightSectionsBuildUp
       Decision: WeightSectionsDecision
-      Perception: WeightSectionsPerception }
+      Perception: WeightSectionsPerception
+      Planner: WeightSectionsPlanner }
 
 module WeightSections =
 
@@ -1040,6 +1050,14 @@ module WeightSections =
           BlindPassComposureThreshold = 14
           BlindPassSuccessPenalty = 0.3 }
 
+    let defaultWeightsPlanner: WeightSectionsPlanner =
+        { ProgressionWeight = 0.6
+          ShootValueWeight = 0.35
+          ShootFinishingAssumption = 75.0
+          DangerBase = [| 20.0; 10.0; 5.0; 3.0; 2.0; 1.0; 0.0 |]
+          DangerZoneWeights = [| 1.0; 0.5; 0.25 |]
+          PossessionSecurityWeight = 0.8 }
+
     let defaultWeights: WeightSections =
         { Duel = defaultWeightsDuel
           Shot = defaultWeightsShot
@@ -1056,4 +1074,5 @@ module WeightSections =
           Manager = defaultWeightsManager
           BuildUp = defaultWeightsBuildUp
           Decision = defaultWeightsDecision
-          Perception = defaultWeightsPerception }
+          Perception = defaultWeightsPerception
+          Planner = defaultWeightsPlanner }

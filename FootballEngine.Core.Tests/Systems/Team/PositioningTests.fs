@@ -118,11 +118,16 @@ module PositioningTests =
                           (float Pitch.HalfWidth)
                           (sprintf "slot %d Y target stays inside the pitch" s)) ]
 
-    /// Over a full deterministic match, no active player is ever left off the
-    /// pitch — the bug this guards against is players wandering out and
-    /// sticking there during loose balls / set pieces. Samples the live world
-    /// at regular intervals so the transient bug (not just the final state) is
-    /// caught. A small tolerance allows a momentary chase up to the line.
+    /// Over a full deterministic match, no player leaves the engine's
+    /// sanctioned envelope (±5 m beyond the lines — the same bound the
+    /// movement, ball-physics, and set-piece clamps use, so positions beyond
+    /// it are a teleport bug by construction). Standing past a line is legal
+    /// and transient: the free-kick wall takes 9.15 m from the ball per the
+    /// laws, which puts it behind the goal line for kicks inside 9.15 m, and
+    /// a loose ball is chased for the subtick before the restart reset. The
+    /// real bug class is "stuck", so a player who is still past a line at two
+    /// consecutive samples (~3 min apart) fails the test: every intent and
+    /// shape target is pitch-clamped, so only a teleport can keep him there.
     let private offPitchTests ctx =
         let systems = Scheduler.systems
 
@@ -144,6 +149,8 @@ module PositioningTests =
                   let mutable guard = 0
                   let sampleEvery = 200<tickDelta> * 40<subtick / tickDelta>
                   let mutable checked = 0
+                  // (side, slot) pairs seen past a line at the previous sample
+                  let mutable offPitchPrev = Set.empty
 
                   while world.State.Flow <> MatchFlow.MatchEnded && guard < 400000 do
                       let rng', _, _ = Stepper.step systems systemCtx rng world buffer
@@ -152,6 +159,7 @@ module PositioningTests =
 
                       if world.State.Tick % sampleEvery = 0<subtick> then
                           checked <- checked + 1
+                          let mutable offPitchNow = Set.empty
 
                           for side in [ ClubSide.Home; ClubSide.Away ] do
                               let frame = (MatchWorld.team world side).Frame
@@ -162,13 +170,28 @@ module PositioningTests =
 
                                   Expect.isLessThanOrEqual
                                       x
-                                      (float Pitch.HalfLength + 1.0)
-                                      (sprintf "%A slot %d X off-pitch at tick %d" side slot world.State.Tick)
+                                      (float Pitch.HalfLength + 5.0)
+                                      (sprintf
+                                          "%A slot %d X beyond the physics envelope at tick %d"
+                                          side
+                                          slot
+                                          world.State.Tick)
 
                                   Expect.isLessThanOrEqual
                                       y
-                                      (float Pitch.HalfWidth + 1.0)
-                                      (sprintf "%A slot %d Y off-pitch at tick %d" side slot world.State.Tick)
+                                      (float Pitch.HalfWidth + 5.0)
+                                      (sprintf
+                                          "%A slot %d Y beyond the physics envelope at tick %d"
+                                          side
+                                          slot
+                                          world.State.Tick)
+
+                                  if x > float Pitch.HalfLength + 1.0 || y > float Pitch.HalfWidth + 1.0 then
+                                      offPitchNow <- Set.add (side, slot) offPitchNow
+
+                          let stuck = Set.intersect offPitchNow offPitchPrev
+                          Expect.isEmpty stuck "a player stuck past a line at consecutive samples is a teleport bug"
+                          offPitchPrev <- offPitchNow
 
                   Expect.isGreaterThan checked 10 "sampled the match at multiple instants"
                   Expect.equal world.State.Flow MatchFlow.MatchEnded "match reached full time") ]

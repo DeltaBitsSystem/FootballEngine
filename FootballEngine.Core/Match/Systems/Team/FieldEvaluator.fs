@@ -23,27 +23,27 @@ module FieldEvaluator =
     /// the base point (reproducible every tick, unlike random sampling) plus,
     /// when an offside line is known, a legal option one metre behind it on
     /// the base Y — otherwise the refinement could pick an offside spot.
-    let candidates (p: EvaluatorParams) (cx: float) (cy: float) : (float * float)[] =
+    let candidates (p: EvaluatorParams) (cx: float) (cy: float) : FPoint[] =
         let count = max 1 p.CandidateCount
         let extra = if p.OffsideX.IsSome then 1 else 0
-        let pts = Array.zeroCreate<(float * float)> (count + extra)
-        pts.[0] <- (cx, cy)
+        let pts = Array.zeroCreate (count + extra)
+        pts.[0] <- FPoint.ofXY cx cy
 
         for k in 1 .. count - 1 do
             let ang = 2.0 * System.Math.PI * float (k - 1) / float (count - 1)
-            pts.[k] <- (cx + p.SearchRadius * cos ang, cy + p.SearchRadius * sin ang)
+            pts.[k] <- FPoint.ofXY (cx + p.SearchRadius * cos ang) (cy + p.SearchRadius * sin ang)
 
         match p.OffsideX with
-        | Some lineX -> pts.[count] <- (lineX - 1.0, cy)
+        | Some lineX -> pts.[count] <- FPoint.ofXY (lineX - 1.0) cy
         | None -> ()
 
         pts
 
-    let private nearestDist (pts: (float * float)[]) (x: float) (y: float) : float =
+    let private nearestDist (pts: FPoint[]) (x: float) (y: float) : float =
         let mutable best = System.Double.MaxValue
 
-        for (px, py) in pts do
-            let d = MatchMath.distF32 (float32 x) (float32 y) (float32 px) (float32 py)
+        for pt in pts do
+            let d = MatchMath.distF32 (float32 x) (float32 y) (float32 pt.X) (float32 pt.Y)
 
             if d < best then
                 best <- d
@@ -53,13 +53,7 @@ module FieldEvaluator =
     /// Quantify how good a candidate spot is (higher is better), so `refine`
     /// can compare every point on one scale. In the team's attacking frame
     /// where attack = +X.
-    let score
-        (p: EvaluatorParams)
-        (teammates: (float * float)[])
-        (opponents: (float * float)[])
-        (x: float)
-        (y: float)
-        : float =
+    let score (p: EvaluatorParams) (teammates: FPoint[]) (opponents: FPoint[]) (x: float) (y: float) : float =
         // spread: a candidate too close to a teammate is wasteful, so reward
         // standing at least MinTeammateDist away from the nearest one.
         let spread =
@@ -90,12 +84,6 @@ module FieldEvaluator =
     /// Adjust a coarse formation target using the current local spacing — the
     /// formation cannot see the opponents, so the best-scoring candidate of
     /// the surrounding cloud replaces it.
-    let refine
-        (p: EvaluatorParams)
-        (teammates: (float * float)[])
-        (opponents: (float * float)[])
-        (baseX: float)
-        (baseY: float)
-        : (float * float) =
+    let refine (p: EvaluatorParams) (teammates: FPoint[]) (opponents: FPoint[]) (baseX: float) (baseY: float) : FPoint =
         candidates p baseX baseY
-        |> Array.maxBy (fun (x, y) -> score p teammates opponents x y)
+        |> Array.maxBy (fun pt -> score p teammates opponents pt.X pt.Y)

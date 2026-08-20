@@ -257,16 +257,63 @@ module WorldRunner =
                         |> updateCoord fixture.HomeClubId true
                         |> updateCoord fixture.AwayClubId false
 
+                    // Engine player ids are the domain ids (Projection.toProfile),
+                    // so the scouting path unwraps them to index the domain map.
+                    let clubOfEnginePlayer (PlayerId n) =
+                        gsReady.Players |> Map.tryFind n |> Option.bind Player.clubOf
+
+                    let updateScouting (clubId: ClubId) (isHome: bool) (gs: GameState) : GameState =
+                        let rivalId = if isHome then fixture.AwayClubId else fixture.HomeClubId
+
+                        let rivalSignature =
+                            match GameState.headCoach rivalId gsReady with
+                            | Some coach ->
+                                match coach.Attributes.Coaching.Lineup with
+                                | Some lu ->
+                                    (string lu.Formation,
+                                     lu.Instructions |> Option.defaultValue TacticalInstructions.defaultInstructions)
+                                | None -> "", TacticalInstructions.defaultInstructions
+                            | None -> "", TacticalInstructions.defaultInstructions
+
+                        let club = gs.Clubs[clubId]
+
+                        let updatedMem =
+                            MatchPhase.recordPattern
+                                ctx.Config.Scout
+                                gsReady.CurrentDate
+                                fixture.HomeClubId
+                                fixture.AwayClubId
+                                rivalId
+                                rivalSignature
+                                clubOfEnginePlayer
+                                outcome.Fixture.Events
+                                club.ScoutingMemory
+                            // Rivals unseen for months stop costing save space.
+                            |> ScoutingMemory.prune ctx.Config.Scout gsReady.CurrentDate
+
+                        { gs with
+                            Clubs =
+                                gs.Clubs
+                                |> Map.add
+                                    clubId
+                                    { club with
+                                        ScoutingMemory = updatedMem } }
+
+                    let gsWithScouting =
+                        gsWithCoord
+                        |> updateScouting fixture.HomeClubId true
+                        |> updateScouting fixture.AwayClubId false
+
                     let clock1 = WorldClockOps.advance clock
 
                     Ok
                         { DayResult =
-                            { GameState = gsWithCoord
+                            { GameState = gsWithScouting
                               WorldClock = clock1
                               PlayedMatches = [ fixtureId, outcome.Fixture ]
                               Logs =
                                 [ $"{gsReady.Clubs[fixture.HomeClubId].Name} {h}-{a} {gsReady.Clubs[fixture.AwayClubId].Name}" ]
-                              SeasonComplete = isSeasonComplete gsWithCoord }
+                              SeasonComplete = isSeasonComplete gsWithScouting }
                           MatchReplay = Some replay }
 
     let hasUserMatchToday (gs: GameState) : bool =

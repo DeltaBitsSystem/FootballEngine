@@ -93,8 +93,23 @@ type ShotResult =
 
 type EventData =
     | Possession of side: ClubSide * player: PlayerId
-    | Pass of passer: PlayerId * receiver: PlayerId option * distance: float<meter> * quality: float * completed: bool
-    | Shot of shooter: PlayerId * result: ShotResult * xG: float * speed: float<meterPerSecond>
+    | Pass of
+        passer: PlayerId *
+        receiver: PlayerId option *
+        distance: float<meter> *
+        quality: float *
+        completed: bool *
+        fromX: float<meter> *
+        fromY: float<meter> *
+        toX: float<meter> *
+        toY: float<meter>
+    | Shot of
+        shooter: PlayerId *
+        result: ShotResult *
+        xG: float *
+        speed: float<meterPerSecond> *
+        x: float<meter> *
+        y: float<meter>
     | Goal of side: ClubSide * scorer: PlayerId option * assist: PlayerId option * xG: float
     | Foul of
         fouler: PlayerId *
@@ -108,8 +123,8 @@ type EventData =
     | Interception of interceptor: PlayerId * passer: PlayerId
     | Tackle of winner: PlayerId * loser: PlayerId
     | Save of gk: PlayerId * shooter: PlayerId
-    | CrossAttempt of crosser: PlayerId
-    | Dribble of dribbler: PlayerId * succeeded: bool
+    | CrossAttempt of crosser: PlayerId * x: float<meter> * y: float<meter>
+    | Dribble of dribbler: PlayerId * succeeded: bool * x: float<meter> * y: float<meter>
     | Injury of player: PlayerId * severity: int
     | Substitution of playerOut: PlayerId * playerIn: PlayerId
     | VARDecision of decision: VARResult
@@ -161,8 +176,9 @@ module MatchEvent =
     let describe (ev: MatchEvent) : string =
         match ev.Data with
         | EventData.Possession(side, _) -> sprintf "Possession: %A" side
-        | EventData.Pass(_, _, distance, _, completed) -> sprintf "Pass %.1fm completed=%b" distance completed
-        | EventData.Shot(_, result, _, speed) -> sprintf "Shot %A %.1fm/s" result speed
+        | EventData.Pass(_, _, distance, _, completed, _, _, _, _) ->
+            sprintf "Pass %.1fm completed=%b" distance completed
+        | EventData.Shot(_, result, _, speed, _, _) -> sprintf "Shot %A %.1fm/s" result speed
         | EventData.Goal(side, _, _, _) -> sprintf "GOAL: %A" side
         | EventData.Foul(_, _, severity, _, _) -> sprintf "Foul: %A" severity
         | EventData.Card(_, card) -> sprintf "Card: %A" card
@@ -172,7 +188,7 @@ module MatchEvent =
         | EventData.Tackle(_, _) -> "Tackle"
         | EventData.Save(_, _) -> "Save"
         | EventData.CrossAttempt _ -> "Cross attempt"
-        | EventData.Dribble(_, succeeded) -> sprintf "Dribble succeeded=%b" succeeded
+        | EventData.Dribble(_, succeeded, _, _) -> sprintf "Dribble succeeded=%b" succeeded
         | EventData.Injury(_, severity) -> sprintf "Injury severity=%d" severity
         | EventData.Substitution(_, _) -> "Substitution"
         | EventData.VARDecision decision -> sprintf "VAR: %A" decision

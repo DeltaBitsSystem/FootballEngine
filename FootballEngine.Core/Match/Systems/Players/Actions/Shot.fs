@@ -26,7 +26,7 @@ module Shot =
 
         let near = MatchWorld.opponentsNear ctx.Ctx world side x y 6.0
         let openness = 1.0 - 0.3 * MatchMath.clamp01 (float near / 4.0)
-        let xg = exp (-0.07 * d - 0.9) * (0.6 + float p.Finishing / 150.0) * openness
+        let xg = MatchMath.xGFrom d (float p.Finishing) openness
 
         let pOnTarget =
             MatchMath.clamp01 (0.5 + (float p.Finishing - 60.0) / 100.0 + 0.2 * openness)

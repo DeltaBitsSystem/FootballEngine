@@ -25,9 +25,25 @@ module StatsTests =
                   let world =
                       accumulate
                           [ { Tick = 0<subtick>
-                              Data = EventData.Shot(pid, ShotResult.OnTarget false, 0.5, 20.0<meterPerSecond>) }
+                              Data =
+                                EventData.Shot(
+                                    pid,
+                                    ShotResult.OnTarget false,
+                                    0.5,
+                                    20.0<meterPerSecond>,
+                                    30.0<meter>,
+                                    0.0<meter>
+                                ) }
                             { Tick = 1<subtick>
-                              Data = EventData.Shot(pid, ShotResult.OffTarget, 0.3, 22.0<meterPerSecond>) } ]
+                              Data =
+                                EventData.Shot(
+                                    pid,
+                                    ShotResult.OffTarget,
+                                    0.3,
+                                    22.0<meterPerSecond>,
+                                    30.0<meter>,
+                                    0.0<meter>
+                                ) } ]
 
                   Expect.equal world.Home.Stats.Shots 2 "two shots counted"
                   Expect.isGreaterThan world.Home.Stats.XgSum 0.79 "xG accumulated"
@@ -41,13 +57,35 @@ module StatsTests =
                   let world =
                       accumulate
                           [ { Tick = 0<subtick>
-                              Data = EventData.Pass(passer, Some dribbler, 12.0<meter>, 0.7, true) }
+                              Data =
+                                EventData.Pass(
+                                    passer,
+                                    Some dribbler,
+                                    12.0<meter>,
+                                    0.7,
+                                    true,
+                                    0.0<meter>,
+                                    0.0<meter>,
+                                    12.0<meter>,
+                                    0.0<meter>
+                                ) }
                             { Tick = 1<subtick>
-                              Data = EventData.Pass(passer, Some dribbler, 12.0<meter>, 0.5, false) }
+                              Data =
+                                EventData.Pass(
+                                    passer,
+                                    Some dribbler,
+                                    12.0<meter>,
+                                    0.5,
+                                    false,
+                                    0.0<meter>,
+                                    0.0<meter>,
+                                    12.0<meter>,
+                                    0.0<meter>
+                                ) }
                             { Tick = 2<subtick>
-                              Data = EventData.Dribble(dribbler, true) }
+                              Data = EventData.Dribble(dribbler, true, 20.0<meter>, 0.0<meter>) }
                             { Tick = 3<subtick>
-                              Data = EventData.CrossAttempt(dribbler) } ]
+                              Data = EventData.CrossAttempt(dribbler, 30.0<meter>, 10.0<meter>) } ]
 
                   Expect.equal world.Home.Stats.Passes 2 "passes counted"
                   Expect.equal world.Home.Stats.PassesCompleted 1 "one completed"

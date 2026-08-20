@@ -55,7 +55,7 @@ module SimHangDiag =
                         lastThrowSpot.RemoveAt 0
 
                     lastThrowSpot.Add(ball.X, ball.Y)
-                | EventData.Pass(_, _, _, _, true) when pending.Count > 0 -> pending.RemoveAt 0 |> ignore
+                | EventData.Pass(_, _, _, _, true, _, _, _, _) when pending.Count > 0 -> pending.RemoveAt 0 |> ignore
                 | _ -> ()
 
             let py = abs (float world.State.Ball.Position.Y)

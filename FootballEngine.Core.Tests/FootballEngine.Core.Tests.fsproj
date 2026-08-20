@@ -24,12 +24,18 @@
     <Compile Include="Stepper\StepperTests.fs"/>
     <Compile Include="Stepper\DeterminismTests.fs"/>
     <Compile Include="Stepper\MatchFactoryTests.fs"/>
+    <Compile Include="Stepper\ChainSequenceTests.fs"/>
     <Compile Include="Systems\Referee\FoulsTests.fs"/>
     <Compile Include="Systems\Referee\VARTests.fs"/>
     <Compile Include="Systems\Referee\CardsTests.fs"/>
     <Compile Include="Systems\Ball\GoalDetectionTests.fs"/>
     <Compile Include="Systems\Players\PerceptionTests.fs"/>
     <Compile Include="Systems\Players\DecisionTests.fs"/>
+    <Compile Include="Systems\Players\PlannerTests.fs"/>
+    <Compile Include="Systems\Players\PlannerEvaluatorTests.fs"/>
+    <Compile Include="Systems\Players\ChainIntegrationTests.fs"/>
+    <Compile Include="Systems\Players\ChainLifetimeTests.fs"/>
+    <Compile Include="Systems\Players\PlannerBudgetTests.fs"/>
     <Compile Include="Systems\Players\Actions\PassTests.fs"/>
     <Compile Include="Systems\Players\Actions\SetPieceTests.fs"/>
     <Compile Include="Systems\Players\Actions\ShootoutTests.fs"/>
@@ -48,6 +54,9 @@
     <Compile Include="Stepper\EventApplyTests.fs"/>
     <Compile Include="Stepper\RestartContractTests.fs"/>
     <Compile Include="Contracts\StatsTests.fs"/>
+    <Compile Include="Contracts\ScoutingTests.fs"/>
+    <Compile Include="Contracts\SquadPlannerTests.fs"/>
+    <Compile Include="Contracts\ScoutingWorldTests.fs"/>
     <Compile Include="Program.fs"/>
   </ItemGroup>
 

@@ -258,6 +258,45 @@ module MatchPhase =
                 && f.AwayClubId <> state.UserClubId))
         |> List.ofSeq
 
+    /// Per-match memory seam: one club watches the other. The watcher is the
+    /// side facing the opponent, and its own events are dropped before
+    /// extraction because PatternExtractor reads the pattern's owner from the
+    /// first action event — and the first kick is almost always the watcher's.
+    let recordPattern
+        (cfg: ScoutConfig)
+        (now: System.DateTime)
+        (homeId: ClubId)
+        (awayId: ClubId)
+        (opponent: ClubId)
+        (signature: string * TacticalInstructions)
+        (clubOfPlayer: FootballEngine.Core.Match.PlayerId -> ClubId option)
+        (events: MatchEvent list)
+        (mem: Map<ClubId, OpponentMemory>)
+        : Map<ClubId, OpponentMemory> =
+        let watcher = if opponent = homeId then awayId else homeId
+
+        let clubOfSide side =
+            match side with
+            | ClubSide.Home -> homeId
+            | ClubSide.Away -> awayId
+
+        let rivalEvents =
+            events
+            |> List.filter (fun ev ->
+                match ev.Data with
+                | EventData.Pass(p, _, _, _, _, _, _, _, _)
+                | EventData.Shot(p, _, _, _, _, _)
+                | EventData.Dribble(p, _, _, _)
+                | EventData.CrossAttempt(p, _, _) -> clubOfPlayer p <> Some watcher
+                | EventData.Possession(side, _) -> clubOfSide side <> watcher
+                | _ -> false)
+
+        let vector =
+            PatternExtractor.extract cfg homeId awayId clubOfPlayer rivalEvents
+            |> PatternVector.withSignature (fst signature) (snd signature)
+
+        ScoutingMemory.update cfg now opponent vector mem
+
     /// Simulates a fixture with the Core engine. Returns the outcome or None
     /// when the fixture cannot be lined up (missing coach/lineup).
     let simulateFixture (fixtureId: MatchId) (fixture: MatchFixture) (gs: GameState) : FixtureOutcome option =
@@ -297,6 +336,7 @@ module MatchPhase =
             Some outcome
 
     let runFixtures (fixtures: (MatchId * MatchFixture) list) (state: GameState) =
+        let config = BalanceConfig.defaultConfig
         let gsReady = LineupOps.ensureForFixtures fixtures state
 
         let outcomes =
@@ -309,6 +349,11 @@ module MatchPhase =
 
         let clubOfPlayer =
             fun pid -> gsReady.Players |> Map.tryFind pid |> Option.bind Player.clubOf
+
+        // Engine player ids are the domain ids (Projection.toProfile), so the
+        // scouting path unwraps them to index the domain player map.
+        let clubOfEnginePlayer (FootballEngine.Core.Match.PlayerId n) =
+            gsReady.Players |> Map.tryFind n |> Option.bind Player.clubOf
 
         let updateClubCoord (clubId: ClubId) (gs: GameState) : GameState =
             let outcome =
@@ -347,13 +392,65 @@ module MatchPhase =
                             { club with
                                 CoordinationMemory = updatedCoord } }
 
+        let updateScouting (clubId: ClubId) (gs: GameState) : GameState =
+            let outcome =
+                outcomes
+                |> Array.tryFind (fun o -> o.Fixture.HomeClubId = clubId || o.Fixture.AwayClubId = clubId)
+
+            match outcome with
+            | None -> gs
+            | Some o ->
+                let isHome = o.Fixture.HomeClubId = clubId
+
+                let rivalId =
+                    if isHome then
+                        o.Fixture.AwayClubId
+                    else
+                        o.Fixture.HomeClubId
+
+                // The signature recorded is the rival coach's current lineup
+                // shape; a rival that later changes it gets a dampened counter.
+                let rivalSignature =
+                    match GameState.headCoach rivalId gsReady with
+                    | Some coach ->
+                        match coach.Attributes.Coaching.Lineup with
+                        | Some lu ->
+                            (string lu.Formation,
+                             lu.Instructions |> Option.defaultValue TacticalInstructions.defaultInstructions)
+                        | None -> "", TacticalInstructions.defaultInstructions
+                    | None -> "", TacticalInstructions.defaultInstructions
+
+                let club = gs.Clubs[clubId]
+
+                let updatedMem =
+                    recordPattern
+                        config.Scout
+                        gsReady.CurrentDate
+                        o.Fixture.HomeClubId
+                        o.Fixture.AwayClubId
+                        rivalId
+                        rivalSignature
+                        clubOfEnginePlayer
+                        o.Fixture.Events
+                        club.ScoutingMemory
+                    // Rivals unseen for months stop costing save space.
+                    |> ScoutingMemory.prune config.Scout gsReady.CurrentDate
+
+                { gs with
+                    Clubs =
+                        gs.Clubs
+                        |> Map.add
+                            clubId
+                            { club with
+                                ScoutingMemory = updatedMem } }
+
         let affectedClubs =
             outcomes
             |> Array.collect (fun o -> [| o.Fixture.HomeClubId; o.Fixture.AwayClubId |])
             |> Set.ofArray
 
         affectedClubs
-        |> Seq.fold (fun gs clubId -> updateClubCoord clubId gs) afterOutcomes
+        |> Seq.fold (fun gs clubId -> gs |> updateClubCoord clubId |> updateScouting clubId) afterOutcomes
 
     let make: WorldPhase =
         { Tag = Match

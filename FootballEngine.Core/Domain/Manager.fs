@@ -10,6 +10,14 @@ type TransferTarget =
       Priority: float
       MaxFee: decimal }
 
+/// AI transfer discipline: the bench-warmer invariant and value tolerance.
+[<Struct>]
+type TransferConfig =
+    { BenchWarmerAgeMin: int
+      MinMatchesForSquadPlayer: int
+      MaxOver25BenchWarmers: int
+      OverpayTolerance: decimal }
+
 type ManagerIntent =
     { ClubId: ClubId
       CoachId: StaffId

@@ -26,6 +26,7 @@
         <Compile Include="AppState\Slices\TrainingSlice.fs"/>
         <Compile Include="AppState\Slices\InboxSlice.fs"/>
         <Compile Include="AppState\Slices\MatchSlice.fs"/>
+        <Compile Include="AppState\Slices\ScoutingSlice.fs"/>
         <Compile Include="AppState\UpdateSetup.fs"/>
         <Compile Include="AppState\UpdateSim.fs"/>
         <Compile Include="AppState\UpdateTransfer.fs"/>
@@ -47,6 +48,7 @@
         <Compile Include="Views\Pages\Squad.fs"/>
         <Compile Include="Views\Pages\Tactic.fs"/>
         <Compile Include="Views\Pages\Training.fs"/>
+        <Compile Include="Views\Pages\Scouting.fs"/>
         <Compile Include="Views\Pages\Transfer.fs"/>
         <Compile Include="Views\Pages\ModEditor.fs"/>
         <Compile Include="Program.fs"/>

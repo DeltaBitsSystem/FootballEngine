@@ -76,6 +76,14 @@ module WeightMerge =
                     Ok((prop, box (elem.GetDouble())) :: list)
                 else
                     Error(sprintf "WeightMerge: field '%s%s' must be a number" path newName)
+            elif t = typeof<decimal> then
+                // money-shaped config (e.g. TransferConfig.OverpayTolerance) must
+                // survive JSON overrides; without this case it would be boxed as
+                // a double and MakeRecord would reject the conversion
+                if elem.ValueKind = JsonValueKind.Number then
+                    Ok((prop, box (elem.GetDecimal())) :: list)
+                else
+                    Error(sprintf "WeightMerge: field '%s%s' must be a number" path newName)
             elif t = typeof<string> then
                 if elem.ValueKind = JsonValueKind.String then
                     Ok((prop, box (elem.GetString())) :: list)
@@ -140,8 +148,18 @@ module WeightMerge =
                 Error "WeightMerge: root must be a JSON object"
             else
                 match mergeInto (box defaults) typeof<BalanceConfig> doc.RootElement "" with
-                | Ok merged -> Ok(unbox<BalanceConfig> merged)
                 | Error err -> Error err
+                | Ok merged ->
+                    let merged = unbox<BalanceConfig> merged
+
+                    match
+                        ConfigValidation.validatePlanner merged.Planner
+                        @ ConfigValidation.validateScout merged.Scout
+                        @ ConfigValidation.validateCounter merged.Counter
+                        @ ConfigValidation.validateTransfer merged.Transfer
+                    with
+                    | [] -> Ok merged
+                    | errs -> Error(sprintf "WeightMerge: invalid config: %s" (String.concat "; " errs))
         with ex ->
             Error(sprintf "WeightMerge: invalid JSON: %s" ex.Message)
 

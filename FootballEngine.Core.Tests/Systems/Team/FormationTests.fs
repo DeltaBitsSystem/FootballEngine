@@ -22,7 +22,7 @@ module FormationTests =
         let roles = lineup.Profiles |> Array.map (fun p -> p.Role)
         Formation.fromLineup roles lineup.BasePositions 1.0 anchors
 
-    let private strikerAndDefenders (slots: (float32 * float32)[]) (roles: SlotRole[]) =
+    let private strikerAndDefenders (slots: FPoint[]) (roles: SlotRole[]) =
         let striker = roles |> Array.findIndex (fun r -> r = SlotRole.Striker)
 
         let defenders =
@@ -43,7 +43,7 @@ module FormationTests =
 
                   Expect.all
                       targets
-                      (fun (x, y) -> not (System.Double.IsNaN(float x) || System.Double.IsNaN(float y)))
+                      (fun pt -> not (System.Double.IsNaN pt.X || System.Double.IsNaN pt.Y))
                       "targets are finite")
 
               testCase "query is deterministic" (fun _ ->
@@ -62,14 +62,14 @@ module FormationTests =
                          -20.0<meter>, 25.0<meter> |]
 
                   for bx, by in ballZones do
-                      for x, y in Formation.query f bx by do
+                      for pt in Formation.query f bx by do
                           Expect.isLessThanOrEqual
-                              (abs (float x))
+                              (abs pt.X)
                               (float Pitch.HalfLength)
                               (sprintf "X in pitch at ball (%f,%f)" (float bx) (float by))
 
                           Expect.isLessThanOrEqual
-                              (abs (float y))
+                              (abs pt.Y)
                               (float Pitch.HalfWidth)
                               (sprintf "Y in pitch at ball (%f,%f)" (float bx) (float by)))
 
@@ -87,8 +87,8 @@ module FormationTests =
 
                   for bx, by in ballZones do
                       let targets = Formation.query f bx by
-                      let sX = targets.[striker] |> fst
-                      let maxDefX = defenders |> Array.map (fun s -> targets.[s] |> fst) |> Array.max
+                      let sX = targets.[striker].X
+                      let maxDefX = defenders |> Array.map (fun s -> targets.[s].X) |> Array.max
                       Expect.isGreaterThan sX maxDefX (sprintf "striker ahead at ball (%f,%f)" (float bx) (float by)))
 
               testCase "wingers stay wider than the central block for any ball position" (fun _ ->
@@ -112,8 +112,7 @@ module FormationTests =
                   for bx, by in ballZones do
                       let targets = Formation.query f bx by
 
-                      let wingerWidth =
-                          wingers |> Array.map (fun s -> abs (float (snd targets.[s]))) |> Array.max
+                      let wingerWidth = wingers |> Array.map (fun s -> abs targets.[s].Y) |> Array.max
 
                       let centralWidth =
                           roles
@@ -125,7 +124,7 @@ module FormationTests =
                                   && s <> striker
                                   && not (Array.contains s defenders)
                               then
-                                  Some(abs (float (snd targets.[s])))
+                                  Some(abs targets.[s].Y)
                               else
                                   None)
                           |> Array.max
@@ -149,8 +148,8 @@ module FormationTests =
 
                   for bx, by in ballZones do
                       let targets = Formation.query f bx by
-                      let gkX = targets.[gk] |> fst
-                      let gkY = abs (float (snd targets.[gk]))
-                      let stX = targets.[striker] |> fst
+                      let gkX = targets.[gk].X
+                      let gkY = abs targets.[gk].Y
+                      let stX = targets.[striker].X
                       Expect.isLessThan gkY 4.0 (sprintf "GK central at ball (%f,%f)" (float bx) (float by))
                       Expect.isLessThan gkX stX (sprintf "GK behind striker at ball (%f,%f)" (float bx) (float by))) ]

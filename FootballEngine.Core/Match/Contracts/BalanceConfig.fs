@@ -205,6 +205,20 @@ type MatchConfig =
       ExtraTimePeriodDuration: float<second>
       ShootoutRounds: int }
 
+/// Action chain planner — controls chain depth, evaluation budget, and plan TTL.
+type PlannerConfig =
+    { MaxChainLength: int
+      MaxEvaluateLimit: int
+      PlanTTL: int<subtick> }
+
+// ScoutConfig/CounterConfig live in ScoutingConfig.fs: Domain/Scouting.fs must
+// compile before Domain/Club.fs (Club carries ScoutingMemory), and this file
+// cannot — it needs Domain.TransferConfig from Domain/Manager.fs.
+
+/// AI transfer discipline lives in Domain (SquadPlanner reads it): the
+/// bench-warmer invariant and value tolerance.
+type TransferConfig = FootballEngine.Domain.TransferConfig
+
 /// Collective positioning (HELIOS formation + Voronoi evaluator + lateral pairs).
 [<Struct>]
 type PositioningConfig =
@@ -260,6 +274,10 @@ type BalanceConfig =
       Manager: ManagerConfig
       Environment: EnvironmentConfig
       Match: MatchConfig
+      Planner: PlannerConfig
+      Scout: ScoutConfig
+      Counter: CounterConfig
+      Transfer: TransferConfig
       Weights: WeightSections }
 
 module BalanceConfig =
@@ -467,6 +485,39 @@ module BalanceConfig =
           ExtraTimePeriodDuration = 900.0<second>
           ShootoutRounds = 5 }
 
+    let defaultPlanner: PlannerConfig =
+        { MaxChainLength = 4
+          MaxEvaluateLimit = 500
+          PlanTTL = 480<subtick> }
+
+    let defaultScout: ScoutConfig =
+        { MemoryHalfLifeDays = 30.0
+          MinConfidenceToReport = 0.3
+          AiReportNoise = 0.0
+          NoiseByAbility = 0.25
+          RivalPruneAfterDays = 200.0
+          ConfidenceMatches = 3.0
+          ShortPassMaxMeters = 15.0<meter>
+          LongPassMinMeters = 30.0<meter>
+          NearShotMaxMeters = 16.5<meter>
+          AreaShotMaxMeters = 25.0<meter> }
+
+    let defaultCounter: CounterConfig =
+        { MaxSideBias = 1.0
+          BiasScale = 1.5
+          MaxPressBoost = 0.5
+          MaxLineDrop = 1.0
+          MaxWidthTighten = 0.5
+          MaxTempoShift = 0.5
+          MaxDirectnessShift = 0.5
+          SignatureChangePenalty = 0.6 }
+
+    let defaultTransfer: TransferConfig =
+        { BenchWarmerAgeMin = 25
+          MinMatchesForSquadPlayer = 10
+          MaxOver25BenchWarmers = 2
+          OverpayTolerance = 0.25m }
+
     let defaultConfig: BalanceConfig =
         { Ball = defaultBall
           Movement = defaultMovement
@@ -482,4 +533,8 @@ module BalanceConfig =
           Manager = defaultManager
           Environment = defaultEnvironment
           Match = defaultMatch
+          Planner = defaultPlanner
+          Scout = defaultScout
+          Counter = defaultCounter
+          Transfer = defaultTransfer
           Weights = WeightSections.defaultWeights }

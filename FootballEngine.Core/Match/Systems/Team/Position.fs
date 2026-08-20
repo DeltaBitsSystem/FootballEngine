@@ -109,11 +109,16 @@ module TeamPosition =
 
     /// Active positions of a team converted to the given team's attacking frame —
     /// the evaluator needs every side in the same frame to compare distances.
-    let private activePositions (world: World) (side: ClubSide) (dir: float) : (float * float)[] =
+    let private activePositions (world: World) (side: ClubSide) (dir: float) : FPoint[] =
         let frame = (MatchWorld.team world side).Frame
+        let active = MatchWorld.activeSlots frame
+        let pts = Array.zeroCreate active.Length
 
-        MatchWorld.activeSlots frame
-        |> Array.map (fun i -> float frame.PosX.[i] * dir, float frame.PosY.[i])
+        for idx in 0 .. active.Length - 1 do
+            let i = active.[idx]
+            pts.[idx] <- FPoint.ofXY (float frame.PosX.[i] * dir) (float frame.PosY.[i])
+
+        pts
 
     let private positionTeam (ctx: MatchContext) (world: World) (side: ClubSide) : unit =
         let team = MatchWorld.team world side
@@ -167,13 +172,13 @@ module TeamPosition =
         // so the nudge happens on the raw formation targets (team frame).
         let baseTargets =
             Formation.query formation ballFx ballFy
-            |> Array.map (fun (x, y) -> float x + nudge, float y)
+            |> Array.map (fun pt -> FPoint.ofXY (pt.X + nudge) pt.Y)
 
         // Pair swaps compare travel from where the slots are now, so the current
         // positions must be in the same frame as the targets.
         let ownPositions =
             let frame = (MatchWorld.team world side).Frame
-            Array.init frame.SlotCount (fun i -> float frame.PosX.[i] * dir, float frame.PosY.[i])
+            Array.init frame.SlotCount (fun i -> FPoint.ofXY (float frame.PosX.[i] * dir) (float frame.PosY.[i]))
 
         // The evaluator must see the opponents where they really stand, so their
         // live positions (not the shape) feed the Voronoi term.
@@ -194,19 +199,24 @@ module TeamPosition =
             || team.Blackboard.OurPhase = PhaseKind.TransitionDefend
 
         for i in active do
-            let tx, ty = pairedTargets.[i]
+            let tx = pairedTargets.[i].X
+            let ty = pairedTargets.[i].Y
 
             let fx, fy =
                 if i = gkSlot then
                     tx, ty
                 else
                     // Exclude the slot's own current position from the spread term.
-                    let teams =
-                        active
-                        |> Array.filter (fun j -> j <> i)
-                        |> Array.map (fun j -> ownPositions.[j])
+                    let teamsArr = Array.zeroCreate (active.Length - 1)
+                    let mutable idx = 0
 
-                    FieldEvaluator.refine evalParams teams oppPositions tx ty
+                    for j in active do
+                        if j <> i then
+                            teamsArr.[idx] <- ownPositions.[j]
+                            idx <- idx + 1
+
+                    let refined = FieldEvaluator.refine evalParams teamsArr oppPositions tx ty
+                    refined.X, refined.Y
 
             let fx' =
                 if defending && i <> gkSlot then

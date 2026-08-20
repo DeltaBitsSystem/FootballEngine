@@ -72,7 +72,8 @@ type ClubEntity =
       Budget: decimal
       Morale: int
       BoardObjective: string
-      CoordinationMemory: string }
+      CoordinationMemory: string
+      ScoutingMemory: string }
 
 [<CLIMutable>]
 type LineupSlotEntity =

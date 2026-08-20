@@ -1,5 +1,17 @@
 namespace FootballEngine.Core.Match
 
+/// A 2D point as a VALUE type. Arrays of `(float * float)` boxes each element
+/// as a reference Tuple (one heap object per point); a struct array is a
+/// single object with inline fields, so the hot formation/evaluator paths stop
+/// allocating per-point.
+[<Struct>]
+type FPoint = { X: float; Y: float }
+
+module FPoint =
+    let inline ofXY (x: float) (y: float) : FPoint = { X = x; Y = y }
+    let inline ofTuple (x: float * float) : FPoint = { X = fst x; Y = snd x }
+    let inline toTuple (p: FPoint) : float * float = p.X, p.Y
+
 /// Deterministic math shared by every system. Pure and global-free, so the
 /// same inputs always yield the same outputs — nothing here can break determinism.
 module MatchMath =
@@ -57,6 +69,12 @@ module MatchMath =
 
     let distanceToGoal (side: ClubSide) (x: float<meter>) (y: float<meter>) : float = dist x y (goalX side) 0.0<meter>
 
+    /// One xG formula for the whole engine: the carrier's belief (Decision),
+    /// the shot's strike value (Shot), and the planner's expectation must
+    /// agree, or decisions would chase a number physics never delivers.
+    let xGFrom (d: float) (finishing: float) (openness: float) : float =
+        exp (-0.07 * d - 0.9) * (0.6 + finishing / 150.0) * openness
+
 /// Every system reads positions/teams through here so derived concepts
 /// (nearest opponent, offside line, ball carrier) are computed identically everywhere.
 module MatchWorld =
@@ -95,11 +113,18 @@ module MatchWorld =
         | _ -> false
 
     let activeSlots (frame: TeamFrame) : int[] =
-        frame.Occupancy
-        |> Array.choose (fun o ->
-            match o with
-            | OccupancyKind.Active s -> Some s
-            | _ -> None)
+        let cache = frame.ActiveCache
+
+        if cache.ComputedFor <> cache.Revision then
+            cache.Slots <-
+                [| for i in 0 .. frame.Occupancy.Length - 1 do
+                       match frame.Occupancy.[i] with
+                       | OccupancyKind.Active s -> yield s
+                       | _ -> () |]
+
+            cache.ComputedFor <- cache.Revision
+
+        cache.Slots
 
     let posX (frame: TeamFrame) (slot: int) : float<meter> = float frame.PosX.[slot] * 1.0<meter>
 

@@ -41,6 +41,9 @@ module PassInterceptTests =
         world.Home.Frame.PosY.[receiverSlot] <- float32 ry
         world
 
+    let private homeLine (world: World) (ctx: MatchContext) : float<meter> =
+        MatchWorld.offsideLine ctx world ClubSide.Home
+
     let passInterceptTests =
         testList
             "FootballEngine.Core.Systems.Team.PassInterceptTests"
@@ -51,7 +54,7 @@ module PassInterceptTests =
                   let ctx = TestBuilders.formationCtx ()
 
                   Expect.isFalse
-                      (PassIntercept.feasible cfg ctx testParams world ClubSide.Home 9 ball)
+                      (PassIntercept.feasible cfg testParams world ClubSide.Home 9 ball (homeLine world ctx))
                       "a rival on the trajectory beats the receiver")
 
               testCase "open lane is accepted" (fun _ ->
@@ -61,7 +64,7 @@ module PassInterceptTests =
                   let ctx = TestBuilders.formationCtx ()
 
                   Expect.isTrue
-                      (PassIntercept.feasible cfg ctx testParams world ClubSide.Home 9 ball)
+                      (PassIntercept.feasible cfg testParams world ClubSide.Home 9 ball (homeLine world ctx))
                       "no opponent can reach the pass in time")
 
               testCase "offside-crossing diagonal pass accepted only with risk bonus" (fun _ ->
@@ -77,23 +80,23 @@ module PassInterceptTests =
                   Expect.isFalse
                       (PassIntercept.feasible
                           { BaseRisk = 0; OffsideCrossRisk = 0 }
-                          ctx
                           testParams
                           world
                           ClubSide.Home
                           9
-                          ball)
+                          ball
+                          (homeLine world ctx))
                       "without the offside-cross risk the pass is not feasible"
 
                   Expect.isTrue
                       (PassIntercept.feasible
                           { BaseRisk = 0; OffsideCrossRisk = 2 }
-                          ctx
                           testParams
                           world
                           ClubSide.Home
                           9
-                          ball)
+                          ball
+                          (homeLine world ctx))
                       "the offside-cross risk bonus makes the diagonal pass feasible")
 
               testCase "feasible is deterministic" (fun _ ->
@@ -103,8 +106,8 @@ module PassInterceptTests =
                   let ctx = TestBuilders.formationCtx ()
 
                   Expect.equal
-                      (PassIntercept.feasible cfg ctx testParams world ClubSide.Home 9 ball)
-                      (PassIntercept.feasible cfg ctx testParams world ClubSide.Home 9 ball)
+                      (PassIntercept.feasible cfg testParams world ClubSide.Home 9 ball (homeLine world ctx))
+                      (PassIntercept.feasible cfg testParams world ClubSide.Home 9 ball (homeLine world ctx))
                       "repeated calls agree")
 
               testCase "passArrivalStep is shorter for a closer receiver" (fun _ ->
