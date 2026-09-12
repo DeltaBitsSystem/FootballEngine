@@ -58,9 +58,17 @@ module Flow =
                     Data = EventData.SetPiece(SetPieceKind.KickOff, ClubSide.Away) } ]
             else
                 MatchFlow.HalfTime(remaining - 1<tickDelta>), []
+        | MatchFlow.ExtraTimeBreak(remaining) ->
+            if remaining <= 1<tickDelta> then
+                MatchFlow.ExtraTimeBreak 0<tickDelta>,
+                [ { Tick = tick
+                    Data = EventData.SetPiece(SetPieceKind.KickOff, ClubSide.Home) } ]
+            else
+                MatchFlow.ExtraTimeBreak(remaining - 1<tickDelta>), []
         | MatchFlow.FullTimeReview(remaining) ->
             if remaining <= 1<tickDelta> then
                 MatchFlow.MatchEnded, []
             else
                 MatchFlow.FullTimeReview(remaining - 1<tickDelta>), []
+        | MatchFlow.Shootout -> flow, []
         | MatchFlow.MatchEnded -> flow, []

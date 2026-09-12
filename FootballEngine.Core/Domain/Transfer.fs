@@ -2,6 +2,7 @@ namespace FootballEngine.Domain
 
 open System
 
+
 type OfferStatus =
     | Pending
     | AcceptedByClub
@@ -68,7 +69,8 @@ module TransferNegotiation =
     let suggestedSalary (p: Player) = Player.playerSalary p.CurrentSkill
 
     let canAfford (buyer: Club) (fee: decimal) (salary: decimal) =
-        buyer.Budget >= fee * clubBudgetSafetyFactor && buyer.Budget >= salary * 12m
+        Finance.availableForTransfers buyer.Finance >= fee * clubBudgetSafetyFactor
+        && buyer.Finance.WageBudget - buyer.Finance.WageCommitment >= salary * 12m
 
 module Transfer =
 
@@ -81,9 +83,8 @@ module Transfer =
         : GameState =
         match gs.Clubs |> Map.tryFind toClubId, gs.Clubs |> Map.tryFind fromClubId with
         | Some buyer, Some seller ->
-            let updatedBuyer = buyer |> Club.adjustBudget -fee |> Club.addPlayer playerId
-
-            let updatedSeller = seller |> Club.adjustBudget fee |> Club.removePlayer playerId
+            let updatedBuyer = buyer |> Club.addPlayer playerId
+            let updatedSeller = seller |> Club.removePlayer playerId
 
             { gs with
                 Clubs = gs.Clubs |> Map.add toClubId updatedBuyer |> Map.add fromClubId updatedSeller }
@@ -108,7 +109,55 @@ module Transfer =
                     )
                 Morale = min 100 (player.Morale + 10) }
 
-        let gs2 = transferPlayer player.Id seller.Id buyer.Id fee gs
+        let reservationId = $"transfer:{player.Id}:{buyer.Id}:{fee}"
+
+        let obligation =
+            { Id = reservationId
+              Counterparty = seller.Name
+              Description = "Transfer fee"
+              DueDate = gs.CurrentDate
+              Amount = fee
+              Currency = EUR
+              Condition = "Confirmed transfer"
+              State = ObligationCommitted
+              AccruedAmount = 0m
+              PaidAmount = 0m }
+
+        let buyerFinance =
+            buyer.Finance
+            |> Finance.releaseReservation reservationId
+            |> Finance.commitObligation
+                gs.CurrentDate
+                ("transfer-commit:" + reservationId)
+                "Confirmed transfer"
+                obligation
+            |> Result.bind (
+                Finance.settleObligation
+                    gs.CurrentDate
+                    ("transfer-payment:" + reservationId)
+                    "Transfer completed"
+                    reservationId
+            )
+
+        let sellerFinance =
+            Finance.recordRevenue
+                gs.CurrentDate
+                ("transfer-receipt:" + reservationId)
+                "Transfer completed"
+                "Transfer fee"
+                fee
+                (Some buyer.Name)
+                seller.Finance
+
+        let gs2 =
+            match buyerFinance, sellerFinance with
+            | Ok bf, Ok sf ->
+                let updatedBuyer = { buyer with Finance = bf } |> Club.addPlayer player.Id
+                let updatedSeller = { seller with Finance = sf } |> Club.removePlayer player.Id
+
+                { gs with
+                    Clubs = gs.Clubs |> Map.add buyer.Id updatedBuyer |> Map.add seller.Id updatedSeller }
+            | _ -> gs
 
         { gs2 with
             Players = gs2.Players |> Map.add player.Id updatedPlayer }

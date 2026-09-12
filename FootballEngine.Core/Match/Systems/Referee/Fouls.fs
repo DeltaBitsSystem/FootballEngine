@@ -14,7 +14,6 @@ module RefereeFouls =
         (fx: float<meter>)
         (fy: float<meter>)
         : bool =
-        let cfg = ctx.Config.Referee
         let dir = MatchMath.goalDirection fouledSide
 
         // Advantage only pays off if the play is heading toward the fouled team's goal.
@@ -36,9 +35,8 @@ module RefereeFouls =
 
     /// The restart depends on the spot: inside the box it is a penalty, anywhere
     /// else a free kick — location alone decides.
-    let private isFoulInBox (fouledSide: ClubSide) (fx: float<meter>) : bool =
-        let goalX = MatchMath.goalX fouledSide
-        abs (float fx - float goalX) < 16.5
+    let private isFoulInBox (fouledSide: ClubSide) (fx: float<meter>) (fy: float<meter>) : bool =
+        Pitch.isInPenaltyArea fouledSide fx fy
 
     let private decideCard
         (ctx: SystemContext)
@@ -128,13 +126,21 @@ module RefereeFouls =
             let fouledSide =
                 MatchWorld.teamOfPlayer ctx.Ctx fouled |> Option.defaultValue ClubSide.Home
 
-            let inBox = isFoulInBox fouledSide fx
+            let inBox = isFoulInBox fouledSide fx fy
             let advantage = shouldPlayAdvantage ctx.Ctx world fouledSide fx fy
 
             if advantage then
-                // Play-on: emit nothing for the set-piece; the game continues.
-                // The advantage window is implicit — no tick overhead.
-                ()
+                buffer.Events.Add
+                    { Tick = tick
+                      Data =
+                        EventData.AdvantageStarted(
+                            fouledSide,
+                            fouler,
+                            fouled,
+                            fx,
+                            fy,
+                            tick + ctx.Ctx.Config.Referee.AdvantageWindow
+                        ) }
             elif inBox then
                 buffer.Events.Add
                     { Tick = tick

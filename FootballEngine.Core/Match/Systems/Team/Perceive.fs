@@ -53,7 +53,7 @@ module TeamPerceive =
             else
                 float team.Blackboard.WeaknessZone
 
-        let minute = int (SimulationClock.toMatchMinute tick)
+        let minute = int (PlayClock.toMatchMinute (MatchClock.playClock world.State.Clock))
         let diff = world.State.HomeScore - world.State.AwayScore
         let myDiff = if side = ClubSide.Home then diff else -diff
 

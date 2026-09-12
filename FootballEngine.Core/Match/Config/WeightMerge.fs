@@ -152,14 +152,9 @@ module WeightMerge =
                 | Ok merged ->
                     let merged = unbox<BalanceConfig> merged
 
-                    match
-                        ConfigValidation.validatePlanner merged.Planner
-                        @ ConfigValidation.validateScout merged.Scout
-                        @ ConfigValidation.validateCounter merged.Counter
-                        @ ConfigValidation.validateTransfer merged.Transfer
-                    with
-                    | [] -> Ok merged
-                    | errs -> Error(sprintf "WeightMerge: invalid config: %s" (String.concat "; " errs))
+                    match ConfigValidation.validateAll merged with
+                    | Ok _ -> Ok merged
+                    | Error errs -> Error(sprintf "WeightMerge: invalid config: %s" (String.concat "; " errs))
         with ex ->
             Error(sprintf "WeightMerge: invalid JSON: %s" ex.Message)
 
@@ -169,3 +164,35 @@ module WeightMerge =
             Ok defaults
         else
             mergeWithDefaults (System.IO.File.ReadAllText path) defaults
+
+    // ── mergeWithOverrides ──────────────────────────────────────────────
+    // Priority: Save overrides > Global overrides > defaultConfig. Already
+    // validated — if the chosen override is invalid we fall back to default
+    // without throwing, so a corrupt save never crashes the engine.
+
+    let private isValid (cfg: BalanceConfig) : bool =
+        match ConfigValidation.validateAll cfg with
+        | Ok _ -> true
+        | Error _ -> false
+
+    /// Core merge: Save > Global > default. Both are BalanceConfig options
+    /// already extracted from Settings (so this layer stays free of Settings
+    /// dependency and avoids a compilation cycle).
+    let mergeWithOverrides
+        (globalOverrides: BalanceConfig option)
+        (saveOverrides: BalanceConfig option)
+        : BalanceConfig =
+        let candidate =
+            match saveOverrides, globalOverrides with
+            | Some s, _ -> Some s
+            | None, Some g -> Some g
+            | None, None -> None
+
+        match candidate with
+        | None -> BalanceConfig.defaultConfig
+        | Some cfg when isValid cfg -> cfg
+        | Some _ -> BalanceConfig.defaultConfig
+
+    /// Single-option convenience: only Save overrides (Global is None).
+    let mergeWithOverridesSingle (saveOverrides: BalanceConfig option) : BalanceConfig =
+        mergeWithOverrides None saveOverrides

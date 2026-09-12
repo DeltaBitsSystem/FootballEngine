@@ -56,20 +56,45 @@ module Cross =
 
             let speed = 20.0
 
-            MatchWorld.updateBall world (fun b ->
-                { b with
-                    Control = BallControl.Airborne
-                    Trajectory =
-                        Some(
-                            TrajectoryIntent.Aimed(
-                                pid,
-                                (MatchWorld.lineup ctx.Ctx side).Profiles.[bestSlot].Id,
-                                quality
-                            )
-                        )
-                    LastTouch = Some pid
-                    ArrivalGate = Some(tick + int (d / speed * 40.0) * 1<subtick> + 10<subtick>)
-                    StationarySince = None })
+            let rx = MatchWorld.posX frame bestSlot
+            let ry = MatchWorld.posY frame bestSlot
+            let direction = max d 0.001
+
+            let linearVelocity =
+                { X = float (rx - x) / direction * speed * 1.0<meterPerSecond>
+                  Y = float (ry - y) / direction * speed * 1.0<meterPerSecond>
+                  Z = (4.0 + quality * 2.0) * 1.0<meterPerSecond> }
+
+            let angularVelocity =
+                { Top = -0.4<radianPerSecond>
+                  Side = float (ry - y) * 0.02<radianPerSecond>
+                  Roll = 0.0<radianPerSecond> }
+
+            let target: Vec2 option = Some { X = rx; Y = ry }
+
+            let impulse =
+                BallPhysics.createImpulse
+                    pid
+                    { X = world.State.Ball.Position.X
+                      Y = world.State.Ball.Position.Y
+                      Z = world.State.Ball.Position.Z }
+                    linearVelocity
+                    angularVelocity
+                    target
+                    StrikeKind.Cross
+                    (SimTick.ofSubTicks tick)
+                    ExecutionContext.OpenPlay
+
+            let arrival =
+                tick
+                + int (round (d / speed * float ctx.Clock.SubTicksPerSecond)) * 1<subtick>
+                + 10<subtick>
+
+            BallPhysics.applyImpulse
+                world
+                impulse
+                (TrajectoryIntent.Aimed(pid, (MatchWorld.lineup ctx.Ctx side).Profiles.[bestSlot].Id, quality))
+                (Some arrival)
 
             rng
         else

@@ -42,7 +42,15 @@ module FinanceSupervisor =
                         |> Map.add
                             clubId
                             { club with
-                                Budget = club.Budget + tb + wb } })
+                                Finance =
+                                    club.Finance
+                                    |> Finance.approveBudget
+                                        state.CurrentDate
+                                        $"budget:{clubId}:{state.Season}"
+                                        "Board allocation"
+                                        tb
+                                        wb
+                                    |> Result.defaultValue club.Finance } })
             |> Option.defaultValue state
 
     let private detectBudgetConflicts (state: GameState) (intents: Intent<ClubFinanceIntent> list) =
@@ -62,7 +70,7 @@ module FinanceSupervisor =
                         | AssignSeasonBudget(_, tb, _) -> tb
                         | _ -> 0m)
 
-                if totalSpend > club.Budget then
+                if totalSpend > Finance.availableForTransfers club.Finance then
                     Some(BudgetExceeded(clubId, totalSpend, group))
                 else
                     None))

@@ -50,11 +50,6 @@ module BallPossession =
             else
                 let pid = (MatchWorld.lineup ctx winSide).Profiles.[winSlot].Id
 
-                MatchWorld.updateBall world (fun b ->
-                    { b with
-                        Control = BallControl.Controlled(winSide, pid)
-                        LastTouch = Some pid })
-
                 buffer.Events.Add
                     { Tick = tick
                       Data = EventData.Possession(winSide, pid) }
@@ -63,11 +58,6 @@ module BallPossession =
         | Some(s1, slot1, _), None ->
             let pid = (MatchWorld.lineup ctx s1).Profiles.[slot1].Id
 
-            MatchWorld.updateBall world (fun b ->
-                { b with
-                    Control = BallControl.Controlled(s1, pid)
-                    LastTouch = Some pid })
-
             buffer.Events.Add
                 { Tick = tick
                   Data = EventData.Possession(s1, pid) }
@@ -75,11 +65,6 @@ module BallPossession =
             rng
         | None, Some(s2, slot2, _) ->
             let pid = (MatchWorld.lineup ctx s2).Profiles.[slot2].Id
-
-            MatchWorld.updateBall world (fun b ->
-                { b with
-                    Control = BallControl.Controlled(s2, pid)
-                    LastTouch = Some pid })
 
             buffer.Events.Add
                 { Tick = tick
@@ -104,14 +89,11 @@ module BallPossession =
             let x = ball.Position.X
             let y = ball.Position.Y
 
-            match MatchWorld.nearestActive ctx world ClubSide.Home x y 3.5 with
+            let controlRadius = float ctx.Config.Intercept.ControlRadius
+
+            match MatchWorld.nearestActive ctx world ClubSide.Home x y controlRadius with
             | Some(slot, _) ->
                 let pid = (MatchWorld.lineup ctx ClubSide.Home).Profiles.[slot].Id
-
-                MatchWorld.updateBall world (fun b ->
-                    { b with
-                        Control = BallControl.Controlled(ClubSide.Home, pid)
-                        LastTouch = Some pid })
 
                 buffer.Events.Add
                     { Tick = tick
@@ -119,14 +101,9 @@ module BallPossession =
 
                 rng
             | None ->
-                match MatchWorld.nearestActive ctx world ClubSide.Away x y 3.5 with
+                match MatchWorld.nearestActive ctx world ClubSide.Away x y controlRadius with
                 | Some(slot, _) ->
                     let pid = (MatchWorld.lineup ctx ClubSide.Away).Profiles.[slot].Id
-
-                    MatchWorld.updateBall world (fun b ->
-                        { b with
-                            Control = BallControl.Controlled(ClubSide.Away, pid)
-                            LastTouch = Some pid })
 
                     buffer.Events.Add
                         { Tick = tick
@@ -149,31 +126,66 @@ module BallPossession =
                     let px = MatchWorld.posX frame slot
                     let py = MatchWorld.posY frame slot
                     let dir = MatchMath.goalDirection side
+                    let dt = float (SimulationClock.dt ctx.Clock)
 
-                    let carryX =
-                        MatchMath.clamp
-                            (-(float Pitch.HalfLength + 5.0))
-                            (float Pitch.HalfLength + 5.0)
-                            (float px + 0.4 * dir)
+                    let targetX = float px + 0.4 * dir
+                    let targetY = float py
+                    let currentX = float world.State.Ball.Position.X
+                    let currentY = float world.State.Ball.Position.Y
+                    let dx = targetX - currentX
+                    let dy = targetY - currentY
+                    let distance = sqrt (dx * dx + dy * dy)
+
+                    let playerSpeed =
+                        sqrt (
+                            float frame.VelX.[slot] * float frame.VelX.[slot]
+                            + float frame.VelY.[slot] * float frame.VelY.[slot]
+                        )
+                    // A new controller may be slightly away from the ball (for
+                    // example after a restart), so approach the contact point
+                    // instead of teleporting the ball onto the player.
+                    let maxStep = max 0.05 (playerSpeed * dt)
+                    let step = min distance maxStep
+
+                    let nextX =
+                        if distance < 0.0001 then
+                            targetX
+                        else
+                            currentX + dx / distance * step
+
+                    let nextY =
+                        if distance < 0.0001 then
+                            targetY
+                        else
+                            currentY + dy / distance * step
+
+                    let nextX =
+                        MatchMath.clamp (-(float Pitch.HalfLength + 5.0)) (float Pitch.HalfLength + 5.0) nextX
+
+                    let nextY =
+                        MatchMath.clamp (-(float Pitch.HalfWidth + 5.0)) (float Pitch.HalfWidth + 5.0) nextY
 
                     MatchWorld.updateBall world (fun b ->
                         { b with
                             Position =
-                                { X = carryX * 1.0<meter>
-                                  Y = py
+                                { X = nextX * 1.0<meter>
+                                  Y = nextY * 1.0<meter>
                                   Z = 0.0<meter>
-                                  Vx = float frame.VelX.[slot] * 1.0<meterPerSecond>
-                                  Vy = float frame.VelY.[slot] * 1.0<meterPerSecond>
+                                  Vx = (nextX - currentX) / dt * 1.0<meterPerSecond>
+                                  Vy = (nextY - currentY) / dt * 1.0<meterPerSecond>
                                   Vz = 0.0<meterPerSecond> }
+                            PreviousPosition = None
+                            Impulse = None
+                            PendingRestart = None
                             GKHoldSince = (if slot = 0 then Some tick else None) })
 
                     rng
                 | None -> rng
             | BallControl.Receiving(side, pid, since) ->
                 if tick - since >= cfg.Ball.ReceptionGrace then
-                    MatchWorld.updateBall world (fun b ->
-                        { b with
-                            Control = BallControl.Controlled(side, pid) })
+                    buffer.Events.Add
+                        { Tick = tick
+                          Data = EventData.Possession(side, pid) }
 
                 rng
             | BallControl.Contesting _ -> contest ctx.Ctx rng world tick buffer

@@ -13,7 +13,10 @@ module MatchOutcome =
         { PlayerId: PlayerId
           GoalsScored: int
           AssistsGiven: int
-          MinutesPlayed: int }
+          MinutesPlayed: int
+          YellowCards: int
+          RedCards: int
+          FoulsCommitted: int }
 
     type FixtureOutcome =
         { FixtureId: MatchId
@@ -24,27 +27,128 @@ module MatchOutcome =
           HomePlayerStats: PlayerMatchStats[]
           AwayPlayerStats: PlayerMatchStats[] }
 
+    let private addStat playerId selector (stats: Map<PlayerId, PlayerMatchStats>) =
+        let current =
+            stats
+            |> Map.tryFind playerId
+            |> Option.defaultValue
+                { PlayerId = playerId
+                  GoalsScored = 0
+                  AssistsGiven = 0
+                  MinutesPlayed = 0
+                  YellowCards = 0
+                  RedCards = 0
+                  FoulsCommitted = 0 }
+
+        stats |> Map.add playerId (selector current)
+
+    let private eventStats (events: MatchEvent list) : Map<PlayerId, PlayerMatchStats> =
+        let addGoal pid stats =
+            addStat
+                pid
+                (fun s ->
+                    { s with
+                        GoalsScored = s.GoalsScored + 1 })
+                stats
+
+        let addAssist pid stats =
+            addStat
+                pid
+                (fun s ->
+                    { s with
+                        AssistsGiven = s.AssistsGiven + 1 })
+                stats
+
+        let addYellow pid stats =
+            addStat
+                pid
+                (fun s ->
+                    { s with
+                        YellowCards = s.YellowCards + 1 })
+                stats
+
+        let addRed pid stats =
+            addStat pid (fun s -> { s with RedCards = s.RedCards + 1 }) stats
+
+        let addFoul pid stats =
+            addStat
+                pid
+                (fun s ->
+                    { s with
+                        FoulsCommitted = s.FoulsCommitted + 1 })
+                stats
+
+        (Map.empty, events)
+        ||> List.fold (fun stats event ->
+            match event.Data with
+            | EventData.Goal(_, scorer, assist, _) ->
+                let withGoal =
+                    scorer
+                    |> Option.map MatchContextBuilder.unwrapPid
+                    |> Option.fold (fun acc pid -> addGoal pid acc) stats
+
+                assist
+                |> Option.map MatchContextBuilder.unwrapPid
+                |> Option.fold (fun acc pid -> addAssist pid acc) withGoal
+            | EventData.Card(player, CardColor.Yellow) -> addYellow (MatchContextBuilder.unwrapPid player) stats
+            | EventData.Card(player, CardColor.Red) -> addRed (MatchContextBuilder.unwrapPid player) stats
+            | EventData.RedCardIssued player -> addRed (MatchContextBuilder.unwrapPid player) stats
+            | EventData.Foul(fouler, _, _, _, _) -> addFoul (MatchContextBuilder.unwrapPid fouler) stats
+            | _ -> stats)
+
+    /// Event-only extraction deliberately reports no inferred playing time. The
+    /// complete extraction below supplies minutes from the match-owned intervals.
     let extractPlayerStatsFromEvents (events: MatchEvent list) =
-        let goals = System.Collections.Generic.Dictionary<PlayerId, int>()
+        eventStats events |> Map.values |> Array.ofSeq
 
-        for e in events do
-            match e.Data with
-            | EventData.Goal(_, Some scorer, _, _) ->
-                let n = MatchContextBuilder.unwrapPid scorer
+    let private minutesPlayed
+        (endAt: int<subtick>)
+        (intervals: FootballEngine.Core.Match.ParticipationInterval[])
+        : int =
+        let ticks =
+            intervals
+            |> Array.sumBy (fun interval ->
+                let stop = interval.EndAt |> Option.defaultValue endAt
+                max 0 (int stop - int interval.StartAt))
 
-                goals[n] <-
-                    match goals.TryGetValue n with
-                    | true, v -> v + 1
-                    | _ -> 1
-            | _ -> ()
+        max 0 (ticks / int SimulationClock.minuteSubticks)
 
-        goals.Keys
-        |> Seq.map (fun pid ->
-            { PlayerId = pid
-              GoalsScored = goals[pid]
-              AssistsGiven = 0
-              MinutesPlayed = 90 })
-        |> Array.ofSeq
+    let extractPlayerStats
+        (lineup: FootballEngine.Core.Match.Lineup)
+        (participation: FootballEngine.Core.Match.ParticipationBook)
+        (endAt: int<subtick>)
+        (events: MatchEvent list)
+        : PlayerMatchStats[] =
+        let byPlayer =
+            ParticipationBook.snapshot participation endAt
+            |> Array.groupBy _.PlayerId
+            |> Map.ofArray
+
+        let eventStats = eventStats events
+
+        lineup.Profiles
+        |> Array.map (fun profile ->
+            let playerId = MatchContextBuilder.unwrapPid profile.Id
+            let stats = eventStats |> Map.tryFind playerId
+            let intervals = byPlayer |> Map.tryFind profile.Id |> Option.defaultValue [||]
+
+            { PlayerId = playerId
+              GoalsScored = stats |> Option.map _.GoalsScored |> Option.defaultValue 0
+              AssistsGiven = stats |> Option.map _.AssistsGiven |> Option.defaultValue 0
+              MinutesPlayed = minutesPlayed endAt intervals
+              YellowCards = stats |> Option.map _.YellowCards |> Option.defaultValue 0
+              RedCards = stats |> Option.map _.RedCards |> Option.defaultValue 0
+              FoulsCommitted = stats |> Option.map _.FoulsCommitted |> Option.defaultValue 0 })
+
+    let extractPlayerStatsFromWorld
+        (ctx: MatchContext)
+        (world: World)
+        (events: MatchEvent list)
+        : PlayerMatchStats[] * PlayerMatchStats[] =
+        let endAt = world.State.Clock.Tick
+
+        extractPlayerStats ctx.HomeLineup world.Home.Participation endAt events,
+        extractPlayerStats ctx.AwayLineup world.Away.Participation endAt events
 
     let private emptyStanding (clubId: ClubId) =
         { ClubId = clubId
@@ -56,7 +160,7 @@ module MatchOutcome =
           GoalsAgainst = 0
           Points = 0 }
 
-    let updateStanding (standing: LeagueStanding) myScore oppScore =
+    let updateStanding (pointsForWin: int) (pointsForDraw: int) (standing: LeagueStanding) myScore oppScore =
         let base' =
             { standing with
                 Played = standing.Played + 1
@@ -66,13 +170,13 @@ module MatchOutcome =
         if myScore > oppScore then
             { base' with
                 Won = standing.Won + 1
-                Points = standing.Points + 3 }
+                Points = standing.Points + pointsForWin }
         elif myScore < oppScore then
             { base' with Lost = standing.Lost + 1 }
         else
             { base' with
                 Drawn = standing.Drawn + 1
-                Points = standing.Points + 1 }
+                Points = standing.Points + pointsForDraw }
 
     let updateAfterMatch
         (homeScore: int)
@@ -120,6 +224,28 @@ module MatchOutcome =
         |> List.collect (fun (compId, comp) -> comp.Fixtures |> Map.toList |> List.map (fun (fid, _) -> fid, compId))
         |> Map.ofList
 
+    /// The played flag is the persisted transaction boundary for the current
+    /// World model. Deduplicating here keeps every downstream consequence on the
+    /// same once-only set, including repeated outcomes in one batch.
+    let freshOutcomes
+        (fixtureToComp: Map<MatchId, CompetitionId>)
+        (outcomes: FixtureOutcome[])
+        (gs: GameState)
+        : FixtureOutcome[] =
+        let seen = System.Collections.Generic.HashSet<MatchId>()
+
+        outcomes
+        |> Array.choose (fun outcome ->
+            if not (seen.Add outcome.FixtureId) then
+                None
+            else
+                fixtureToComp
+                |> Map.tryFind outcome.FixtureId
+                |> Option.bind (fun compId ->
+                    gs.Competitions[compId].Fixtures
+                    |> Map.tryFind outcome.FixtureId
+                    |> Option.bind (fun fixture -> if fixture.Played then None else Some outcome)))
+
     let private isHighPressureMatch (events: MatchEvent list) : bool =
         events
         |> List.exists (fun e ->
@@ -134,38 +260,72 @@ module MatchOutcome =
         let drew = outcome.HomeScore = outcome.AwayScore
         let wasHighPressure = isHighPressureMatch fixture.Events
 
-        let processSide (clubId: ClubId) (rivalId: ClubId) (gs: GameState) : GameState =
-            let club = gs.Clubs[clubId]
+        let processSide (clubId: ClubId) (rivalId: ClubId) (stats: PlayerMatchStats[]) (gs: GameState) : GameState =
             let mutable acc = gs
 
-            for playerId in club.PlayerIds do
-                let exp =
-                    match acc.PlayerExperiences |> Map.tryFind playerId with
-                    | Some e -> e
-                    | None -> PlayerExperience.empty
+            for playerStats in stats do
+                if playerStats.MinutesPlayed > 0 then
+                    let exp =
+                        match acc.PlayerExperiences |> Map.tryFind playerStats.PlayerId with
+                        | Some e -> e
+                        | None -> PlayerExperience.empty
 
-                let newExp = PlayerExperience.recordMatch 0 0 wasHighPressure rivalId won drew exp
+                    let newExp =
+                        PlayerExperience.recordMatch
+                            playerStats.GoalsScored
+                            playerStats.AssistsGiven
+                            wasHighPressure
+                            rivalId
+                            won
+                            drew
+                            exp
 
-                acc <-
-                    { acc with
-                        PlayerExperiences = acc.PlayerExperiences |> Map.add playerId newExp }
+                    acc <-
+                        { acc with
+                            PlayerExperiences = acc.PlayerExperiences |> Map.add playerStats.PlayerId newExp }
 
             acc
 
-        let gs1 = processSide fixture.HomeClubId fixture.AwayClubId gs
-        processSide fixture.AwayClubId fixture.HomeClubId gs1
+        let gs1 =
+            processSide fixture.HomeClubId fixture.AwayClubId outcome.HomePlayerStats gs
 
-    let private injurySeverityWeights =
-        [ 0.30, InjurySeverity.Minor
-          0.40, InjurySeverity.Moderate
-          0.20, InjurySeverity.Major
-          0.10, InjurySeverity.Severe ]
+        processSide fixture.AwayClubId fixture.HomeClubId outcome.AwayPlayerStats gs1
+
+    let private injurySeverityOfCode severity =
+        match severity with
+        | value when value >= 4 -> InjurySeverity.Severe
+        | 3 -> InjurySeverity.Major
+        | 2 -> InjurySeverity.Moderate
+        | _ -> InjurySeverity.Minor
+
+    let private injurySeverities (events: MatchEvent list) : Map<PlayerId, InjurySeverity> =
+        events
+        |> List.choose (fun event ->
+            match event.Data with
+            | EventData.Injury(player, severity) ->
+                Some(MatchContextBuilder.unwrapPid player, injurySeverityOfCode severity)
+            | _ -> None)
+        |> List.groupBy fst
+        |> List.map (fun (playerId, reports) ->
+            let severity =
+                reports
+                |> List.map snd
+                |> List.maxBy (function
+                    | InjurySeverity.Minor -> 0
+                    | InjurySeverity.Moderate -> 1
+                    | InjurySeverity.Major -> 2
+                    | InjurySeverity.Severe -> 3)
+
+            playerId, severity)
+        |> Map.ofList
 
     let applyOutcomes
         (fixtureToComp: Map<MatchId, CompetitionId>)
         (outcomes: FixtureOutcome[])
         (gs: GameState)
         : GameState =
+        let outcomes = freshOutcomes fixtureToComp outcomes gs
+
         let updatedComps =
             (gs.Competitions, outcomes)
             ||> Array.fold (fun comps o ->
@@ -174,30 +334,54 @@ module MatchOutcome =
                 | Some compId ->
                     let comp = comps[compId]
 
-                    let hs =
-                        comp.Standings
-                        |> Map.tryFind o.Fixture.HomeClubId
-                        |> Option.defaultWith (fun () -> emptyStanding o.Fixture.HomeClubId)
+                    if comp.Fixtures |> Map.tryFind o.FixtureId |> Option.exists MatchFixture.isPlayed then
+                        comps
+                    else
+                        let pointsForWin, pointsForDraw =
+                            match comp.Type with
+                            | NationalLeague(_, rules) -> rules.PointsForWin, rules.PointsForDraw
+                            | NationalCup(GroupThenKnockout(group, _), _)
+                            | InternationalCup(_, GroupThenKnockout(group, _), _) ->
+                                group.PointsForWin, group.PointsForDraw
+                            | _ -> 3, 1
 
-                    let as' =
-                        comp.Standings
-                        |> Map.tryFind o.Fixture.AwayClubId
-                        |> Option.defaultWith (fun () -> emptyStanding o.Fixture.AwayClubId)
+                        let hs =
+                            comp.Standings
+                            |> Map.tryFind o.Fixture.HomeClubId
+                            |> Option.defaultWith (fun () -> emptyStanding o.Fixture.HomeClubId)
 
-                    comps
-                    |> Map.add
-                        compId
-                        { comp with
-                            Fixtures = comp.Fixtures |> Map.add o.FixtureId o.Fixture
-                            Standings =
-                                comp.Standings
-                                |> Map.add o.Fixture.HomeClubId (updateStanding hs o.HomeScore o.AwayScore)
-                                |> Map.add o.Fixture.AwayClubId (updateStanding as' o.AwayScore o.HomeScore) })
+                        let as' =
+                            comp.Standings
+                            |> Map.tryFind o.Fixture.AwayClubId
+                            |> Option.defaultWith (fun () -> emptyStanding o.Fixture.AwayClubId)
+
+                        comps
+                        |> Map.add
+                            compId
+                            { comp with
+                                Fixtures = comp.Fixtures |> Map.add o.FixtureId o.Fixture
+                                Standings =
+                                    match comp.Type with
+                                    | NationalLeague _
+                                    | NationalCup(GroupThenKnockout _, _)
+                                    | InternationalCup(_, GroupThenKnockout _, _) ->
+                                        comp.Standings
+                                        |> Map.add
+                                            o.Fixture.HomeClubId
+                                            (updateStanding pointsForWin pointsForDraw hs o.HomeScore o.AwayScore)
+                                        |> Map.add
+                                            o.Fixture.AwayClubId
+                                            (updateStanding pointsForWin pointsForDraw as' o.AwayScore o.HomeScore)
+                                    | _ -> comp.Standings })
 
         let withUpdatedMorale =
             ({ gs with Competitions = updatedComps }, outcomes)
             ||> Array.fold (fun acc o ->
                 updateAfterMatch o.HomeScore o.AwayScore o.Fixture.HomeClubId o.Fixture.AwayClubId acc)
+
+        let withUpdatedExperiences =
+            outcomes
+            |> Array.fold (fun acc outcome -> updatePlayerExperiences acc outcome) withUpdatedMorale
 
         let injuredPlayers =
             outcomes
@@ -205,16 +389,24 @@ module MatchOutcome =
             |> Set.ofSeq
 
         if injuredPlayers.IsEmpty then
-            withUpdatedMorale
+            withUpdatedExperiences
         else
             let currentDate = gs.CurrentDate
 
-            let applyInjury (players: Map<PlayerId, Player>) (pid: PlayerId) =
+            let applyInjury
+                (players: Map<PlayerId, Player>)
+                (severityByPlayer: Map<PlayerId, InjurySeverity>)
+                (pid: PlayerId)
+                =
                 players
                 |> Map.change pid (fun playerOpt ->
                     playerOpt
                     |> Option.map (fun p ->
-                        let severity = pickWeighted injurySeverityWeights
+                        // Severity is authored by the match event. A manually
+                        // assembled outcome has no severity, so it gets the
+                        // deterministic minimum rather than a World-side roll.
+                        let severity =
+                            severityByPlayer |> Map.tryFind pid |> Option.defaultValue InjurySeverity.Minor
 
                         let until =
                             match severity with
@@ -226,8 +418,82 @@ module MatchOutcome =
                         { p with
                             Status = Injured(severity, until) }))
 
-            { withUpdatedMorale with
-                Players = injuredPlayers |> Seq.fold applyInjury withUpdatedMorale.Players }
+            let players =
+                outcomes
+                |> Array.fold
+                    (fun players outcome ->
+                        let severityByPlayer = injurySeverities outcome.Fixture.Events
+
+                        outcome.InjuredPlayers
+                        |> Seq.fold (fun acc pid -> applyInjury acc severityByPlayer pid) players)
+                    withUpdatedExperiences.Players
+
+            { withUpdatedExperiences with
+                Players = players }
+
+    let private freshLoadOutcomes (outcomes: FixtureOutcome[]) (gs: GameState) : FixtureOutcome[] =
+        let seen = System.Collections.Generic.HashSet<MatchId>()
+
+        outcomes
+        |> Array.choose (fun outcome ->
+            if not (seen.Add outcome.FixtureId) then
+                None
+            else
+                let alreadyPlayed =
+                    gs.Competitions
+                    |> Map.exists (fun _ comp ->
+                        comp.Fixtures
+                        |> Map.tryFind outcome.FixtureId
+                        |> Option.exists MatchFixture.isPlayed)
+
+                if alreadyPlayed then None else Some outcome)
+
+    /// Playing costs condition and builds sharpness; squad members who don't play
+    /// lose rhythm. Participation stats are the authority, so substitutes and
+    /// players sent off are charged from their actual minutes, not the saved lineup.
+    let applyPostMatchLoad (cfg: TrainingConfig) (outcomes: FixtureOutcome[]) (gs: GameState) : GameState =
+        let outcomes = freshLoadOutcomes outcomes gs
+
+        if outcomes.Length = 0 then
+            gs
+        else
+            let played =
+                outcomes
+                |> Array.collect (fun o ->
+                    Array.append
+                        (o.HomePlayerStats
+                         |> Array.choose (fun stats ->
+                             if stats.MinutesPlayed > 0 then
+                                 Some stats.PlayerId
+                             else
+                                 None))
+                        (o.AwayPlayerStats
+                         |> Array.choose (fun stats ->
+                             if stats.MinutesPlayed > 0 then
+                                 Some stats.PlayerId
+                             else
+                                 None)))
+                |> Set.ofArray
+
+            let involved =
+                outcomes
+                |> Array.collect (fun o -> [| o.Fixture.HomeClubId; o.Fixture.AwayClubId |])
+                |> Set.ofArray
+
+            { gs with
+                Players =
+                    gs.Players
+                    |> Map.map (fun pid p ->
+                        if Set.contains pid played then
+                            { p with
+                                Condition = max 0 (p.Condition - cfg.PostMatchConditionCost)
+                                MatchFitness = min 100 (p.MatchFitness + cfg.PostMatchFitnessGain) }
+                        else
+                            match Player.clubOf p with
+                            | Some cid when Set.contains cid involved ->
+                                { p with
+                                    MatchFitness = max 0 (p.MatchFitness - cfg.IdleFitnessLoss) }
+                            | _ -> p) }
 
 module MatchPhase =
     open MatchOutcome
@@ -299,53 +565,78 @@ module MatchPhase =
 
     /// Simulates a fixture with the Core engine. Returns the outcome or None
     /// when the fixture cannot be lined up (missing coach/lineup).
-    let simulateFixture (fixtureId: MatchId) (fixture: MatchFixture) (gs: GameState) : FixtureOutcome option =
-        // R11 — production calibration: if weights.json exists next to the
-        // executable it is merged over the defaults once per match.
-        let weightsPath =
-            let dir = System.AppContext.BaseDirectory
-            let candidate = System.IO.Path.Combine(dir, "weights.json")
+    let simulateFixtureWithBalance
+        (balance: BalanceConfig)
+        (fixtureId: MatchId)
+        (fixture: MatchFixture)
+        (gs: GameState)
+        : FixtureOutcome option =
+        match EffectiveConfig.fromBalance balance, MatchContextBuilder.build gs fixture balance with
+        | Error _, _
+        | _, None -> None
+        | Ok effective, Some ctx ->
+            let input =
+                { MatchId = uint64 fixtureId
+                  Context = ctx
+                  Seed = MatchContextBuilder.seedOf fixtureId
+                  EffectiveConfig = effective
+                  EngineVersion = "football-engine-core-01" }
 
-            if System.IO.File.Exists candidate then
-                Some candidate
-            else
-                None
+            match MatchAdapter.runOutcome Scheduler.systems input [] with
+            | Error _ -> None
+            | Ok result ->
+                let finalWorld = result.Final
 
-        match MatchContextBuilder.build gs fixture BalanceConfig.defaultConfig with
-        | None -> None
-        | Some ctx ->
-            let result =
-                Simulator.runMatch Scheduler.systems ctx (MatchContextBuilder.seedOf fixtureId) RunMode.Fast weightsPath
+                let homePlayerStats, awayPlayerStats =
+                    extractPlayerStatsFromWorld ctx finalWorld result.Events
 
-            let finalWorld = result.Final
-
-            let outcome =
-                { FixtureId = fixtureId
-                  Fixture =
+                let playedFixture =
                     { fixture with
                         Played = true
                         HomeScore = Some finalWorld.State.HomeScore
                         AwayScore = Some finalWorld.State.AwayScore
                         Events = result.Events }
-                  HomeScore = finalWorld.State.HomeScore
-                  AwayScore = finalWorld.State.AwayScore
-                  InjuredPlayers = MatchContextBuilder.injuredOf result.Events
-                  HomePlayerStats = [||]
-                  AwayPlayerStats = [||] }
 
-            Some outcome
+                let outcome =
+                    { FixtureId = fixtureId
+                      Fixture = playedFixture
+                      HomeScore = finalWorld.State.HomeScore
+                      AwayScore = finalWorld.State.AwayScore
+                      InjuredPlayers = MatchContextBuilder.injuredOf result.Events
+                      HomePlayerStats = homePlayerStats
+                      AwayPlayerStats = awayPlayerStats }
 
-    let runFixtures (fixtures: (MatchId * MatchFixture) list) (state: GameState) =
-        let config = BalanceConfig.defaultConfig
+                Some outcome
+
+    let simulateFixture (fixtureId: MatchId) (fixture: MatchFixture) (gs: GameState) : FixtureOutcome option =
+        let balance = WeightMergeSettings.mergeWithOverridesSave None
+        simulateFixtureWithBalance balance fixtureId fixture gs
+
+    /// Save-aware variant: derives effective BalanceConfig from SaveSettings.
+    let simulateFixtureWithSave
+        (saveOpt: FootballEngine.Settings.SaveSettings option)
+        (fixtureId: MatchId)
+        (fixture: MatchFixture)
+        (gs: GameState)
+        : FixtureOutcome option =
+        let balance = WeightMergeSettings.mergeWithOverridesSave saveOpt
+        simulateFixtureWithBalance balance fixtureId fixture gs
+
+    let runFixturesWithBalance (balance: BalanceConfig) (fixtures: (MatchId * MatchFixture) list) (state: GameState) =
+        let config = balance
         let gsReady = LineupOps.ensureForFixtures fixtures state
 
-        let outcomes =
+        let simulatedOutcomes =
             fixtures
             |> Array.ofList
-            |> parallelMapLimited (fun (id, fixture) -> simulateFixture id fixture gsReady)
+            |> parallelMapLimited (fun (id, fixture) -> simulateFixtureWithBalance balance id fixture gsReady)
             |> Array.choose id
 
-        let afterOutcomes = applyOutcomes (fixtureToCompMap gsReady) outcomes gsReady
+        let outcomes = freshOutcomes (fixtureToCompMap gsReady) simulatedOutcomes gsReady
+
+        let afterOutcomes =
+            applyPostMatchLoad balance.Training outcomes gsReady
+            |> applyOutcomes (fixtureToCompMap gsReady) outcomes
 
         let clubOfPlayer =
             fun pid -> gsReady.Players |> Map.tryFind pid |> Option.bind Player.clubOf
@@ -384,13 +675,30 @@ module MatchPhase =
                                 1.5
                             ) }
 
+                let withFamiliarity =
+                    match
+                        GameState.headCoach clubId gs
+                        |> Option.bind (fun c -> c.Attributes.Coaching.Lineup)
+                    with
+                    | None -> updatedCoord
+                    | Some lu ->
+                        let key = string lu.Formation
+
+                        let cur =
+                            updatedCoord.TacticalFamiliarity |> Map.tryFind key |> Option.defaultValue 0.5
+
+                        { updatedCoord with
+                            TacticalFamiliarity =
+                                updatedCoord.TacticalFamiliarity
+                                |> Map.add key (min 1.0 (cur + balance.Team.TacticalFamiliarityGain)) }
+
                 { gs with
                     Clubs =
                         gs.Clubs
                         |> Map.add
                             clubId
                             { club with
-                                CoordinationMemory = updatedCoord } }
+                                CoordinationMemory = withFamiliarity } }
 
         let updateScouting (clubId: ClubId) (gs: GameState) : GameState =
             let outcome =
@@ -451,6 +759,31 @@ module MatchPhase =
 
         affectedClubs
         |> Seq.fold (fun gs clubId -> gs |> updateClubCoord clubId |> updateScouting clubId) afterOutcomes
+
+    let runFixtures (fixtures: (MatchId * MatchFixture) list) (state: GameState) =
+        let balance = WeightMergeSettings.mergeWithOverridesSave None
+        runFixturesWithBalance balance fixtures state
+
+    let runFixturesWithSave
+        (saveOpt: FootballEngine.Settings.SaveSettings option)
+        (fixtures: (MatchId * MatchFixture) list)
+        (state: GameState)
+        =
+        let balance = WeightMergeSettings.mergeWithOverridesSave saveOpt
+        runFixturesWithBalance balance fixtures state
+
+    let makeWithBalance (balance: BalanceConfig) : WorldPhase =
+        { Tag = Match
+          Frequency = OnDemand
+          Run =
+            fun _clock state ->
+                match getAiFixturesToday state with
+                | [] -> state
+                | fixtures -> runFixturesWithBalance balance fixtures state }
+
+    let makeWithSave (saveOpt: FootballEngine.Settings.SaveSettings option) : WorldPhase =
+        let balance = WeightMergeSettings.mergeWithOverridesSave saveOpt
+        makeWithBalance balance
 
     let make: WorldPhase =
         { Tag = Match

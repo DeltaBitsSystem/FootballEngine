@@ -44,6 +44,38 @@ type PhaseTag =
     | Youth
     | Season
 
+type WorldPhaseTag =
+    | ExtractDueWork
+    | ApplyEffectiveRecords
+    | PrepareDay
+    | ResolveFixtures
+    | ConfirmResults
+    | SettleObligations
+    | ResolveDecisions
+    | CloseDay
+
+[<Struct>]
+type ScheduledWorkId = ScheduledWorkId of uint64
+
+type ScheduledWorkKind =
+    | DueCommand of CommandId
+    | TrainingSession
+    | CompetitionClosure
+    | ObligationSettlement
+
+type ScheduledWork =
+    { Id: ScheduledWorkId
+      EffectiveDate: System.DateTime
+      Phase: WorldPhaseTag
+      Kind: ScheduledWorkKind
+      TargetId: AgentId option }
+
+type WorldPhaseTrace =
+    { Phase: WorldPhaseTag
+      Date: System.DateTime
+      RevisionBefore: uint64
+      RevisionAfter: uint64 }
+
 type WorldPhase =
     { Tag: PhaseTag
       Frequency: WorldTick
@@ -51,7 +83,11 @@ type WorldPhase =
 
 and WorldClock =
     { Current: WorldTime
-      PendingEvents: PendingEvent list }
+      PendingEvents: PendingEvent list
+      Revision: uint64
+      ScheduledWork: ScheduledWork list
+      ConsumedWork: Set<ScheduledWorkId>
+      PhaseHistory: WorldPhaseTrace list }
 
 and PendingEvent =
     { At: WorldTime

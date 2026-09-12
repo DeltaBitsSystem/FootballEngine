@@ -143,7 +143,8 @@ type TeamConfig =
       RiskLateMinute: int<matchMin>
       PatternWindow: int<subtick>
       PatternCenterBias: float
-      PatternWingBias: float }
+      PatternWingBias: float
+      TacticalFamiliarityGain: float }
 
 /// Referee behaviour — foul severity, cards, VAR, advantage, home-card bias.
 /// (was FoulAnalysis consts + RefereeWeights + HomeAdvantage card parts)
@@ -257,6 +258,100 @@ type SituationConfig = { LeadSteps: int }
 type PassInterceptConfig =
     { BaseRisk: int; OffsideCrossRisk: int }
 
+/// Weekly training: growth curves, plan load profiles, batteries, readiness.
+/// The whole triangle (develop / freshness / risk) tunes from here.
+[<Struct>]
+type TrainingConfig =
+    { // Age curve: growth multiplier while potential gap remains
+      AgeMultU18: float
+      AgeMultU21: float
+      AgeMultU25: float
+      AgeMultU28: float
+      // Veterans decline instead of growing
+      DeclineStartAge: int
+      DeclineChance: float
+      // Weekly chance that a targeted attribute moves +1 (scaled by age mult and gap)
+      DevelopChance: float
+      // Chance for off-target attributes (keeps squads rounded, never spiky)
+      TrickleChance: float
+      // Perform plan keeps a small maintenance chance
+      MaintainChance: float
+      // Extra chance when the attribute group matches the team emphasis tilt
+      TiltBonus: float
+      // Tired players barely learn: below this condition, growth scales down
+      TiredConditionThreshold: int
+      TiredGrowthPenalty: float
+      // Plans: condition/fitness deltas applied weekly
+      DevelopConditionCost: int
+      DevelopFitnessGain: int
+      DevelopInjuryAdd: float
+      PerformConditionGain: int
+      PerformFitnessGain: int
+      RestConditionGain: int
+      RestFitnessLoss: int
+      RehabConditionGain: int
+      // Injuries: base risk while training + scaling when exhausted
+      BaseInjuryRisk: float
+      TiredInjuryScale: float
+      // Readiness: how condition/fitness scale engine physicals in Projection
+      ReadinessConditionWeight: float
+      ReadinessFloor: float
+      // Post-match: playing costs condition, builds sharpness; idleness dulls it
+      PostMatchConditionCost: int
+      PostMatchFitnessGain: int
+      IdleFitnessLoss: int
+      // Recovery emphasis: extra condition for the whole squad that week
+      RecoveryConditionGain: int
+      // Coaching staff: best rating per area blends into growth (1.0 = neutral at 10)
+      CoachGrowthInfluence: float
+      YouthCoachBonus: float
+      // Medical staff: injury risk shaved per Physiotherapy point
+      PhysioInjuryReduction: float }
+
+/// Tactics UX — deterministic trade-off weights for each instruction option.
+/// Every value here is surfaced in the Tactic UI; no hidden behaviour numbers.
+[<Struct>]
+type TacticalTradeoffConfig =
+    { // Defensive line
+      DefensiveLineHighXgBehind: float
+      DefensiveLineHighSprintCost: float
+      DefensiveLineDeepXgCentral: float
+      DefensiveLineDeepCompactness: float
+      // Pressing
+      PressHighPpdaDelta: float
+      PressHighSprintDistance: float
+      PressHighConditionCost: float
+      PressHighInjuryRisk: float
+      PressLowPossessionLoss: float
+      // Width
+      WidthWideCentralOverloadLoss: float
+      WidthWideWingExposure: float
+      WidthNarrowWingOverload: float
+      WidthNarrowCentralCompactness: float
+      // Tempo
+      TempoFastPossessionLoss: float
+      TempoFastTransitionXg: float
+      TempoFastPassCompletionLoss: float
+      TempoSlowPossessionGain: float
+      TempoSlowPassCompletionGain: float
+      // Directness
+      DirectnessDirectPassCompletionLoss: float
+      DirectnessDirectSecondBallXg: float
+      DirectnessShortPassCompletionGain: float
+      // Mentality
+      MentalityAttackingXgDelta: float
+      MentalityAttackingXgConcededDelta: float
+      MentalityDefensiveXgConcededDelta: float
+      // Grade thresholds
+      GradeAThreshold: float
+      GradeBThreshold: float
+      GradeCThreshold: float
+      GradeDThreshold: float
+      // Live hooks: these scale live decisions, not just analysis text
+      TempoCounterUrgencyShift: float
+      DirectnessLongBallUtility: float
+      MentalityRiskThresholdShift: float }
+
 /// The single tuning surface: every behavior-affecting number in the engine
 /// lives here, nowhere else.
 type BalanceConfig =
@@ -278,6 +373,9 @@ type BalanceConfig =
       Scout: ScoutConfig
       Counter: CounterConfig
       Transfer: TransferConfig
+      World: FootballEngine.Domain.WorldConfig
+      TacticalTradeoffs: TacticalTradeoffConfig
+      Training: TrainingConfig
       Weights: WeightSections }
 
 module BalanceConfig =
@@ -409,7 +507,8 @@ module BalanceConfig =
           RiskLateMinute = 75<matchMin>
           PatternWindow = 600<subtick>
           PatternCenterBias = 0.15
-          PatternWingBias = 0.25 }
+          PatternWingBias = 0.25
+          TacticalFamiliarityGain = 0.15 }
 
     let defaultPositioning: PositioningConfig =
         { EvalTeammateWeight = 0.3
@@ -506,7 +605,7 @@ module BalanceConfig =
         { MaxSideBias = 1.0
           BiasScale = 1.5
           MaxPressBoost = 0.5
-          MaxLineDrop = 1.0
+          MaxLineDrop = 10.0
           MaxWidthTighten = 0.5
           MaxTempoShift = 0.5
           MaxDirectnessShift = 0.5
@@ -517,6 +616,72 @@ module BalanceConfig =
           MinMatchesForSquadPlayer = 10
           MaxOver25BenchWarmers = 2
           OverpayTolerance = 0.25m }
+
+    let defaultTacticalTradeoffs: TacticalTradeoffConfig =
+        { DefensiveLineHighXgBehind = 0.18
+          DefensiveLineHighSprintCost = 0.12
+          DefensiveLineDeepXgCentral = 0.11
+          DefensiveLineDeepCompactness = 0.15
+          PressHighPpdaDelta = -1.8
+          PressHighSprintDistance = 0.14
+          PressHighConditionCost = 4.0
+          PressHighInjuryRisk = 0.021
+          PressLowPossessionLoss = 0.08
+          WidthWideCentralOverloadLoss = 0.09
+          WidthWideWingExposure = 0.11
+          WidthNarrowWingOverload = 0.10
+          WidthNarrowCentralCompactness = 0.12
+          TempoFastPossessionLoss = 0.06
+          TempoFastTransitionXg = 0.09
+          TempoFastPassCompletionLoss = 0.06
+          TempoSlowPossessionGain = 0.07
+          TempoSlowPassCompletionGain = 0.05
+          DirectnessDirectPassCompletionLoss = 0.08
+          DirectnessDirectSecondBallXg = 0.07
+          DirectnessShortPassCompletionGain = 0.06
+          MentalityAttackingXgDelta = 0.09
+          MentalityAttackingXgConcededDelta = 0.07
+          MentalityDefensiveXgConcededDelta = 0.11
+          GradeAThreshold = 0.75
+          GradeBThreshold = 0.50
+          GradeCThreshold = 0.25
+          GradeDThreshold = 0.0
+          TempoCounterUrgencyShift = 0.3
+          DirectnessLongBallUtility = 0.12
+          MentalityRiskThresholdShift = 0.08 }
+
+    let defaultTraining: TrainingConfig =
+        { AgeMultU18 = 1.5
+          AgeMultU21 = 1.2
+          AgeMultU25 = 1.0
+          AgeMultU28 = 0.5
+          DeclineStartAge = 31
+          DeclineChance = 0.08
+          DevelopChance = 0.22
+          TrickleChance = 0.02
+          MaintainChance = 0.05
+          TiltBonus = 0.10
+          TiredConditionThreshold = 55
+          TiredGrowthPenalty = 0.5
+          DevelopConditionCost = 8
+          DevelopFitnessGain = 4
+          DevelopInjuryAdd = 0.008
+          PerformConditionGain = 4
+          PerformFitnessGain = 6
+          RestConditionGain = 18
+          RestFitnessLoss = 3
+          RehabConditionGain = 6
+          BaseInjuryRisk = 0.004
+          TiredInjuryScale = 0.03
+          ReadinessConditionWeight = 0.5
+          ReadinessFloor = 0.82
+          PostMatchConditionCost = 12
+          PostMatchFitnessGain = 8
+          IdleFitnessLoss = 2
+          RecoveryConditionGain = 10
+          CoachGrowthInfluence = 0.6
+          YouthCoachBonus = 0.5
+          PhysioInjuryReduction = 0.0015 }
 
     let defaultConfig: BalanceConfig =
         { Ball = defaultBall
@@ -537,4 +702,7 @@ module BalanceConfig =
           Scout = defaultScout
           Counter = defaultCounter
           Transfer = defaultTransfer
+          World = FootballEngine.Domain.WorldConfig.defaults
+          TacticalTradeoffs = defaultTacticalTradeoffs
+          Training = defaultTraining
           Weights = WeightSections.defaultWeights }

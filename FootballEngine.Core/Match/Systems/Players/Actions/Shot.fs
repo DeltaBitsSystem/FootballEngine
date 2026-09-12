@@ -20,10 +20,6 @@ module Shot =
         let d = MatchMath.distanceToGoal side x y
         let goalY = 0.0<meter>
 
-        let angle, rng' =
-            let spread = cfg.Actions.ShotAngleSpread * (1.0 + d / 40.0)
-            Rng.uniform (-spread) spread rng
-
         let near = MatchWorld.opponentsNear ctx.Ctx world side x y 6.0
         let openness = 1.0 - 0.3 * MatchMath.clamp01 (float near / 4.0)
         let xg = MatchMath.xGFrom d (float p.Finishing) openness
@@ -43,27 +39,51 @@ module Shot =
                 let targetY = (float Pitch.GoalHalfWidth + wide) * (if flip then 1.0 else -1.0)
                 atan ((targetY - float y) / float d), rng'''
 
-        let speed = 22.0 + float p.Pace * 0.06
+        let speed = min (float cfg.Ball.MaxShotSpeed) (22.0 + float p.Pace * 0.06)
+        let direction = MatchMath.goalDirection side
+        let goalDistanceX = abs (float (MatchMath.goalX side) - float x)
+        let vx = direction * cos angle * speed
+        let vy = sin angle * speed
+        let goalY = float y + tan angle * goalDistanceX
 
-        MatchWorld.updateBall world (fun b ->
-            { b with
-                Control = BallControl.Airborne
-                Trajectory = Some(TrajectoryIntent.Struck(pid, speed * 1.0<meterPerSecond>, angle, xg))
-                LastTouch = Some pid
-                ArrivalGate = Some(tick + int (d / speed * 40.0) * 1<subtick> + 4<subtick>)
-                StationarySince = None })
+        let linearVelocity =
+            { X = vx * 1.0<meterPerSecond>
+              Y = vy * 1.0<meterPerSecond>
+              Z = float cfg.Actions.ShotVzBase * 1.0<meterPerSecond> }
 
-        let gkSlot = 0
+        let angularVelocity =
+            { Top = -float cfg.Actions.ShotVzBase * 1.0<radianPerSecond>
+              Side = angle * 1.0<radianPerSecond>
+              Roll = 0.0<radianPerSecond> }
 
-        if d < 30.0 then
-            let defLine = MatchWorld.offsideLine ctx.Ctx world side
-            let defTeam = MatchWorld.team world (MatchWorld.oppOf side)
-            let defFrame = defTeam.Frame
+        let target: Vec2 option =
+            Some
+                { X = MatchMath.goalX side
+                  Y = goalY * 1.0<meter> }
 
-            RefereeVAR.markOffsideSnapshot world side slot x defLine tick
+        let impulse =
+            BallPhysics.createImpulse
+                pid
+                { X = world.State.Ball.Position.X
+                  Y = world.State.Ball.Position.Y
+                  Z = world.State.Ball.Position.Z }
+                linearVelocity
+                angularVelocity
+                target
+                StrikeKind.Shot
+                (SimTick.ofSubTicks tick)
+                ExecutionContext.OpenPlay
 
-        let mem = (MatchWorld.team world side).Memory
+        let arrival =
+            tick
+            + int (round (goalDistanceX / max 0.1 (abs vx) * float ctx.Clock.SubTicksPerSecond))
+              * 1<subtick>
+            + 4<subtick>
 
-        mem.[slot].ShotsTaken <- mem.[slot].ShotsTaken + 1
+        BallPhysics.applyImpulse
+            world
+            impulse
+            (TrajectoryIntent.Struck(pid, speed * 1.0<meterPerSecond>, angle, xg))
+            (Some arrival)
 
         rng'

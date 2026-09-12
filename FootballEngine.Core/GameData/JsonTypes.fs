@@ -88,7 +88,8 @@ type InternationalCompDto =
 
 [<CLIMutable>]
 type ModManifestDto =
-    { Name: string
+    { Id: string
+      Name: string
       Author: string
       Version: string
       Priority: int

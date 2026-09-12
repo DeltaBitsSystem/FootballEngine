@@ -114,6 +114,22 @@ type PlayerOut =
     { Id: PlayerId
       Reason: PlayerOutReason }
 
+type SubstitutionPhase =
+    | NoSubstitution
+    | Requested
+    | Accepted
+    | Pending
+    | Applied
+    | Rejected
+
+type SubstitutionState =
+    { Phase: SubstitutionPhase
+      Outgoing: PlayerId option
+      Incoming: PlayerId option
+      RequestedAt: int<subtick> option
+      AppliedAt: int<subtick> option
+      UsedIncoming: Set<PlayerId> }
+
 [<Struct>]
 type OccupancyKind =
     | Active of slot: int
@@ -289,28 +305,29 @@ type CognitiveFrame =
       mutable SupportAttackComputed: bool }
 
 /// Ring buffer of recent event kinds — the single source for windowed counts.
-[<Struct>]
-type EventWindow =
-    { mutable Head: int
-      mutable Length: int
-      mutable Ticks: int<subtick>[]
-      mutable Kinds: int[]
-      mutable Counts: int[] }
+/// This is a reference type because the header is mutable; passing a mutable
+/// struct by value would update the arrays but lose Head and Length.
+type EventWindow(capacity: int, horizon: int<subtick>) =
+    let actualCapacity = max 1 capacity
+
+    member val Head = 0 with get, set
+    member val Length = 0 with get, set
+    member val Ticks: int<subtick>[] = Array.zeroCreate actualCapacity with get
+    member val Kinds: int[] = Array.zeroCreate actualCapacity with get
+    member val Counts: int[] = Array.zeroCreate 64 with get
+    member val Horizon = max 1<subtick> horizon with get
 
 module EventWindow =
 
+    let createWithHorizon (capacity: int) (horizon: int<subtick>) : EventWindow = EventWindow(capacity, horizon)
+
     let create (capacity: int) : EventWindow =
-        { Head = 0
-          Length = 0
-          Ticks = Array.zeroCreate capacity
-          Kinds = Array.zeroCreate capacity
-          Counts = Array.zeroCreate 32 }
+        createWithHorizon capacity (max 1 capacity * 1<subtick>)
 
     /// O(1) amortized: evict entries older than (tick - capacity).
     let push (window: EventWindow) (tick: int<subtick>) (kind: EventKind) : unit =
-        let mutable window = window
         let capacity = window.Ticks.Length
-        let expired = tick - capacity * 1<subtick>
+        let expired = tick - window.Horizon
 
         while window.Length > 0 && window.Ticks.[window.Head] <= expired do
             let oldKind = window.Kinds.[window.Head]
@@ -328,8 +345,7 @@ module EventWindow =
         window.Ticks.[idx] <- tick
 
         let k =
-            int (EventFlags.ofKind kind).Bits
-            |> fun b -> System.Numerics.BitOperations.TrailingZeroCount(uint b)
+            System.Numerics.BitOperations.TrailingZeroCount((EventFlags.ofKind kind).Bits)
 
         window.Kinds.[idx] <- k
         window.Counts.[k] <- window.Counts.[k] + 1
@@ -338,8 +354,7 @@ module EventWindow =
     /// O(1) count of kind within the last `windowSize` subticks.
     let countInWindow (window: EventWindow) (tick: int<subtick>) (windowSize: int<subtick>) (kind: EventKind) : int =
         let k =
-            int (EventFlags.ofKind kind).Bits
-            |> fun b -> System.Numerics.BitOperations.TrailingZeroCount(uint b)
+            System.Numerics.BitOperations.TrailingZeroCount((EventFlags.ofKind kind).Bits)
 
         let cutoff = tick - windowSize
 

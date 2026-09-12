@@ -78,6 +78,11 @@ module PlayerDecision =
         let team = MatchWorld.team world side
         let frame = team.Frame
         let w = ctx.Config.Weights.Decision
+
+        let tactics =
+            (if side = ClubSide.Home then ctx.HomeClub else ctx.AwayClub).BaseTactics
+
+        let tradeoffs = ctx.Config.TacticalTradeoffs
         let p = MatchWorld.profileOf ctx side slot
         let x = MatchWorld.posX frame slot
         let y = MatchWorld.posY frame slot
@@ -136,6 +141,10 @@ module PlayerDecision =
                         + w.PassTargetBonus * space
                         + w.PassAnticipationBonus * ((float p.Anticipation - 60.0) / 50.0)
                         + w.PassTrajectoryBonus * (if longBall then 0.0 else 0.15)
+                        + (if longBall then
+                               float tactics.Directness * tradeoffs.DirectnessLongBallUtility
+                           else
+                               0.0)
                         + (if attacking then 0.0 else w.PassAttackPhasePenalty)
                         - w.PassHighPressPenalty * float pressure * w.PassHighPressFactor
                         - (if offside then 0.8 else 0.0)
@@ -154,6 +163,12 @@ module PlayerDecision =
         let team = MatchWorld.team world side
         let frame = team.Frame
         let w = ctx.Config.Weights.Decision
+        // Attacking mentality lowers the bar for shots and take-ons; defensive
+        // mentality only takes the sure thing.
+        let riskShift =
+            float (if side = ClubSide.Home then ctx.HomeClub else ctx.AwayClub).BaseTactics.Mentality
+            * ctx.Config.TacticalTradeoffs.MentalityRiskThresholdShift
+
         let p = MatchWorld.profileOf ctx side slot
         let phase = team.Blackboard.OurPhase
         let x = MatchWorld.posX frame slot
@@ -206,7 +221,7 @@ module PlayerDecision =
                 + w.PersonalityFlairWeight * ((float p.Flair - 60.0) / 100.0)
                 + shotMemoryBias ctx mem
 
-            if uShot >= w.ShootMinThreshold - w.ShootDirectnessThresholdMod * 0.5 then
+            if uShot >= w.ShootMinThreshold - w.ShootDirectnessThresholdMod * 0.5 - riskShift then
                 options <- (uShot, 2, -1.0) :: options
 
         let passOpts = passOptionsFor ctx world side slot
@@ -253,7 +268,7 @@ module PlayerDecision =
             let uClear = 0.55 + 0.45 * MatchMath.clamp01 (float pressure / 3.0)
             options <- (uClear, 4, -1.0) :: options
 
-        if uDribble >= w.DribbleMinThreshold && pressure <= 1 then
+        if uDribble >= w.DribbleMinThreshold - riskShift && pressure <= 1 then
             options <- (uDribble, 3, -1.0) :: options
 
         let chainState = Planner.project ctx world side slot

@@ -28,8 +28,10 @@ module Replay =
         | MatchFlow.InjuryPause _ -> 3uy
         | MatchFlow.RestartDelay _ -> 4uy
         | MatchFlow.HalfTime _ -> 5uy
-        | MatchFlow.FullTimeReview _ -> 6uy
-        | MatchFlow.MatchEnded -> 7uy
+        | MatchFlow.ExtraTimeBreak _ -> 6uy
+        | MatchFlow.FullTimeReview _ -> 7uy
+        | MatchFlow.Shootout -> 8uy
+        | MatchFlow.MatchEnded -> 9uy
 
     let capture (world: World) : ReplaySnapshot =
         let n = world.Home.Frame.SlotCount

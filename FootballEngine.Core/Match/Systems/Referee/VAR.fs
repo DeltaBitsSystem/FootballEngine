@@ -40,13 +40,16 @@ module RefereeVAR =
     /// The verdict is read, not re-simulated: the same snapshot always gives the
     /// same overturn, and only positions beyond the margin (VarOffsideMargin)
     /// overturn the goal — marginal calls stand.
-    let isOffside (ctx: MatchContext) (world: World) (scoringSide: ClubSide) : bool =
+    let isOffsideFor (ctx: MatchContext) (world: World) (scoringSide: ClubSide) (scorer: PlayerId) : bool =
         let team = MatchWorld.team world scoringSide
         let dir = MatchMath.goalDirection scoringSide
         let mutable verdict = false
 
         for kv in team.Frame.RunLookup do
-            if kv.Value.Phase = 250 then
+            if
+                kv.Value.Phase = 250
+                && MatchWorld.slotOf ctx scoringSide scorer = Some kv.Value.Slot
+            then
                 let scorerX = float kv.Value.TargetX * 1.0<meter>
                 let defLine = float kv.Value.TargetY * 1.0<meter>
 
@@ -57,6 +60,24 @@ module RefereeVAR =
                         scorerX < defLine - ctx.Config.Referee.VarOffsideMargin
 
                 if off then
+                    verdict <- true
+
+        verdict
+
+    let isOffside (ctx: MatchContext) (world: World) (scoringSide: ClubSide) : bool =
+        let team = MatchWorld.team world scoringSide
+        let dir = MatchMath.goalDirection scoringSide
+        let mutable verdict = false
+
+        for kv in team.Frame.RunLookup do
+            if kv.Value.Phase = 250 then
+                let scorerX = float kv.Value.TargetX * 1.0<meter>
+                let defLine = float kv.Value.TargetY * 1.0<meter>
+
+                if
+                    (dir > 0.0 && scorerX > defLine + ctx.Config.Referee.VarOffsideMargin)
+                    || (dir < 0.0 && scorerX < defLine - ctx.Config.Referee.VarOffsideMargin)
+                then
                     verdict <- true
 
         verdict

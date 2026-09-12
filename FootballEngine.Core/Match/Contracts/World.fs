@@ -8,6 +8,52 @@ type ChainPlan =
     { FutureReceivers: (int * float<meter> * float<meter>)[]
       ExpiresAt: int<subtick> }
 
+type ParticipationInterval =
+    { PlayerId: PlayerId
+      Role: SlotRole
+      StartAt: int<subtick>
+      mutable EndAt: int<subtick> option }
+
+/// Participation is owned by the match so substitutions, dismissals and
+/// injuries close the same interval that later becomes the World statistic.
+type ParticipationBook() =
+    member val Intervals = System.Collections.Generic.List<ParticipationInterval>()
+
+module ParticipationBook =
+
+    let create () = ParticipationBook()
+
+    let start (book: ParticipationBook) (playerId: PlayerId) (role: SlotRole) (at: int<subtick>) =
+        if
+            book.Intervals
+            |> Seq.exists (fun interval -> interval.PlayerId = playerId && interval.EndAt.IsNone)
+        then
+            ()
+        else
+            book.Intervals.Add
+                { PlayerId = playerId
+                  Role = role
+                  StartAt = at
+                  EndAt = None }
+
+    let stop (book: ParticipationBook) (playerId: PlayerId) (at: int<subtick>) =
+        let mutable stopped = false
+
+        for i = book.Intervals.Count - 1 downto 0 do
+            if not stopped then
+                let interval = book.Intervals.[i]
+
+                if interval.PlayerId = playerId && interval.EndAt.IsNone then
+                    interval.EndAt <- Some(max interval.StartAt at)
+                    stopped <- true
+
+    let snapshot (book: ParticipationBook) (endAt: int<subtick>) : ParticipationInterval[] =
+        book.Intervals
+        |> Seq.map (fun interval ->
+            { interval with
+                EndAt = Some(max interval.StartAt (interval.EndAt |> Option.defaultValue endAt)) })
+        |> Array.ofSeq
+
 /// One team's live match state. All books are owned by this match (no globals).
 type TeamWorld =
     { mutable Frame: TeamFrame
@@ -22,6 +68,8 @@ type TeamWorld =
       mutable Stats: TeamStats
       mutable CFrame: CognitiveFrame
       mutable EventWindow: EventWindow
+      mutable Substitution: SubstitutionState
+      Participation: ParticipationBook
       mutable ActivePlan: ChainPlan option
       mutable LastCarrierSlot: int }
 
@@ -29,4 +77,5 @@ type TeamWorld =
 type World =
     { mutable State: MatchState
       Home: TeamWorld
-      Away: TeamWorld }
+      Away: TeamWorld
+      AppliedEventIds: System.Collections.Generic.HashSet<EventId> }

@@ -17,7 +17,12 @@ module ManagerSystem =
         let team = MatchWorld.team world side
         let frame = team.Frame
 
-        if team.SubsUsed < ctx.Ctx.Config.Manager.MaxSubs then
+        if
+            team.SubsUsed < ctx.Ctx.SubstitutionRules.MaxSubstitutions
+            && team.Substitution.Phase <> SubstitutionPhase.Requested
+            && team.Substitution.Phase <> SubstitutionPhase.Accepted
+            && team.Substitution.Phase <> SubstitutionPhase.Pending
+        then
             let windows = ctx.Ctx.Config.Manager
 
             let inWindow =
@@ -56,7 +61,7 @@ module ManagerSystem =
 
                         buffer.Events.Add
                             { Tick = world.State.Tick
-                              Data = EventData.Substitution(out, inn) }
+                              Data = EventData.SubstitutionRequested(out, inn) }
 
     /// Immediate reaction to a red card: compact the shape if configured.
     let private reactToRedCard (ctx: SystemContext) (world: World) (side: ClubSide) : unit =
@@ -82,9 +87,10 @@ module ManagerSystem =
         (world: World)
         (buffer: EventBuffer)
         (side: ClubSide)
-        (tick: int<subtick>)
+        (simTick: int<subtick>)
+        (playClock: PlayClock)
         : unit =
-        let minute = SimulationClock.toMatchMinute tick
+        let minute = PlayClock.toMatchMinute playClock
         let diff = world.State.HomeScore - world.State.AwayScore
         let myDiff = if side = ClubSide.Home then diff else -diff
         let cfg = ctx.Ctx.Config.Manager
@@ -110,17 +116,18 @@ module ManagerSystem =
 
             if team.Directive.Kind <> DirectiveKind.Attack then
                 team.Directive.Kind <- DirectiveKind.Attack
-                team.Directive.SinceTick <- tick
+                team.Directive.SinceTick <- simTick
         elif minute >= cfg.WinningDefensiveMinute && myDiff >= 1 then
             let team = MatchWorld.team world side
 
             if team.Directive.Kind <> DirectiveKind.Defend then
                 team.Directive.Kind <- DirectiveKind.Defend
-                team.Directive.SinceTick <- tick
+                team.Directive.SinceTick <- simTick
 
     let step: SystemStep =
         fun ctx rng world buffer ->
             let tick = world.State.Tick
+            let playClock = MatchClock.playClock world.State.Clock
 
             for side in [ ClubSide.Home; ClubSide.Away ] do
                 // R10 — event reactions: red card compacts the shape.
@@ -137,6 +144,6 @@ module ManagerSystem =
                 if not redFor.IsEmpty then
                     reactToRedCard ctx world side
 
-                manageTeam ctx world buffer side tick
+                manageTeam ctx world buffer side tick playClock
 
             rng

@@ -5,7 +5,7 @@ namespace FootballEngine.Core.Match
 /// has real consequences.
 module RefereeCards =
 
-    let private applyCard
+    let private decideDismissal
         (ctx: SystemContext)
         (world: World)
         (buffer: EventBuffer)
@@ -21,23 +21,32 @@ module RefereeCards =
                 | None -> ()
                 | Some slot ->
                     let team = MatchWorld.team world side
-                    let mem = team.Memory
 
                     match color with
                     | CardColor.Yellow ->
-                        mem.[slot].Yellows <- mem.[slot].Yellows + 1
-                        team.Cards.Yellows <- team.Cards.Yellows + 1
+                        let secondYellow = team.Memory.[slot].Yellows >= 2
 
-                        if mem.[slot].Yellows >= 2 && ctx.Ctx.Config.Referee.SecondYellowSuspension then
+                        let alreadyQueued =
+                            buffer.Events
+                            |> Seq.exists (fun queued -> queued.Data = EventData.RedCardIssued pid)
+
+                        if
+                            secondYellow
+                            && ctx.Ctx.Config.Referee.SecondYellowSuspension
+                            && not alreadyQueued
+                        then
                             buffer.Events.Add
                                 { Tick = tick
                                   Data = EventData.RedCardIssued(pid) }
                     | CardColor.Red ->
-                        team.Cards.Reds <- team.Cards.Reds + 1
+                        let alreadyQueued =
+                            buffer.Events
+                            |> Seq.exists (fun queued -> queued.Data = EventData.RedCardIssued pid)
 
-                        buffer.Events.Add
-                            { Tick = tick
-                              Data = EventData.RedCardIssued(pid) }
+                        if not alreadyQueued then
+                            buffer.Events.Add
+                                { Tick = tick
+                                  Data = EventData.RedCardIssued(pid) }
         | _ -> ()
 
     let step: SystemStep =
@@ -46,6 +55,6 @@ module RefereeCards =
 
             for ev in buffer.Applied do
                 if MatchEvent.kind ev = EventKind.Card then
-                    applyCard ctx world buffer tick ev
+                    decideDismissal ctx world buffer tick ev
 
             rng

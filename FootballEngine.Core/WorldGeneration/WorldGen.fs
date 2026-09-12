@@ -1,6 +1,7 @@
 namespace FootballEngine.Generation
 
 open System
+open FootballEngine
 open FootballEngine.Domain
 open FootballEngine.Data
 open FootballEngine.Stats
@@ -53,12 +54,13 @@ module WorldGen =
                 allCountryData
                 |> List.exists (fun c -> c.Country.Code = code && c.Country.Confederation = conf)
 
-        let cupWinnerIds =
+        let cupWinnerIds competitionName =
             competitions
             |> Map.toList
             |> List.choose (fun (_, comp) ->
                 match comp.Type, comp.Country with
-                | NationalCup _, Some code when countryInConf code -> comp.ClubIds |> List.tryHead
+                | NationalCup _, Some code when countryInConf code && comp.Name = competitionName ->
+                    comp.ClubIds |> List.tryHead
                 | _ -> None)
 
         let titleHolderIds =
@@ -78,11 +80,18 @@ module WorldGen =
                 |> List.choose (fun (_, comp) ->
                     match comp.Type, comp.Country with
                     | NationalLeague(LeagueLevel l, _), Some code when l = lvl && countryInConf code ->
-                        comp.ClubIds |> List.truncate toPos |> List.skip (max 0 (fromPos - 1)) |> Some
+                        comp.ClubIds
+                        |> List.mapi (fun index clubId -> index, clubId)
+                        |> List.choose (fun (index, clubId) ->
+                            if index >= fromPos - 1 && index < toPos then
+                                Some clubId
+                            else
+                                None)
+                        |> Some
                     | _ -> None)
                 |> List.concat
             | TitleHolder -> titleHolderIds
-            | CupWinner _ -> cupWinnerIds
+            | CupWinner competitionName -> cupWinnerIds competitionName
             | ConfederationSlot _ -> [])
         |> List.distinct
 
@@ -166,10 +175,7 @@ module WorldGen =
             ||> List.fold (fun acc (cupIdx, cupFormat) ->
                 let compId = nextId counters
 
-                let cupName =
-                    match countryData.CupNames |> List.tryItem cupIdx with
-                    | Some name -> name
-                    | None -> $"Cup {countryData.Country.Code}"
+                let cupName = countryData.CupNames[cupIdx]
 
                 let fixtures, nextMatchId =
                     FixtureGen.forCupFormat
@@ -285,64 +291,182 @@ module WorldGen =
           TrophiesWon = 0
           SeasonsManaged = 0 }
 
+    let private generationError code entityId message suggestedAction : ModError =
+        { Diagnostics =
+            [ { Code = code
+                ModId = None
+                Version = None
+                RelativePath = None
+                JsonPath = None
+                EntityId = entityId
+                Message = message
+                SuggestedAction = suggestedAction } ] }
+
+    let private validateCountries
+        (countries: CountryData list)
+        (primaryCountry: CountryCode)
+        (secondaryCountries: CountryCode list)
+        : Result<CountryData list, ModError> =
+        let byCode =
+            countries
+            |> List.map (fun country -> country.Country.Code, country)
+            |> Map.ofList
+
+        let diagnostics = ResizeArray<ModDiagnostic>()
+
+        let add code entityId message suggestedAction =
+            diagnostics.Add(
+                { Code = code
+                  ModId = None
+                  Version = None
+                  RelativePath = None
+                  JsonPath = None
+                  EntityId = entityId
+                  Message = message
+                  SuggestedAction = suggestedAction }
+            )
+
+        let primary =
+            match Map.tryFind primaryCountry byCode with
+            | None ->
+                add
+                    "WORLD-COUNTRY-MISSING"
+                    (Some primaryCountry)
+                    ("The primary country '"
+                     + primaryCountry
+                     + "' is not present in the resolved dataset.")
+                    "Choose a country materialized from ResolvedDataSet.SportsContent."
+
+                None
+            | Some country ->
+                if
+                    country.LeagueRules.IsEmpty
+                    || country.LeagueNames.IsEmpty
+                    || not (country.Clubs |> List.exists (fun club -> club.LeagueLevel = 0))
+                then
+                    add
+                        "WORLD-COUNTRY-NO-FIRST-DIVISION"
+                        (Some primaryCountry)
+                        ("The primary country '" + primaryCountry + "' has no level-0 league with clubs.")
+                        "Declare a level-0 league and at least one level-0 club."
+
+                    None
+                else
+                    Some country
+
+        let secondary =
+            secondaryCountries
+            |> List.distinct
+            |> List.choose (fun code ->
+                match Map.tryFind code byCode with
+                | Some country -> Some country
+                | None ->
+                    add
+                        "WORLD-SECONDARY-COUNTRY-MISSING"
+                        (Some code)
+                        ("The secondary country '" + code + "' is not present in the resolved dataset.")
+                        "Remove the country or include its canonical country entity in SportsContent."
+
+                    None)
+
+        if diagnostics.Count > 0 then
+            Error { Diagnostics = List.ofSeq diagnostics }
+        else
+            match primary with
+            | Some primary -> Ok(primary :: secondary |> List.distinctBy (fun country -> country.Country.Code))
+            | None ->
+                Error(
+                    generationError
+                        "WORLD-COUNTRY-INVALID"
+                        (Some primaryCountry)
+                        "The primary country could not be materialized for generation."
+                        "Repair the resolved country entity before starting a game."
+                )
+
     let generateNewGame
+        (resolved: ResolvedDataSet)
+        (seed: uint64)
+        (startDate: DateTime)
         (primaryCountry: CountryCode)
         (managerName: string)
         (secondaryCountries: CountryCode list)
-        : GameState =
-        let allCountryCodes = (primaryCountry :: secondaryCountries) |> List.distinct
-        let allCountryData = allCountryCodes |> List.map DataRegistry.findCountry
-        let year = DateTime.Today.Year
-        let counters = { NextId = 1 }
+        : Result<GameState, ModError> =
+        match ResolvedWorldData.materialize resolved with
+        | Error error -> Error error
+        | Ok materialized ->
+            match validateCountries materialized.Countries primaryCountry secondaryCountries with
+            | Error error -> Error error
+            | Ok allCountryData ->
+                let year = startDate.Year
 
-        let world =
-            (emptyWorld, allCountryData)
-            ||> List.fold (fun acc cd -> generateLeagues year cd counters acc)
-            |> fun w ->
-                (w, allCountryData)
-                ||> List.fold (fun acc cd -> generateNationalCups year cd counters acc)
+                let allCountries =
+                    materialized.Countries
+                    |> List.map (fun country -> country.Country.Code, country)
+                    |> Map.ofList
 
-        let intlComps = DataRegistry.internationalComps ()
+                RNG.withSeed seed (fun () ->
+                    let counters = { NextId = 1 }
 
-        let world =
-            (world, intlComps)
-            ||> List.fold (fun acc (name, ct) -> generateInternational year name ct allCountryData counters acc)
+                    let world =
+                        (emptyWorld, allCountryData)
+                        ||> List.fold (fun acc country -> generateLeagues year country counters acc)
+                        |> fun world ->
+                            (world, allCountryData)
+                            ||> List.fold (fun acc country -> generateNationalCups year country counters acc)
 
-        let userClubId =
-            world.Competitions
-            |> Map.toSeq
-            |> Seq.tryPick (fun (_, comp) ->
-                match comp.Type, comp.Country with
-                | NationalLeague(LeagueLevel 0, _), Some c when c = primaryCountry -> comp.ClubIds |> List.tryHead
-                | _ -> None)
-            |> Option.defaultWith (fun () -> failwithf $"No first-division competition found for '{primaryCountry}'")
+                    let world =
+                        (world, materialized.InternationalCompetitions)
+                        ||> List.fold (fun acc (name, competitionType) ->
+                            generateInternational year name competitionType allCountryData counters acc)
 
-        let userStaffId = counters.NextId
+                    let userClubId =
+                        world.Competitions
+                        |> Map.toSeq
+                        |> Seq.tryPick (fun (_, competition) ->
+                            match competition.Type, competition.Country with
+                            | NationalLeague(LeagueLevel 0, _), Some country when country = primaryCountry ->
+                                competition.ClubIds |> List.tryHead
+                            | _ -> None)
 
-        let userManager =
-            createUserManager userStaffId managerName primaryCountry userClubId year
+                    match userClubId with
+                    | None ->
+                        Error(
+                            generationError
+                                "WORLD-COUNTRY-NO-FIRST-DIVISION"
+                                (Some primaryCountry)
+                                ("No generated level-0 competition exists for '" + primaryCountry + "'.")
+                                "Repair the primary country's level-0 league data before starting a game."
+                        )
+                    | Some userClubId ->
+                        let userStaffId = counters.NextId
 
-        let profileCache =
-            world.Players
-            |> Map.map (fun _ p -> Player.profile p ProfileWeightDefaults.defaults)
+                        let userManager =
+                            createUserManager userStaffId managerName primaryCountry userClubId year
 
-        let activeMods = DataRegistry.activeMods () |> List.map (fun m -> m.Id, m.Version)
+                        let profileCache =
+                            world.Players
+                            |> Map.map (fun _ player -> Player.profile player ProfileWeightDefaults.defaults)
 
-        { CurrentDate = DateTime(year, 7, 1)
-          Season = year
-          TrainingWeeksApplied = 0
-          Clubs = world.Clubs
-          Players = world.Players
-          Staff = world.Staff |> Map.add userStaffId userManager
-          Competitions = world.Competitions
-          Countries = DataRegistry.allCountriesMap ()
-          ActiveMods = activeMods
-          UserClubId = userClubId
-          UserStaffId = userStaffId
-          PrimaryCountry = primaryCountry
-          Inbox = []
-          NextInboxId = 1
-          PendingNegotiations = Map.empty
-          NextNegotiationId = 1
-          ProfileCache = profileCache
-          PlayerExperiences = Map.empty }
+                        Ok
+                            { CurrentDate = startDate
+                              Season = year
+                              TrainingWeeksApplied = 0
+                              Clubs = world.Clubs
+                              Players = world.Players
+                              Staff = world.Staff |> Map.add userStaffId userManager
+                              Competitions = world.Competitions
+                              Countries = allCountries
+                              DataLock = resolved.DataLock
+                              UserClubId = userClubId
+                              UserStaffId = userStaffId
+                              PrimaryCountry = primaryCountry
+                              Inbox = []
+                              NextInboxId = 1
+                              PendingNegotiations = Map.empty
+                              NextNegotiationId = 1
+                              Market = MarketState.empty
+                              ProfileCache = profileCache
+                              PlayerExperiences = Map.empty
+                              TeamEmphasis = EmPossession
+                              SeasonHistory = []
+                              CareerHistory = [] })

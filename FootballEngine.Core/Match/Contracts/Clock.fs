@@ -2,6 +2,18 @@ namespace FootballEngine.Core.Match
 
 /// 40 Hz physics cadence: 2400 whole subticks per match minute keep minute
 /// arithmetic exact and integer (see minuteSubticks).
+[<Struct>]
+type SimTick = SimTick of int<subtick>
+
+[<Struct>]
+type PlayClock = PlayClock of int<subtick>
+
+module SimTick =
+
+    let value (SimTick tick) : int<subtick> = tick
+
+    let ofSubTicks (tick: int<subtick>) : SimTick = SimTick tick
+
 type SimulationClock = { SubTicksPerSecond: int }
 
 module SimulationClock =
@@ -25,15 +37,30 @@ module SimulationClock =
     let minuteSubticks: int<subtick> =
         int (60.0 * float defaultClock.SubTicksPerSecond) * 1<subtick>
 
+module PlayClock =
+
+    let value (PlayClock tick) : int<subtick> = tick
+
+    let ofSubTicks (tick: int<subtick>) : PlayClock = PlayClock tick
+
+    let toMatchMinute (clock: PlayClock) : int<matchMin> =
+        clock |> value |> SimulationClock.toMatchMinute
+
 [<Struct>]
 type ClockPhase =
     | FirstHalf
     | HalfTime
     | SecondHalf
+    | ExtraTimeFirstHalf
+    | ExtraTimeSecondHalf
     | FullTime
 
 [<Struct>]
 type MatchClock =
     { Tick: int<subtick>
       Phase: ClockPhase }
+
+module MatchClock =
+
+    let playClock (clock: MatchClock) : PlayClock = PlayClock.ofSubTicks clock.Tick
 // Invariant: monotonic; SecondHalf end = 90 min + decided stoppage (both from config)

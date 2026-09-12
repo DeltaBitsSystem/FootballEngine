@@ -3,6 +3,64 @@ namespace FootballEngine.Domain
 open System
 open FootballEngine.Core.Match
 
+type ScoutingTarget =
+    | PlayerTarget of FootballEngine.Domain.PlayerId
+    | PositionTarget of Position
+
+type ScoutingAssignmentStatus =
+    | AssignmentAssigned
+    | AssignmentInProgress
+    | AssignmentReady
+    | AssignmentCancelled
+
+type ScoutingAssignment =
+    { Id: ScoutingAssignmentId
+      Target: ScoutingTarget
+      Scout: StaffId
+      Cost: decimal
+      Started: DateTime
+      Due: DateTime
+      Status: ScoutingAssignmentStatus }
+
+type PlayerKnowledge =
+    { Player: FootballEngine.Domain.PlayerId
+      CurrentSkillRange: int * int
+      PotentialRange: int * int
+      WageRange: decimal * decimal
+      Confidence: float
+      ObservedOn: DateTime
+      Sources: StaffId list
+      ReportKey: string }
+
+type RecruitmentNeed =
+    { Position: Position
+      DesiredRole: ContractRole
+      MinimumMinutes: int
+      Priority: int
+      Reason: string }
+
+type RecruitmentReport =
+    { Assignment: ScoutingAssignmentId
+      Player: FootballEngine.Domain.PlayerId
+      Knowledge: PlayerKnowledge
+      Evidence: string list }
+
+module ScoutingAssignment =
+    let assign id target scout cost started due =
+        { Id = id
+          Target = target
+          Scout = scout
+          Cost = cost
+          Started = started
+          Due = due
+          Status = AssignmentAssigned }
+
+module PlayerKnowledge =
+    let stableKey (assignment: ScoutingAssignment) =
+        $"scout:{assignment.Id}:{assignment.Scout}:{assignment.Due.Ticks}"
+
+    let preserve (knowledge: PlayerKnowledge) (sameReportKey: string) = knowledge.ReportKey = sameReportKey
+
 /// One club's play pattern over a match, expressed as fractions so matches of
 /// different lengths are comparable: corridor usage, pass length, directness,
 /// crossing rate and shot zones. The tactical signature (formation +
@@ -450,6 +508,8 @@ module CounterPlan =
 
     /// Deltas are added onto the club's own slider tactics, never replacing
     /// its identity: a deep block stays a deep block, just slightly deeper.
+    /// CounterConfig is authored in slider units; TacticsConfig runs engine
+    /// scales, so boosts convert here (line drop is already meters).
     let apply (cfg: CounterConfig) (t: TacticsConfig) (plan: CounterPlan) : TacticsConfig =
         if not plan.Active then
             t
@@ -458,8 +518,8 @@ module CounterPlan =
             // bias field (that is Phase-2 plumbing); WidthTighten already
             // compresses the opponent's strong corridor.
             { t with
-                PressIntensity = ScoutMath.clampF32 0.0f 4.0f (t.PressIntensity + float32 plan.PressBoost)
-                DefensiveLine = ScoutMath.clampF32 0.0f 4.0f (t.DefensiveLine - float32 plan.LineDrop)
-                Width = ScoutMath.clampF32 0.0f 4.0f (t.Width - float32 plan.WidthTighten)
-                Tempo = ScoutMath.clampF32 0.0f 4.0f (t.Tempo - float32 plan.TempoShift)
-                Directness = ScoutMath.clampF32 0.0f 4.0f (t.Directness + float32 plan.DirectnessShift) }
+                PressIntensity = ScoutMath.clampF32 0.0f 1.0f (t.PressIntensity + float32 plan.PressBoost / 4.0f)
+                DefensiveLine = max 15.0f (t.DefensiveLine - float32 plan.LineDrop)
+                Width = ScoutMath.clampF32 0.0f 1.0f (t.Width - float32 plan.WidthTighten / 4.0f)
+                Tempo = ScoutMath.clampF32 0.0f 1.0f (t.Tempo - float32 plan.TempoShift / 4.0f)
+                Directness = ScoutMath.clampF32 0.0f 1.0f (t.Directness + float32 plan.DirectnessShift / 4.0f) }

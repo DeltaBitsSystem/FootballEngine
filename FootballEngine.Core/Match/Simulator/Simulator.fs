@@ -1,5 +1,7 @@
 namespace FootballEngine.Core.Match
 
+open System.Text
+
 /// The match loop. Deterministic: one Rng threaded through every step, fresh World per run.
 module Simulator =
 
@@ -17,6 +19,17 @@ module Simulator =
 
     let private fnv (h: uint64) (v: uint64) : uint64 = (h ^^^ v) * 1099511628211UL
 
+    let eventsHash (events: MatchEvent list) : uint64 =
+        let mutable hash = 1469598103934665603UL
+
+        for ev in events do
+            let payload = sprintf "%d|%A" (int ev.Tick) ev.Data
+
+            for byteValue in Encoding.UTF8.GetBytes payload do
+                hash <- fnv hash (uint64 byteValue)
+
+        hash
+
     let runMatch
         (systems: SystemSpec list)
         (ctx: MatchContext)
@@ -24,13 +37,9 @@ module Simulator =
         (mode: RunMode)
         (weightsPath: string option)
         : MatchOutcome =
-        let ctx =
-            match weightsPath with
-            | Some path when System.IO.File.Exists path ->
-                match WeightMerge.load path ctx.Config with
-                | Ok merged -> { ctx with Config = merged }
-                | Error _ -> ctx
-            | _ -> ctx
+        // The caller supplies the resolved config. Reading a mutable file here
+        // would make the same MatchInput produce different results.
+        let _ = weightsPath
 
         let world = MatchFactory.create ctx
 
@@ -51,6 +60,7 @@ module Simulator =
             match mode with
             | RunMode.Fast -> None
             | RunMode.Replay n -> Some n
+            | RunMode.Full -> None
 
         match snapshotEvery with
         | Some _ -> snaps.Add(Replay.capture world)
@@ -76,16 +86,6 @@ module Simulator =
                     { world.State with
                         Flow = MatchFlow.MatchEnded }
 
-        // FNV-1a fingerprint of the whole event stream: two runs from the same seed
-        // are identical iff these hashes match.
-        let mutable hash = 1469598103934665603UL
-
-        for ev in allEvents do
-            let bit =
-                System.Numerics.BitOperations.TrailingZeroCount(uint (EventFlags.ofKind (MatchEvent.kind ev)).Bits)
-
-            hash <- fnv hash (uint64 bit ||| (uint64 ev.Tick <<< 32))
-
         { Events = List.ofSeq allEvents
           Final = world
           Replay =
@@ -97,4 +97,4 @@ module Simulator =
             (match mode with
              | RunMode.Full -> Some(MatchDump.export ctx (List.ofSeq allEvents) world.Home.Stats world.Away.Stats)
              | _ -> None)
-          EventsHash = hash }
+          EventsHash = eventsHash (List.ofSeq allEvents) }

@@ -8,7 +8,6 @@ type ManagerIntent =
     | InitiateTransfer of buyerClubId: ClubId * PlayerId * maxFee: decimal
     | ApproveIncomingOffer of NegotiationId
     | RejectIncomingOffer of NegotiationId * reason: string
-    | SetTrainingSchedule of PlayerId * TrainingSchedule
 
 module ManagerAgent =
 
@@ -23,7 +22,7 @@ module ManagerAgent =
                | _ -> false)
         |> List.ofSeq
 
-    let private project (clubId: ClubId) (state: GameState) : AgentView =
+    let private project (balance: BalanceConfig) (clubId: ClubId) (state: GameState) : AgentView =
         let club = state.Clubs[clubId]
 
         let squad =
@@ -41,7 +40,7 @@ module ManagerAgent =
             // SquadPlanner is the "always buy well" gate on every AI signing:
             // refineTargets closes roles already saturated with bench warmers,
             // and cappedFee only tolerates overpay when the gap is real.
-            let config = BalanceConfig.defaultConfig
+            let config = balance
 
             let targets =
                 TargetSelection.selectTargets coach club needs candidates
@@ -84,8 +83,17 @@ module ManagerAgent =
                   Payload = InitiateTransfer(club.Id, target.PlayerId, target.MaxFee) })
         | _ -> []
 
-    let make (clubId: ClubId) : Agent<ManagerIntent> =
+    let make (balance: BalanceConfig) (clubId: ClubId) : Agent<ManagerIntent> =
         { Id = ManagerAgentId clubId
           Trigger = Both(Weekly, OfferReceived(0, clubId))
-          Project = project clubId
+          Project = project balance clubId
           Decide = decide }
+
+    /// Convenience: derive effective BalanceConfig from SaveSettings (Save > default).
+    let makeFromSave (saveOpt: FootballEngine.Settings.SaveSettings option) (clubId: ClubId) : Agent<ManagerIntent> =
+        let balance = WeightMergeSettings.mergeWithOverridesSave saveOpt
+        make balance clubId
+
+    /// Backward compat for tests — uses effective default (no override).
+    let makeDefault (clubId: ClubId) : Agent<ManagerIntent> =
+        make (WeightMergeSettings.mergeWithOverridesSave None) clubId

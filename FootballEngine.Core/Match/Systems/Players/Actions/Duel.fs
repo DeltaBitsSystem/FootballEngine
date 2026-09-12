@@ -96,9 +96,6 @@ module Duel =
             let foulRoll, rng'' = Rng.double rng'
             let foul = foulRoll < cfg.Actions.DuelFoulChance
 
-            let mem = (MatchWorld.team world side).Memory
-            let defMem = (MatchWorld.team world (MatchWorld.oppOf side)).Memory
-
             if foul then
                 let severity = foulSeverity ctx.Ctx world side slot x y
 
@@ -110,23 +107,11 @@ module Duel =
                     { Tick = tick
                       Data = EventData.BallLoose(x, y) }
 
-                mem.[slot].FailedDuels <- mem.[slot].FailedDuels + 1
-                mem.[slot].DuelFailMod <- min 1.5 (mem.[slot].DuelFailMod + 0.35)
-
-                MatchWorld.updateBall world (fun b ->
-                    { b with
-                        Control = BallControl.Contesting side
-                        Trajectory = None
-                        ArrivalGate = None })
-
                 rng''
             elif r < pWin then
                 buffer.Events.Add
                     { Tick = tick
                       Data = EventData.Dribble(pid, true, x, y) }
-
-                mem.[slot].SuccessfulDuels <- mem.[slot].SuccessfulDuels + 1
-                mem.[slot].DuelSuccessMod <- min 1.5 (mem.[slot].DuelSuccessMod + 0.25)
 
                 rng''
             else
@@ -141,14 +126,5 @@ module Duel =
                 buffer.Events.Add
                     { Tick = tick
                       Data = EventData.Possession(MatchWorld.oppOf side, dPid) }
-
-                mem.[slot].FailedDuels <- mem.[slot].FailedDuels + 1
-                mem.[slot].DuelFailMod <- min 1.5 (mem.[slot].DuelFailMod + 0.35)
-                defMem.[dSlot].SuccessfulDuels <- defMem.[dSlot].SuccessfulDuels + 1
-
-                MatchWorld.updateBall world (fun b ->
-                    { b with
-                        Control = BallControl.Controlled(MatchWorld.oppOf side, dPid)
-                        LastTouch = Some dPid })
 
                 rng''

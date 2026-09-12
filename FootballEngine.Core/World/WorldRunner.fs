@@ -43,24 +43,20 @@ module WorldRunner =
         results
 
     let private isSeasonComplete (gs: GameState) =
-        let hasUnplayed (comp: Competition) =
-            comp.Fixtures |> Map.exists (fun _ f -> not f.Played)
+        let relevant =
+            gs.Competitions
+            |> Map.values
+            |> Seq.filter (fun comp -> comp.Season = gs.Season)
+            |> Seq.toList
 
-        gs.Competitions
-        |> Map.tryFindKey (fun _ comp ->
-            match comp.Type, comp.Country with
-            | NationalLeague(LeagueLevel 0, _), Some c when c = gs.PrimaryCountry -> true
-            | _ -> false)
-        |> Option.map (fun id ->
-            not (hasUnplayed gs.Competitions[id])
-            && gs.Competitions
-               |> Map.forall (fun _ comp ->
-                   match comp.Type with
-                   | NationalLeague _ -> not (hasUnplayed comp)
-                   | _ -> true))
-        |> Option.defaultValue false
+        not relevant.IsEmpty && relevant |> List.forall Competition.isComplete
 
-    let advanceDays (days: int) (clock: WorldClock) (gs: GameState) : DayResult =
+    let advanceDaysWithBalance
+        (balance: FootballEngine.Core.Match.BalanceConfig)
+        (days: int)
+        (clock: WorldClock)
+        (gs: GameState)
+        : DayResult =
 
         let rec loop remaining clock gs accumulated =
             if remaining = 0 then
@@ -70,15 +66,11 @@ module WorldRunner =
                   Logs = []
                   SeasonComplete = isSeasonComplete gs }
             else
-                let gs1 =
-                    { gs with
-                        CurrentDate = gs.CurrentDate.AddDays(1.0) }
-
                 let gs2, clock1 =
                     if remaining = 1 then
-                        WorldScheduler.tickWith (Set.singleton Match) clock gs1
+                        WorldScheduler.tickWithBalance balance (Set.singleton Match) clock gs
                     else
-                        WorldScheduler.tick clock gs1
+                        WorldScheduler.tickWithBalance balance Set.empty clock gs
 
                 let todayPlayed =
                     gs2.Competitions
@@ -86,7 +78,7 @@ module WorldRunner =
                     |> Seq.collect (fun (_, comp) ->
                         comp.Fixtures
                         |> Map.toSeq
-                        |> Seq.filter (fun (_, f) -> f.Played && f.ScheduledDate.Date = gs1.CurrentDate.Date))
+                        |> Seq.filter (fun (_, f) -> f.Played && f.ScheduledDate.Date = gs2.CurrentDate.Date))
                     |> List.ofSeq
 
                 if isSeasonComplete gs2 then
@@ -100,7 +92,122 @@ module WorldRunner =
 
         loop days clock gs []
 
-    let simulateFullSeasonAndAdvance (clock: WorldClock) (gs: GameState) : Result<SeasonResult, SeasonError> =
+    let advanceDays (days: int) (clock: WorldClock) (gs: GameState) : DayResult =
+        let balance =
+            FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave None
+
+        advanceDaysWithBalance balance days clock gs
+
+    let advanceDaysWithSave
+        (saveOpt: FootballEngine.Settings.SaveSettings option)
+        (days: int)
+        (clock: WorldClock)
+        (gs: GameState)
+        : DayResult =
+        let balance =
+            FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave saveOpt
+
+        advanceDaysWithBalance balance days clock gs
+
+    /// Contract adapter used by callers that advance by a logical date range.
+    /// It delegates to the established daily runner so all phases keep one
+    /// ordering and one source of truth.
+    let advanceWithBalance
+        (balance: FootballEngine.Core.Match.BalanceConfig)
+        (request: AdvanceRequest)
+        (clock: WorldClock)
+        (state: WorldState)
+        : AdvanceResult =
+        if request.ExpectedRevision <> clock.Revision then
+            { State = state
+              ConfirmedRevision = clock.Revision
+              Events = []
+              StoppedBecause = InvalidRequest "World revision is stale" }
+        elif request.UntilDate < request.FromDate then
+            { State = state
+              ConfirmedRevision = clock.Revision
+              Events = []
+              StoppedBecause = InvalidRequest "AdvanceRequest.UntilDate must be >= FromDate" }
+        elif request.CancellationRequested then
+            { State = state
+              ConfirmedRevision = clock.Revision
+              Events = []
+              StoppedBecause = Cancelled }
+        else
+            let rec loop
+                (currentState: GameState)
+                (currentClock: WorldClock)
+                (events: WorldEvent list)
+                (remaining: int)
+                =
+                if request.CancellationRequested then
+                    { State = currentState
+                      ConfirmedRevision = currentClock.Revision
+                      Events = events
+                      StoppedBecause = Cancelled }
+                elif remaining <= 0 then
+                    { State = currentState
+                      ConfirmedRevision = currentClock.Revision
+                      Events = events
+                      StoppedBecause = ReachedLimit }
+                else
+                    match
+                        WorldScheduler.executeDayWithBalance (balance, request.PausePolicy, currentClock, currentState)
+                    with
+                    | Error failure ->
+                        { State = failure.State
+                          ConfirmedRevision = failure.Clock.Revision
+                          Events = events
+                          StoppedBecause = Failed(string failure.Phase, failure.Message) }
+                    | Ok day ->
+                        let dayEvent =
+                            { Id = WorldEventId(day.Clock.Revision)
+                              EffectiveDate = day.State.CurrentDate
+                              Sequence = day.Clock.Revision
+                              Cause = None
+                              Entities = []
+                              Payload = WorldAdvanced(currentState.CurrentDate, day.State.CurrentDate) }
+
+                        let allEvents = events @ day.Events @ [ dayEvent ]
+
+                        match request.PausePolicy, day.PausedMatch with
+                        | PauseBeforeUserMatch, Some matchId ->
+                            { State = day.State
+                              ConfirmedRevision = day.Clock.Revision
+                              Events = allEvents
+                              StoppedBecause = PausedForMatch matchId }
+                        | _ -> loop day.State day.Clock allEvents (remaining - 1)
+
+            let days = int (request.UntilDate - request.FromDate).TotalDays
+            loop state clock [] days
+
+    let applyCommand
+        (balance: FootballEngine.Core.Match.BalanceConfig)
+        (command: WorldCommand)
+        (clock: WorldClock)
+        (state: WorldState)
+        : Result<AdvanceResult, string> =
+        match WorldCommand.validate command with
+        | Error error -> Error error
+        | Ok() ->
+            match command.Action with
+            | AdvanceDays days ->
+                let request =
+                    { FromDate = state.CurrentDate
+                      UntilDate = state.CurrentDate.AddDays(float days)
+                      PausePolicy = RunThroughMatches
+                      ExpectedRevision = command.ExpectedRevision
+                      CancellationRequested = false }
+
+                Ok(advanceWithBalance balance request clock state)
+            | ConfirmMatch _
+            | ChangeBalance _ -> Error "WorldCommand action requires its owning phase"
+
+    let simulateFullSeasonAndAdvanceWithBalance
+        (balance: FootballEngine.Core.Match.BalanceConfig)
+        (clock: WorldClock)
+        (gs: GameState)
+        : Result<SeasonResult, SeasonError> =
 
         let fixturesByDate =
             gs.Competitions
@@ -126,7 +233,7 @@ module WorldRunner =
                         dayFixtures
                         |> Array.ofList
                         |> parallelMapLimited (fun (id, fixture) ->
-                            match MatchPhase.simulateFixture id fixture gsReady with
+                            match MatchPhase.simulateFixtureWithBalance balance id fixture gsReady with
                             | Some o -> Some o
                             | None -> None)
                         |> Array.fold
@@ -137,7 +244,9 @@ module WorldRunner =
                             ([], [])
 
                     if errs.IsEmpty then
-                        currentGs <- applyOutcomes (fixtureToCompMap gsReady) (Array.ofList outcomes) gsReady
+                        currentGs <-
+                            applyPostMatchLoad balance.Training (Array.ofList outcomes) gsReady
+                            |> applyOutcomes (fixtureToCompMap gsReady) (Array.ofList outcomes)
 
                         currentGs <- { currentGs with CurrentDate = date }
                     else
@@ -147,7 +256,7 @@ module WorldRunner =
             | _ :: _ -> Error(SimulationErrors errors)
             | [] ->
                 let summary = SeasonPhase.computeSeasonSummary currentGs
-                let nextGs = SeasonPhase.runEndOfSeason currentGs
+                let nextGs = SeasonPhase.runEndOfSeason balance currentGs
                 let nextClock = WorldClockOps.init nextGs.Season
 
                 Ok
@@ -156,9 +265,29 @@ module WorldRunner =
                       NextSeasonGs = nextGs
                       NextSeasonClock = nextClock }
 
-    let advanceToNextSeason (clock: WorldClock) (gs: GameState) : SeasonResult =
+    let simulateFullSeasonAndAdvance (clock: WorldClock) (gs: GameState) : Result<SeasonResult, SeasonError> =
+        let balance =
+            FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave None
+
+        simulateFullSeasonAndAdvanceWithBalance balance clock gs
+
+    let simulateFullSeasonAndAdvanceWithSave
+        (saveOpt: FootballEngine.Settings.SaveSettings option)
+        (clock: WorldClock)
+        (gs: GameState)
+        : Result<SeasonResult, SeasonError> =
+        let balance =
+            FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave saveOpt
+
+        simulateFullSeasonAndAdvanceWithBalance balance clock gs
+
+    let advanceToNextSeasonWithBalance
+        (balance: FootballEngine.Core.Match.BalanceConfig)
+        (clock: WorldClock)
+        (gs: GameState)
+        : SeasonResult =
         let summary = SeasonPhase.computeSeasonSummary gs
-        let nextGs = SeasonPhase.runEndOfSeason gs
+        let nextGs = SeasonPhase.runEndOfSeason balance gs
         let nextClock = WorldClockOps.init nextGs.Season
 
         { Summary = summary
@@ -166,7 +295,27 @@ module WorldRunner =
           NextSeasonGs = nextGs
           NextSeasonClock = nextClock }
 
-    let simulateUserMatch (clock: WorldClock) (gs: GameState) : Result<UserMatchResult, string> =
+    let advanceToNextSeason (clock: WorldClock) (gs: GameState) : SeasonResult =
+        let balance =
+            FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave None
+
+        advanceToNextSeasonWithBalance balance clock gs
+
+    let advanceToNextSeasonWithSave
+        (saveOpt: FootballEngine.Settings.SaveSettings option)
+        (clock: WorldClock)
+        (gs: GameState)
+        : SeasonResult =
+        let balance =
+            FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave saveOpt
+
+        advanceToNextSeasonWithBalance balance clock gs
+
+    let simulateUserMatchWithBalance
+        (balance: FootballEngine.Core.Match.BalanceConfig)
+        (clock: WorldClock)
+        (gs: GameState)
+        : Result<UserMatchResult, string> =
 
         let userFixture =
             gs.Competitions
@@ -185,7 +334,7 @@ module WorldRunner =
                 |> LineupOps.ensureForClub fixture.HomeClubId
                 |> LineupOps.ensureForClub fixture.AwayClubId
 
-            match MatchContextBuilder.build gsReady fixture BalanceConfig.defaultConfig with
+            match MatchContextBuilder.build gsReady fixture balance with
             | None -> Error "Match simulation failed: missing lineup"
             | Some ctx ->
                 let result =
@@ -202,21 +351,28 @@ module WorldRunner =
                     let h = result.Final.State.HomeScore
                     let a = result.Final.State.AwayScore
 
+                    let homePlayerStats, awayPlayerStats =
+                        MatchOutcome.extractPlayerStatsFromWorld ctx result.Final result.Events
+
+                    let playedFixture =
+                        { fixture with
+                            Played = true
+                            HomeScore = Some h
+                            AwayScore = Some a
+                            Events = result.Events }
+
                     let outcome =
                         { FixtureId = fixtureId
-                          Fixture =
-                            { fixture with
-                                Played = true
-                                HomeScore = Some h
-                                AwayScore = Some a
-                                Events = result.Events }
+                          Fixture = playedFixture
                           HomeScore = h
                           AwayScore = a
                           InjuredPlayers = MatchContextBuilder.injuredOf result.Events
-                          HomePlayerStats = [||]
-                          AwayPlayerStats = [||] }
+                          HomePlayerStats = homePlayerStats
+                          AwayPlayerStats = awayPlayerStats }
 
-                    let finalGs = applyOutcomes (fixtureToCompMap gsReady) [| outcome |] gsReady
+                    let finalGs =
+                        applyPostMatchLoad balance.Training [| outcome |] gsReady
+                        |> applyOutcomes (fixtureToCompMap gsReady) [| outcome |]
 
                     let clubOfPlayer =
                         fun pid -> gsReady.Players |> Map.tryFind pid |> Option.bind Player.clubOf
@@ -316,6 +472,22 @@ module WorldRunner =
                               SeasonComplete = isSeasonComplete gsWithScouting }
                           MatchReplay = Some replay }
 
+    let simulateUserMatch (clock: WorldClock) (gs: GameState) : Result<UserMatchResult, string> =
+        let balance =
+            FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave None
+
+        simulateUserMatchWithBalance balance clock gs
+
+    let simulateUserMatchWithSave
+        (saveOpt: FootballEngine.Settings.SaveSettings option)
+        (clock: WorldClock)
+        (gs: GameState)
+        : Result<UserMatchResult, string> =
+        let balance =
+            FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave saveOpt
+
+        simulateUserMatchWithBalance balance clock gs
+
     let hasUserMatchToday (gs: GameState) : bool =
         gs.Competitions
         |> Map.exists (fun _ comp ->
@@ -325,11 +497,15 @@ module WorldRunner =
                 && MatchFixture.isPending f
                 && MatchFixture.involves gs.UserClubId f))
 
-    let runAiFixtures (clock: WorldClock) (gs: GameState) : DayResult =
+    let runAiFixturesWithBalance
+        (balance: FootballEngine.Core.Match.BalanceConfig)
+        (clock: WorldClock)
+        (gs: GameState)
+        : DayResult =
         let nextGs =
             match MatchPhase.getAiFixturesToday gs with
             | [] -> gs
-            | fixtures -> MatchPhase.runFixtures fixtures gs
+            | fixtures -> MatchPhase.runFixturesWithBalance balance fixtures gs
 
         let todayPlayed =
             nextGs.Competitions
@@ -345,3 +521,19 @@ module WorldRunner =
           PlayedMatches = todayPlayed
           Logs = []
           SeasonComplete = isSeasonComplete nextGs }
+
+    let runAiFixtures (clock: WorldClock) (gs: GameState) : DayResult =
+        let balance =
+            FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave None
+
+        runAiFixturesWithBalance balance clock gs
+
+    let runAiFixturesWithSave
+        (saveOpt: FootballEngine.Settings.SaveSettings option)
+        (clock: WorldClock)
+        (gs: GameState)
+        : DayResult =
+        let balance =
+            FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave saveOpt
+
+        runAiFixturesWithBalance balance clock gs

@@ -4,6 +4,13 @@ namespace FootballEngine.Core.Match
 [<Struct>]
 type EventFlags = { Bits: uint64 }
 
+[<Struct>]
+type EventId = EventId of uint64
+
+module EventId =
+
+    let value (EventId id) = id
+
 /// The flag table is a uint64, so this DU is capped at 64 cases and its tag
 /// order is frozen (P1): each case's index IS its flag bit — inserting or
 /// reordering a case silently corrupts flag matching.
@@ -37,6 +44,15 @@ type EventKind =
     | ConditionCritical
     | RedCard
     | ShootoutGoal
+    | Offside
+    | Advantage
+    | SubstitutionRequested
+    | SubstitutionAccepted
+    | SubstitutionRejected
+    | SubstitutionApplied
+    | ShootoutStarted
+    | ShootoutKick
+    | ShootoutFinished
 
 module EventFlags =
 
@@ -74,6 +90,15 @@ module EventFlags =
             | EventKind.ConditionCritical -> 26
             | EventKind.RedCard -> 27
             | EventKind.ShootoutGoal -> 28
+            | EventKind.Offside -> 29
+            | EventKind.Advantage -> 30
+            | EventKind.SubstitutionRequested -> 31
+            | EventKind.SubstitutionAccepted -> 32
+            | EventKind.SubstitutionRejected -> 33
+            | EventKind.SubstitutionApplied -> 34
+            | EventKind.ShootoutStarted -> 35
+            | EventKind.ShootoutKick -> 36
+            | EventKind.ShootoutFinished -> 37
 
         { Bits = 1UL <<< bit }
 
@@ -81,8 +106,8 @@ module EventFlags =
 
     let intersects (a: EventFlags) (b: EventFlags) : bool = (a.Bits &&& b.Bits) <> 0UL
 
-    /// Union of every kind bit (all 29 events of P1+R10).
-    let all: EventFlags = { Bits = 0x1FFFFFFFUL }
+    /// Union of every kind bit.
+    let all: EventFlags = { Bits = (1UL <<< 38) - 1UL }
 
 [<Struct>]
 type ShotResult =
@@ -135,6 +160,24 @@ type EventData =
     | ConditionCritical of player: PlayerId * condition: int
     | RedCardIssued of player: PlayerId
     | ShootoutGoal of side: ClubSide
+    | Offside of player: PlayerId
+    | AdvantageStarted of
+        side: ClubSide *
+        fouler: PlayerId *
+        fouled: PlayerId *
+        x: float<meter> *
+        y: float<meter> *
+        expiresAt: int<subtick>
+    | AdvantageRealized of side: ClubSide
+    | AdvantageRecalled of side: ClubSide
+    | AdvantageExpired of side: ClubSide
+    | SubstitutionRequested of playerOut: PlayerId * playerIn: PlayerId
+    | SubstitutionAccepted of playerOut: PlayerId * playerIn: PlayerId
+    | SubstitutionRejected of playerOut: PlayerId * playerIn: PlayerId
+    | SubstitutionApplied of playerOut: PlayerId * playerIn: PlayerId
+    | ShootoutStarted
+    | ShootoutKick of side: ClubSide * taker: PlayerId * scored: bool
+    | ShootoutFinished
 
 type MatchEvent = { Tick: int<subtick>; Data: EventData }
 
@@ -171,6 +214,30 @@ module MatchEvent =
         | EventData.ConditionCritical _ -> EventKind.ConditionCritical
         | EventData.RedCardIssued _ -> EventKind.RedCard
         | EventData.ShootoutGoal _ -> EventKind.ShootoutGoal
+        | EventData.Offside _ -> EventKind.Offside
+        | EventData.AdvantageStarted _
+        | EventData.AdvantageRealized _
+        | EventData.AdvantageRecalled _
+        | EventData.AdvantageExpired _ -> EventKind.Advantage
+        | EventData.SubstitutionRequested _ -> EventKind.SubstitutionRequested
+        | EventData.SubstitutionAccepted _ -> EventKind.SubstitutionAccepted
+        | EventData.SubstitutionRejected _ -> EventKind.SubstitutionRejected
+        | EventData.SubstitutionApplied _ -> EventKind.SubstitutionApplied
+        | EventData.ShootoutStarted -> EventKind.ShootoutStarted
+        | EventData.ShootoutKick _ -> EventKind.ShootoutKick
+        | EventData.ShootoutFinished -> EventKind.ShootoutFinished
+
+    /// EventData has no mutable identity. This deterministic key gives the
+    /// structural reducer a stable idempotence boundary until the causal ledger
+    /// introduces explicit event ids.
+    let id (ev: MatchEvent) : EventId =
+        let text = sprintf "%d|%A" (int ev.Tick) ev.Data
+        let mutable hash = 1469598103934665603UL
+
+        for b in System.Text.Encoding.UTF8.GetBytes text do
+            hash <- (hash ^^^ uint64 b) * 1099511628211UL
+
+        EventId hash
 
     /// For tests/diagnostics only — the viewer derives its own text from EventData.
     let describe (ev: MatchEvent) : string =
@@ -199,3 +266,15 @@ module MatchEvent =
         | EventData.ConditionCritical(_, condition) -> sprintf "Condition critical %d" condition
         | EventData.RedCardIssued _ -> "Red card issued"
         | EventData.ShootoutGoal side -> sprintf "Shootout goal: %A" side
+        | EventData.Offside _ -> "Offside"
+        | EventData.AdvantageStarted(side, _, _, _, _, _) -> sprintf "Advantage: %A" side
+        | EventData.AdvantageRealized side -> sprintf "Advantage realized: %A" side
+        | EventData.AdvantageRecalled side -> sprintf "Advantage recalled: %A" side
+        | EventData.AdvantageExpired side -> sprintf "Advantage expired: %A" side
+        | EventData.SubstitutionRequested _ -> "Substitution requested"
+        | EventData.SubstitutionAccepted _ -> "Substitution accepted"
+        | EventData.SubstitutionRejected _ -> "Substitution rejected"
+        | EventData.SubstitutionApplied _ -> "Substitution applied"
+        | EventData.ShootoutStarted -> "Shootout started"
+        | EventData.ShootoutKick(side, taker, scored) -> sprintf "Shootout kick: %A %A scored=%b" side taker scored
+        | EventData.ShootoutFinished -> "Shootout finished"

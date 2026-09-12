@@ -47,10 +47,13 @@ module LineupOps =
 
     let private countActiveSlots (players: Player list) (lineup: Lineup) =
         lineup.Slots
-        |> List.filter (fun s ->
+        |> List.choose (fun s ->
             s.PlayerId
-            |> Option.map (fun pid -> players |> List.exists (fun p -> p.Id = pid && p.Status = Available))
-            |> Option.defaultValue false)
+            |> Option.bind (fun pid ->
+                players
+                |> List.tryFind (fun p -> p.Id = pid && p.Status = Available)
+                |> Option.map _.Id))
+        |> List.distinct
         |> List.length
 
     let private buildSlots (formation: Formation) (players: Player list) : LineupSlot list =
@@ -106,15 +109,16 @@ module LineupOps =
         match GameState.headCoach clubId gs with
         | None -> gs
         | Some coach ->
+            let squad = club.PlayerIds |> List.choose gs.Players.TryFind
+
             let isComplete =
                 coach.Attributes.Coaching.Lineup
-                |> Option.map (fun lu -> lu.Slots |> List.filter (fun s -> s.PlayerId.IsSome) |> List.length = 11)
+                |> Option.map (fun lu -> lu.Slots.Length = 11 && countActiveSlots squad lu = 11)
                 |> Option.defaultValue false
 
             if isComplete then
                 gs
             else
-                let squad = club.PlayerIds |> List.choose gs.Players.TryFind
                 let updatedCoach = autoLineup coach squad (bestFormation squad)
 
                 { gs with

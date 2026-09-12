@@ -6,6 +6,15 @@ type MatchId = int
 type CompetitionId = int
 type CountryCode = string
 type StaffId = int
+type ContractId = ContractId of int
+type TransferOperationId = TransferOperationId of int
+type ScoutingAssignmentId = ScoutingAssignmentId of int
+
+type ContractRole =
+    | Starter
+    | Rotation
+    | Backup
+    | Prospect
 
 type Round =
     | GroupStage of groupIndex: int

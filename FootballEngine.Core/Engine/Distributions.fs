@@ -1,6 +1,7 @@
 namespace FootballEngine
 
 open System
+open System.Threading
 
 module Distributions =
 
@@ -8,21 +9,39 @@ module Distributions =
         [<Literal>]
         let private TwoPi = 6.283185307179586
 
-        let mutable private spare = 0.0
-        let mutable private hasSpare = false
+        type private State =
+            { Source: obj
+              mutable Spare: float
+              mutable HasSpare: bool }
+
+        let private state = new AsyncLocal<State option>()
 
         let sampleBoxMuller (u1: float) (u2: float) =
             Math.Sqrt(-2.0 * Math.Log u1) * Math.Cos(TwoPi * u2)
 
         let get () =
-            if hasSpare then
-                hasSpare <- false
-                spare
+            let source = RNG.sourceToken ()
+
+            let cache =
+                match state.Value with
+                | Some current when obj.ReferenceEquals(current.Source, source) -> current
+                | _ ->
+                    let fresh =
+                        { Source = source
+                          Spare = 0.0
+                          HasSpare = false }
+
+                    state.Value <- Some fresh
+                    fresh
+
+            if cache.HasSpare then
+                cache.HasSpare <- false
+                cache.Spare
             else
                 let u1 = RNG.roll ()
                 let u2 = RNG.roll ()
-                spare <- sampleBoxMuller u1 u2
-                hasSpare <- true
+                cache.Spare <- sampleBoxMuller u1 u2
+                cache.HasSpare <- true
                 sampleBoxMuller u1 u2
 
     let normal (mean: float) (stdDev: float) : float = mean + stdDev * NormalCache.get ()

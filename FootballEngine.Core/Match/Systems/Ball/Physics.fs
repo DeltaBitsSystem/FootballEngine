@@ -6,6 +6,119 @@ namespace FootballEngine.Core.Match
 /// so the motion is fully deterministic and can be replayed.
 module BallPhysics =
 
+    let private strikeTag (kind: StrikeKind) : uint64 =
+        match kind with
+        | StrikeKind.Pass -> 1UL
+        | StrikeKind.Cross -> 2UL
+        | StrikeKind.Clearance -> 3UL
+        | StrikeKind.Shot -> 4UL
+        | StrikeKind.Restart SetPieceKind.KickOff -> 5UL
+        | StrikeKind.Restart SetPieceKind.ThrowIn -> 6UL
+        | StrikeKind.Restart SetPieceKind.Corner -> 7UL
+        | StrikeKind.Restart SetPieceKind.GoalKick -> 8UL
+        | StrikeKind.Restart SetPieceKind.FreeKick -> 9UL
+        | StrikeKind.Restart SetPieceKind.Penalty -> 10UL
+
+    let private actionId (tick: SimTick) (actor: PlayerId) (kind: StrikeKind) : ActionId =
+        let (PlayerId player) = actor
+        let tickValue = uint64 (max 0 (int (SimTick.value tick)))
+        let playerValue = uint64 (max 0 player)
+        ActionId((tickValue <<< 32) ^^^ ((playerValue &&& 0xFFFFFFUL) <<< 8) ^^^ strikeTag kind)
+
+    let private vec3OfSpatial (p: Spatial) : Vec3 = { X = p.X; Y = p.Y; Z = p.Z }
+
+    let createImpulse
+        (actor: PlayerId)
+        (origin: Vec3)
+        (linearVelocity: LinearVelocity)
+        (angularVelocity: AngularVelocity)
+        (intendedTarget: Vec2 option)
+        (strikeKind: StrikeKind)
+        (contactTick: SimTick)
+        (executionContext: ExecutionContext)
+        : BallImpulse =
+        { ActionId = actionId contactTick actor strikeKind
+          ActorId = actor
+          Origin = origin
+          LinearVelocity = linearVelocity
+          AngularVelocity = angularVelocity
+          IntendedTarget = intendedTarget
+          StrikeKind = strikeKind
+          ContactTick = contactTick
+          ExecutionContext = executionContext }
+
+    /// Every kick enters the ball state through this function. ArrivalGate is
+    /// only a candidate-search hint; the contact system still observes the
+    /// integrated path on every live tick.
+    let applyImpulse
+        (world: World)
+        (impulse: BallImpulse)
+        (trajectory: TrajectoryIntent)
+        (arrivalGate: int<subtick> option)
+        : unit =
+        let origin = impulse.Origin
+        let velocity = impulse.LinearVelocity
+        let angular = impulse.AngularVelocity
+
+        MatchWorld.updateBall world (fun b ->
+            { b with
+                Position =
+                    { X = origin.X
+                      Y = origin.Y
+                      Z = origin.Z
+                      Vx = velocity.X
+                      Vy = velocity.Y
+                      Vz = velocity.Z }
+                Spin =
+                    { Top = angular.Top
+                      Side = angular.Side }
+                Control = BallControl.Airborne
+                Trajectory = Some trajectory
+                LastTouch = Some impulse.ActorId
+                StationarySince = None
+                GKHoldSince = None
+                ArrivalGate = arrivalGate
+                PreviousPosition = None
+                Impulse = Some impulse
+                PendingRestart = None })
+
+    let goalCrossing (previous: Spatial) (current: Spatial) : GoalCrossing option =
+        let crossingFor side goalX crossed =
+            if crossed then
+                let dx = float current.X - float previous.X
+
+                if abs dx < 0.000001 then
+                    None
+                else
+                    let fraction = MatchMath.clamp01 ((float goalX - float previous.X) / dx)
+
+                    Some
+                        { Side = side
+                          Position =
+                            { X = goalX
+                              Y =
+                                (float previous.Y + (float current.Y - float previous.Y) * fraction)
+                                * 1.0<meter>
+                              Z =
+                                (float previous.Z + (float current.Z - float previous.Z) * fraction)
+                                * 1.0<meter> }
+                          Fraction = fraction }
+            else
+                None
+
+        match
+            crossingFor ClubSide.Home Pitch.awayGoalX (previous.X < Pitch.awayGoalX && current.X >= Pitch.awayGoalX),
+            crossingFor ClubSide.Away Pitch.homeGoalX (previous.X > Pitch.homeGoalX && current.X <= Pitch.homeGoalX)
+        with
+        | Some crossing, _ -> Some crossing
+        | _, Some crossing -> Some crossing
+        | _ -> None
+
+    let withinGoalFrame (position: Vec3) : bool =
+        abs (float position.Y) <= float Pitch.GoalHalfWidth
+        && float position.Z >= 0.0
+        && float position.Z <= 2.44
+
     let private integrate (ctx: SystemContext) (tick: int<subtick>) (ball: BallState) (cfg: BallConfig) : BallState =
         let dt = float (SimulationClock.dt ctx.Clock)
         let p = ball.Position
@@ -78,7 +191,8 @@ module BallPhysics =
                   Vy = vy
                   Vz = vz }
             Spin = { Top = spinTop; Side = spinSide }
-            StationarySince = stationarySince }
+            StationarySince = stationarySince
+            PreviousPosition = Some p }
 
     let step: SystemStep =
         fun ctx rng world _ ->

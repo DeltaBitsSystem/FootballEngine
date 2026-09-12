@@ -50,8 +50,7 @@ module BallContact =
                 vx * dx + vy * dy > 0.0)
 
         let recoveryBoost = if recovering then cfg.Ball.InterceptionIntentBoost else 1.0
-        let captureRadius = float cfg.Weights.GK.CollectionRadius
-        (d - captureRadius) / (vmax * conditionFactor * intentFactor * recoveryBoost)
+        d / (vmax * conditionFactor * intentFactor * recoveryBoost)
 
     /// The race is won by whoever REACHES first, not whoever is nearest: a close
     /// slow player must not beat a faster one farther away. Distance only breaks ties.
@@ -81,6 +80,45 @@ module BallContact =
 
         best |> Option.map (fun (s, slot, pid, t, _) -> s, slot, pid, t)
 
+    let private bestContactCandidate
+        (ctx: MatchContext)
+        (world: World)
+        (x: float<meter>)
+        (y: float<meter>)
+        (excluded: PlayerId option)
+        : (ClubSide * int * PlayerId * float) option =
+        let radius = max 2.5 (float ctx.Config.Intercept.ControlRadius * 2.0)
+        let mutable best: (ClubSide * int * PlayerId * float * float) option = None
+
+        let contactTime side slot distance =
+            let p = MatchWorld.profileOf ctx side slot
+            let frame = (MatchWorld.team world side).Frame
+            let vmax = float ctx.Config.Movement.SprintSpeed * (0.5 + 0.006 * float p.Pace)
+            let conditionFactor = 0.4 + 0.6 * float frame.Condition.[slot]
+            let intentFactor = intentFactorOf frame slot
+            distance / (vmax * conditionFactor * intentFactor)
+
+        for side in [ ClubSide.Home; ClubSide.Away ] do
+            let team = MatchWorld.team world side
+
+            for slot in MatchWorld.activeSlots team.Frame do
+                let distance =
+                    MatchMath.dist x y (MatchWorld.posX team.Frame slot) (MatchWorld.posY team.Frame slot)
+
+                let pid = (MatchWorld.lineup ctx side).Profiles.[slot].Id
+
+                if distance <= radius && Some pid <> excluded then
+                    let time = contactTime side slot distance
+
+                    match best with
+                    | Some(_, _, _, bestTime, bestDistance) when
+                        bestTime < time || (bestTime = time && bestDistance <= distance)
+                        ->
+                        ()
+                    | _ -> best <- Some(side, slot, pid, time, distance)
+
+        best |> Option.map (fun (s, slot, pid, time, _) -> s, slot, pid, time)
+
     /// Passer's position at resolution time, plus the measured distance to the
     /// arrival point: the scouting layer needs the origin (corridor/directness),
     /// and the fallback keeps the event well-formed even if the passer is gone.
@@ -106,24 +144,25 @@ module BallContact =
         let ball = world.State.Ball
         let cfg = ctx.Ctx.Config
 
+        let x = ball.Position.X
+        let y = ball.Position.Y
+
         match ball.ArrivalGate, ball.Trajectory with
         | Some gate, Some(TrajectoryIntent.Cleared) when gate <= tick ->
-            let x = ball.Position.X
-            let y = ball.Position.Y
+            let contact =
+                bestContactCandidate ctx.Ctx world x y (ball.Impulse |> Option.map (fun impulse -> impulse.ActorId))
 
-            let lastSide =
-                MatchWorld.lastTouchSide ctx.Ctx world |> Option.defaultValue ClubSide.Home
+            if contact.IsSome then
+                MatchWorld.updateBall world (fun b ->
+                    { b with
+                        Trajectory = None
+                        ArrivalGate = None
+                        Impulse = None
+                        StationarySince = None })
 
-            MatchWorld.updateBall world (fun b ->
-                { b with
-                    Control = BallControl.Contesting lastSide
-                    Trajectory = None
-                    ArrivalGate = None
-                    StationarySince = Some tick })
-
-            buffer.Events.Add
-                { Tick = tick
-                  Data = EventData.BallLoose(x, y) }
+                buffer.Events.Add
+                    { Tick = tick
+                      Data = EventData.BallLoose(x, y) }
 
             rng
         | Some gate, Some(TrajectoryIntent.Aimed(passer, receiver, quality)) when gate <= tick ->
@@ -144,40 +183,30 @@ module BallContact =
 
                 rng
             | Some rSlot ->
-                let receiverT =
-                    timeToBall ctx.Ctx world receiverSide rSlot rx ry
-                    - float quality * cfg.Ball.ContactReceiverQualityBonus
-                      / float cfg.Movement.SprintSpeed
+                let best = bestContactCandidate ctx.Ctx world rx ry (Some passer)
 
-                let margin =
-                    float cfg.Ball.ContactInterceptorMargin / float cfg.Movement.SprintSpeed
-
-                let best = bestCandidate ctx.Ctx world rx ry
-
-                let receiverWins, interceptor =
+                let receiverWins =
                     match best with
-                    | None -> true, None
-                    | Some(bs, bslot, bpid, bt) ->
-                        let isReceiver = bs = receiverSide && bslot = rSlot
+                    | Some(bs, bslot, _, _) when bs = receiverSide && bslot = rSlot -> true
+                    | _ -> false
 
-                        if isReceiver then
-                            true, None
-                        elif receiverT < bt - margin then
-                            true, None
-                        elif bt < receiverT - margin then
-                            false, Some(bs, bslot, bpid)
-                        else
-                            true, None
+                let interceptingPlayer =
+                    match best with
+                    | Some(bs, bslot, bpid, _) -> Some(bs, bslot, bpid)
+                    | None -> None
 
                 let arrival =
-                    match interceptor with
-                    | Some(side, slot, pid) -> Arrival.Interception(side, slot, pid, passer)
+                    match interceptingPlayer with
+                    | Some(side, slot, pid) when not (side = receiverSide && slot = rSlot) ->
+                        Arrival.Interception(side, slot, pid, passer)
                     | None when receiverWins -> Arrival.CleanReception(receiverSide, rSlot, receiver)
                     | None ->
-                        match bestCandidate ctx.Ctx world rx ry with
-                        | Some(bs, bslot, bpid, _) when not (bs = receiverSide && bslot = rSlot) ->
+                        match interceptingPlayer with
+                        | Some(bs, bslot, bpid) when not (bs = receiverSide && bslot = rSlot) ->
                             Arrival.Contested(receiverSide, rSlot, receiver, bslot, bpid)
                         | _ -> Arrival.NoContact
+                    | Some _ when receiverWins -> Arrival.CleanReception(receiverSide, rSlot, receiver)
+                    | Some _ -> Arrival.NoContact
 
                 let resolved = arrival <> Arrival.NoContact
 
@@ -185,7 +214,8 @@ module BallContact =
                     MatchWorld.updateBall world (fun b ->
                         { b with
                             Trajectory = None
-                            ArrivalGate = None })
+                            ArrivalGate = None
+                            Impulse = None })
 
                 match arrival with
                 | Arrival.CleanReception(side, slot, pid) ->
@@ -207,8 +237,9 @@ module BallContact =
                     if ok then
                         MatchWorld.updateBall world (fun b ->
                             { b with
-                                Control = BallControl.Controlled(side, pid)
-                                LastTouch = Some pid })
+                                Trajectory = None
+                                ArrivalGate = None
+                                Impulse = None })
 
                         buffer.Events.Add
                             { Tick = tick
@@ -222,11 +253,11 @@ module BallContact =
                             { Tick = tick
                               Data = EventData.Pass(passer, Some pid, passDist, quality, false, px, py, rx, ry) }
 
-                        let lastSide = MatchWorld.lastTouchSide ctx.Ctx world |> Option.defaultValue side
-
                         MatchWorld.updateBall world (fun b ->
                             { b with
-                                Control = BallControl.Contesting lastSide })
+                                Trajectory = None
+                                ArrivalGate = None
+                                Impulse = None })
 
                         buffer.Events.Add
                             { Tick = tick
@@ -236,8 +267,9 @@ module BallContact =
                 | Arrival.Interception(side, slot, pid, passer) ->
                     MatchWorld.updateBall world (fun b ->
                         { b with
-                            Control = BallControl.Controlled(side, pid)
-                            LastTouch = Some pid })
+                            Trajectory = None
+                            ArrivalGate = None
+                            Impulse = None })
 
                     let px, py, passDist = passerOriginAndDist ctx.Ctx world passer rx ry
 
@@ -281,8 +313,9 @@ module BallContact =
 
                     MatchWorld.updateBall world (fun b ->
                         { b with
-                            Control = BallControl.Controlled(winSide, winPid)
-                            LastTouch = Some winPid })
+                            Trajectory = None
+                            ArrivalGate = None
+                            Impulse = None })
 
                     buffer.Events.Add
                         { Tick = tick

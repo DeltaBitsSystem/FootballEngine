@@ -195,7 +195,9 @@ module PlayerGen =
           Mental = buildMental currentSkill
           Goalkeeping = buildGoalkeeping position currentSkill
           Condition = normalInt 95.0 5.0 75 100
+          Fatigue = 0
           MatchFitness = normalInt 90.0 8.0 60 100
+          RecentLoad = 0
           Morale = normalInt 65.0 10.0 40 90
           Status = Available
           CurrentSkill = currentSkill
@@ -207,7 +209,22 @@ module PlayerGen =
                 { Salary = Player.playerSalary currentSkill
                   ExpiryYear = contractExpiryFor year age }
             )
-          TrainingSchedule =
-            { Focus = TrainingFocus.TrainingAllRound
-              Intensity = TrainingIntensity.TrainingNormal }
+          TrainingPlan = TrainingPlans.defaultPlanFor position age
           ExperienceModifiers = ExperienceModifiers.defaultModifiers }
+
+    let createYouthProspect
+        (id: PlayerId)
+        (position: Position)
+        (clubId: ClubId)
+        (countryData: CountryData)
+        (cohort: int)
+        : Player =
+        let player = create id position clubId countryData 2 cohort
+
+        { player with
+            Birthday = DateTime(cohort - 16, 7, 1)
+            Affiliation = YouthProspect clubId
+            Condition = 100
+            Fatigue = 0
+            MatchFitness = 0
+            RecentLoad = 0 }

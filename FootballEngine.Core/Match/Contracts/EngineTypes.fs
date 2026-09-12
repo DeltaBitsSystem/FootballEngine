@@ -9,6 +9,13 @@ type ClubSide =
 [<Struct>]
 type PlayerId = PlayerId of int
 
+[<Struct>]
+type ActionId = ActionId of uint64
+
+module ActionId =
+
+    let value (ActionId id) : uint64 = id
+
 type SetPieceKind =
     | KickOff
     | ThrowIn
@@ -16,6 +23,17 @@ type SetPieceKind =
     | GoalKick
     | FreeKick
     | Penalty
+
+type StrikeKind =
+    | Pass
+    | Cross
+    | Clearance
+    | Shot
+    | Restart of SetPieceKind
+
+type ExecutionContext =
+    | OpenPlay
+    | SetPiece of SetPieceKind
 
 type FoulSeverity =
     | Minor

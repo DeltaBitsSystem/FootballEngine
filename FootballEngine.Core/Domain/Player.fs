@@ -79,15 +79,38 @@ type Player =
       Mental: MentalStats
       Goalkeeping: GoalkeeperStats
       Condition: int
+      Fatigue: int
       MatchFitness: int
+      RecentLoad: int
       Morale: int
       Status: PlayerStatus
       CurrentSkill: int
       PotentialSkill: int
       Reputation: int
       Affiliation: PlayerAffiliation
-      TrainingSchedule: TrainingSchedule
+      TrainingPlan: IndividualPlan
       ExperienceModifiers: ExperienceModifiers }
+
+module PlayerHealth =
+
+    let clamp value = max 0 (min 100 value)
+
+    let weeklyLoad (plan: IndividualPlan option) =
+        match plan with
+        | None -> 0
+        | Some Rest -> 5
+        | Some Perform -> 25
+        | Some(Develop _) -> 40
+
+    let recover (recovery: int) (p: Player) =
+        { p with
+            Fatigue = clamp (p.Fatigue - recovery)
+            RecentLoad = clamp (p.RecentLoad - recovery) }
+
+    let applyTrainingLoad (load: int) (p: Player) =
+        { p with
+            Fatigue = clamp (p.Fatigue + load)
+            RecentLoad = clamp (p.RecentLoad + load) }
 
 module Player =
     let age (currentDate: DateTime) (p: Player) =

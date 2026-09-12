@@ -1,25 +1,61 @@
 namespace FootballEngine.World.Phases
 
+open System
 open FootballEngine.Domain
 open FootballEngine.World
 open FootballEngine.World.AgentTypes
-open FootballEngine.World.Agents
-open FootballEngine.World.Supervisors
 
 module TransferPhase =
 
-    let make (state: GameState) : WorldPhase =
-        let clubIds = state.Clubs |> Map.toList |> List.map fst
-        let playerIds = state.Players |> Map.toList |> List.map fst
+    let makeWithBalance (balance: FootballEngine.Core.Match.BalanceConfig) (state: GameState) : WorldPhase =
+        let marketConfig (now: DateTime) : TransferMarketConfig =
+            { Window =
+                { TransferWindow.summer now.Year with
+                    Opens = DateTime(now.Year, 1, 1)
+                    Closes = DateTime(now.Year, 12, 31) }
+              RegistrationCloses = DateTime(now.Year, 12, 31)
+              AllowPreContracts = true }
 
-        let managerAgents = clubIds |> List.map ManagerAgent.make
-        let clubAgents = clubIds |> List.map ClubAgent.makeFinance
-        let playerAgents = playerIds |> List.map PlayerAgent.make
+        let completeAgreedOperations state =
+            let completed =
+                state.Market.Operations
+                |> Map.toList
+                |> List.fold
+                    (fun current (id, operation) ->
+                        match operation.Status with
+                        | TransferOperationStatus.Agreed ->
+                            match
+                                TransferMarket.complete
+                                    current.CurrentDate
+                                    id
+                                    (marketConfig current.CurrentDate)
+                                    current
+                            with
+                            | Ok completed -> completed
+                            | Error _ -> current
+                        | _ -> current)
+                    state
 
-        let managerPhase = mkPhase managerAgents TransferSupervisor.resolve Transfer Weekly
-        let clubPhase = mkPhase clubAgents FinanceSupervisor.resolve Finance OnDemand
-        let playerPhase = mkPhase playerAgents (fun s _ -> s) Finance OnDemand
+            completed.Market.Loans
+            |> Map.toList
+            |> List.fold
+                (fun current (playerId, loan) ->
+                    if current.CurrentDate.Date >= loan.Ends.Date then
+                        match TransferMarket.endLoanInGame current.CurrentDate playerId current with
+                        | Ok ended -> ended
+                        | Error _ -> current
+                    else
+                        current)
+                completed
 
         { Tag = Transfer
           Frequency = Weekly
-          Run = fun clock state -> state |> managerPhase.Run clock |> clubPhase.Run clock |> playerPhase.Run clock }
+          Run = fun _ state -> completeAgreedOperations state }
+
+    let makeFromSave (saveOpt: FootballEngine.Settings.SaveSettings option) (state: GameState) : WorldPhase =
+        let balance =
+            FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave saveOpt
+
+        makeWithBalance balance state
+
+    let make (state: GameState) : WorldPhase = makeFromSave None state

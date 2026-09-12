@@ -58,7 +58,20 @@ module SeasonPhase =
                     (clubs, ranked)
                     ||> List.fold (fun acc (clubId, standing) ->
                         acc
-                        |> Map.change clubId (Option.map (Club.adjustBudget (revenueFor standing total))))
+                        |> Map.change
+                            clubId
+                            (Option.map (fun club ->
+                                { club with
+                                    Finance =
+                                        Finance.recordRevenue
+                                            gs.CurrentDate
+                                            $"league-revenue:{clubId}:{gs.Season}"
+                                            "Competition distribution"
+                                            "Competition prize"
+                                            (revenueFor standing total)
+                                            None
+                                            club.Finance
+                                        |> Result.defaultValue club.Finance })))
                 | _ -> clubs)
 
         { gs with Clubs = updatedClubs }
@@ -106,6 +119,48 @@ module SeasonPhase =
                             clubs
                     | _ -> clubs) }
 
+    let private archiveSeason (gs: GameState) : GameState =
+        let winners =
+            gs.Competitions
+            |> Map.toList
+            |> List.choose (fun (id, comp) -> Competition.leader comp |> Option.map (fun clubId -> id, clubId))
+
+        let promoted, relegated =
+            gs.Competitions
+            |> Map.toList
+            |> List.choose (fun (_, comp) ->
+                match comp.Type with
+                | NationalLeague(_, rules) ->
+                    let promotedCount =
+                        rules.Promotion
+                        |> List.sumBy (function
+                            | AutomaticPromotion n
+                            | PlayoffPromotion n -> n)
+
+                    let relegatedCount =
+                        rules.Relegation
+                        |> List.sumBy (function
+                            | AutomaticRelegation n
+                            | PlayoffRelegation n -> n)
+
+                    Some(
+                        Competition.rankedStandings comp |> List.truncate promotedCount |> List.map fst,
+                        Competition.bottomN relegatedCount comp
+                    )
+                | _ -> None)
+            |> List.unzip
+
+        let record =
+            { Season = gs.Season
+              CompetitionIds = gs.Competitions |> Map.keys |> Seq.toList
+              Winners = winners
+              Promoted = promoted |> List.concat |> List.distinct
+              Relegated = relegated |> List.concat |> List.distinct
+              CompletedOn = gs.CurrentDate }
+
+        { gs with
+            SeasonHistory = record :: gs.SeasonHistory }
+
 
     let computeSeasonSummary (gs: GameState) : string list =
         gs.Competitions
@@ -125,13 +180,17 @@ module SeasonPhase =
 
     // ── Pipeline de fin de temporada ───────────────────────────────────────
 
-    let runEndOfSeason (state: GameState) : GameState =
+    let runEndOfSeason (balance: FootballEngine.Core.Match.BalanceConfig) (state: GameState) : GameState =
         let totalWeeks = seasonWeeks state
 
         state
+        |> archiveSeason
+        |> fun s ->
+            match s.SeasonHistory with
+            | record :: _ -> WorldNews.publishSeasonMessages s record
+            | [] -> s
         |> distributeRevenue
-        |> TrainingEngine.applyRemainingSeasonTraining state.CurrentDate state.TrainingWeeksApplied totalWeeks
-        |> PlayerDevelopment.developAll
+        |> TrainingPhaseEngine.applyBulk balance.Training state.CurrentDate (totalWeeks - state.TrainingWeeksApplied)
         |> processContracts
         |> applyLeagueConsequences
         |> resetConditions
@@ -143,7 +202,7 @@ module SeasonPhase =
                 TrainingWeeksApplied = 0 }
         |> FootballEngine.Generation.SeasonGen.regenerateFixtures
 
-    let make: WorldPhase =
+    let makeWithBalance (balance: FootballEngine.Core.Match.BalanceConfig) : WorldPhase =
         { Tag = Season
           Frequency = Seasonal
-          Run = fun _clock state -> runEndOfSeason state }
+          Run = fun _clock state -> runEndOfSeason balance state }

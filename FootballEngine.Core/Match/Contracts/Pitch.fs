@@ -51,3 +51,17 @@ module Pitch =
     /// Keeps the restart legally in-bounds and off the band.
     [<Literal>]
     let ThrowInInset = 0.3<meter>
+
+    let isInPenaltyArea (attackingSide: ClubSide) (x: float<meter>) (y: float<meter>) : bool =
+        let goalX =
+            match attackingSide with
+            | ClubSide.Home -> awayGoalX
+            | ClubSide.Away -> homeGoalX
+
+        let direction = if attackingSide = ClubSide.Home then 1.0 else -1.0
+        let depth = abs (float x - float goalX)
+        let isInsideFromGoalLine = (float x - float goalX) * direction <= 0.0
+
+        depth <= float PenaltyAreaDepth
+        && abs (float y) <= float PenaltyAreaHalfWidth
+        && isInsideFromGoalLine

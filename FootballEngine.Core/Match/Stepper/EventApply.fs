@@ -1,8 +1,8 @@
 namespace FootballEngine.Core.Match
 
-/// The ONLY place scores change and the ONLY place restarts/flow states are entered:
-/// everything is applied from buffered events. Systems mutate World directly, but any
-/// structural change must flow through here as an event.
+/// The structural reducer. Producers observe physics or rules and append events;
+/// this module is the only production writer for score, possession books,
+/// discipline, active slots, restarts and match statistics.
 module EventApply =
 
     let private planFor (kind: SetPieceKind) (side: ClubSide) (ball: BallState) : RestartPlan =
@@ -13,8 +13,6 @@ module EventApply =
               X = 0.0<meter>
               Y = 0.0<meter> }
         | SetPieceKind.Corner ->
-            let x = MatchMath.goalX side
-
             let y =
                 if ball.Position.Y >= 0.0<meter> then
                     Pitch.HalfWidth
@@ -23,12 +21,9 @@ module EventApply =
 
             { Kind = kind
               Side = side
-              X = x
+              X = MatchMath.goalX side
               Y = y }
         | SetPieceKind.ThrowIn ->
-            // The throw-in must be taken from inside the touchline: the referee
-            // places the ball a small inset from the line so it can never sit
-            // glued to the band. X is clamped to the relevant touchline segment.
             let y =
                 if ball.Position.Y >= 0.0<meter> then
                     Pitch.HalfWidth - Pitch.ThrowInInset
@@ -65,6 +60,12 @@ module EventApply =
               X = MatchMath.goalX side - 11.0<meter> * dir
               Y = 0.0<meter> }
 
+    let private planAt kind side x y : RestartPlan =
+        { Kind = kind
+          Side = side
+          X = x
+          Y = y }
+
     let private placeBall (world: World) (plan: RestartPlan) : unit =
         MatchWorld.updateBall world (fun b ->
             { b with
@@ -80,252 +81,271 @@ module EventApply =
                 ArrivalGate = None
                 LastTouch = None
                 StationarySince = None
-                GKHoldSince = None })
+                GKHoldSince = None
+                PreviousPosition = None
+                Impulse = None
+                PendingRestart = Some plan.Kind })
 
-    let apply (ctx: MatchContext) (world: World) (ev: MatchEvent) : unit =
-        let tick = ev.Tick
+    let private isStoppage flow =
+        match flow with
+        | MatchFlow.Live
+        | MatchFlow.VARReview _
+        | MatchFlow.Shootout
+        | MatchFlow.MatchEnded -> false
+        | _ -> true
 
-        match ev.Data with
-        | EventData.Possession(side, pid) ->
-            MatchWorld.updateBall world (fun b ->
-                { b with
-                    Control = BallControl.Controlled(side, pid)
-                    LastTouch = Some pid })
+    let private subState phase outgoing incoming tick applied used =
+        { Phase = phase
+          Outgoing = outgoing
+          Incoming = incoming
+          RequestedAt = tick
+          AppliedAt = applied
+          UsedIncoming = used }
 
-            let book = world.State.Possession
+    let private emit (buffer: EventBuffer option) event =
+        match buffer with
+        | Some b -> b.Events.Add event
+        | None -> ()
 
-            let touches =
-                if side = ClubSide.Home then
-                    book.HomeTouches + 1
-                else
-                    book.AwayTouches + 1
+    let private teamForPair (ctx: MatchContext) outgoing incoming =
+        match MatchWorld.teamOfPlayer ctx outgoing, MatchWorld.teamOfPlayer ctx incoming with
+        | Some side, Some incomingSide when side = incomingSide -> Some side
+        | _ -> None
 
-            world.State <-
-                { world.State with
-                    Possession =
-                        { book with
-                            HomeTouches = (if side = ClubSide.Home then touches else book.HomeTouches)
-                            AwayTouches = (if side = ClubSide.Away then touches else book.AwayTouches)
-                            LastGainer = Some side } }
+    let private availableSubstitute (lineup: Lineup) (team: TeamWorld) (slot: int) (player: PlayerId) =
+        // Slots after the starting eleven are the immutable bench boundary in a
+        // MatchContext; an outgoing starter must never become selectable again.
+        slot >= lineup.StarterCount
+        && not (Set.contains player team.Substitution.UsedIncoming)
+        && match team.Frame.Occupancy.[slot] with
+           | OccupancyKind.Sidelined { Reason = PlayerOutReason.Substituted } -> true
+           | _ -> false
 
+    let private validSubstitution (ctx: MatchContext) (world: World) outgoing incoming =
+        match teamForPair ctx outgoing incoming with
+        | None -> None
+        | Some side ->
             let team = MatchWorld.team world side
-            team.Stats.Touches <- team.Stats.Touches + 1
-        | EventData.BallLoose(x, y) ->
-            let side = world.State.Possession.LastGainer |> Option.defaultValue ClubSide.Home
 
-            MatchWorld.updateBall world (fun b ->
-                { b with
-                    Control = BallControl.Contesting side
-                    Trajectory = None
-                    ArrivalGate = None
-                    StationarySince = Some tick
-                    Position = { b.Position with X = x; Y = y } })
-        | EventData.Pass(passer, receiver, _, _, completed, _, _, _, _) ->
-            match MatchWorld.teamOfPlayer ctx passer with
-            | Some side ->
-                let team = MatchWorld.team world side
-                team.Stats.Passes <- team.Stats.Passes + 1
+            match MatchWorld.slotOf ctx side outgoing, MatchWorld.slotOf ctx side incoming with
+            | Some outSlot, Some inSlot when outSlot <> inSlot ->
+                match team.Frame.Occupancy.[outSlot] with
+                | OccupancyKind.Active _ when
+                    availableSubstitute (MatchWorld.lineup ctx side) team inSlot incoming
+                    && team.SubsUsed < ctx.SubstitutionRules.MaxSubstitutions
+                    ->
+                    Some(side, outSlot, inSlot)
+                | _ -> None
+            | _ -> None
 
-                match MatchWorld.slotOf ctx side passer with
-                | Some slot ->
-                    team.Memory.[slot].PassesMade <- team.Memory.[slot].PassesMade + 1
+    let private applySubstitutionEffect
+        (ctx: MatchContext)
+        (world: World)
+        (tick: int<subtick>)
+        outgoing
+        incoming
+        : bool =
+        match validSubstitution ctx world outgoing incoming with
+        | None -> false
+        | Some(side, outSlot, inSlot) ->
+            let team = MatchWorld.team world side
+            let outX = team.Frame.PosX.[outSlot]
+            let outY = team.Frame.PosY.[outSlot]
 
-                    if completed then
-                        team.Stats.PassesCompleted <- team.Stats.PassesCompleted + 1
-                        team.Memory.[slot].PassesCompleted <- team.Memory.[slot].PassesCompleted + 1
-                        team.Memory.[slot].PassSuccessMod <- min 1.5 (team.Memory.[slot].PassSuccessMod + 0.15)
-                        team.Memory.[slot].StreakMod <- min 3.0 (team.Memory.[slot].StreakMod + 0.2)
-                    else
-                        team.Memory.[slot].PassFailMod <- min 1.5 (team.Memory.[slot].PassFailMod + 0.3)
-                        team.Memory.[slot].StreakMod <- max -2.0 (team.Memory.[slot].StreakMod - 0.25)
-                | None -> ()
-            | None -> ()
-        | EventData.Shot(shooter, result, xG, _, _, _) ->
-            match MatchWorld.teamOfPlayer ctx shooter with
-            | Some side ->
-                let team = MatchWorld.team world side
-                team.Stats.Shots <- team.Stats.Shots + 1
-                team.Stats.XgSum <- team.Stats.XgSum + xG
+            team.Frame.Occupancy.[outSlot] <-
+                OccupancyKind.Sidelined
+                    { Id = outgoing
+                      Reason = PlayerOutReason.Substituted }
 
-                match result with
-                | ShotResult.OnTarget _ -> team.Stats.OnTarget <- team.Stats.OnTarget + 1
+            team.Frame.Occupancy.[inSlot] <- OccupancyKind.Active inSlot
+            team.Frame.PosX.[inSlot] <- outX
+            team.Frame.PosY.[inSlot] <- outY
+            team.Frame.VelX.[inSlot] <- 0.0f
+            team.Frame.VelY.[inSlot] <- 0.0f
+            team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
+            team.SubsUsed <- team.SubsUsed + 1
+            ParticipationBook.stop team.Participation outgoing tick
+            ParticipationBook.start team.Participation incoming team.Frame.SlotRoles.[inSlot] tick
+
+            let old = team.Substitution
+
+            team.Substitution <-
+                subState
+                    SubstitutionPhase.Applied
+                    (Some outgoing)
+                    (Some incoming)
+                    (Some tick)
+                    (Some tick)
+                    (Set.add incoming old.UsedIncoming)
+
+            true
+
+    let private queuePending (world: World) (buffer: EventBuffer option) (tick: int<subtick>) =
+        match buffer with
+        | None -> ()
+        | Some b when isStoppage world.State.Flow ->
+            for side in [ ClubSide.Home; ClubSide.Away ] do
+                let state = (MatchWorld.team world side).Substitution
+
+                match state.Phase, state.Outgoing, state.Incoming with
+                | SubstitutionPhase.Pending, Some outgoing, Some incoming ->
+                    let alreadyQueued =
+                        b.Events
+                        |> Seq.exists (fun ev -> ev.Data = EventData.SubstitutionApplied(outgoing, incoming))
+
+                    if not alreadyQueued then
+                        b.Events.Add
+                            { Tick = tick
+                              Data = EventData.SubstitutionApplied(outgoing, incoming) }
                 | _ -> ()
+        | Some _ -> ()
 
-                match MatchWorld.slotOf ctx side shooter with
-                | Some slot ->
-                    team.Memory.[slot].ShotsTaken <- team.Memory.[slot].ShotsTaken + 1
+    let private applyRestart (ctx: MatchContext) (world: World) kind side x y =
+        let plan = planAt kind side x y
+        let delay = Flow.delayFor ctx.Config SimulationClock.defaultClock kind
+        placeBall world plan
 
-                    match result with
-                    | ShotResult.OnTarget true ->
-                        team.Memory.[slot].ShotSuccessMod <- min 2.0 (team.Memory.[slot].ShotSuccessMod + 0.2)
-                    | ShotResult.OnTarget false
-                    | ShotResult.Post ->
-                        team.Memory.[slot].ShotSuccessMod <- max -2.0 (team.Memory.[slot].ShotSuccessMod - 0.2)
-                    | _ -> ()
-                | None -> ()
-            | None -> ()
-        | EventData.Goal(side, scorer, _, _) ->
-            let home =
-                if side = ClubSide.Home then
-                    world.State.HomeScore + 1
-                else
-                    world.State.HomeScore
+        world.State <-
+            { world.State with
+                Flow = MatchFlow.RestartDelay(delay, plan) }
 
-            let away =
-                if side = ClubSide.Away then
-                    world.State.AwayScore + 1
-                else
-                    world.State.AwayScore
+    let private applyPossession (ctx: MatchContext) (world: World) side pid tick =
+        let pendingAdvantage =
+            match world.State.Advantage with
+            | AdvantageState.AdvantagePending(fouledSide, _, _, x, y, _) -> Some(fouledSide, x, y)
+            | _ -> None
 
+        MatchWorld.updateBall world (fun b ->
+            { b with
+                Control = BallControl.Controlled(side, pid)
+                LastTouch = Some pid
+                StationarySince = None
+                PendingRestart = None })
+
+        let book = world.State.Possession
+
+        world.State <-
+            { world.State with
+                Possession =
+                    { HomeTouches =
+                        if side = ClubSide.Home then
+                            book.HomeTouches + 1
+                        else
+                            book.HomeTouches
+                      AwayTouches =
+                        if side = ClubSide.Away then
+                            book.AwayTouches + 1
+                        else
+                            book.AwayTouches
+                      LastGainer = Some side }
+                LastAttackingClub = Some side }
+
+        let team = MatchWorld.team world side
+        team.Stats.Touches <- team.Stats.Touches + 1
+
+        match pendingAdvantage with
+        | Some(fouledSide, _, _) when side = fouledSide ->
             world.State <-
                 { world.State with
-                    HomeScore = home
-                    AwayScore = away
-                    LastAttackingClub = Some side }
+                    Advantage = AdvantageState.AdvantageRealized(side, tick) }
+        | Some(fouledSide, x, y) ->
+            world.State <-
+                { world.State with
+                    Advantage = AdvantageState.AdvantageRecalled(fouledSide, tick) }
 
-            // A goal can only be reviewed if an offside snapshot was recorded at
-            // shot time (Phase 250 marker) — no snapshot, nothing to review.
-            let hasMarkers =
-                let team = MatchWorld.team world side
-                team.Frame.RunLookup.Values |> Seq.exists (fun v -> v.Phase = 250)
+            let kind =
+                if Pitch.isInPenaltyArea fouledSide x y then
+                    SetPieceKind.Penalty
+                else
+                    SetPieceKind.FreeKick
 
-            if hasMarkers && RefereeVAR.isOffside ctx world side then
-                let varDur =
-                    int (
-                        round (
-                            float ctx.Config.Match.VarReviewDuration
-                            * float SimulationClock.defaultClock.SubTicksPerSecond
-                        )
-                    )
-                    * 1<tickDelta>
+            applyRestart ctx world kind fouledSide x y
+        | None -> ()
 
-                world.State <-
-                    { world.State with
-                        Flow = MatchFlow.VARReview(varDur, VARIncident.Offside) }
+    let private applyGoal (ctx: MatchContext) (world: World) side scorer xG tick buffer =
+        let home =
+            if side = ClubSide.Home then
+                world.State.HomeScore + 1
             else
-                let dur =
-                    int (
-                        round (
-                            float ctx.Config.Match.GoalPauseDuration
-                            * float SimulationClock.defaultClock.SubTicksPerSecond
-                        )
+                world.State.HomeScore
+
+        let away =
+            if side = ClubSide.Away then
+                world.State.AwayScore + 1
+            else
+                world.State.AwayScore
+
+        let reviewable =
+            match scorer with
+            | Some player when RefereeVAR.isOffsideFor ctx world side player -> true
+            | _ -> false
+
+        let nextReview =
+            if reviewable then
+                Some
+                    { Incident = VARIncident.Offside
+                      ScoringSide = side
+                      Scorer = scorer }
+            else
+                None
+
+        world.State <-
+            { world.State with
+                HomeScore = home
+                AwayScore = away
+                LastAttackingClub = Some side
+                VARReview = nextReview }
+
+        if reviewable then
+            let duration =
+                Flow.delayFor ctx.Config SimulationClock.defaultClock SetPieceKind.FreeKick
+
+            let reviewDuration =
+                int (
+                    round (
+                        float ctx.Config.Match.VarReviewDuration
+                        * float SimulationClock.defaultClock.SubTicksPerSecond
                     )
-                    * 1<tickDelta>
+                )
+                * 1<tickDelta>
 
-                world.State <-
-                    { world.State with
-                        Flow = MatchFlow.GoalPause(dur, side, scorer) }
-        | EventData.Foul(fouler, _, _, _, _) ->
-            match MatchWorld.teamOfPlayer ctx fouler with
-            | Some side -> (MatchWorld.team world side).Stats.Fouls <- (MatchWorld.team world side).Stats.Fouls + 1
-            | None -> ()
-        | EventData.Card(player, color) ->
-            match MatchWorld.teamOfPlayer ctx player with
-            | Some side ->
-                let team = MatchWorld.team world side
-                let mutable cards = team.Cards
-
-                match color with
-                | CardColor.Yellow -> cards.Yellows <- cards.Yellows + 1
-                | CardColor.Red -> cards.Reds <- cards.Reds + 1
-
-                team.Cards <- cards
-            | None -> ()
-        | EventData.SetPiece(kind, side) ->
-            let plan = planFor kind side world.State.Ball
-            let delay = Flow.delayFor ctx.Config SimulationClock.defaultClock kind
-            placeBall world plan
-
-            let clock =
-                match kind with
-                | SetPieceKind.KickOff when world.State.Clock.Phase = ClockPhase.HalfTime ->
-                    { world.State.Clock with
-                        Phase = ClockPhase.SecondHalf }
-                | _ -> world.State.Clock
+            let _ = duration
 
             world.State <-
                 { world.State with
-                    Flow = MatchFlow.RestartDelay(delay, plan)
-                    Clock = clock }
+                    Flow = MatchFlow.VARReview(reviewDuration, VARIncident.Offside) }
+        else
+            RefereeVAR.clearMarkers world side
 
-            if kind = SetPieceKind.Corner then
-                let team = MatchWorld.team world side
-                team.Stats.Corners <- team.Stats.Corners + 1
-        | EventData.Interception _ -> ()
-        | EventData.Tackle _ -> ()
-        | EventData.Save _ -> ()
-        | EventData.CrossAttempt(crosser, _, _) ->
-            match MatchWorld.teamOfPlayer ctx crosser with
-            | Some side ->
-                let team = MatchWorld.team world side
-                team.Stats.Crosses <- team.Stats.Crosses + 1
-            | None -> ()
-        | EventData.Dribble(dribbler, succeeded, _, _) ->
-            match MatchWorld.teamOfPlayer ctx dribbler with
-            | Some side ->
-                let team = MatchWorld.team world side
-
-                if succeeded then
-                    team.Stats.Dribbles <- team.Stats.Dribbles + 1
-
-                match MatchWorld.slotOf ctx side dribbler with
-                | Some slot ->
-                    if succeeded then
-                        team.Memory.[slot].SuccessfulDuels <- team.Memory.[slot].SuccessfulDuels + 1
-                    else
-                        team.Memory.[slot].FailedDuels <- team.Memory.[slot].FailedDuels + 1
-                | None -> ()
-            | None -> ()
-        | EventData.Injury(player, severity) ->
-            if severity >= 3 then
-                let dur =
-                    int (
-                        round (
-                            float ctx.Config.Match.InjuryPauseDuration
-                            * float SimulationClock.defaultClock.SubTicksPerSecond
-                        )
+            let pause =
+                int (
+                    round (
+                        float ctx.Config.Match.GoalPauseDuration
+                        * float SimulationClock.defaultClock.SubTicksPerSecond
                     )
-                    * 1<tickDelta>
+                )
+                * 1<tickDelta>
 
-                world.State <-
-                    { world.State with
-                        Flow = MatchFlow.InjuryPause dur }
-        | EventData.Substitution(playerOut, playerIn) ->
-            match MatchWorld.teamOfPlayer ctx playerOut with
-            | Some side ->
-                let team = MatchWorld.team world side
+            world.State <-
+                { world.State with
+                    Flow = MatchFlow.GoalPause(pause, side, scorer) }
 
-                match MatchWorld.slotOf ctx side playerOut, MatchWorld.slotOf ctx side playerIn with
-                | Some outSlot, Some inSlot ->
-                    team.Frame.Occupancy.[outSlot] <- OccupancyKind.Active outSlot
+    let private applyVarDecision (ctx: MatchContext) (world: World) decision =
+        let review = world.State.VARReview
 
-                    team.Frame.Occupancy.[inSlot] <-
-                        OccupancyKind.Sidelined
-                            { Id = playerOut
-                              Reason = PlayerOutReason.Substituted }
+        let inReview =
+            match world.State.Flow, review with
+            | MatchFlow.VARReview _, Some _ -> true
+            | MatchFlow.VARReview _, None -> true
+            | _ -> false
 
-                    team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
+        if inReview then
+            let scoring =
+                review
+                |> Option.map (fun r -> r.ScoringSide)
+                |> Option.orElse world.State.LastAttackingClub
+                |> Option.defaultValue ClubSide.Home
 
-                    let mem = team.Memory.[outSlot]
-
-                    team.Memory.[outSlot] <-
-                        { team.Memory.[inSlot] with
-                            CriticalFlagged = false }
-
-                    team.Memory.[inSlot] <- mem
-
-                    let cond = team.Frame.Condition.[outSlot]
-                    team.Frame.Condition.[outSlot] <- 1.0f
-                    team.Frame.Condition.[inSlot] <- cond
-
-                    let dir = MatchMath.goalDirection side
-                    team.Frame.PosX.[inSlot] <- float32 (MatchMath.ownGoalX side + 4.0<meter> * dir)
-                    team.Frame.PosY.[inSlot] <- 20.0f
-                    team.SubsUsed <- team.SubsUsed + 1
-                | _ -> ()
-            | None -> ()
-        | EventData.VARDecision(decision) ->
-            let scoring = world.State.LastAttackingClub |> Option.defaultValue ClubSide.Home
             let defending = MatchWorld.oppOf scoring
 
             match decision with
@@ -342,16 +362,11 @@ module EventApply =
                     else
                         world.State.AwayScore
 
+                let plan =
+                    planAt SetPieceKind.FreeKick defending world.State.Ball.Position.X world.State.Ball.Position.Y
+
                 let delay =
                     Flow.delayFor ctx.Config SimulationClock.defaultClock SetPieceKind.FreeKick
-
-                let dir = MatchMath.goalDirection defending
-
-                let plan =
-                    { Kind = SetPieceKind.FreeKick
-                      Side = defending
-                      X = MatchMath.ownGoalX defending + 12.0<meter> * dir
-                      Y = 0.0<meter> }
 
                 placeBall world plan
 
@@ -359,42 +374,48 @@ module EventApply =
                     { world.State with
                         HomeScore = home
                         AwayScore = away
+                        LastAttackingClub = None
+                        VARReview = None
                         Flow = MatchFlow.RestartDelay(delay, plan) }
             | VARResult.GoalStands ->
+                let plan = planAt SetPieceKind.KickOff defending (0.0<meter>) (0.0<meter>)
+
                 let delay =
                     Flow.delayFor ctx.Config SimulationClock.defaultClock SetPieceKind.KickOff
-
-                let plan =
-                    { Kind = SetPieceKind.KickOff
-                      Side = defending
-                      X = 0.0<meter>
-                      Y = 0.0<meter> }
 
                 placeBall world plan
 
                 world.State <-
                     { world.State with
+                        LastAttackingClub = None
+                        VARReview = None
                         Flow = MatchFlow.RestartDelay(delay, plan) }
-        | EventData.MomentumShift _ -> ()
-        | EventData.KickOff _ -> ()
-        | EventData.HalfTime ->
-            let dur =
-                int (
-                    round (
-                        float ctx.Config.Match.HalfTimeDuration
-                        * float SimulationClock.defaultClock.SubTicksPerSecond
-                    )
-                )
-                * 1<tickDelta>
 
+            RefereeVAR.clearMarkers world scoring
+
+    let private applyFullTime (ctx: MatchContext) (world: World) =
+        let tied = world.State.HomeScore = world.State.AwayScore
+
+        match ctx.IsKnockout, world.State.Clock.Phase, tied with
+        | true, ClockPhase.SecondHalf, true ->
             world.State <-
                 { world.State with
-                    Flow = MatchFlow.HalfTime dur
+                    Flow =
+                        MatchFlow.ExtraTimeBreak(
+                            Flow.delayFor ctx.Config SimulationClock.defaultClock SetPieceKind.KickOff
+                        )
                     Clock =
                         { world.State.Clock with
-                            Phase = ClockPhase.HalfTime } }
-        | EventData.FullTime ->
-            let dur =
+                            Phase = ClockPhase.ExtraTimeFirstHalf } }
+        | true, ClockPhase.ExtraTimeSecondHalf, true ->
+            world.State <-
+                { world.State with
+                    Flow = MatchFlow.Shootout
+                    Shootout =
+                        { world.State.Shootout with
+                            Scheduled = false } }
+        | _ ->
+            let duration =
                 int (
                     round (
                         float ctx.Config.Match.FullTimeReviewDuration
@@ -405,32 +426,473 @@ module EventApply =
 
             world.State <-
                 { world.State with
-                    Flow = MatchFlow.FullTimeReview dur
+                    Flow = MatchFlow.FullTimeReview duration
                     Clock =
                         { world.State.Clock with
                             Phase = ClockPhase.FullTime } }
-        | EventData.ConditionCritical _ -> ()
-        | EventData.RedCardIssued(player) ->
-            match MatchWorld.teamOfPlayer ctx player with
-            | Some side ->
-                let team = MatchWorld.team world side
 
-                match MatchWorld.slotOf ctx side player with
-                | Some slot ->
-                    team.Frame.Occupancy.[slot] <-
-                        OccupancyKind.Sidelined
-                            { Id = player
-                              Reason = PlayerOutReason.RedCard }
+    let private applyEvent (ctx: MatchContext) (world: World) (buffer: EventBuffer option) (ev: MatchEvent) : bool =
+        let occurrence =
+            buffer
+            |> Option.map (fun b -> b.Applied |> Seq.filter ((=) ev) |> Seq.length)
+            |> Option.defaultValue 0
 
-                    team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
+        let eventId =
+            if occurrence = 0 then
+                MatchEvent.id ev
+            else
+                let baseId = MatchEvent.id ev |> EventId.value
+                EventId((baseId * 1099511628211UL) ^^^ uint64 occurrence)
 
-                    let mutable frame = team.Frame
-                    frame.ActiveCount <- max 0 (frame.ActiveCount - 1)
-                    team.Frame <- frame
+        if not (world.AppliedEventIds.Add eventId) then
+            false
+        else
+            let tick = ev.Tick
 
-                    let mutable cards = team.Cards
-                    cards.Reds <- cards.Reds + 1
-                    team.Cards <- cards
+            match ev.Data with
+            | EventData.Possession(side, pid) -> applyPossession ctx world side pid tick
+            | EventData.BallLoose(x, y) ->
+                let side = world.State.Possession.LastGainer |> Option.defaultValue ClubSide.Home
+
+                MatchWorld.updateBall world (fun b ->
+                    { b with
+                        Control = BallControl.Contesting side
+                        Trajectory = None
+                        ArrivalGate = None
+                        StationarySince = Some tick
+                        Impulse = None
+                        PendingRestart = None
+                        Position = { b.Position with X = x; Y = y } })
+            | EventData.Pass(passer, _, _, _, completed, _, _, _, _) ->
+                match MatchWorld.teamOfPlayer ctx passer with
+                | Some side ->
+                    let team = MatchWorld.team world side
+                    team.Stats.Passes <- team.Stats.Passes + 1
+
+                    match MatchWorld.slotOf ctx side passer with
+                    | Some slot ->
+                        team.Memory.[slot].PassesMade <- team.Memory.[slot].PassesMade + 1
+
+                        if completed then
+                            team.Stats.PassesCompleted <- team.Stats.PassesCompleted + 1
+                            team.Memory.[slot].PassesCompleted <- team.Memory.[slot].PassesCompleted + 1
+                            team.Memory.[slot].PassSuccessMod <- min 1.5 (team.Memory.[slot].PassSuccessMod + 0.15)
+                            team.Memory.[slot].StreakMod <- min 3.0 (team.Memory.[slot].StreakMod + 0.2)
+                        else
+                            team.Memory.[slot].PassFailMod <- min 1.5 (team.Memory.[slot].PassFailMod + 0.3)
+                            team.Memory.[slot].StreakMod <- max -2.0 (team.Memory.[slot].StreakMod - 0.25)
+                    | None -> ()
                 | None -> ()
-            | None -> ()
-        | EventData.ShootoutGoal _ -> ()
+            | EventData.Shot(shooter, result, xG, _, _, _) ->
+                match MatchWorld.teamOfPlayer ctx shooter with
+                | Some side ->
+                    let team = MatchWorld.team world side
+                    team.Stats.Shots <- team.Stats.Shots + 1
+                    team.Stats.XgSum <- team.Stats.XgSum + xG
+
+                    match result with
+                    | ShotResult.OnTarget _ -> team.Stats.OnTarget <- team.Stats.OnTarget + 1
+                    | _ -> ()
+
+                    match MatchWorld.slotOf ctx side shooter with
+                    | Some slot ->
+                        team.Memory.[slot].ShotsTaken <- team.Memory.[slot].ShotsTaken + 1
+
+                        match result with
+                        | ShotResult.OnTarget true ->
+                            team.Memory.[slot].ShotSuccessMod <- min 2.0 (team.Memory.[slot].ShotSuccessMod + 0.2)
+                        | ShotResult.OnTarget false
+                        | ShotResult.Post ->
+                            team.Memory.[slot].ShotSuccessMod <- max -2.0 (team.Memory.[slot].ShotSuccessMod - 0.2)
+                        | _ -> ()
+                    | None -> ()
+                | None -> ()
+            | EventData.Goal(side, scorer, _, xG) -> applyGoal ctx world side scorer xG tick buffer
+            | EventData.Foul(fouler, _, _, _, _) ->
+                match MatchWorld.teamOfPlayer ctx fouler with
+                | Some side ->
+                    let team = MatchWorld.team world side
+                    team.Stats.Fouls <- team.Stats.Fouls + 1
+                | None -> ()
+            | EventData.Card(player, CardColor.Yellow) ->
+                match MatchWorld.teamOfPlayer ctx player, MatchWorld.teamOfPlayer ctx player with
+                | Some side, Some _ ->
+                    let team = MatchWorld.team world side
+
+                    match MatchWorld.slotOf ctx side player with
+                    | Some slot ->
+                        team.Memory.[slot].Yellows <- team.Memory.[slot].Yellows + 1
+                        team.Cards.Yellows <- team.Cards.Yellows + 1
+                    | None -> ()
+                | _ -> ()
+            | EventData.Card(_, CardColor.Red) ->
+                // RefereeCards emits RedCardIssued; red totals and dismissal are
+                // deliberately committed by that structural effect only.
+                ()
+            | EventData.Offside player ->
+                match MatchWorld.teamOfPlayer ctx player with
+                | Some side ->
+                    let team = MatchWorld.team world side
+                    team.Stats.Offsides <- team.Stats.Offsides + 1
+                    let defending = MatchWorld.oppOf side
+                    let plan = planFor SetPieceKind.FreeKick defending world.State.Ball
+
+                    let delay =
+                        Flow.delayFor ctx.Config SimulationClock.defaultClock SetPieceKind.FreeKick
+
+                    placeBall world plan
+
+                    world.State <-
+                        { world.State with
+                            Flow = MatchFlow.RestartDelay(delay, plan) }
+                | None -> ()
+            | EventData.SetPiece(kind, side) ->
+                let plan = planFor kind side world.State.Ball
+                let delay = Flow.delayFor ctx.Config SimulationClock.defaultClock kind
+                placeBall world plan
+
+                let clock =
+                    match kind, world.State.Clock.Phase with
+                    | SetPieceKind.KickOff, ClockPhase.HalfTime ->
+                        { world.State.Clock with
+                            Phase = ClockPhase.SecondHalf }
+                    | _ -> world.State.Clock
+
+                world.State <-
+                    { world.State with
+                        Flow = MatchFlow.RestartDelay(delay, plan)
+                        Clock = clock }
+
+                if kind = SetPieceKind.Corner then
+                    let team = MatchWorld.team world side
+                    team.Stats.Corners <- team.Stats.Corners + 1
+
+                queuePending world buffer tick
+            | EventData.Interception _ -> ()
+            | EventData.Tackle _ -> ()
+            | EventData.Save _ -> ()
+            | EventData.CrossAttempt(crosser, _, _) ->
+                match MatchWorld.teamOfPlayer ctx crosser with
+                | Some side ->
+                    (MatchWorld.team world side).Stats.Crosses <- (MatchWorld.team world side).Stats.Crosses + 1
+                | None -> ()
+            | EventData.Dribble(dribbler, succeeded, _, _) ->
+                match MatchWorld.teamOfPlayer ctx dribbler with
+                | Some side ->
+                    let team = MatchWorld.team world side
+
+                    if succeeded then
+                        team.Stats.Dribbles <- team.Stats.Dribbles + 1
+
+                    match MatchWorld.slotOf ctx side dribbler with
+                    | Some slot when succeeded ->
+                        team.Memory.[slot].SuccessfulDuels <- team.Memory.[slot].SuccessfulDuels + 1
+                    | Some slot -> team.Memory.[slot].FailedDuels <- team.Memory.[slot].FailedDuels + 1
+                    | None -> ()
+                | None -> ()
+            | EventData.Injury(player, severity) ->
+                match MatchWorld.teamOfPlayer ctx player with
+                | Some side ->
+                    let team = MatchWorld.team world side
+
+                    match MatchWorld.slotOf ctx side player with
+                    | Some slot ->
+                        match team.Frame.Occupancy.[slot] with
+                        | OccupancyKind.Active _ ->
+                            team.Frame.Occupancy.[slot] <-
+                                OccupancyKind.Sidelined
+                                    { Id = player
+                                      Reason = PlayerOutReason.Injury }
+
+                            team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
+                            let mutable frame = team.Frame
+                            frame.ActiveCount <- max 0 (frame.ActiveCount - 1)
+                            team.Frame <- frame
+                            ParticipationBook.stop team.Participation player tick
+                        | _ -> ()
+                    | None -> ()
+                | None -> ()
+
+                if severity >= 3 then
+                    let duration =
+                        int (
+                            round (
+                                float ctx.Config.Match.InjuryPauseDuration
+                                * float SimulationClock.defaultClock.SubTicksPerSecond
+                            )
+                        )
+                        * 1<tickDelta>
+
+                    world.State <-
+                        { world.State with
+                            Flow = MatchFlow.InjuryPause duration }
+            | EventData.Substitution(outgoing, incoming) ->
+                if not (applySubstitutionEffect ctx world tick outgoing incoming) then
+                    let side = teamForPair ctx outgoing incoming
+
+                    match side with
+                    | Some s ->
+                        let team = MatchWorld.team world s
+
+                        team.Substitution <-
+                            subState
+                                SubstitutionPhase.Rejected
+                                (Some outgoing)
+                                (Some incoming)
+                                (Some tick)
+                                None
+                                team.Substitution.UsedIncoming
+                    | None -> ()
+            | EventData.SubstitutionRequested(outgoing, incoming) ->
+                match validSubstitution ctx world outgoing incoming with
+                | Some _ ->
+                    match teamForPair ctx outgoing incoming with
+                    | Some side ->
+                        let team = MatchWorld.team world side
+                        let current = team.Substitution
+
+                        if
+                            current.Outgoing <> Some outgoing
+                            || current.Incoming <> Some incoming
+                            || (current.Phase <> SubstitutionPhase.Requested
+                                && current.Phase <> SubstitutionPhase.Accepted
+                                && current.Phase <> SubstitutionPhase.Pending)
+                        then
+                            team.Substitution <-
+                                subState
+                                    SubstitutionPhase.Requested
+                                    (Some outgoing)
+                                    (Some incoming)
+                                    (Some tick)
+                                    None
+                                    current.UsedIncoming
+
+                            emit
+                                buffer
+                                { Tick = tick
+                                  Data = EventData.SubstitutionAccepted(outgoing, incoming) }
+                    | None -> ()
+                | None ->
+                    match teamForPair ctx outgoing incoming with
+                    | Some side ->
+                        let team = MatchWorld.team world side
+
+                        team.Substitution <-
+                            subState
+                                SubstitutionPhase.Rejected
+                                (Some outgoing)
+                                (Some incoming)
+                                (Some tick)
+                                None
+                                team.Substitution.UsedIncoming
+
+                        emit
+                            buffer
+                            { Tick = tick
+                              Data = EventData.SubstitutionRejected(outgoing, incoming) }
+                    | None -> ()
+            | EventData.SubstitutionAccepted(outgoing, incoming) ->
+                match teamForPair ctx outgoing incoming with
+                | Some side ->
+                    let team = MatchWorld.team world side
+                    let current = team.Substitution
+
+                    if
+                        current.Outgoing = Some outgoing
+                        && current.Incoming = Some incoming
+                        && current.Phase = SubstitutionPhase.Requested
+                    then
+                        team.Substitution <-
+                            { current with
+                                Phase = SubstitutionPhase.Pending }
+
+                        if isStoppage world.State.Flow then
+                            emit
+                                buffer
+                                { Tick = tick
+                                  Data = EventData.SubstitutionApplied(outgoing, incoming) }
+                | None -> ()
+            | EventData.SubstitutionRejected(outgoing, incoming) ->
+                match teamForPair ctx outgoing incoming with
+                | Some side ->
+                    let team = MatchWorld.team world side
+                    let current = team.Substitution
+
+                    if current.Outgoing = Some outgoing && current.Incoming = Some incoming then
+                        team.Substitution <-
+                            { current with
+                                Phase = SubstitutionPhase.Rejected }
+                | None -> ()
+            | EventData.SubstitutionApplied(outgoing, incoming) ->
+                applySubstitutionEffect ctx world tick outgoing incoming |> ignore
+            | EventData.VARDecision decision -> applyVarDecision ctx world decision
+            | EventData.MomentumShift _ -> ()
+            | EventData.KickOff _ -> ()
+            | EventData.HalfTime ->
+                match world.State.Clock.Phase with
+                | ClockPhase.ExtraTimeFirstHalf ->
+                    let duration =
+                        int (
+                            round (
+                                float ctx.Config.Match.HalfTimeDuration
+                                * float SimulationClock.defaultClock.SubTicksPerSecond
+                            )
+                        )
+                        * 1<tickDelta>
+
+                    world.State <-
+                        { world.State with
+                            Flow = MatchFlow.ExtraTimeBreak duration
+                            Clock =
+                                { world.State.Clock with
+                                    Phase = ClockPhase.ExtraTimeSecondHalf } }
+                | _ ->
+                    let duration =
+                        int (
+                            round (
+                                float ctx.Config.Match.HalfTimeDuration
+                                * float SimulationClock.defaultClock.SubTicksPerSecond
+                            )
+                        )
+                        * 1<tickDelta>
+
+                    world.State <-
+                        { world.State with
+                            Flow = MatchFlow.HalfTime duration
+                            Clock =
+                                { world.State.Clock with
+                                    Phase = ClockPhase.HalfTime } }
+            | EventData.FullTime -> applyFullTime ctx world
+            | EventData.ConditionCritical _ -> ()
+            | EventData.RedCardIssued player ->
+                match MatchWorld.teamOfPlayer ctx player with
+                | Some side ->
+                    let team = MatchWorld.team world side
+
+                    match MatchWorld.slotOf ctx side player with
+                    | Some slot ->
+                        match team.Frame.Occupancy.[slot] with
+                        | OccupancyKind.Active _ ->
+                            team.Frame.Occupancy.[slot] <-
+                                OccupancyKind.Sidelined
+                                    { Id = player
+                                      Reason = PlayerOutReason.RedCard }
+
+                            team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
+                            let mutable frame = team.Frame
+                            frame.ActiveCount <- max 0 (frame.ActiveCount - 1)
+                            team.Frame <- frame
+                            ParticipationBook.stop team.Participation player tick
+                            team.Cards.Reds <- team.Cards.Reds + 1
+                        | _ -> ()
+                    | None -> ()
+                | None -> ()
+            | EventData.ShootoutGoal side ->
+                if not world.State.Shootout.Complete then
+                    let shootout = world.State.Shootout
+
+                    world.State <-
+                        { world.State with
+                            Shootout =
+                                { shootout with
+                                    HomeGoals =
+                                        if side = ClubSide.Home then
+                                            shootout.HomeGoals + 1
+                                        else
+                                            shootout.HomeGoals
+                                    AwayGoals =
+                                        if side = ClubSide.Away then
+                                            shootout.AwayGoals + 1
+                                        else
+                                            shootout.AwayGoals } }
+            | EventData.AdvantageStarted(side, fouler, fouled, x, y, expiresAt) ->
+                world.State <-
+                    { world.State with
+                        Advantage = AdvantageState.AdvantagePending(side, fouler, fouled, x, y, expiresAt) }
+            | EventData.AdvantageRealized side ->
+                world.State <-
+                    { world.State with
+                        Advantage = AdvantageState.AdvantageRealized(side, tick) }
+            | EventData.AdvantageRecalled side ->
+                match world.State.Advantage with
+                | AdvantageState.AdvantagePending(_, _, _, x, y, _) ->
+                    world.State <-
+                        { world.State with
+                            Advantage = AdvantageState.AdvantageRecalled(side, tick) }
+
+                    let kind =
+                        if Pitch.isInPenaltyArea side x y then
+                            SetPieceKind.Penalty
+                        else
+                            SetPieceKind.FreeKick
+
+                    applyRestart ctx world kind side x y
+                | _ -> ()
+            | EventData.AdvantageExpired side ->
+                match world.State.Advantage with
+                | AdvantageState.AdvantagePending(_, _, _, x, y, _) ->
+                    world.State <-
+                        { world.State with
+                            Advantage = AdvantageState.AdvantageExpired(side, tick) }
+
+                    let kind =
+                        if Pitch.isInPenaltyArea side x y then
+                            SetPieceKind.Penalty
+                        else
+                            SetPieceKind.FreeKick
+
+                    applyRestart ctx world kind side x y
+                | _ -> ()
+            | EventData.ShootoutStarted ->
+                world.State <-
+                    { world.State with
+                        Shootout =
+                            { world.State.Shootout with
+                                Scheduled = true } }
+            | EventData.ShootoutKick(side, taker, scored) ->
+                let valid =
+                    match MatchWorld.slotOf ctx side taker with
+                    | Some slot -> MatchWorld.isActive (MatchWorld.team world side).Frame slot
+                    | None -> false
+
+                if valid then
+                    let shootout = world.State.Shootout
+
+                    world.State <-
+                        { world.State with
+                            Shootout =
+                                { shootout with
+                                    HomeGoals =
+                                        if side = ClubSide.Home && scored then
+                                            shootout.HomeGoals + 1
+                                        else
+                                            shootout.HomeGoals
+                                    AwayGoals =
+                                        if side = ClubSide.Away && scored then
+                                            shootout.AwayGoals + 1
+                                        else
+                                            shootout.AwayGoals
+                                    HomeKicks =
+                                        if side = ClubSide.Home then
+                                            shootout.HomeKicks + 1
+                                        else
+                                            shootout.HomeKicks
+                                    AwayKicks =
+                                        if side = ClubSide.Away then
+                                            shootout.AwayKicks + 1
+                                        else
+                                            shootout.AwayKicks } }
+            | EventData.ShootoutFinished ->
+                world.State <-
+                    { world.State with
+                        Flow = MatchFlow.MatchEnded
+                        Shootout =
+                            { world.State.Shootout with
+                                Complete = true } }
+
+            true
+
+    let apply (ctx: MatchContext) (world: World) (ev: MatchEvent) : unit = applyEvent ctx world None ev |> ignore
+
+    let applyBuffered (ctx: MatchContext) (world: World) (buffer: EventBuffer) (ev: MatchEvent) : bool =
+        applyEvent ctx world (Some buffer) ev

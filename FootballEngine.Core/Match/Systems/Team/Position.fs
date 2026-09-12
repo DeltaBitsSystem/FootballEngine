@@ -168,11 +168,18 @@ module TeamPosition =
 
         let nudge = directiveNudge team.Directive.Kind
 
+        // Familiarity decides how crisply the plan lands: a drilled shape snaps
+        // to the directive, a new one only half-follows it.
+        let fam =
+            float (if side = ClubSide.Home then ctx.HomeClub else ctx.AwayClub).Familiarity
+
+        let crispNudge = nudge * (0.5 + 0.5 * fam)
+
         // The directive intent must reach the shape before local refinements apply,
         // so the nudge happens on the raw formation targets (team frame).
         let baseTargets =
             Formation.query formation ballFx ballFy
-            |> Array.map (fun pt -> FPoint.ofXY (pt.X + nudge) pt.Y)
+            |> Array.map (fun pt -> FPoint.ofXY (pt.X + crispNudge) pt.Y)
 
         // Pair swaps compare travel from where the slots are now, so the current
         // positions must be in the same frame as the targets.

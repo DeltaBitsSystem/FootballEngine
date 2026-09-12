@@ -1,5 +1,7 @@
 namespace FootballEngine.World
 
+open System
+
 module WorldClockOps =
 
     let init (season: int) : WorldClock =
@@ -8,7 +10,11 @@ module WorldClockOps =
               Week = 1
               Month = 1
               Season = season }
-          PendingEvents = [] }
+          PendingEvents = []
+          Revision = 0UL
+          ScheduledWork = []
+          ConsumedWork = Set.empty
+          PhaseHistory = [] }
 
     let advance (clock: WorldClock) : WorldClock =
         let d = clock.Current.Day + 1
@@ -19,11 +25,34 @@ module WorldClockOps =
                     Day = d
                     Week = d / 7
                     Month = d / 30 }
-            PendingEvents = clock.PendingEvents |> List.filter (fun e -> e.At.Day > clock.Current.Day) }
+            PendingEvents = clock.PendingEvents |> List.filter (fun e -> e.At.Day > clock.Current.Day)
+            PhaseHistory = [] }
 
     let schedule (ev: PendingEvent) (clock: WorldClock) : WorldClock =
         { clock with
             PendingEvents = ev :: clock.PendingEvents |> List.sortBy (fun e -> e.At.Day) }
+
+    let scheduleWork (work: ScheduledWork) (clock: WorldClock) : WorldClock =
+        { clock with
+            ScheduledWork =
+                work :: clock.ScheduledWork
+                |> List.sortBy (fun w -> w.EffectiveDate, w.Phase, w.Id) }
+
+    let dueWork (date: DateTime) (phase: WorldPhaseTag) (clock: WorldClock) =
+        clock.ScheduledWork
+        |> List.filter (fun w ->
+            w.EffectiveDate.Date <= date.Date
+            && w.Phase = phase
+            && not (Set.contains w.Id clock.ConsumedWork))
+        |> List.sortBy (fun w -> w.EffectiveDate, w.Phase, w.Id)
+
+    let consumeWork (work: ScheduledWork list) (clock: WorldClock) =
+        { clock with
+            ConsumedWork = work |> List.map _.Id |> Set.ofList |> Set.union clock.ConsumedWork }
+
+    let appendTrace (trace: WorldPhaseTrace) (clock: WorldClock) =
+        { clock with
+            PhaseHistory = clock.PhaseHistory @ [ trace ] }
 
     let currentEvents (clock: WorldClock) : WorldEventType list =
         clock.PendingEvents

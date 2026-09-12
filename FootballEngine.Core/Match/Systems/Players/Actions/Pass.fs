@@ -11,21 +11,19 @@ module Pass =
         (world: World)
         (buffer: EventBuffer)
         (side: ClubSide)
+        (receiverSlot: int)
         (tick: int<subtick>)
         : unit =
         let team = MatchWorld.team world side
+        let receiver = (MatchWorld.lineup ctx.Ctx side).Profiles.[receiverSlot].Id
+        let line = MatchWorld.offsideLine ctx.Ctx world side
+        let receiverX = MatchWorld.posX team.Frame receiverSlot
 
-        MatchWorld.updateBall world (fun b ->
-            { b with
-                Control = BallControl.Contesting side
-                Trajectory = None
-                ArrivalGate = None })
+        RefereeVAR.markOffsideSnapshot world side receiverSlot receiverX line tick
 
         buffer.Events.Add
             { Tick = tick
-              Data = EventData.SetPiece(SetPieceKind.FreeKick, MatchWorld.oppOf side) }
-
-        team.Stats.Offsides <- team.Stats.Offsides + 1
+              Data = EventData.Offside receiver }
 
     /// Launch a pass to a teammate slot. `qualityBonus` lets the GK system
     /// make distribution easier (positive) or hurried (negative); passes
@@ -52,6 +50,66 @@ module Pass =
         let ry = MatchWorld.posY frame targetSlot
 
         let d = MatchMath.dist x y rx ry
+        let speed = float ctx.Ctx.Config.Actions.PassLaunchSpeed + float d * 0.1
+        let originX = world.State.Ball.Position.X
+        let originY = world.State.Ball.Position.Y
+        let flightDistance = MatchMath.dist originX originY rx ry
+        let flightSeconds = float flightDistance / speed
+
+        let targetRx =
+            MatchMath.clamp
+                (-(float Pitch.HalfLength + 5.0))
+                (float Pitch.HalfLength + 5.0)
+                (float rx + float frame.VelX.[targetSlot] * flightSeconds)
+            * 1.0<meter>
+
+        let targetRy =
+            MatchMath.clamp
+                (-(float Pitch.HalfWidth + 5.0))
+                (float Pitch.HalfWidth + 5.0)
+                (float ry + float frame.VelY.[targetSlot] * flightSeconds)
+            * 1.0<meter>
+
+        let launchDelivery (quality: float) (rng: Rng) : Rng =
+            let direction = max (float (MatchMath.dist originX originY targetRx targetRy)) 0.001
+
+            let linearVelocity =
+                { X = float (targetRx - originX) / direction * speed * 1.0<meterPerSecond>
+                  Y = float (targetRy - originY) / direction * speed * 1.0<meterPerSecond>
+                  Z = 0.0<meterPerSecond> }
+
+            let angularVelocity =
+                { Top = 0.0<radianPerSecond>
+                  Side = 0.0<radianPerSecond>
+                  Roll = 0.0<radianPerSecond> }
+
+            let target: Vec2 option = Some { X = targetRx; Y = targetRy }
+
+            let impulse =
+                BallPhysics.createImpulse
+                    pid
+                    { X = world.State.Ball.Position.X
+                      Y = world.State.Ball.Position.Y
+                      Z = world.State.Ball.Position.Z }
+                    linearVelocity
+                    angularVelocity
+                    target
+                    StrikeKind.Pass
+                    (SimTick.ofSubTicks tick)
+                    ExecutionContext.OpenPlay
+
+            let arrival =
+                tick
+                + int (round (flightSeconds * float ctx.Clock.SubTicksPerSecond)) * 1<subtick>
+                + 6<subtick>
+
+            BallPhysics.applyImpulse
+                world
+                impulse
+                (TrajectoryIntent.Aimed(pid, (MatchWorld.lineup ctx.Ctx side).Profiles.[targetSlot].Id, quality))
+                (Some arrival)
+
+            rng
 
         // R5 — a cognitively tired receiver is harder to feed.
         let receiverCognition = float frame.Cognitive.[targetSlot]
@@ -70,43 +128,15 @@ module Pass =
                 else
                     float rx < float line
 
-            if forward && beyond then
-                let flag, rng' = Rng.bernoulli 0.55 rng
-
-                if flag then
-                    flagOffside ctx world buffer side tick
-                    rng'
+            let beyondBall =
+                if dir > 0.0 then
+                    float rx > float world.State.Ball.Position.X
                 else
-                    let jitter, rng'' = Rng.uniform (-1.0) 1.0 rng'
+                    float rx < float world.State.Ball.Position.X
 
-                    let quality =
-                        MatchMath.clamp01 (
-                            cfg.Actions.PassBaseQuality * cognitiveQuality
-                            + (float p.Passing - 60.0) * cfg.Actions.PassTechnicalWeight
-                            + (float p.Vision - 60.0) * cfg.Actions.PassVisionWeight
-                            - d * cfg.Actions.PassDistancePenaltyPerMeter
-                            + jitter * cfg.Actions.PassJitterBase
-                            + qualityBonus
-                        )
-
-                    let speed = 13.0 + d * 0.12
-
-                    MatchWorld.updateBall world (fun b ->
-                        { b with
-                            Control = BallControl.Airborne
-                            Trajectory =
-                                Some(
-                                    TrajectoryIntent.Aimed(
-                                        pid,
-                                        (MatchWorld.lineup ctx.Ctx side).Profiles.[targetSlot].Id,
-                                        quality
-                                    )
-                                )
-                            LastTouch = Some pid
-                            ArrivalGate = Some(tick + int (d / speed * 40.0) * 1<subtick> + 6<subtick>)
-                            StationarySince = None })
-
-                    rng''
+            if forward && beyond && beyondBall then
+                flagOffside ctx world buffer side targetSlot tick
+                rng
             else
                 let jitter, rng' = Rng.uniform (-1.0) 1.0 rng
 
@@ -120,21 +150,4 @@ module Pass =
                         + qualityBonus
                     )
 
-                let speed = 13.0 + d * 0.12
-
-                MatchWorld.updateBall world (fun b ->
-                    { b with
-                        Control = BallControl.Airborne
-                        Trajectory =
-                            Some(
-                                TrajectoryIntent.Aimed(
-                                    pid,
-                                    (MatchWorld.lineup ctx.Ctx side).Profiles.[targetSlot].Id,
-                                    quality
-                                )
-                            )
-                        LastTouch = Some pid
-                        ArrivalGate = Some(tick + int (d / speed * 40.0) * 1<subtick> + 6<subtick>)
-                        StationarySince = None })
-
-                rng'
+                launchDelivery quality rng'

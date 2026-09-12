@@ -12,7 +12,7 @@ type GameState =
       Staff: Map<StaffId, Staff>
       Competitions: Map<CompetitionId, Competition>
       Countries: Map<CountryCode, CountryData>
-      ActiveMods: (string * string) list
+      DataLock: DataLock
       UserClubId: ClubId
       UserStaffId: StaffId
       PrimaryCountry: CountryCode
@@ -20,8 +20,12 @@ type GameState =
       NextInboxId: int
       PendingNegotiations: Map<int, Negotiation>
       NextNegotiationId: int
+      Market: MarketState
       ProfileCache: Map<PlayerId, BehavioralProfile>
-      PlayerExperiences: Map<PlayerId, PlayerExperience> }
+      PlayerExperiences: Map<PlayerId, PlayerExperience>
+      TeamEmphasis: TeamEmphasis
+      SeasonHistory: SeasonRecord list
+      CareerHistory: ManagerCareerEvent list }
 
 module GameState =
 

@@ -85,10 +85,11 @@ module FixtureGen =
         (startDate: DateTime)
         (firstMatchId: int)
         : MatchFixture list * int =
+        let groupSize =
+            max 1 (int (ceil (float clubIds.Length / float groupRules.GroupCount)))
+
         let groups =
-            clubIds
-            |> List.chunkBySize (max 1 (clubIds.Length / groupRules.GroupCount))
-            |> List.truncate groupRules.GroupCount
+            clubIds |> List.chunkBySize groupSize |> List.truncate groupRules.GroupCount
 
         let mutable nextId = firstMatchId
         let mutable allFixtures = []
@@ -104,6 +105,68 @@ module FixtureGen =
 
         List.rev allFixtures, nextId
 
+    let private forKnockout
+        (compId: CompetitionId)
+        (clubIds: ClubId list)
+        (legs: LegFormat)
+        (startDate: DateTime)
+        (firstMatchId: int)
+        : MatchFixture list * int =
+        let rec rounds
+            (remaining: ClubId list)
+            (_roundNumber: int)
+            (date: DateTime)
+            (nextId: int)
+            (acc: MatchFixture list)
+            =
+            if remaining.Length < 2 then
+                List.rev acc, nextId
+            else
+                let pairs =
+                    remaining
+                    |> List.chunkBySize 2
+                    |> List.choose (function
+                        | [ home; away ] -> Some(home, away)
+                        | _ -> None)
+
+                let legDays =
+                    match legs with
+                    | TwoLegs _ -> 3.0
+                    | SingleLeg _ -> 0.0
+
+                let made, next =
+                    pairs
+                    |> List.fold
+                        (fun (fixtures, id) (home, away) ->
+                            let first =
+                                { makeFixture id 0 compId date 0 home away with
+                                    Round = Some(KnockoutRound remaining.Length) }
+
+                            match legs with
+                            | SingleLeg _ -> first :: fixtures, id + 1
+                            | TwoLegs _ ->
+                                let second =
+                                    { makeFixture (id + 1) 0 compId (date.AddDays legDays) 0 away home with
+                                        Round = Some(KnockoutRound remaining.Length) }
+
+                                second :: first :: fixtures, id + 2)
+                        ([], nextId)
+
+                let winners = pairs |> List.map fst
+
+                let nextDate =
+                    date.AddDays(
+                        if legs = SingleLeg ExtraTimeThenPenalties then
+                            7.0
+                        else
+                            14.0
+                    )
+
+                let generated, finalId = rounds winners 0 nextDate next (made @ acc)
+                generated, finalId
+
+        rounds clubIds 1 startDate firstMatchId []
+
     let forCupFormat
         (compId: CompetitionId)
         (clubIds: ClubId list)
@@ -112,5 +175,5 @@ module FixtureGen =
         (firstMatchId: int)
         : MatchFixture list * int =
         match format with
-        | StraightKnockout _ -> forLeague compId clubIds startDate firstMatchId
+        | StraightKnockout legs -> forKnockout compId clubIds legs startDate firstMatchId
         | GroupThenKnockout(groupRules, _) -> forGroupStage compId clubIds groupRules startDate firstMatchId

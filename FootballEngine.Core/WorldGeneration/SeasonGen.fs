@@ -9,6 +9,33 @@ module SeasonGen =
     let private toFixtureMap (fixtures: MatchFixture list) =
         fixtures |> List.map (fun f -> f.Id, f) |> Map.ofList
 
+    let private movement (comp: Competition) (rules: LeagueRules) =
+        let ranked = Competition.rankedStandings comp |> List.map fst
+
+        let automaticPromotion =
+            rules.Promotion
+            |> List.sumBy (function
+                | AutomaticPromotion n -> n
+                | PlayoffPromotion _ -> 0)
+
+        let automaticRelegation =
+            rules.Relegation
+            |> List.sumBy (function
+                | AutomaticRelegation n -> n
+                | PlayoffRelegation _ -> 0)
+
+        let playoff = Competition.resolvePlayoffs comp
+        let promoted = ranked |> List.truncate automaticPromotion
+        let relegated = ranked |> List.rev |> List.truncate automaticRelegation
+
+        let promoted =
+            promoted @ (playoff |> Option.map _.Promoted |> Option.defaultValue [])
+
+        let relegated =
+            relegated @ (playoff |> Option.map _.Relegated |> Option.defaultValue [])
+
+        promoted |> List.distinct, relegated |> List.distinct
+
     let private applyPromotionRelegation (comps: Map<CompetitionId, Competition>) : Map<CompetitionId, Competition> =
         let leaguesByCountry =
             comps
@@ -25,36 +52,31 @@ module SeasonGen =
             |> List.sortBy (fun (_, lvl, _, _, _) -> lvl)
             |> List.pairwise
             |> List.fold
-                (fun acc ((_, _, highId, highComp, highRules), (_, _, lowId, lowComp, _)) ->
-                    let n =
-                        highRules.Relegation
-                        |> List.sumBy (function
-                            | AutomaticRelegation n -> n
-                            | PlayoffRelegation n -> n)
-
-                    if n = 0 || highComp.Standings.IsEmpty || lowComp.Standings.IsEmpty then
+                (fun acc ((_, _, highId, highComp, highRules), (_, _, lowId, lowComp, lowRules)) ->
+                    if highComp.Standings.IsEmpty || lowComp.Standings.IsEmpty then
                         acc
                     else
-                        let relegated = Competition.bottomN n highComp
+                        let _, relegated = movement highComp highRules
+                        let promoted, _ = movement lowComp lowRules
 
-                        let promoted =
-                            Competition.rankedStandings lowComp |> List.truncate n |> List.map fst
-
-                        acc
-                        |> Map.add
-                            highId
-                            { highComp with
-                                ClubIds =
-                                    highComp.ClubIds
-                                    |> List.filter (fun id -> not (List.contains id relegated))
-                                    |> fun ids -> ids @ promoted }
-                        |> Map.add
-                            lowId
-                            { lowComp with
-                                ClubIds =
-                                    lowComp.ClubIds
-                                    |> List.filter (fun id -> not (List.contains id promoted))
-                                    |> fun ids -> ids @ relegated })
+                        if relegated.IsEmpty || promoted.IsEmpty then
+                            acc
+                        else
+                            acc
+                            |> Map.add
+                                highId
+                                { highComp with
+                                    ClubIds =
+                                        highComp.ClubIds
+                                        |> List.filter (fun id -> not (List.contains id relegated))
+                                        |> fun ids -> ids @ promoted }
+                            |> Map.add
+                                lowId
+                                { lowComp with
+                                    ClubIds =
+                                        lowComp.ClubIds
+                                        |> List.filter (fun id -> not (List.contains id promoted))
+                                        |> fun ids -> ids @ relegated })
                 acc)
 
     let regenerateFixtures (state: GameState) : GameState =

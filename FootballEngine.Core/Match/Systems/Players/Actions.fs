@@ -31,14 +31,38 @@ module Actions =
             let dir = MatchMath.goalDirection side
 
             let targetX = MatchMath.ownGoalX side + 30.0<meter> * dir
+            let targetY = 0.0<meter>
+            let d = MatchMath.dist x y targetX targetY
+            let speed = 20.0
+            let direction = max d 0.001
 
-            MatchWorld.updateBall world (fun b ->
-                { b with
-                    Control = BallControl.Airborne
-                    Trajectory = Some(TrajectoryIntent.Cleared)
-                    LastTouch = Some pid
-                    ArrivalGate = Some(tick + int (MatchMath.dist x y targetX 0.0<meter> / 20.0 * 40.0) * 1<subtick>)
-                    StationarySince = None })
+            let linearVelocity =
+                { X = float (targetX - x) / direction * speed * 1.0<meterPerSecond>
+                  Y = float (targetY - y) / direction * speed * 1.0<meterPerSecond>
+                  Z = 5.0<meterPerSecond> }
+
+            let angularVelocity =
+                { Top = -0.8<radianPerSecond>
+                  Side = 0.0<radianPerSecond>
+                  Roll = 0.0<radianPerSecond> }
+
+            let impulse =
+                BallPhysics.createImpulse
+                    pid
+                    { X = world.State.Ball.Position.X
+                      Y = world.State.Ball.Position.Y
+                      Z = world.State.Ball.Position.Z }
+                    linearVelocity
+                    angularVelocity
+                    (Some { X = targetX; Y = targetY })
+                    StrikeKind.Clearance
+                    (SimTick.ofSubTicks tick)
+                    ExecutionContext.OpenPlay
+
+            let arrival =
+                tick + int (round (d / speed * float ctx.Clock.SubTicksPerSecond)) * 1<subtick>
+
+            BallPhysics.applyImpulse world impulse (TrajectoryIntent.Cleared) (Some arrival)
 
             rng
         | 5 -> Cross.launch ctx rng world buffer side slot
@@ -63,12 +87,21 @@ module Actions =
                 match setPieceMarker with
                 | Some a ->
                     let code = int a.TargetY
+                    let restart = world.State.Ball.PendingRestart
 
                     if code = 1 && a.TargetX >= 0.0f then
-                        r <- Pass.launch ctx r world buffer side slot (int a.TargetX) 0.25
+                        match restart with
+                        | Some kind -> SetPieceRoutines.launch ctx world side slot kind (int a.TargetX)
+                        | None -> r <- Pass.launch ctx r world buffer side slot (int a.TargetX) 0.25
+                    elif code = 1 && restart.IsSome then
+                        SetPieceRoutines.launch ctx world side slot restart.Value -1
+                    elif code = 5 && restart.IsSome then
+                        SetPieceRoutines.launch ctx world side slot restart.Value (int a.TargetX)
                     elif code = 1 then
                         // No safe target: hold the ball.
                         ()
+                    elif code = 5 then
+                        r <- Cross.launch ctx r world buffer side slot
 
                     frame.RunLookup.Remove(slot + 2000) |> ignore
                 | None ->

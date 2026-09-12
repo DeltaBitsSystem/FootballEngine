@@ -7,6 +7,12 @@ open FootballEngine.World.Agents
 
 module TransferSupervisor =
 
+    let startLoan (loan: LoanAgreement) (state: GameState) =
+        TransferMarket.startLoanInGame loan state
+
+    let endLoan (now: System.DateTime) (playerId: PlayerId) (state: GameState) =
+        TransferMarket.endLoanInGame now playerId state
+
     let private advanceNegotiation (state: GameState) (neg: Negotiation) : GameState * Negotiation option =
         match neg.Stage with
         | Approaching ->

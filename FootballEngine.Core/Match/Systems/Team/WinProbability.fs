@@ -27,7 +27,7 @@ module WinProbability =
             | ClubSide.Home -> max 0.0 world.State.Momentum
             | ClubSide.Away -> max 0.0 (-world.State.Momentum)
 
-        let minute = int (SimulationClock.toMatchMinute world.State.Tick)
+        let minute = int (PlayClock.toMatchMinute (MatchClock.playClock world.State.Clock))
 
         let p =
             0.5

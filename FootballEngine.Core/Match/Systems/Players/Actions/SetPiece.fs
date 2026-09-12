@@ -343,6 +343,86 @@ module SetPieceRoutines =
             else
                 best
 
+    /// Restarts use the same contact/integration path as open-play actions. The
+    /// restart kind remains in the impulse for replay and causal diagnostics.
+    let launch
+        (ctx: SystemContext)
+        (world: World)
+        (side: ClubSide)
+        (slot: int)
+        (kind: SetPieceKind)
+        (targetSlot: int)
+        : unit =
+        let tick = world.State.Tick
+        let team = MatchWorld.team world side
+        let frame = team.Frame
+        let actor = (MatchWorld.lineup ctx.Ctx side).Profiles.[slot].Id
+        let origin = world.State.Ball.Position
+
+        let validTarget =
+            targetSlot >= 0
+            && targetSlot < frame.SlotCount
+            && MatchWorld.isActive frame targetSlot
+
+        let target =
+            if validTarget then
+                Some(MatchWorld.posX frame targetSlot, MatchWorld.posY frame targetSlot)
+            else
+                let direction = MatchMath.goalDirection side
+                Some(origin.X + 10.0<meter> * direction, origin.Y)
+
+        let tx, ty = target.Value
+        let dx = float (tx - origin.X)
+        let dy = float (ty - origin.Y)
+        let distance = max 0.001 (sqrt (dx * dx + dy * dy))
+        let speed = float ctx.Ctx.Config.Actions.PassLaunchSpeed
+
+        let height =
+            match kind with
+            | SetPieceKind.Corner -> 6.0
+            | SetPieceKind.ThrowIn -> 3.5
+            | SetPieceKind.GoalKick -> 2.5
+            | SetPieceKind.FreeKick -> 1.0
+            | SetPieceKind.KickOff
+            | SetPieceKind.Penalty -> 0.0
+
+        let linearVelocity =
+            { X = dx / distance * speed * 1.0<meterPerSecond>
+              Y = dy / distance * speed * 1.0<meterPerSecond>
+              Z = height * 1.0<meterPerSecond> }
+
+        let angularVelocity =
+            { Top = -0.3<radianPerSecond>
+              Side = 0.0<radianPerSecond>
+              Roll = 0.0<radianPerSecond> }
+
+        let targetPoint: Vec2 option = Some { X = tx; Y = ty }
+
+        let impulse =
+            BallPhysics.createImpulse
+                actor
+                { X = origin.X
+                  Y = origin.Y
+                  Z = origin.Z }
+                linearVelocity
+                angularVelocity
+                targetPoint
+                (StrikeKind.Restart kind)
+                (SimTick.ofSubTicks tick)
+                (ExecutionContext.SetPiece kind)
+
+        let trajectory =
+            if validTarget then
+                TrajectoryIntent.Aimed(actor, (MatchWorld.lineup ctx.Ctx side).Profiles.[targetSlot].Id, 0.75)
+            else
+                TrajectoryIntent.Cleared
+
+        let arrival =
+            tick
+            + int (round (distance / speed * float ctx.Clock.SubTicksPerSecond)) * 1<subtick>
+
+        BallPhysics.applyImpulse world impulse trajectory (Some arrival)
+
     let private mark
         (ctx: SystemContext)
         (rng: Rng)

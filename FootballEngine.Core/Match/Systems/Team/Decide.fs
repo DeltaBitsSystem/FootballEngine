@@ -11,7 +11,7 @@ module TeamDecide =
         let baseCfg2 = ctx.AwayClub.BaseTactics
         let tactics = if side = ClubSide.Home then baseCfg else baseCfg2
 
-        let minute = int (SimulationClock.toMatchMinute tick)
+        let minute = int (PlayClock.toMatchMinute (MatchClock.playClock world.State.Clock))
         let diff = world.State.HomeScore - world.State.AwayScore
         let myDiff = if side = ClubSide.Home then diff else -diff
 
@@ -19,6 +19,19 @@ module TeamDecide =
         // team doesn't just read the scoreboard.
         let winProb = WinProbability.estimate ctx world side
         let riskLate = minute >= int ctx.Config.Team.RiskLateMinute
+
+        // Tempo sets how eagerly transitions become counters: fast teams break
+        // on half-chances, slow teams wait for control.
+        let counterThreshold =
+            0.5f
+            - float32 ctx.Config.TacticalTradeoffs.TempoCounterUrgencyShift * tactics.Tempo
+
+        let ballFx =
+            float world.State.Ball.Position.X * float (MatchMath.goalDirection side)
+
+        // The trigger zone draws the engagement line in the attacking frame:
+        // low values only press in the attacking third, high values press anywhere.
+        let pressGate = 17.5 - 70.0 * float tactics.PressTriggerZone
 
         let candidate: DirectiveKind =
             if riskLate && winProb < 0.35 && minute >= 60 then
@@ -48,10 +61,10 @@ module TeamDecide =
                 DirectiveKind.Press
             elif
                 team.Blackboard.OurPhase = PhaseKind.TransitionAttack
-                && team.Blackboard.Urgency > 0.5f
+                && team.Blackboard.Urgency > counterThreshold
             then
                 DirectiveKind.Counter
-            elif tactics.PressIntensity > 0.7f then
+            elif tactics.PressIntensity > 0.7f && ballFx > pressGate then
                 DirectiveKind.Press
             else
                 DirectiveKind.Balanced

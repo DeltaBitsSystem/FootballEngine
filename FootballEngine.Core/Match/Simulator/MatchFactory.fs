@@ -5,7 +5,12 @@ namespace FootballEngine.Core.Match
 /// therefore produce identical matches.
 module MatchFactory =
 
-    let private makeTeam (ctx: MatchContext) (side: ClubSide) (lineup: Lineup) : TeamWorld =
+    let private makeTeam
+        (ctx: MatchContext)
+        (side: ClubSide)
+        (lineup: Lineup)
+        (boundary: MatchLineupBoundary)
+        : TeamWorld =
         let n = lineup.SlotCount
         let mutable frame = TeamFrame.create n
 
@@ -13,12 +18,21 @@ module MatchFactory =
             let p = lineup.Profiles.[i]
             frame.SlotRoles.[i] <- p.Role
 
+            match boundary.Eligibility |> Map.tryFind p.Id with
+            | Some true ->
+                let participant =
+                    Array.append boundary.Starters boundary.Substitutes
+                    |> Array.tryFind (fun candidate -> candidate.Id = p.Id)
+
+                frame.Condition.[i] <- participant |> Option.map _.InitialCondition |> Option.defaultValue 1.0f
+            | _ -> frame.Condition.[i] <- 0.0f
+
             let bx = lineup.BasePositions.[i]
             let x = if side = ClubSide.Home then bx.X else -bx.X
             frame.PosX.[i] <- float32 x
             frame.PosY.[i] <- float32 bx.Y
 
-        let activeCount = min n 11
+        let activeCount = min n lineup.StarterCount
 
         for i in activeCount .. n - 1 do
             frame.Occupancy.[i] <-
@@ -53,6 +67,12 @@ module MatchFactory =
         for i in 0 .. n - 1 do
             shape.TargetsX.[i] <- frame.PosX.[i]
             shape.TargetsY.[i] <- frame.PosY.[i]
+
+        let participation = ParticipationBook.create ()
+
+        for i in 0 .. activeCount - 1 do
+            let profile = lineup.Profiles.[i]
+            ParticipationBook.start participation profile.Id profile.Role 0<subtick>
 
         { Frame = frame
           Memory = memory
@@ -110,6 +130,14 @@ module MatchFactory =
               LastDecidedTick = 0<subtick>
               SupportAttackComputed = false }
           EventWindow = EventWindow.create ctx.Config.Weights.Timing.EventWindowSubTicks
+          Substitution =
+            { Phase = SubstitutionPhase.NoSubstitution
+              Outgoing = None
+              Incoming = None
+              RequestedAt = None
+              AppliedAt = None
+              UsedIncoming = Set.empty }
+          Participation = participation
           ActivePlan = None
           LastCarrierSlot = -1 }
 
@@ -117,7 +145,18 @@ module MatchFactory =
         let kickoffDelay =
             Flow.delayFor ctx.Config SimulationClock.defaultClock SetPieceKind.KickOff
 
-        { State =
+        let home = makeTeam ctx ClubSide.Home ctx.HomeLineup ctx.HomeParticipants
+        let away = makeTeam ctx ClubSide.Away ctx.AwayLineup ctx.AwayParticipants
+
+        let shootout: ShootoutBook =
+            { HomeGoals = 0
+              AwayGoals = 0
+              HomeKicks = 0
+              AwayKicks = 0
+              Scheduled = false
+              Complete = false }
+
+        let state =
             { Tick = 0<subtick>
               Clock =
                 { Tick = 0<subtick>
@@ -148,7 +187,10 @@ module MatchFactory =
                   LastTouch = None
                   StationarySince = None
                   GKHoldSince = None
-                  ArrivalGate = None }
+                  ArrivalGate = None
+                  PreviousPosition = None
+                  Impulse = None
+                  PendingRestart = None }
               Momentum = 0.0
               LastAttackingClub = Some ClubSide.Home
               Possession =
@@ -159,6 +201,12 @@ module MatchFactory =
                 { FirstHalfAdded = 0<subtick>
                   SecondHalfAdded = 0<subtick>
                   Decided = false
-                  Half1Fingerprint = 0 } }
-          Home = makeTeam ctx ClubSide.Home ctx.HomeLineup
-          Away = makeTeam ctx ClubSide.Away ctx.AwayLineup }
+                  Half1Fingerprint = 0 }
+              Advantage = AdvantageState.NoAdvantage
+              VARReview = None
+              Shootout = shootout }
+
+        { State = state
+          Home = home
+          Away = away
+          AppliedEventIds = System.Collections.Generic.HashSet<EventId>() }

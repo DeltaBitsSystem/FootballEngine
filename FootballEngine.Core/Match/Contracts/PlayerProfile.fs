@@ -60,6 +60,18 @@ module Projection =
         | FootballEngine.Domain.Position.AMR -> SlotRole.Winger
         | FootballEngine.Domain.Position.ST -> SlotRole.Striker
 
+    /// Match fitness made real: scales engine physicals by readiness in [floor, 1].
+    /// Applied once at context build so the per-tick engine stays allocation-free.
+    /// Only physicals scale: a tired genius still sees the pass, he just arrives late.
+    let withReadiness (readiness: float32) (profile: PlayerProfile) : PlayerProfile =
+        let r = max 0.0f (min 1.0f readiness)
+
+        { profile with
+            Pace = profile.Pace * r
+            Strength = profile.Strength * r
+            Stamina = profile.Stamina * r
+            Agility = profile.Agility * r }
+
     /// Domain Player -> engine PlayerProfile. The ONLY place Domain types appear in the match engine.
     let toProfile (p: FootballEngine.Domain.Player) : PlayerProfile =
         let phys = p.Physical

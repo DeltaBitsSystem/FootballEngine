@@ -17,7 +17,7 @@ module ClubAgent =
 
     let private project (clubId: ClubId) (state: GameState) : AgentView =
         let club = state.Clubs[clubId]
-        let budget = club.Budget
+        let budget = Finance.availableForTransfers club.Finance
 
         let squad =
             state.Players
@@ -68,13 +68,10 @@ module ClubAgent =
 
     let private decideYouth (view: AgentView) : Intent<ClubYouthIntent> list =
         match view with
-        | ClubView(club, _budget, squad, _) ->
-            if squad.Length < 20 then
-                [ { AgentId = ClubAgentId club.Id
-                    Priority = 1
-                    Payload = GenerateYouthPlayer club.Id } ]
-            else
-                []
+        | ClubView(club, _budget, _squad, _) ->
+            [ { AgentId = ClubAgentId club.Id
+                Priority = 1
+                Payload = GenerateYouthPlayer club.Id } ]
         | _ -> []
 
     let makeYouth (clubId: ClubId) : Agent<ClubYouthIntent> =
@@ -91,26 +88,25 @@ module YouthGen =
         match state.Clubs |> Map.tryFind clubId with
         | None -> state
         | Some club ->
-            let countryData =
-                state.Countries
-                |> Map.tryFind club.Nationality
-                |> Option.defaultWith (fun () ->
-                    failwithf $"Country '{club.Nationality}' not found in GameState.Countries")
+            let countryDataOpt = state.Countries |> Map.tryFind club.Nationality
 
-            let nextId =
-                state.Players
-                |> Map.toList
-                |> List.map fst
-                |> fun ids -> if ids.IsEmpty then 1 else List.max ids + 1
+            match countryDataOpt with
+            | None -> state
+            | Some countryData ->
+                let nextId =
+                    state.Players
+                    |> Map.toList
+                    |> List.map fst
+                    |> fun ids -> if ids.IsEmpty then 1 else List.max ids + 1
 
-            let roll = uniformSample 0.0 (float youthPositions.Length)
-            let pos = youthPositions[int roll]
-            let raw = PlayerGen.create nextId pos clubId countryData 2 state.Season
+                let roll = uniformSample 0.0 (float youthPositions.Length)
+                let pos = youthPositions[int roll]
+                let raw = PlayerGen.createYouthProspect nextId pos clubId countryData state.Season
 
-            let youth =
-                { raw with
-                    CurrentSkill = clamp 30 70 raw.CurrentSkill }
+                let youth =
+                    { raw with
+                        CurrentSkill = clamp 30 70 raw.CurrentSkill }
 
-            { state with
-                Players = state.Players |> Map.add youth.Id youth
-                Clubs = state.Clubs |> Map.add clubId (Club.addPlayer youth.Id state.Clubs[clubId]) }
+                { state with
+                    Players = state.Players |> Map.add youth.Id youth
+                    Clubs = state.Clubs |> Map.add clubId (Club.addPlayer youth.Id state.Clubs[clubId]) }

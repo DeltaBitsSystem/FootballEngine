@@ -25,7 +25,7 @@ type Club =
       Reputation: int
       PlayerIds: PlayerId list
       StaffIds: StaffId list
-      Budget: decimal
+      Finance: ClubFinance
       Morale: int
       BoardObjective: BoardObjective
       CoordinationMemory: CoordinationMemory
@@ -49,10 +49,6 @@ module Club =
     let removePlayer (playerId: PlayerId) (club: Club) =
         { club with
             PlayerIds = club.PlayerIds |> List.filter ((<>) playerId) }
-
-    let adjustBudget (delta: decimal) (club: Club) =
-        { club with
-            Budget = max 0m (club.Budget + delta) }
 
     let setObjective (objective: BoardObjective) (club: Club) =
         { club with BoardObjective = objective }
