@@ -15,8 +15,6 @@ module ClockTests =
               }
 
               test "toMatchMinute floors" {
-                  let clock = SimulationClock.defaultClock
-
                   let minute (tick: int<subtick>) = SimulationClock.toMatchMinute tick
 
                   Expect.equal (minute 0<subtick>) 0<matchMin> "tick 0 -> minute 0"
@@ -33,4 +31,13 @@ module ClockTests =
 
                   let roundTrip = SimulationClock.secondsToSubTicks clock 90.0<second>
                   Expect.equal roundTrip 3600<subtick> "90 s -> 3600 subticks"
+              }
+
+              test "SimTick and PlayClock stay distinct" {
+                  let simTick = SimTick.ofSubTicks 7200<subtick>
+                  let playClock = PlayClock.ofSubTicks 2400<subtick>
+
+                  Expect.equal (SimTick.value simTick) 7200<subtick> "simulation cadence is independent"
+                  Expect.equal (PlayClock.value playClock) 2400<subtick> "play clock stores playable time"
+                  Expect.equal (PlayClock.toMatchMinute playClock) 1<matchMin> "play minute uses play clock"
               } ]

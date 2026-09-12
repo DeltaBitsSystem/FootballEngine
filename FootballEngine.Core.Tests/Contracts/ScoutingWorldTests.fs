@@ -60,11 +60,13 @@ module ScoutingWorldTests =
 
     let private baseTactics: TacticsConfig =
         { Formation = "4-3-3"
-          DefensiveLine = 2.0f
-          PressIntensity = 2.0f
-          Width = 2.0f
-          Tempo = 2.0f
-          Directness = 2.0f }
+          DefensiveLine = 40.0f
+          PressIntensity = 0.5f
+          Width = 0.5f
+          Tempo = 0.5f
+          Directness = 0.5f
+          Mentality = 0.5f
+          PressTriggerZone = 0.5f }
 
     let private longBallMemory =
         { OpponentId = 42
@@ -123,21 +125,22 @@ module ScoutingWorldTests =
                   let t =
                       MatchContextBuilder.adjustTactics defaultCounter mem 42 sigSignature baseTactics
 
-                  Expect.floatClose Accuracy.medium (float t.DefensiveLine) 1.0 "line dropped by MaxLineDrop"
-                  Expect.floatClose Accuracy.medium (float t.PressIntensity) 3.0 "press boosted by MaxPressBoost"
+                  // engine scales: the press boost converts (/4), the line drop lands in meters
+                  Expect.floatClose Accuracy.medium (float t.DefensiveLine) 39.0 "line dropped by MaxLineDrop meters"
+                  Expect.floatClose Accuracy.medium (float t.PressIntensity) 0.75 "press boosted by MaxPressBoost/4"
               }
 
-              test "shifts clamp into the slider range" {
+              test "shifts clamp into engine range" {
                   let high =
                       { baseTactics with
-                          PressIntensity = 3.8f
-                          Width = 0.1f }
+                          PressIntensity = 0.9f
+                          Width = 0.05f }
 
                   let mem =
                       ScoutingMemory.update defaultScout day 42 longBallMemory.Pattern ScoutingMemory.empty
 
                   let t = MatchContextBuilder.adjustTactics defaultCounter mem 42 sigSignature high
-                  Expect.floatClose Accuracy.medium (float t.PressIntensity) 4.0 "press capped"
+                  Expect.floatClose Accuracy.medium (float t.PressIntensity) 1.0 "press capped"
                   Expect.floatClose Accuracy.medium (float t.Width) 0.0 "width floored"
               }
 
@@ -156,10 +159,10 @@ module ScoutingWorldTests =
                   Expect.floatClose
                       Accuracy.medium
                       (float t.DefensiveLine)
-                      (2.0 - defaultCounter.MaxLineDrop * defaultCounter.SignatureChangePenalty)
+                      (40.0 - defaultCounter.MaxLineDrop * defaultCounter.SignatureChangePenalty)
                       "line drop scaled by the penalty"
 
-                  Expect.isTrue (t.DefensiveLine < 2.0f) "still counters after a change"
+                  Expect.isTrue (t.DefensiveLine < 40.0f) "still counters after a change"
               } ]
 
     let recordPatternTests =

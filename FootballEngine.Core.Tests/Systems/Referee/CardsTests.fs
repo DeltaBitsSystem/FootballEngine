@@ -21,12 +21,19 @@ module CardsTests =
         let pid = ctx.HomeLineup.Profiles.[5].Id
         let buf = buffer ()
 
-        for c in cards do
-            buf.Applied.Add
-                { Tick = 0<subtick>
+        for index, c in List.indexed cards do
+            let ev =
+                { Tick = index * 1<subtick>
                   Data = EventData.Card(pid, c) }
 
+            EventApply.apply ctx world ev
+            buf.Applied.Add ev
+
         RefereeCards.step sctx (Rng.ofSeed 42UL) world buf |> ignore
+
+        for ev in buf.Events do
+            EventApply.apply ctx world ev
+
         buf
 
     let cardsTests =

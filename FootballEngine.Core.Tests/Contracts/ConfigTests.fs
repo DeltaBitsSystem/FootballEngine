@@ -69,7 +69,8 @@ module ConfigTests =
                             "Weights.Physics.Gravity"
                             "Weights.Physics.ArrivalConvergenceThreshold"
                             "Weights.Manager.MomentumThreshold"
-                            "Weights.Decision.PassAttackPhasePenalty" ]
+                            "Weights.Decision.PassAttackPhasePenalty"
+                            "TacticalTradeoffs.PressHighPpdaDelta" ]
 
                   for KeyValue(path, value) in leaves do
                       match value with
@@ -104,7 +105,7 @@ module ConfigTests =
                       | _ -> failwithf "config field %s missing" path
               }
 
-              test "defaultConfig has all 14 sections" {
+              test "defaultConfig has all 16 sections" {
                   let t = typeof<BalanceConfig>
 
                   for section in
@@ -121,7 +122,9 @@ module ConfigTests =
                         "Weights"
                         "Scout"
                         "Counter"
-                        "Transfer" ] do
+                        "Transfer"
+                        "TacticalTradeoffs"
+                        "Training" ] do
                       Expect.isTrue
                           (FSharpType.GetRecordFields(t) |> Array.exists (fun f -> f.Name = section))
                           (sprintf "section %s must exist" section)

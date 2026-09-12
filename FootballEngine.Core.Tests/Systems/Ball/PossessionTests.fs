@@ -27,6 +27,10 @@ module PossessionTests =
             for i in MatchWorld.activeSlots (MatchWorld.team world s).Frame do
                 place world s i -60.0<meter> 40.0<meter>
 
+    let private applyEvents (world: World) (buf: EventBuffer) : unit =
+        for ev in buf.Events do
+            EventApply.apply ctx world ev
+
     let possessionTests =
         testList
             "FootballEngine.Core.Systems.Ball.PossessionTests"
@@ -43,7 +47,9 @@ module PossessionTests =
                   place world ClubSide.Home 5 10.0<meter> 0.0<meter>
                   let before = world.State.Ball.Position.X
 
-                  BallPossession.step sctx (Rng.ofSeed 3UL) world (buffer ()) |> ignore
+                  let buf = buffer ()
+                  BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
+                  applyEvents world buf
 
                   Expect.isGreaterThan (float world.State.Ball.Position.X) (float before) "ball carried forward")
 
@@ -64,7 +70,9 @@ module PossessionTests =
                           { world.State with
                               Tick = t * 1<subtick> }
 
-                      BallPossession.step sctx (Rng.ofSeed 3UL) world (buffer ()) |> ignore
+                  let buf = buffer ()
+                  BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
+                  applyEvents world buf
 
                   match world.State.Ball.Control with
                   | BallControl.Receiving _ -> ()
@@ -74,7 +82,9 @@ module PossessionTests =
                       { world.State with
                           Tick = (int grace + 1) * 1<subtick> }
 
-                  BallPossession.step sctx (Rng.ofSeed 3UL) world (buffer ()) |> ignore
+                  let buf = buffer ()
+                  BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
+                  applyEvents world buf
 
                   match world.State.Ball.Control with
                   | BallControl.Controlled(ClubSide.Home, pid') -> Expect.equal pid' pid "controlled after grace"
@@ -99,6 +109,7 @@ module PossessionTests =
 
                   let buf = buffer ()
                   BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
+                  applyEvents world buf
 
                   Expect.exists
                       buf.Events
@@ -146,6 +157,7 @@ module PossessionTests =
 
                   let buf = buffer ()
                   BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
+                  applyEvents world buf
 
                   match world.State.Ball.Control with
                   | BallControl.Controlled(ClubSide.Home, pid') -> Expect.equal pid' pid "picked up"
@@ -234,6 +246,7 @@ module PossessionTests =
 
                   let buf = buffer ()
                   BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
+                  applyEvents world buf
 
                   match world.State.Ball.Control with
                   | BallControl.Controlled(ClubSide.Home, pid) ->

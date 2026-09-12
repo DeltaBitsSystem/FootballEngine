@@ -63,7 +63,10 @@ module StepperTests =
 
                   world.State <-
                       { world.State with
-                          Tick = 105600<subtick> }
+                          Tick = 105600<subtick>
+                          Clock =
+                              { world.State.Clock with
+                                  Tick = 105600<subtick> } }
 
                   let _, _, _ = Stepper.step [] sctx (Rng.ofSeed 3UL) world (buffer ())
 
@@ -83,7 +86,10 @@ module StepperTests =
 
                   world.State <-
                       { world.State with
-                          Tick = 108000<subtick> + added }
+                          Tick = 108000<subtick> + added
+                          Clock =
+                              { world.State.Clock with
+                                  Tick = 108000<subtick> + added } }
 
                   let buf = buffer ()
                   let _, _, _ = Stepper.step [] sctx (Rng.ofSeed 3UL) world buf
@@ -99,7 +105,10 @@ module StepperTests =
                       { world.State with
                           HomeScore = 2
                           AwayScore = 1
-                          Tick = 105600<subtick> }
+                          Tick = 105600<subtick>
+                          Clock =
+                              { world.State.Clock with
+                                  Tick = 105600<subtick> } }
 
                   let _, _, _ = Stepper.step [] sctx (Rng.ofSeed 3UL) world (buffer ())
 
@@ -112,7 +121,10 @@ module StepperTests =
 
                   world.State <-
                       { world.State with
-                          Tick = 213600<subtick> }
+                          Tick = 213600<subtick>
+                          Clock =
+                              { world.State.Clock with
+                                  Tick = 213600<subtick> } }
 
                   let _, _, _ = Stepper.step [] sctx (Rng.ofSeed 3UL) world (buffer ())
 
@@ -138,6 +150,7 @@ module StepperTests =
                           Tick = 213600<subtick>
                           Clock =
                               { world.State.Clock with
+                                  Tick = 213600<subtick>
                                   Phase = ClockPhase.SecondHalf } }
 
                   let _, _, _ = Stepper.step [] sctx (Rng.ofSeed 3UL) world (buffer ())
@@ -145,7 +158,10 @@ module StepperTests =
 
                   world.State <-
                       { world.State with
-                          Tick = 216000<subtick> + added }
+                          Tick = 216000<subtick> + added
+                          Clock =
+                              { world.State.Clock with
+                                  Tick = 216000<subtick> + added } }
 
                   let buf = buffer ()
                   let _, _, _ = Stepper.step [] sctx (Rng.ofSeed 3UL) world buf

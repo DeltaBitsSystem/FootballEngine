@@ -70,6 +70,10 @@ module ContactTests =
     let private hasEvent (buf: EventBuffer) (filter: EventData -> bool) : bool =
         buf.Events |> Seq.exists (fun ev -> filter ev.Data)
 
+    let private applyEvents (c: MatchContext) (world: World) (buf: EventBuffer) : unit =
+        for ev in buf.Events do
+            EventApply.apply c world ev
+
     let contactTests =
         testList
             "FootballEngine.Core.Systems.Ball.ContactTests"
@@ -91,6 +95,7 @@ module ContactTests =
 
                   let buf = buffer ()
                   BallContact.step sctx (Rng.ofSeed 3UL) world buf |> ignore
+                  applyEvents ctx world buf
 
                   Expect.exists
                       buf.Events
@@ -125,6 +130,7 @@ module ContactTests =
 
                   let buf = buffer ()
                   BallContact.step sctx (Rng.ofSeed 3UL) world buf |> ignore
+                  applyEvents ctx world buf
 
                   Expect.exists
                       buf.Events
@@ -159,9 +165,32 @@ module ContactTests =
 
                   let buf = buffer ()
                   BallContact.step sctx (Rng.ofSeed 3UL) world buf |> ignore
+                  applyEvents ctx world buf
 
                   Expect.isEmpty buf.Events "no events"
                   Expect.equal world.State.Ball.Control BallControl.Free "ball untouched")
+
+              testCase "Expired arrival gate does not resolve a clearance" (fun _ ->
+                  let world = TestBuilders.minimalWorld ()
+                  placeAllFar world
+                  setBall world 0.0<meter> 0.0<meter>
+
+                  world.State <-
+                      { world.State with
+                          Ball =
+                              { world.State.Ball with
+                                  Control = BallControl.Airborne
+                                  ArrivalGate = Some 0<subtick>
+                                  Trajectory = Some TrajectoryIntent.Cleared } }
+
+                  let buf = buffer ()
+                  BallContact.step sctx (Rng.ofSeed 3UL) world buf |> ignore
+
+                  Expect.isEmpty buf.Events "the gate alone cannot resolve the flight"
+
+                  match world.State.Ball.Trajectory with
+                  | Some TrajectoryIntent.Cleared -> ()
+                  | other -> failtestf "expected clearance to remain in flight, got %A" other)
 
               testCase "Gate in the future is not resolved yet" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
@@ -204,8 +233,8 @@ module ContactTests =
                   let passer = c.HomeLineup.Profiles.[4].Id
                   let receiver = c.HomeLineup.Profiles.[5].Id
 
-                  place world ClubSide.Home 5 7.0<meter> 0.0<meter>
-                  place world ClubSide.Away 3 4.0<meter> 0.0<meter>
+                  let _ = place world ClubSide.Home 5 2.4<meter> 0.0<meter>
+                  let _ = place world ClubSide.Away 3 2.0<meter> 0.0<meter>
                   setBall world 0.0<meter> 0.0<meter>
 
                   (MatchWorld.team world ClubSide.Home).Frame.Intent.Kind.[5] <- IntentCode.ExecuteRun
@@ -219,6 +248,7 @@ module ContactTests =
 
                   let buf = buffer ()
                   BallContact.step sctx' (Rng.ofSeed 3UL) world buf |> ignore
+                  applyEvents c world buf
 
                   Expect.isFalse
                       (hasEvent buf (fun ev ->
@@ -255,8 +285,8 @@ module ContactTests =
                   let passer = c.HomeLineup.Profiles.[4].Id
                   let receiver = c.HomeLineup.Profiles.[5].Id
 
-                  place world ClubSide.Home 5 12.0<meter> 0.0<meter>
-                  place world ClubSide.Away 3 8.0<meter> 0.0<meter>
+                  let _ = place world ClubSide.Home 5 2.4<meter> 0.0<meter>
+                  let _ = place world ClubSide.Away 3 2.0<meter> 0.0<meter>
                   setBall world 0.0<meter> 0.0<meter>
 
                   (MatchWorld.team world ClubSide.Home).Frame.Intent.Kind.[5] <- IntentCode.ExecuteRun
@@ -270,6 +300,7 @@ module ContactTests =
 
                   let buf = buffer ()
                   BallContact.step sctx' (Rng.ofSeed 3UL) world buf |> ignore
+                  applyEvents c world buf
 
                   Expect.isFalse
                       (hasEvent buf (fun ev ->

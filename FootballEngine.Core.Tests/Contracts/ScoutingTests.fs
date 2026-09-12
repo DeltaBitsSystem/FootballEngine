@@ -531,14 +531,18 @@ module ScoutingTests =
                   Expect.equal plan.PressBoost defaultCounter.MaxPressBoost "full strength against an unknown shape"
               }
 
-              test "apply adds deltas onto slider-scale tactics and clamps to 0..4" {
+              test "apply adds deltas onto engine-scale tactics" {
+                  // Engine scales run intensities 0..1 with the line in meters;
+                  // slider-unit boosts convert (/4) while the line drop lands in meters.
                   let baseTactics =
                       { Formation = "4-3-3"
-                        DefensiveLine = 2.0f
-                        PressIntensity = 2.0f
-                        Width = 2.0f
-                        Tempo = 2.0f
-                        Directness = 2.0f }
+                        DefensiveLine = 40.0f
+                        PressIntensity = 0.5f
+                        Width = 0.5f
+                        Tempo = 0.5f
+                        Directness = 0.5f
+                        Mentality = 0.5f
+                        PressTriggerZone = 0.5f }
 
                   let plan =
                       { Active = true
@@ -550,22 +554,26 @@ module ScoutingTests =
                         DirectnessShift = 0.2 }
 
                   let t = CounterPlan.apply defaultCounter baseTactics plan
-                  Expect.floatClose Accuracy.medium (float t.PressIntensity) 2.6 "press boosted"
-                  Expect.floatClose Accuracy.medium (float t.DefensiveLine) 1.5 "line dropped"
-                  Expect.floatClose Accuracy.medium (float t.Width) 1.6 "width tightened"
-                  Expect.floatClose Accuracy.medium (float t.Tempo) 1.7 "tempo lowered"
-                  Expect.floatClose Accuracy.medium (float t.Directness) 2.2 "directness raised"
+                  Expect.floatClose Accuracy.medium (float t.PressIntensity) 0.65 "press boosted by boost/4"
+                  Expect.floatClose Accuracy.medium (float t.DefensiveLine) 39.5 "line dropped in meters"
+                  Expect.floatClose Accuracy.medium (float t.Width) 0.4 "width tightened by tighten/4"
+                  Expect.floatClose Accuracy.medium (float t.Tempo) 0.425 "tempo lowered by shift/4"
+                  Expect.floatClose Accuracy.medium (float t.Directness) 0.55 "directness raised by shift/4"
                   Expect.equal t.Formation baseTactics.Formation "formation unchanged"
+                  Expect.equal t.Mentality baseTactics.Mentality "counter never touches mentality"
+                  Expect.equal t.PressTriggerZone baseTactics.PressTriggerZone "counter never touches trigger zone"
               }
 
-              test "apply never leaves the slider range" {
+              test "apply never leaves engine range" {
                   let high =
                       { Formation = "4-3-3"
-                        DefensiveLine = 3.8f
-                        PressIntensity = 3.8f
-                        Width = 0.1f
-                        Tempo = 0.1f
-                        Directness = 3.8f }
+                        DefensiveLine = 16.0f
+                        PressIntensity = 0.95f
+                        Width = 0.05f
+                        Tempo = 0.05f
+                        Directness = 0.95f
+                        Mentality = 0.5f
+                        PressTriggerZone = 0.5f }
 
                   let plan =
                       { Active = true
@@ -577,22 +585,24 @@ module ScoutingTests =
                         DirectnessShift = 1.0 }
 
                   let t = CounterPlan.apply defaultCounter high plan
-                  Expect.floatClose Accuracy.medium (float t.PressIntensity) 4.0 "press capped"
-                  // the line drops and stays in range: 3.8 - 1.0, no cap on the way down
-                  Expect.floatClose Accuracy.medium (float t.DefensiveLine) 2.8 "line dropped in range"
+                  Expect.floatClose Accuracy.medium (float t.PressIntensity) 1.0 "press capped"
+                  // the line drops in meters but never below the playable floor
+                  Expect.floatClose Accuracy.medium (float t.DefensiveLine) 15.0 "line floored at 15m"
                   Expect.floatClose Accuracy.medium (float t.Width) 0.0 "width floored"
                   Expect.floatClose Accuracy.medium (float t.Tempo) 0.0 "tempo floored"
-                  Expect.floatClose Accuracy.medium (float t.Directness) 4.0 "directness capped"
+                  Expect.floatClose Accuracy.medium (float t.Directness) 1.0 "directness capped"
               }
 
               test "apply ignores inactive plans" {
                   let baseTactics =
                       { Formation = "4-3-3"
-                        DefensiveLine = 2.0f
-                        PressIntensity = 2.0f
-                        Width = 2.0f
-                        Tempo = 2.0f
-                        Directness = 2.0f }
+                        DefensiveLine = 40.0f
+                        PressIntensity = 0.5f
+                        Width = 0.5f
+                        Tempo = 0.5f
+                        Directness = 0.5f
+                        Mentality = 0.5f
+                        PressTriggerZone = 0.5f }
 
                   let t = CounterPlan.apply defaultCounter baseTactics CounterPlan.empty
                   Expect.equal t baseTactics "unchanged"

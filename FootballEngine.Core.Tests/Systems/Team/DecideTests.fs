@@ -39,7 +39,10 @@ module DecideTests =
                   world.State <-
                       { world.State with
                           HomeScore = 0
-                          AwayScore = 3 }
+                          AwayScore = 3
+                          Clock =
+                              { world.State.Clock with
+                                  Tick = minuteTick 80 } }
 
                   world.State <-
                       { world.State with
@@ -55,7 +58,10 @@ module DecideTests =
                   world.State <-
                       { world.State with
                           HomeScore = 3
-                          AwayScore = 0 }
+                          AwayScore = 0
+                          Clock =
+                              { world.State.Clock with
+                                  Tick = minuteTick 82 } }
 
                   world.State <-
                       { world.State with
@@ -74,7 +80,10 @@ module DecideTests =
 
                   world.State <-
                       { world.State with
-                          Tick = minuteTick 45 }
+                          Tick = minuteTick 45
+                          Clock =
+                              { world.State.Clock with
+                                  Tick = minuteTick 45 } }
 
                   let wp = WinProbability.estimate ctx world ClubSide.Home
                   Expect.isTrue (wp >= 0.3 && wp <= 0.7) "neutral game yields balanced win probability")

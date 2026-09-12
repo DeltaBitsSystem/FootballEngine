@@ -40,14 +40,17 @@ module ManagerTests =
 
                   world.State <-
                       { world.State with
-                          Tick = minuteTick 60 }
+                          Tick = minuteTick 60
+                          Clock =
+                              { world.State.Clock with
+                                  Tick = minuteTick 60 } }
 
                   let b = buffer ()
                   ManagerSystem.step sctx (Rng.ofSeed 42UL) world b |> ignore
 
                   let subEvents =
                       b.Events
-                      |> Seq.filter (fun ev -> MatchEvent.kind ev = EventKind.Substitution)
+                      |> Seq.filter (fun ev -> MatchEvent.kind ev = EventKind.SubstitutionRequested)
                       |> Seq.toList
 
                   Expect.isNonEmpty subEvents "a substitution happens for the exhausted player")
@@ -73,7 +76,10 @@ module ManagerTests =
                   world.State <-
                       { world.State with
                           HomeScore = 0
-                          AwayScore = 1 }
+                          AwayScore = 1
+                          Clock =
+                              { world.State.Clock with
+                                  Tick = minuteTick 80 } }
 
                   world.State <-
                       { world.State with

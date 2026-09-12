@@ -9,12 +9,14 @@
   <ItemGroup>
     <Compile Include="Infrastructure\TestRng.fs"/>
     <Compile Include="Infrastructure\TestBuilders.fs"/>
+    <Compile Include="Diagnostics\Gate0Tests.fs"/>
     <Compile Include="Contracts\RngTests.fs"/>
     <Compile Include="Contracts\ClockTests.fs"/>
     <Compile Include="Contracts\EventFlagTests.fs"/>
     <Compile Include="Contracts\ConfigTests.fs"/>
     <Compile Include="Contracts\ConfigMigrationTests.fs"/>
     <Compile Include="Systems\Ball\PhysicsTests.fs"/>
+    <Compile Include="Systems\Ball\Gate1ImpulseTests.fs"/>
     <Compile Include="Systems\Ball\ContactTests.fs"/>
     <Compile Include="Systems\Ball\OutcomeTests.fs"/>
     <Compile Include="Systems\Ball\PossessionTests.fs"/>
@@ -49,6 +51,7 @@
     <Compile Include="Systems\Team\DecideTests.fs"/>
     <Compile Include="Systems\Team\PassInterceptTests.fs"/>
     <Compile Include="Systems\Team\EmergentTests.fs"/>
+    <Compile Include="Systems\Team\TacticalStaffAnalysisTests.fs"/>
     <Compile Include="Systems\Team\OffsideLineTests.fs"/>
     <Compile Include="Systems\Manager\ManagerTests.fs"/>
     <Compile Include="Stepper\EventApplyTests.fs"/>
@@ -57,7 +60,22 @@
     <Compile Include="Contracts\ScoutingTests.fs"/>
     <Compile Include="Contracts\SquadPlannerTests.fs"/>
     <Compile Include="Contracts\ScoutingWorldTests.fs"/>
-    <Compile Include="Program.fs"/>
+    <Compile Include="Contracts\TrainingTests.fs"/>
+    <Compile Include="Contracts\TacticsTests.fs"/>
+    <Compile Include="Contracts\BoundaryTests.fs"/>
+    <Compile Include="Contracts\AutosaveQueueTests.fs"/>
+    <Compile Include="Contracts\FinanceTests.fs"/>
+    <Compile Include="Contracts\MatchSessionTests.fs"/>
+    <Compile Include="Contracts\DataLockTests.fs"/>
+    <Compile Include="GameData\ModContractTests.fs"/>
+    <Compile Include="GameData\ModResolutionTests.fs"/>
+    <Compile Include="GameData\ModPackageIoTests.fs"/>
+     <Compile Include="World\WorldKernelTests.fs"/>
+     <Compile Include="World\TransferMarketTests.fs"/>
+     <Compile Include="World\CompetitionTests.fs"/>
+     <Compile Include="World\C07LongRunTests.fs"/>
+     <Compile Include="World\WorldGenerationTests.fs"/>
+     <Compile Include="Program.fs"/>
   </ItemGroup>
 
   <ItemGroup>

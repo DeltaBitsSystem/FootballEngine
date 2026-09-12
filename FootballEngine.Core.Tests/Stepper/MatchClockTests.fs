@@ -72,4 +72,20 @@ module MatchClockTests =
 
                   let _, _, _ = Stepper.step [] sctx (Rng.ofSeed 3UL) world (buffer ())
 
-                  Expect.equal world.State.Clock.Tick 0<subtick> "clock frozen at halftime") ]
+                  Expect.equal world.State.Clock.Tick 0<subtick> "clock frozen at halftime")
+
+              testCase "Long simulation pauses do not consume play time" (fun _ ->
+                  let world = TestBuilders.minimalWorld ()
+
+                  world.State <-
+                      { world.State with
+                          Flow = MatchFlow.GoalPause(100<tickDelta>, ClubSide.Home, None) }
+
+                  let mutable rng = Rng.ofSeed 3UL
+
+                  for _ in 1..100 do
+                      let rng', _, _ = Stepper.step [] sctx rng world (buffer ())
+                      rng <- rng'
+
+                  Expect.equal world.State.Tick 100<subtick> "simulation ticks continue during a pause"
+                  Expect.equal world.State.Clock.Tick 0<subtick> "play clock remains frozen") ]

@@ -70,7 +70,8 @@ module TestBuilders =
 
         { Profiles = profiles
           BasePositions = basePositions
-          SlotCount = slotCount }
+          SlotCount = slotCount
+          StarterCount = min 11 slotCount }
 
     /// A realistic 4-3-3 with per-role base positions (Home attacks +X).
     /// Roles and coordinates are chosen so a geometric position test can assert
@@ -103,9 +104,13 @@ module TestBuilders =
 
         { Profiles = profiles
           BasePositions = basePositions
-          SlotCount = rolesAndPos.Length }
+          SlotCount = rolesAndPos.Length
+          StarterCount = rolesAndPos.Length }
 
     let defaultCtx () : MatchContext =
+        // Fixture tactics mirror engine scales (intensities 0..1, line in
+        // meters would be realistic but mid intensities keep sims neutral);
+        // Familiarity 0.5 matches the unseen-formation default in clubRef.
         { HomeClub =
             { Id = 1UL
               Name = "Home FC"
@@ -115,8 +120,11 @@ module TestBuilders =
                   PressIntensity = 0.5f
                   Width = 0.5f
                   Tempo = 0.5f
-                  Directness = 0.5f }
+                  Directness = 0.5f
+                  Mentality = 0.5f
+                  PressTriggerZone = 0.5f }
               Chemistry = 0.6
+              Familiarity = 0.5f
               HomeAdvantage =
                 { CrowdSupport = 0.5f
                   Familiarity = 0.5f } }
@@ -129,13 +137,25 @@ module TestBuilders =
                   PressIntensity = 0.4f
                   Width = 0.6f
                   Tempo = 0.5f
-                  Directness = 0.4f }
+                  Directness = 0.4f
+                  Mentality = 0.5f
+                  PressTriggerZone = 0.5f }
               Chemistry = 0.6
+              Familiarity = 0.5f
               HomeAdvantage =
                 { CrowdSupport = 0.5f
                   Familiarity = 0.5f } }
           HomeLineup = makeLineup 0 11
           AwayLineup = makeLineup 100 11
+          HomeParticipants = MatchLineupBoundary.fromLineup (makeLineup 0 11)
+          AwayParticipants = MatchLineupBoundary.fromLineup (makeLineup 100 11)
+          SubstitutionRules =
+            { MaxSubstitutions = BalanceConfig.defaultConfig.Manager.MaxSubs
+              WindowStarts =
+                [| BalanceConfig.defaultConfig.Manager.FirstSubWindowMin
+                   BalanceConfig.defaultConfig.Manager.SecondSubWindowMin
+                   BalanceConfig.defaultConfig.Manager.ThirdSubWindowMin |]
+              AllowExtraTime = true }
           Config = BalanceConfig.defaultConfig
           IsKnockout = false }
 
@@ -155,7 +175,10 @@ module TestBuilders =
           LastTouch = None
           StationarySince = None
           GKHoldSince = None
-          ArrivalGate = None }
+          ArrivalGate = None
+          PreviousPosition = None
+          Impulse = None
+          PendingRestart = None }
 
     let makeTeamWorld (lineup: Lineup) : TeamWorld =
         let n = lineup.SlotCount
@@ -279,6 +302,14 @@ module TestBuilders =
               LastDecidedTick = 0<subtick>
               SupportAttackComputed = false }
           EventWindow = EventWindow.create 1024
+          Substitution =
+            { Phase = SubstitutionPhase.NoSubstitution
+              Outgoing = None
+              Incoming = None
+              RequestedAt = None
+              AppliedAt = None
+              UsedIncoming = Set.empty }
+          Participation = ParticipationBook.create ()
           ActivePlan = None
           LastCarrierSlot = -1 }
 
@@ -304,9 +335,19 @@ module TestBuilders =
                 { FirstHalfAdded = 0<subtick>
                   SecondHalfAdded = 0<subtick>
                   Decided = false
-                  Half1Fingerprint = 0 } }
+                  Half1Fingerprint = 0 }
+              Advantage = AdvantageState.NoAdvantage
+              VARReview = None
+              Shootout =
+                { HomeGoals = 0
+                  AwayGoals = 0
+                  HomeKicks = 0
+                  AwayKicks = 0
+                  Scheduled = false
+                  Complete = false } }
           Home = makeTeamWorld ctx.HomeLineup
-          Away = makeTeamWorld ctx.AwayLineup }
+          Away = makeTeamWorld ctx.AwayLineup
+          AppliedEventIds = System.Collections.Generic.HashSet<EventId>() }
 
     let worldWithBallAt (x: float<meter>) (y: float<meter>) (world: World) : World =
         world.State <-
@@ -350,3 +391,20 @@ module TestBuilders =
                 team.Frame.PosY.[i] <- float32 bx.Y
 
         world
+
+module TestDataLock =
+
+    let valid: FootballEngine.Domain.DataLock =
+        { FormatVersion = 1
+          EngineVersion = "test-engine"
+          ContentApi = 1
+          Packages = []
+          DependencyLockHash = "sha-test-dependencies"
+          ResolvedSportsHash = "sha-test-sports"
+          ResolvedPresentationHash = "sha-test-presentation"
+          RuntimeIdTable = []
+          Snapshot =
+            { SportsContent = "sha-test-sports"
+              Translations = "sha-test-translations"
+              Assets = "sha-test-assets" }
+          RequiredAssets = [] }

@@ -76,6 +76,81 @@ module MatchFactoryTests =
 
                   Expect.equal sidelined 5 "five on the bench")
 
+              testCase "Participation starts only for the starting eleven" (fun _ ->
+                  let ctx16 =
+                      { ctx with
+                          HomeLineup = TestBuilders.makeLineup 0 16
+                          HomeParticipants = MatchLineupBoundary.fromLineup (TestBuilders.makeLineup 0 16) }
+
+                  let world = MatchFactory.create ctx16
+                  let intervals = ParticipationBook.snapshot world.Home.Participation 3600<subtick>
+
+                  Expect.hasLength intervals 11 "the bench has no playing interval"
+
+                  Expect.isTrue
+                      (intervals |> Array.forall (fun interval -> interval.StartAt = 0<subtick>))
+                      "starters begin at kickoff"
+
+                  Expect.isTrue
+                      (intervals |> Array.forall (fun interval -> interval.PlayerId <> PlayerId 12))
+                      "bench identity is not accidentally active")
+
+              testCase "Substitution preserves player identity and participation intervals" (fun _ ->
+                  let ctx16 =
+                      { ctx with
+                          HomeLineup = TestBuilders.makeLineup 0 16
+                          HomeParticipants = MatchLineupBoundary.fromLineup (TestBuilders.makeLineup 0 16) }
+
+                  let world = MatchFactory.create ctx16
+                  let at = 3600<subtick>
+                  let outgoing = ctx16.HomeLineup.Profiles.[0].Id
+                  let incoming = ctx16.HomeLineup.Profiles.[11].Id
+                  let incomingRole = ctx16.HomeLineup.Profiles.[11].Role
+
+                  world.State <-
+                      { world.State with
+                          Tick = at
+                          Clock = { world.State.Clock with Tick = at } }
+
+                  EventApply.apply
+                      ctx16
+                      world
+                      { Tick = at
+                        Data = EventData.SubstitutionApplied(outgoing, incoming) }
+
+                  match world.Home.Frame.Occupancy.[0] with
+                  | OccupancyKind.Sidelined { Id = id
+                                              Reason = PlayerOutReason.Substituted } ->
+                      Expect.equal id outgoing "the outgoing identity remains attached to the slot"
+                  | other -> failtestf "expected outgoing slot to be sidelined, got %A" other
+
+                  match world.Home.Frame.Occupancy.[11] with
+                  | OccupancyKind.Active slot -> Expect.equal slot 11 "the incoming occupies the bench slot"
+                  | other -> failtestf "expected incoming slot to be active, got %A" other
+
+                  Expect.equal
+                      world.Home.Frame.SlotRoles.[11]
+                      incomingRole
+                      "the incoming role is read from its own identity slot"
+
+                  Expect.equal world.Home.SubsUsed 1 "one substitution is consumed"
+
+                  let intervals = ParticipationBook.snapshot world.Home.Participation at
+
+                  Expect.equal
+                      (intervals
+                       |> Array.tryFind (fun interval -> interval.PlayerId = outgoing)
+                       |> Option.map _.EndAt)
+                      (Some(Some at))
+                      "the outgoing interval ends at the event tick"
+
+                  Expect.equal
+                      (intervals
+                       |> Array.tryFind (fun interval -> interval.PlayerId = incoming)
+                       |> Option.map _.StartAt)
+                      (Some at)
+                      "the incoming interval starts at the event tick")
+
               testCase "Ball starts free at the centre spot" (fun _ ->
                   let world = MatchFactory.create ctx
 

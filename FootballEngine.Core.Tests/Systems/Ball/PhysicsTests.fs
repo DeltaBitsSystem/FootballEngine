@@ -147,4 +147,36 @@ module PhysicsTests =
                   let world = stepBall world 0<subtick>
 
                   Expect.isLessThan (abs (float world.State.Ball.Spin.Top)) 5.0 "topspin decayed"
-                  Expect.isLessThan (abs (float world.State.Ball.Spin.Side)) 3.0 "sidespin decayed") ]
+                  Expect.isLessThan (abs (float world.State.Ball.Spin.Side)) 3.0 "sidespin decayed")
+
+              testCase "Impulse integration keeps the previous position" (fun _ ->
+                  let world = TestBuilders.minimalWorld ()
+
+                  let origin: Vec3 =
+                      { X = 0.0<meter>
+                        Y = 0.0<meter>
+                        Z = 0.0<meter> }
+
+                  let impulse =
+                      BallPhysics.createImpulse
+                          (PlayerId 1)
+                          origin
+                          { X = 10.0<meterPerSecond>
+                            Y = 0.0<meterPerSecond>
+                            Z = 0.0<meterPerSecond> }
+                          { Top = 0.0<radianPerSecond>
+                            Side = 0.0<radianPerSecond>
+                            Roll = 0.0<radianPerSecond> }
+                          None
+                          StrikeKind.Pass
+                          (SimTick.ofSubTicks 0<subtick>)
+                          ExecutionContext.OpenPlay
+
+                  BallPhysics.applyImpulse world impulse TrajectoryIntent.Uncontrolled None
+                  let world = stepBall world 0<subtick>
+
+                  Expect.isGreaterThan (float world.State.Ball.Position.X) 0.0 "impulse moved the ball"
+
+                  match world.State.Ball.PreviousPosition with
+                  | Some previous -> Expect.equal previous.X origin.X "integration retained the prior position"
+                  | None -> failtest "expected a previous position after integration") ]

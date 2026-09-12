@@ -34,7 +34,16 @@ module EventFlagTests =
           EventKind.MomentumShifted
           EventKind.ConditionCritical
           EventKind.RedCard
-          EventKind.ShootoutGoal ]
+          EventKind.ShootoutGoal
+          EventKind.Offside
+          EventKind.Advantage
+          EventKind.SubstitutionRequested
+          EventKind.SubstitutionAccepted
+          EventKind.SubstitutionRejected
+          EventKind.SubstitutionApplied
+          EventKind.ShootoutStarted
+          EventKind.ShootoutKick
+          EventKind.ShootoutFinished ]
 
     /// Runtime-exhaustive: one event value per EventData constructor.
     let private sampleEvents () : MatchEvent list =
@@ -90,7 +99,33 @@ module EventFlagTests =
           { Tick = 0<subtick>
             Data = EventData.ConditionCritical(p, 30) }
           { Tick = 0<subtick>
-            Data = EventData.RedCardIssued(p) } ]
+            Data = EventData.RedCardIssued(p) }
+          { Tick = 0<subtick>
+            Data = EventData.ShootoutGoal ClubSide.Home }
+          { Tick = 0<subtick>
+            Data = EventData.Offside p }
+          { Tick = 0<subtick>
+            Data = EventData.AdvantageStarted(ClubSide.Home, p, q, 1.0<meter>, 2.0<meter>, 10<subtick>) }
+          { Tick = 0<subtick>
+            Data = EventData.AdvantageRealized ClubSide.Home }
+          { Tick = 0<subtick>
+            Data = EventData.AdvantageRecalled ClubSide.Home }
+          { Tick = 0<subtick>
+            Data = EventData.AdvantageExpired ClubSide.Home }
+          { Tick = 0<subtick>
+            Data = EventData.SubstitutionRequested(p, q) }
+          { Tick = 0<subtick>
+            Data = EventData.SubstitutionAccepted(p, q) }
+          { Tick = 0<subtick>
+            Data = EventData.SubstitutionRejected(p, q) }
+          { Tick = 0<subtick>
+            Data = EventData.SubstitutionApplied(p, q) }
+          { Tick = 0<subtick>
+            Data = EventData.ShootoutStarted }
+          { Tick = 0<subtick>
+            Data = EventData.ShootoutKick(ClubSide.Home, p, true) }
+          { Tick = 0<subtick>
+            Data = EventData.ShootoutFinished } ]
 
     let eventFlagTests =
         testList
@@ -153,7 +188,20 @@ module EventFlagTests =
                         EventKind.HalfTime
                         EventKind.FullTime
                         EventKind.ConditionCritical
-                        EventKind.RedCard ]
+                        EventKind.RedCard
+                        EventKind.ShootoutGoal
+                        EventKind.Offside
+                        EventKind.Advantage
+                        EventKind.Advantage
+                        EventKind.Advantage
+                        EventKind.Advantage
+                        EventKind.SubstitutionRequested
+                        EventKind.SubstitutionAccepted
+                        EventKind.SubstitutionRejected
+                        EventKind.SubstitutionApplied
+                        EventKind.ShootoutStarted
+                        EventKind.ShootoutKick
+                        EventKind.ShootoutFinished ]
 
                   let actual = sampleEvents () |> List.map MatchEvent.kind
                   Expect.equal actual expected "kind must map every EventData constructor"
