@@ -1,9 +1,0 @@
-{
-  "Name": "Spain",
-  "Author": "FootballEngine Team",
-  "Version": "1.0.0",
-  "Priority": 100,
-  "Dependencies": [],
-  "Description": "Built-in Spain: LaLiga + LaLiga Hypermotion",
-  "MergeStrategy": "replace"
-}

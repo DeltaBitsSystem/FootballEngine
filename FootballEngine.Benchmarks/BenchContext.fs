@@ -85,7 +85,8 @@ module BenchContext =
 
         { Profiles = profiles
           BasePositions = basePositions
-          SlotCount = roles.Length }
+          SlotCount = roles.Length
+          StarterCount = roles.Length }
 
     let create () : MatchContext =
         let tactics (press: float32) (width: float32) (line: float32) : TacticsConfig =
@@ -94,13 +95,16 @@ module BenchContext =
               PressIntensity = press
               Width = width
               Tempo = 0.5f
-              Directness = 0.5f }
+              Directness = 0.5f
+              Mentality = 0.5f
+              PressTriggerZone = 0.5f }
 
         { HomeClub =
             { Id = 1UL
               Name = "Home FC"
               BaseTactics = tactics 0.5f 0.5f 0.5f
               Chemistry = 0.6
+              Familiarity = 0.5f
               HomeAdvantage =
                 { CrowdSupport = 0.5f
                   Familiarity = 0.5f } }
@@ -109,10 +113,20 @@ module BenchContext =
               Name = "Away FC"
               BaseTactics = tactics 0.4f 0.6f 0.4f
               Chemistry = 0.6
+              Familiarity = 0.5f
               HomeAdvantage =
                 { CrowdSupport = 0.5f
                   Familiarity = 0.5f } }
           HomeLineup = lineup 0 roles4
           AwayLineup = lineup 100 roles4_4_2
+          HomeParticipants = MatchLineupBoundary.fromLineup (lineup 0 roles4)
+          AwayParticipants = MatchLineupBoundary.fromLineup (lineup 100 roles4_4_2)
+          SubstitutionRules =
+            { MaxSubstitutions = BalanceConfig.defaultConfig.Manager.MaxSubs
+              WindowStarts =
+                [| BalanceConfig.defaultConfig.Manager.FirstSubWindowMin
+                   BalanceConfig.defaultConfig.Manager.SecondSubWindowMin
+                   BalanceConfig.defaultConfig.Manager.ThirdSubWindowMin |]
+              AllowExtraTime = true }
           Config = BalanceConfig.defaultConfig
           IsKnockout = false }

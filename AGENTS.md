@@ -62,7 +62,7 @@ The client project has ~260 F# files organized in:
 ```
 FootballEngine.Client/
 ├── Domain/              # Domain types: Player, Club, Match, GameState, etc.
-├── GameData/            # Mod loader, JSON serialization, DataRegistry
+├── GameData/            # .femod resolution, JSON codecs, and resolved snapshots
 ├── Database/            # SQLite — Entities, Serializers, Repository
 ├── Engine/
 │   ├── Match/           # The match engine (the heart of the project)
@@ -176,6 +176,7 @@ The UI uses **Avalonia.FuncUI** with the Elmish pattern:
 - **Comments explain WHY, never WHAT.** The code says what it does; a comment that restates the code is noise. A comment earns its place when it explains the reason a reader cannot see: *why this branch exists, why this value, why this order, what failure it prevents.*
 - When a review flags a suspicious block, the first question is: *does this code look arbitrary because it lacks a why-comment, or is it actually wrong?* Every deliberate tuning constant, guard, or ordering decision gets a one-line why.
 - If a comment says "what", rewrite it to "why" or delete it. A `why` comment may accompany a non-obvious `what` (e.g. the physics units), but the default is: no comment unless there is a reason.
+- Never start a comment with the literal word "why" — the justification is implicit by convention, the prefix is noise.
 
 ---
 
@@ -264,6 +265,17 @@ dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "
 ---
 
 ## Useful Commands
+
+## Collaboration and UI Editing Rules
+
+- Be token-efficient: inspect only the files and ranges needed for the current slice, avoid duplicate audits, and keep progress/results concise.
+- Treat the existing worktree as shared. Record `git status --short`, preserve unrelated changes, and never revert work you did not create.
+- Before editing F# UI, read the whole touched file when practical and inspect nearby established patterns. Match the local idiomatic style instead of inventing a new layout style.
+- Use four spaces per indentation level. In FuncUI attribute lists, align every attribute with the first attribute after `[`. Keep multiline expressions indented one level deeper and preserve the surrounding `match`, `if`, `for`, and `yield!` style.
+- A compiler error caused by indentation is fixed by adjusting whitespace only. Do not change logic, names, or structure while correcting formatting unless the error proves the code itself is wrong.
+- Keep subagent scopes non-overlapping when they edit files. Do not dispatch parallel agents that can modify the same F# file, project file, or shared state contract.
+- Build the smallest affected project immediately after an edit. Run the relevant tests before moving to the next gate; do not stack unverified changes.
+- For UI work, use the real deterministic screenshot workflow and inspect the generated images. A successful build does not prove layout, state, language, or interaction quality.
 
 ```bash
 # Build

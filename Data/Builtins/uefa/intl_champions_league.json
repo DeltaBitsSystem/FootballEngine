@@ -1,9 +1,0 @@
-{
-  "Name": "UEFA Champions League",
-  "Confederation": "UEFA",
-  "Format": "GTK:8;4;2;3;1;H2H,H2HGD,GD,GS~TwoLegs:ExtraTimeThenPenalties",
-  "Qualification": [
-    { "Kind": "LeaguePosition", "Level": 0, "FromPos": 1, "ToPos": 4 },
-    { "Kind": "TitleHolder" }
-  ]
-}

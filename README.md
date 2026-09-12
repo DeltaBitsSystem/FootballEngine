@@ -151,9 +151,9 @@ Competition formats: domestic leagues with configurable points and tiebreakers, 
 
 ## Mod System
 
-All database content is decoupled from the executable. Nations, leagues, cup formats, tiebreaker rules, promotion/relegation slots, qualification paths, and name pools are defined in JSON files loaded at startup.
+All database content is decoupled from the executable. Nations, leagues, cup formats, tiebreaker rules, promotion/relegation slots, qualification paths, and name pools are distributed as validated `.femod` packages loaded at startup.
 
-The mod system validates loaded data against a strict schema. Errors surface with precise messages: invalid JSON, schema version mismatch, duplicate country code, duplicate competition name, missing dependency, path traversal attempt, oversized file.
+The mod system validates loaded data against a strict schema. Errors surface with precise messages: invalid JSON, schema version mismatch, duplicate content ID, missing dependency, path traversal attempt, oversized file, or invalid package hash.
 
 A built-in mod editor allows creation, modification, and patching of data from within the application.
 
@@ -208,7 +208,7 @@ FootballEngine/
 │   │   ├── Phases/               # SeasonPhase, MatchPhase, TransferPhase, DevelopmentPhase, FinancePhase
 │   │   └── Supervisors/          # Finance, Transfer, Youth supervisors
 │   ├── WorldGeneration/          # Player, club and fixture generation
-│   └── GameData/                 # Mod loader, validator, registry, saver
+│   └── GameData/                 # .femod resolution and resolved snapshots
 │
 ├── FootballEngine.Client/        # Avalonia FuncUI + Elmish desktop application
 │   ├── AppState/                 # Elmish model, messages, update functions, slices
@@ -217,7 +217,7 @@ FootballEngine/
 │
 ├── FootballEngine.Core.Tests/    # Expecto test suite
 ├── FootballEngine.Benchmarks/    # BenchmarkDotNet profiling
-├── Data/Builtins/                # Six bundled JSON mods
+├── Data/Builtins/                # Six bundled .femod packages
 └── Training/                     # Weight calibration pipeline (outside the solution)
 ```
 
@@ -243,7 +243,7 @@ Every item closes with a test in `FootballEngine.Core.Tests` -- balance is measu
 
 ## Contributing
 
-The mod system is the most accessible entry point. Adding a new league requires only JSON files following the schema in `Data/Builtins/`.
+The mod system is the most accessible entry point. Add a workspace with `manifest.json` and declarative content, validate it with `Tools/ModCli`, and pack it into an immutable `.femod` package.
 
 For code contributions: fork the repository, create a branch, and open a pull request. The test suite must pass. For larger changes, open an issue first to discuss the approach.
 

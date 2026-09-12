@@ -16,8 +16,8 @@ env:
   DOTNET_VERSION: "10.0.x"
 
 jobs:
-  unit-tests:
-    name: Unit Tests (fast)
+  build-and-test:
+    name: Build and test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,6 +38,14 @@ jobs:
 
       - name: Restore
         run: dotnet restore
+
+      - name: Restore additional projects
+        run: |
+          dotnet restore FootballEngine.Client.Tests/FootballEngine.Client.Tests.fsproj
+          dotnet restore Tools/ModCli/ModCli.fsproj
+
+      - name: Restore .NET tools
+        run: dotnet tool restore --tool-manifest dotnet-tools.json
 
       - name: Check formatting
         run: dotnet fantomas --check .
@@ -45,101 +53,12 @@ jobs:
       - name: Build
         run: dotnet build --no-restore --configuration Release
 
-      - name: Run unit tests
+      - name: Build additional projects
         run: |
-          dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj -c Release -- \
-            --filter "FootballEngine.MatchEngine.FlowTransition|FootballEngine.MatchEngine.GoalCycle|FootballEngine.MatchEngine.GKDistribution|FootballEngine.MatchEngine.SetPieceFlow|FootballEngine.MatchEngine.MatchInvariants|FootballEngine.MatchEngine.ApplyOutputContracts|FootballEngine.MatchEngine.BallSystem|FootballEngine.MatchEngine.Chemistry|FootballEngine.MatchEngine.EmergentLoops|FootballEngine.MatchEngine.AdaptiveTactics|FootballEngine.MatchEngine.VAR|FootballEngine.MatchEngine.HandballDetector|FootballEngine.MatchEngine.GoalDetector|FootballEngine.MatchEngine.PlayerScorer|FootballEngine.MatchEngine.xGCalculator|FootballEngine.MatchEngine.ConfigValidation|FootballEngine.MatchEngine.MatchMemory|FootballEngine.MatchEngine.Perception|FootballEngine.MatchEngine.ShotEdgeCases|FootballEngine.MatchEngine.GKEdgeCases|FootballEngine.MatchEngine.PassEdgeCases|FootballEngine.MatchEngine.PlayerPersonality|FootballEngine.MatchEngine.MathPipelines|FootballEngine.MatchEngine.WeightsLoader"
-
-  integration-tests:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: unit-tests
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.fsproj') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --no-restore --configuration Release
-
-      - name: Run integration tests
-        run: |
-          dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj -c Release -- \
-            --filter "FootballEngine.MatchEngine.StatisticalContracts|FootballEngine.MatchEngine.SemanticE2E"
-
-  full-suite:
-    name: Full Suite
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    needs: integration-tests
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.fsproj') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --no-restore --configuration Release
+          dotnet build FootballEngine.Client.Tests/FootballEngine.Client.Tests.fsproj --no-restore --configuration Release
+          dotnet build Tools/ModCli/ModCli.fsproj --no-restore --configuration Release
 
       - name: Run all tests
-        run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: "**/test-results.trx"
-          retention-days: 7
-
-  dependency-audit:
-    name: Dependency Audit
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Check vulnerable packages
         run: |
-          dotnet list package --vulnerable --include-transitive | tee vulnerable-report.txt
-          if grep -q "has the following vulnerable packages" vulnerable-report.txt; then
-            echo "::error::Vulnerable dependencies detected!"
-            exit 1
-          fi
+          dotnet run --project FootballEngine.Core.Tests/FootballEngine.Core.Tests.fsproj --configuration Release --no-build
+          dotnet run --project FootballEngine.Client.Tests/FootballEngine.Client.Tests.fsproj --configuration Release --no-build

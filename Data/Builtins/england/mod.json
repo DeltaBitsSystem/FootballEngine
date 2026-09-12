@@ -1,9 +1,0 @@
-{
-  "Name": "England",
-  "Author": "FootballEngine Team",
-  "Version": "1.0.0",
-  "Priority": 100,
-  "Dependencies": [],
-  "Description": "Built-in England: Premier League + Championship",
-  "MergeStrategy": "replace"
-}
