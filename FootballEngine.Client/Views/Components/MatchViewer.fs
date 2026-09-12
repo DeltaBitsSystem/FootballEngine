@@ -1161,14 +1161,14 @@ module MatchDayView =
                                                       [ TextBlock.text $"{snapIdx} / {totalSnaps}"
                                                         TextBlock.verticalAlignment VerticalAlignment.Center
                                                         TextBlock.foreground Theme.TextSub
-                                                        TextBlock.width 80.0 ]
+                                                        TextBlock.width 120.0 ]
 
                                                   // Progress percentage
                                                   TextBlock.create
                                                       [ TextBlock.text $"{progressPct * 100.0 |> int}%%"
                                                         TextBlock.verticalAlignment VerticalAlignment.Center
                                                         TextBlock.foreground Theme.TextMuted
-                                                        TextBlock.width 40.0 ]
+                                                        TextBlock.width 56.0 ]
 
                                                   // Close
                                                   Button.create

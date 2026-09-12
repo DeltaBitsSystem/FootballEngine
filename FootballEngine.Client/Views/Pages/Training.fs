@@ -17,633 +17,891 @@ open FootballEngine.World.Phases
 
 module TrainingPresenter =
 
-    type FocusOption =
-        { Label: string
-          Focus: TrainingFocus
-          Description: string
+    type EmphasisOption =
+        { Emphasis: TeamEmphasis
           Icon: Material.Icons.MaterialIconKind
-          Color: string }
+          Description: string }
 
-    type IntensityOption =
-        { Label: string
-          Intensity: TrainingIntensity
-          Description: string
-          Color: string
-          Badge: string
-          ConditionCost: int
-          GrowthMult: float
-          InjuryRisk: float }
+    let emphasisOptions: EmphasisOption list =
+        [ { Emphasis = EmHighPress
+            Icon = Material.Icons.MaterialIconKind.LightningBolt
+            Description = "Pressing + fitness tilt" }
+          { Emphasis = EmPossession
+            Icon = Material.Icons.MaterialIconKind.Refresh
+            Description = "Creation tilt" }
+          { Emphasis = EmAttack
+            Icon = Material.Icons.MaterialIconKind.TrendingUp
+            Description = "Finishing tilt" }
+          { Emphasis = EmDefense
+            Icon = Material.Icons.MaterialIconKind.ShieldOutline
+            Description = "Defending tilt" }
+          { Emphasis = EmSetPieces
+            Icon = Material.Icons.MaterialIconKind.FlagOutline
+            Description = "Technique tilt" }
+          { Emphasis = EmRecovery
+            Icon = Material.Icons.MaterialIconKind.BatteryCharging
+            Description = "Whole squad recovers" } ]
 
-    let focusOptions: FocusOption list =
-        [ { Label = "Physical"
-            Focus = TrainingFocus.TrainingPhysical
-            Description = "Pace, strength & stamina"
-            Icon = Material.Icons.MaterialIconKind.RunFast
-            Color = Theme.Accent }
-          { Label = "Technical"
-            Focus = TrainingFocus.TrainingTechnical
-            Description = "Ball skills & execution"
-            Icon = Material.Icons.MaterialIconKind.Soccer
-            Color = Theme.Accent }
-          { Label = "Mental"
-            Focus = TrainingFocus.TrainingMental
-            Description = "Decisions & awareness"
-            Icon = Material.Icons.MaterialIconKind.Brain
-            Color = Theme.AccentAlt }
-          { Label = "Goalkeeping"
-            Focus = TrainingFocus.TrainingGoalkeeping
-            Description = "Specialized keeper work"
-            Icon = Material.Icons.MaterialIconKind.Glove
-            Color = Theme.Warning }
-          { Label = "All Round"
-            Focus = TrainingFocus.TrainingAllRound
-            Description = "Balanced development"
-            Icon = Material.Icons.MaterialIconKind.ScaleBalance
-            Color = Theme.Danger } ]
+    let groupIcon (g: AttributeGroup) : Material.Icons.MaterialIconKind =
+        match g with
+        | AttributeGroup.Finishing -> Material.Icons.MaterialIconKind.Soccer
+        | AttributeGroup.Creation -> Material.Icons.MaterialIconKind.Brain
+        | AttributeGroup.Technique -> Material.Icons.MaterialIconKind.StarOutline
+        | AttributeGroup.Defending -> Material.Icons.MaterialIconKind.ShieldOutline
+        | AttributeGroup.Physical -> Material.Icons.MaterialIconKind.RunFast
+        | AttributeGroup.Mental -> Material.Icons.MaterialIconKind.HeadCogOutline
+        | AttributeGroup.Goalkeeping -> Material.Icons.MaterialIconKind.Glove
 
-    let intensityOptions: IntensityOption list =
-        [ TrainingIntensity.TrainingLight
-          TrainingIntensity.TrainingNormal
-          TrainingIntensity.TrainingHeavy ]
-        |> List.map (fun intensity ->
-            let data = TrainingIntensityData.get intensity
+    let planIcon (plan: IndividualPlan) : Material.Icons.MaterialIconKind =
+        match plan with
+        | Develop _ -> Material.Icons.MaterialIconKind.TrendingUp
+        | Perform -> Material.Icons.MaterialIconKind.PlayCircleOutline
+        | Rest -> Material.Icons.MaterialIconKind.BatteryCharging
 
-            { Label =
-                match intensity with
-                | TrainingIntensity.TrainingLight -> "Light"
-                | TrainingIntensity.TrainingNormal -> "Normal"
-                | TrainingIntensity.TrainingHeavy -> "Heavy"
-              Intensity = intensity
-              Description =
-                match intensity with
-                | TrainingIntensity.TrainingLight -> "Minimal fatigue"
-                | TrainingIntensity.TrainingNormal -> "Standard pace"
-                | TrainingIntensity.TrainingHeavy -> "Max growth, higher risk"
-              Color =
-                match intensity with
-                | TrainingIntensity.TrainingLight -> Theme.Success
-                | TrainingIntensity.TrainingNormal -> Theme.Warning
-                | TrainingIntensity.TrainingHeavy -> Theme.Danger
-              Badge =
-                match intensity with
-                | TrainingIntensity.TrainingLight -> "SAFE"
-                | TrainingIntensity.TrainingNormal -> "BALANCED"
-                | TrainingIntensity.TrainingHeavy -> "INTENSE"
-              ConditionCost = data.ConditionCost
-              GrowthMult = data.DeltaMultiplier
-              InjuryRisk = data.InjuryRisk })
+    let planColor (plan: IndividualPlan) : string =
+        match plan with
+        | Develop _ -> Theme.Accent
+        | Perform -> Theme.AccentAlt
+        | Rest -> Theme.Success
 
-    let formatMult (mult: float) : string = TrainingIntensityData.formatMult mult
+    let planDescription (plan: IndividualPlan) : string =
+        match plan with
+        | Develop _ -> "Grow a target area"
+        | Perform -> "Stay sharp for matches"
+        | Rest -> "Recover condition"
 
-    let private defaultProfileFor (pos: Position) : BehavioralProfile =
-        let baseLT =
-            match pos with
-            | DL
-            | ML
-            | AML -> -0.5
-            | DR
-            | MR
-            | AMR -> 0.5
-            | WBL -> -0.6
-            | WBR -> 0.6
-            | _ -> 0.0
+    let batteryColor (v: int) : string =
+        if v >= 70 then Theme.Success
+        elif v >= 45 then Theme.Warning
+        else Theme.Danger
 
-        let baseAD =
-            match pos with
-            | ST
-            | AMR
-            | AML
-            | AMC -> 0.7
-            | MR
-            | ML -> 0.5
-            | MC -> 0.4
-            | DM
-            | DC
-            | DR
-            | DL -> 0.3
-            | WBR
-            | WBL -> 0.5
-            | GK -> 0.1
+    let private unitOf (pos: Position) : int * string =
+        match pos with
+        | GK -> 0, "GOALKEEPERS"
+        | DR
+        | DC
+        | DL
+        | WBR
+        | WBL -> 1, "DEFENDERS"
+        | DM
+        | MC
+        | MR
+        | ML
+        | AMR
+        | AMC
+        | AML -> 2, "MIDFIELDERS"
+        | ST -> 3, "ATTACKERS"
 
-        let baseDH =
-            match pos with
-            | DC
-            | DM -> 0.7
-            | DL
-            | DR
-            | WBL
-            | WBR -> 0.5
-            | MC -> 0.4
-            | _ -> 0.2
+    let groupedByUnit (squad: Player list) : (string * Player list) list =
+        squad
+        |> List.groupBy (fun p -> unitOf p.Position)
+        |> List.sortBy fst
+        |> List.map (fun ((_, label), ps) -> label, ps |> List.sortByDescending _.CurrentSkill)
 
-        let baseCW =
-            match pos with
-            | MC
-            | AMC -> 0.7
-            | AMR
-            | AML -> 0.6
-            | DM -> 0.4
-            | _ -> 0.2
+    let planChipText (p: Player) : string * string =
+        match TrainingPlans.effectivePlan p with
+        | None -> "Rehab", Theme.Warning
+        | Some plan -> Training.planLabel plan, planColor plan
 
-        { PositionalFreedom = 0.5
-          AttackingDepth = baseAD
-          LateralTendency = baseLT
-          DefensiveHeight = baseDH
-          PressingIntensity = 0.5
-          RiskAppetite = 0.4
-          Directness = 0.5
-          CreativityWeight = baseCW
-          AerialThreat = 0.4
-          HoldUpPlay = 0.4 }
+    type RowCtx =
+        { Cfg: Core.Match.TrainingConfig
+          Date: DateTime
+          Tilt: AttributeGroup option
+          Recovery: bool
+          Ratings: TrainingPhaseEngine.CoachRatings
+          Xi: Set<PlayerId> }
 
-    let getPositionImpact (focus: TrainingFocus) (intensity: TrainingIntensity) (pos: Position) : float =
-        let intensityMult = (TrainingIntensityData.get intensity).DeltaMultiplier
-        let profile = defaultProfileFor pos
+    let lineupIds (gs: GameState) : Set<PlayerId> =
+        GameState.headCoach gs.UserClubId gs
+        |> Option.bind (fun c -> c.Attributes.Coaching.Lineup)
+        |> Option.map (fun lu -> lu.Slots |> List.choose _.PlayerId |> Set.ofList)
+        |> Option.defaultValue Set.empty
 
-        TrainingEngine.focusMultiplier focus profile * intensityMult
+    let congestedFixtures (gs: GameState) : int =
+        let horizon = gs.CurrentDate.Date.AddDays(7.0)
+
+        gs.Competitions
+        |> Map.toSeq
+        |> Seq.collect (fun (_, comp) -> comp.Fixtures |> Map.toSeq |> Seq.map snd)
+        |> Seq.filter (fun f ->
+            MatchFixture.involves gs.UserClubId f
+            && MatchFixture.isPending f
+            && f.ScheduledDate.Date >= gs.CurrentDate.Date
+            && f.ScheduledDate.Date <= horizon)
+        |> Seq.length
 
 
 module Training =
 
-    let private trainingBadges (player: Player) =
-        let focusOpt =
-            TrainingPresenter.focusOptions
-            |> List.tryFind (fun o -> o.Focus = player.TrainingSchedule.Focus)
+    let private sectionLabel (text: string) =
+        TextBlock.create
+            [ TextBlock.text text
+              TextBlock.fontSize 10.0
+              TextBlock.fontWeight FontWeight.Black
+              TextBlock.foreground Theme.TextDim
+              TextBlock.margin (0.0, 0.0, 0.0, 8.0) ]
 
-        let intensityOpt =
-            TrainingPresenter.intensityOptions
-            |> List.tryFind (fun o -> o.Intensity = player.TrainingSchedule.Intensity)
+    let private miniBar (value: int) (color: string) (width: float) =
+        ProgressBar.create
+            [ ProgressBar.minimum 0.0
+              ProgressBar.maximum 100.0
+              ProgressBar.value (float value)
+              ProgressBar.height 4.0
+              ProgressBar.width width
+              ProgressBar.cornerRadius 2.0
+              ProgressBar.background Theme.BgElevated
+              ProgressBar.foreground color
+              ProgressBar.verticalAlignment VerticalAlignment.Center ]
 
-        let focusLabel = focusOpt |> Option.map _.Label |> Option.defaultValue "—"
-
-        let focusColor =
-            focusOpt |> Option.map _.Color |> Option.defaultValue Theme.TextMuted
-
-        let intensityLabel = intensityOpt |> Option.map _.Label |> Option.defaultValue "—"
-
-        let intensityColor =
-            intensityOpt |> Option.map _.Color |> Option.defaultValue Theme.TextMuted
-
-        StackPanel.create
-            [ StackPanel.orientation Orientation.Horizontal
-              StackPanel.spacing 4.0
-              StackPanel.children
-                  [ Border.create
-                        [ Border.background (focusColor + "18")
-                          Border.borderBrush (focusColor + "35")
-                          Border.borderThickness 1.0
-                          Border.cornerRadius 4.0
-                          Border.padding (6.0, 3.0)
-                          Border.child (
-                              TextBlock.create
-                                  [ TextBlock.text focusLabel
-                                    TextBlock.fontSize 9.0
-                                    TextBlock.fontWeight FontWeight.Bold
-                                    TextBlock.foreground focusColor ]
-                          ) ]
-                    Border.create
-                        [ Border.background (intensityColor + "18")
-                          Border.borderBrush (intensityColor + "35")
-                          Border.borderThickness 1.0
-                          Border.cornerRadius 4.0
-                          Border.padding (6.0, 3.0)
-                          Border.child (
-                              TextBlock.create
-                                  [ TextBlock.text intensityLabel
-                                    TextBlock.fontSize 9.0
-                                    TextBlock.fontWeight FontWeight.SemiBold
-                                    TextBlock.foreground intensityColor ]
-                          ) ] ] ]
-
-    let private playerRow (player: Player) (isSelected: bool) (onClick: unit -> unit) : IView =
-        let fitCol = PlayerPresenter.fitnessColor player.MatchFitness
-        let bgColor = SelectionStyle.rowBg isSelected
-        let leftBorderColor = SelectionStyle.rowBorder isSelected
+    let private emphasisChip (opt: TrainingPresenter.EmphasisOption) (isSelected: bool) (onSelect: unit -> unit) =
+        let color =
+            if opt.Emphasis = EmRecovery then
+                Theme.Success
+            else
+                Theme.Accent
 
         Border.create
-            [ Border.background bgColor
-              Border.borderBrush leftBorderColor
-              Border.borderThickness (2.0, 0.0, 0.0, 0.0)
-              Border.padding (14.0, 10.0)
-              Border.cursor Avalonia.Input.Cursor.Default
+            [ Border.background (
+                  if isSelected then
+                      Theme.withAlpha "18" color
+                  else
+                      Theme.BgCard
+              )
+              Border.borderBrush (if isSelected then color else Theme.Border)
+              Border.borderThickness (if isSelected then 1.5 else 1.0)
+              Border.cornerRadius 8.0
+              Border.padding (12.0, 8.0)
+              Border.margin (0.0, 0.0, 8.0, 0.0)
+              Border.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
+              Border.onPointerReleased (fun _ -> onSelect ())
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.orientation Orientation.Horizontal
+                        StackPanel.spacing 8.0
+                        StackPanel.verticalAlignment VerticalAlignment.Center
+                        StackPanel.children
+                            [ Icons.iconSm opt.Icon (if isSelected then color else Theme.TextMuted)
+                              StackPanel.create
+                                  [ StackPanel.spacing 0.0
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
+                                    StackPanel.children
+                                        [ TextBlock.create
+                                              [ TextBlock.text (Training.emphasisLabel opt.Emphasis)
+                                                TextBlock.fontSize 11.0
+                                                TextBlock.fontWeight FontWeight.Bold
+                                                TextBlock.foreground (if isSelected then color else Theme.TextMain) ]
+                                          TextBlock.create
+                                              [ TextBlock.text opt.Description
+                                                TextBlock.fontSize 9.0
+                                                TextBlock.foreground Theme.TextDim ] ] ] ] ]
+              ) ]
+        |> View.withKey $"emph-{opt.Emphasis}"
+        :> IView
+
+    let private emphasisStrip (gs: GameState) (squad: Player list) (dispatch: Msg -> unit) : IView =
+        let nextText =
+            match HomePresenter.getNextMatch gs with
+            | None -> "No fixture scheduled"
+            | Some m -> $"Next: {m.LocalName} vs {m.VisitName} · " + m.Date.ToString("dd MMM")
+
+        let avgCond =
+            if squad.IsEmpty then
+                0
+            else
+                squad |> List.averageBy (fun p -> float p.Condition) |> int
+
+        let avgFit =
+            if squad.IsEmpty then
+                0
+            else
+                squad |> List.averageBy (fun p -> float p.MatchFitness) |> int
+
+        let tired = squad |> List.filter (fun p -> p.Condition < 65) |> List.length
+        let injured = squad |> List.filter TrainingPlans.isRehab |> List.length
+        let ratings = TrainingPhaseEngine.coachingOf gs gs.UserClubId
+
+        let coachCount =
+            GameState.getStaff gs.UserClubId gs
+            |> List.filter Staff.isCoachingRole
+            |> List.length
+
+        let congestion = TrainingPresenter.congestedFixtures gs
+
+        let xi = TrainingPresenter.lineupIds gs
+
+        let xiFresh =
+            squad
+            |> List.filter (fun p -> xi.Contains p.Id)
+            |> function
+                | [] -> None
+                | starters -> Some(starters |> List.averageBy (fun p -> float p.Condition) |> int)
+
+        let congestionBanner =
+            if congestion >= 2 then
+                Border.create
+                    [ Border.background (Theme.withAlpha "15" Theme.Warning)
+                      Border.borderBrush (Theme.withAlpha "40" Theme.Warning)
+                      Border.borderThickness 1.0
+                      Border.cornerRadius 8.0
+                      Border.padding (12.0, 8.0)
+                      Border.child (
+                          TextBlock.create
+                              [ TextBlock.text
+                                    $"Congested week: {congestion} matches in 7 days — consider Recovery or resting starters"
+                                TextBlock.fontSize 11.0
+                                TextBlock.fontWeight FontWeight.SemiBold
+                                TextBlock.foreground Theme.Warning ]
+                      ) ]
+                :> IView
+            else
+                Border.create [ Border.height 0.0 ] :> IView
+
+        Border.create
+            [ Border.background Theme.BgSidebar
+              Border.borderBrush Theme.Border
+              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+              Border.padding (20.0, 12.0)
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.spacing 10.0
+                        StackPanel.children
+                            [ StackPanel.create
+                                  [ StackPanel.orientation Orientation.Horizontal
+                                    StackPanel.spacing 12.0
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
+                                    StackPanel.children
+                                        [ TextBlock.create
+                                              [ TextBlock.text "TEAM EMPHASIS"
+                                                TextBlock.fontSize 11.0
+                                                TextBlock.fontWeight FontWeight.Black
+                                                TextBlock.foreground Theme.TextMain
+                                                TextBlock.verticalAlignment VerticalAlignment.Center ]
+                                          TextBlock.create
+                                              [ TextBlock.text nextText
+                                                TextBlock.fontSize 11.0
+                                                TextBlock.foreground Theme.TextDim
+                                                TextBlock.verticalAlignment VerticalAlignment.Center ]
+                                          TextBlock.create
+                                              [ TextBlock.text
+                                                    $"COND {avgCond} · FIT {avgFit} · {tired} tired · {injured} out"
+                                                TextBlock.fontSize 11.0
+                                                TextBlock.fontWeight FontWeight.SemiBold
+                                                TextBlock.foreground Theme.TextMuted
+                                                TextBlock.verticalAlignment VerticalAlignment.Center ]
+                                          TextBlock.create
+                                              [ TextBlock.text
+                                                    $"Staff: {coachCount} coaches · Youth {ratings.Youngsters} · Fitness {ratings.Fitness} · Physio {ratings.Physio}"
+                                                TextBlock.fontSize 11.0
+                                                TextBlock.foreground Theme.TextDim
+                                                TextBlock.verticalAlignment VerticalAlignment.Center ]
+                                          if xiFresh.IsSome then
+                                              TextBlock.create
+                                                  [ TextBlock.text $"XI freshness {xiFresh.Value}"
+                                                    TextBlock.fontSize 11.0
+                                                    TextBlock.fontWeight FontWeight.SemiBold
+                                                    TextBlock.foreground (TrainingPresenter.batteryColor xiFresh.Value)
+                                                    TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                              congestionBanner
+                              ScrollViewer.create
+                                  [ ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Auto
+                                    ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Disabled
+                                    ScrollViewer.content (
+                                        StackPanel.create
+                                            [ StackPanel.orientation Orientation.Horizontal
+                                              StackPanel.children
+                                                  [ for opt in TrainingPresenter.emphasisOptions do
+                                                        emphasisChip opt (gs.TeamEmphasis = opt.Emphasis) (fun () ->
+                                                            dispatch (
+                                                                TrainingMsg(TrainingMsg.SetTeamEmphasis opt.Emphasis)
+                                                            )) ] ]
+                                    ) ] ] ]
+              ) ]
+        :> IView
+
+    let private playerRow
+        (ctx: TrainingPresenter.RowCtx)
+        (p: Player)
+        (isSelected: bool)
+        (onClick: unit -> unit)
+        : IView =
+        let chipText, chipColor = TrainingPresenter.planChipText p
+        let condColor = TrainingPresenter.batteryColor p.Condition
+        let isXi = ctx.Xi.Contains p.Id
+
+        let gap = max 0 (p.PotentialSkill - p.CurrentSkill)
+
+        let risk =
+            (TrainingPhaseEngine.previewWith ctx.Cfg ctx.Date ctx.Tilt ctx.Recovery ctx.Ratings p).InjuryPct
+
+        Border.create
+            [ Border.background (
+                  if isSelected then
+                      SelectionStyle.rowBg true
+                  else
+                      "transparent"
+              )
+              Border.borderBrush (if isSelected then Theme.Accent else "transparent")
+              Border.borderThickness (3.0, 0.0, 0.0, 0.0)
+              Border.padding (14.0, 9.0)
+              Border.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
               Border.onPointerReleased (fun _ -> onClick ())
               Border.child (
                   Grid.create
-                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.playerListCols)
+                      [ Grid.columnDefinitions "Auto, *, Auto, Auto, Auto"
                         Grid.children
-                            [ UI.positionBadge player.Position
+                            [ UI.positionBadge p.Position
                               |> fun b ->
                                   Border.create
-                                      [ Grid.column 1
-                                        Border.margin (0.0, 0.0, 10.0, 0.0)
+                                      [ Grid.column 0
+                                        Border.margin (0.0, 0.0, 12.0, 0.0)
                                         Border.verticalAlignment VerticalAlignment.Center
                                         Border.child b ]
                               StackPanel.create
-                                  [ Grid.column 2
+                                  [ Grid.column 1
                                     StackPanel.verticalAlignment VerticalAlignment.Center
                                     StackPanel.spacing 2.0
                                     StackPanel.children
                                         [ TextBlock.create
-                                              [ TextBlock.text player.Name
+                                              [ TextBlock.text p.Name
                                                 TextBlock.foreground Theme.TextMain
-                                                TextBlock.fontSize 12.0
+                                                TextBlock.fontSize 13.0
                                                 TextBlock.fontWeight FontWeight.SemiBold ]
-                                          trainingBadges player ] ]
+                                          StackPanel.create
+                                              [ StackPanel.orientation Orientation.Horizontal
+                                                StackPanel.spacing 6.0
+                                                StackPanel.children
+                                                    [ if isXi then
+                                                          Border.create
+                                                              [ Border.background (Theme.withAlpha "18" Theme.AccentAlt)
+                                                                Border.cornerRadius 4.0
+                                                                Border.padding (6.0, 1.0)
+                                                                Border.child (
+                                                                    TextBlock.create
+                                                                        [ TextBlock.text "XI"
+                                                                          TextBlock.fontSize 9.0
+                                                                          TextBlock.fontWeight FontWeight.Black
+                                                                          TextBlock.foreground Theme.AccentAlt ]
+                                                                ) ]
+                                                      TextBlock.create
+                                                          [ TextBlock.text $"Age {Player.age ctx.Date p}"
+                                                            TextBlock.fontSize 10.0
+                                                            TextBlock.foreground Theme.TextMuted ]
+                                                      Border.create
+                                                          [ Border.background (Theme.withAlpha "15" chipColor)
+                                                            Border.cornerRadius 4.0
+                                                            Border.padding (6.0, 1.0)
+                                                            Border.child (
+                                                                TextBlock.create
+                                                                    [ TextBlock.text chipText
+                                                                      TextBlock.fontSize 9.0
+                                                                      TextBlock.fontWeight FontWeight.Bold
+                                                                      TextBlock.foreground chipColor ]
+                                                            ) ]
+                                                      if risk > 2.0 then
+                                                          TextBlock.create
+                                                              [ TextBlock.text (sprintf "INJ %.1f%%" risk)
+                                                                TextBlock.fontSize 9.0
+                                                                TextBlock.fontWeight FontWeight.Bold
+                                                                TextBlock.foreground Theme.Danger ] ] ] ] ]
                               StackPanel.create
-                                  [ Grid.column 3
+                                  [ Grid.column 2
                                     StackPanel.verticalAlignment VerticalAlignment.Center
-                                    StackPanel.horizontalAlignment HorizontalAlignment.Right
-                                    StackPanel.orientation Orientation.Horizontal
-                                    StackPanel.spacing 4.0
+                                    StackPanel.spacing 3.0
+                                    StackPanel.margin (12.0, 0.0, 0.0, 0.0)
                                     StackPanel.children
-                                        [ Icons.iconSm PlayerIcon.condition fitCol
-                                          TextBlock.create
-                                              [ TextBlock.text $"{player.MatchFitness}%%"
-                                                TextBlock.foreground fitCol
-                                                TextBlock.fontSize 11.0
+                                        [ TextBlock.create
+                                              [ TextBlock.text $"COND {p.Condition}"
+                                                TextBlock.fontSize 9.0
                                                 TextBlock.fontWeight FontWeight.Bold
-                                                TextBlock.verticalAlignment VerticalAlignment.Center ] ] ] ] ]
+                                                TextBlock.foreground condColor
+                                                TextBlock.horizontalAlignment HorizontalAlignment.Right ]
+                                          miniBar p.Condition condColor 90.0 ] ]
+                              TextBlock.create
+                                  [ Grid.column 3
+                                    TextBlock.text (sprintf "%d%%" p.MatchFitness)
+                                    TextBlock.fontSize 11.0
+                                    TextBlock.fontWeight FontWeight.Bold
+                                    TextBlock.foreground (TrainingPresenter.batteryColor p.MatchFitness)
+                                    TextBlock.verticalAlignment VerticalAlignment.Center
+                                    TextBlock.margin (12.0, 0.0, 0.0, 0.0) ]
+                              TextBlock.create
+                                  [ Grid.column 4
+                                    TextBlock.text (if gap = 0 then "MAX" else $"+{gap}")
+                                    TextBlock.fontSize 11.0
+                                    TextBlock.fontWeight FontWeight.Bold
+                                    TextBlock.foreground (if gap = 0 then Theme.TextDim else Theme.Accent)
+                                    TextBlock.verticalAlignment VerticalAlignment.Center
+                                    TextBlock.margin (12.0, 0.0, 0.0, 0.0) ] ] ]
               ) ]
-        |> View.withKey $"tr-{player.Id}"
+        |> View.withKey $"tr-{p.Id}"
         :> IView
 
-    let private focusCard (opt: TrainingPresenter.FocusOption) (isSelected: bool) (onSelect: TrainingFocus -> unit) =
-        let bgColor = if isSelected then opt.Color + "15" else Theme.BgSidebar
-        let borderColor = if isSelected then opt.Color else Theme.Border
+    let private groupHeader (label: string) =
+        Grid.create
+            [ Grid.columnDefinitions "auto, *"
+              Grid.margin (14.0, 10.0, 14.0, 4.0)
+              Grid.children
+                  [ Border.create
+                        [ Grid.column 0
+                          Border.background Theme.Accent
+                          Border.cornerRadius 3.0
+                          Border.width 3.0
+                          Border.margin (0.0, 0.0, 8.0, 0.0) ]
+                    TextBlock.create
+                        [ Grid.column 1
+                          TextBlock.text label
+                          TextBlock.fontSize 10.0
+                          TextBlock.fontWeight FontWeight.Black
+                          TextBlock.foreground Theme.Accent
+                          TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+        :> IView
+
+    let private planButton (plan: IndividualPlan) (isSelected: bool) (isRehab: bool) (onSelect: unit -> unit) : IView =
+        let color = TrainingPresenter.planColor plan
 
         Border.create
-            [ Border.background bgColor
-              Border.borderBrush borderColor
+            [ Border.background (
+                  if isSelected then
+                      Theme.withAlpha "15" color
+                  else
+                      Theme.BgCard
+              )
+              Border.borderBrush (if isSelected then color else Theme.Border)
               Border.borderThickness (if isSelected then 1.5 else 1.0)
-              Border.cornerRadius 8.0
+              Border.cornerRadius 10.0
               Border.padding (12.0, 10.0)
-              Border.cursor Avalonia.Input.Cursor.Default
-              Border.onPointerReleased (fun _ -> onSelect opt.Focus)
+              Border.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
+              Border.opacity (if isRehab then 0.85 else 1.0)
+              Border.onPointerReleased (fun _ -> onSelect ())
               Border.child (
                   StackPanel.create
                       [ StackPanel.orientation Orientation.Horizontal
                         StackPanel.spacing 10.0
+                        StackPanel.verticalAlignment VerticalAlignment.Center
                         StackPanel.children
                             [ Border.create
-                                  [ Border.background (opt.Color + "18")
-                                    Border.cornerRadius 6.0
-                                    Border.padding 6.0
-                                    Border.child (
-                                        Icons.iconSm opt.Icon (if isSelected then opt.Color else Theme.TextMuted)
-                                    ) ]
+                                  [ Border.background (Theme.withAlpha "18" color)
+                                    Border.cornerRadius 8.0
+                                    Border.padding 8.0
+                                    Border.child (Icons.iconSm (TrainingPresenter.planIcon plan) color) ]
                               StackPanel.create
-                                  [ StackPanel.verticalAlignment VerticalAlignment.Center
+                                  [ StackPanel.spacing 1.0
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
                                     StackPanel.children
                                         [ TextBlock.create
-                                              [ TextBlock.text opt.Label
+                                              [ TextBlock.text (Training.planLabel plan)
                                                 TextBlock.fontSize 12.0
-                                                TextBlock.fontWeight FontWeight.SemiBold
-                                                TextBlock.foreground (if isSelected then opt.Color else Theme.TextMain) ]
+                                                TextBlock.fontWeight FontWeight.Bold
+                                                TextBlock.foreground (if isSelected then color else Theme.TextMain) ]
                                           TextBlock.create
-                                              [ TextBlock.text opt.Description
+                                              [ TextBlock.text (TrainingPresenter.planDescription plan)
                                                 TextBlock.fontSize 10.0
                                                 TextBlock.foreground Theme.TextMuted ] ] ] ] ]
               ) ]
-        |> View.withKey $"focus-{opt.Focus}"
+        |> View.withKey $"plan-{plan}"
         :> IView
 
-    let private intensityCard
-        (opt: TrainingPresenter.IntensityOption)
-        (isSelected: bool)
-        (onSelect: TrainingIntensity -> unit)
-        =
-        let conditionColor =
-            if opt.ConditionCost >= -5 then Theme.Success
-            elif opt.ConditionCost >= -10 then Theme.Warning
-            else Theme.Danger
+    let private groupChip (g: AttributeGroup) (isSelected: bool) (onSelect: unit -> unit) =
+        let color = Theme.Accent
 
         Border.create
-            [ Border.background (if isSelected then opt.Color + "12" else Theme.BgSidebar)
-              Border.borderBrush (if isSelected then opt.Color else Theme.Border)
+            [ Border.background (
+                  if isSelected then
+                      Theme.withAlpha "18" color
+                  else
+                      Theme.BgCard
+              )
+              Border.borderBrush (if isSelected then color else Theme.Border)
               Border.borderThickness (if isSelected then 1.5 else 1.0)
               Border.cornerRadius 8.0
-              Border.padding (12.0, 10.0)
-              Border.cursor Avalonia.Input.Cursor.Default
-              Border.onPointerReleased (fun _ -> onSelect opt.Intensity)
-              Border.child (
-                  Grid.create
-                      [ Grid.columnDefinitions "*, Auto, Auto, Auto"
-                        Grid.children
-                            [ StackPanel.create
-                                  [ Grid.column 0
-                                    StackPanel.verticalAlignment VerticalAlignment.Center
-                                    StackPanel.children
-                                        [ StackPanel.create
-                                              [ StackPanel.orientation Orientation.Horizontal
-                                                StackPanel.spacing 6.0
-                                                StackPanel.children
-                                                    [ TextBlock.create
-                                                          [ TextBlock.text opt.Label
-                                                            TextBlock.fontSize 12.0
-                                                            TextBlock.fontWeight FontWeight.Bold
-                                                            TextBlock.foreground (
-                                                                if isSelected then opt.Color else Theme.TextMain
-                                                            ) ]
-                                                      Border.create
-                                                          [ Border.background (opt.Color + "20")
-                                                            Border.cornerRadius 4.0
-                                                            Border.padding (5.0, 2.0)
-                                                            Border.child (
-                                                                TextBlock.create
-                                                                    [ TextBlock.text opt.Badge
-                                                                      TextBlock.fontSize 8.0
-                                                                      TextBlock.fontWeight FontWeight.Bold
-                                                                      TextBlock.foreground opt.Color
-                                                                      TextBlock.lineSpacing 0.5 ]
-                                                            ) ] ] ]
-                                          TextBlock.create
-                                              [ TextBlock.text opt.Description
-                                                TextBlock.fontSize 10.0
-                                                TextBlock.foreground Theme.TextMuted ] ] ]
-                              StackPanel.create
-                                  [ Grid.column 1
-                                    StackPanel.verticalAlignment VerticalAlignment.Center
-                                    StackPanel.horizontalAlignment HorizontalAlignment.Center
-                                    StackPanel.margin (12.0, 0.0, 0.0, 0.0)
-                                    StackPanel.children
-                                        [ TextBlock.create
-                                              [ TextBlock.text "COND"
-                                                TextBlock.fontSize 8.0
-                                                TextBlock.foreground Theme.TextMuted
-                                                TextBlock.horizontalAlignment HorizontalAlignment.Center ]
-                                          TextBlock.create
-                                              [ TextBlock.text (string opt.ConditionCost)
-                                                TextBlock.fontSize 11.0
-                                                TextBlock.fontWeight FontWeight.Bold
-                                                TextBlock.foreground conditionColor
-                                                TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ]
-                              StackPanel.create
-                                  [ Grid.column 2
-                                    StackPanel.verticalAlignment VerticalAlignment.Center
-                                    StackPanel.horizontalAlignment HorizontalAlignment.Center
-                                    StackPanel.margin (12.0, 0.0, 0.0, 0.0)
-                                    StackPanel.children
-                                        [ TextBlock.create
-                                              [ TextBlock.text "GROW"
-                                                TextBlock.fontSize 8.0
-                                                TextBlock.foreground Theme.TextMuted
-                                                TextBlock.horizontalAlignment HorizontalAlignment.Center ]
-                                          TextBlock.create
-                                              [ TextBlock.text (TrainingPresenter.formatMult opt.GrowthMult)
-                                                TextBlock.fontSize 11.0
-                                                TextBlock.fontWeight FontWeight.Bold
-                                                TextBlock.foreground Theme.TextMain
-                                                TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ]
-                              StackPanel.create
-                                  [ Grid.column 3
-                                    StackPanel.verticalAlignment VerticalAlignment.Center
-                                    StackPanel.horizontalAlignment HorizontalAlignment.Center
-                                    StackPanel.margin (12.0, 0.0, 0.0, 0.0)
-                                    StackPanel.children
-                                        [ TextBlock.create
-                                              [ TextBlock.text "INJ"
-                                                TextBlock.fontSize 8.0
-                                                TextBlock.foreground Theme.TextMuted
-                                                TextBlock.horizontalAlignment HorizontalAlignment.Center ]
-                                          TextBlock.create
-                                              [ TextBlock.text (sprintf "%d%%" (int (opt.InjuryRisk * 100.0)))
-                                                TextBlock.fontSize 11.0
-                                                TextBlock.fontWeight FontWeight.Bold
-                                                TextBlock.foreground (
-                                                    if opt.InjuryRisk > 0.0 then Theme.Danger else Theme.Success
-                                                )
-                                                TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ] ] ]
-              ) ]
-        |> View.withKey $"intensity-{opt.Intensity}"
-        :> IView
-
-    let private positionBadge (pos: Position) (mult: float) =
-        let color =
-            if mult >= 1.3 then Theme.Success
-            elif mult >= 1.1 then Theme.Accent
-            elif mult >= 1.0 then Theme.Warning
-            elif mult >= 0.9 then Theme.TextMuted
-            else Theme.Danger
-
-        Border.create
-            [ Border.background (color + "15")
-              Border.borderBrush (color + "35")
-              Border.borderThickness 1.0
-              Border.cornerRadius 5.0
-              Border.padding (8.0, 5.0)
-              Border.margin (0.0, 0.0, 5.0, 5.0)
+              Border.padding (10.0, 7.0)
+              Border.margin (0.0, 0.0, 6.0, 6.0)
+              Border.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
+              Border.onPointerReleased (fun _ -> onSelect ())
               Border.child (
                   StackPanel.create
                       [ StackPanel.orientation Orientation.Horizontal
-                        StackPanel.spacing 4.0
-                        StackPanel.children
-                            [ TextBlock.create
-                                  [ TextBlock.text (string pos)
-                                    TextBlock.fontSize 9.0
-                                    TextBlock.fontWeight FontWeight.Bold
-                                    TextBlock.foreground Theme.TextMain ]
-                              TextBlock.create
-                                  [ TextBlock.text (TrainingPresenter.formatMult mult)
-                                    TextBlock.fontSize 9.0
-                                    TextBlock.fontWeight FontWeight.Bold
-                                    TextBlock.foreground color ] ] ]
-              ) ]
-
-    let private emptyState =
-        Border.create
-            [ Border.verticalAlignment VerticalAlignment.Center
-              Border.horizontalAlignment HorizontalAlignment.Center
-              Border.child (
-                  StackPanel.create
-                      [ StackPanel.spacing 10.0
-                        StackPanel.horizontalAlignment HorizontalAlignment.Center
+                        StackPanel.spacing 6.0
                         StackPanel.verticalAlignment VerticalAlignment.Center
                         StackPanel.children
-                            [ Icons.iconXl IconName.squad Theme.TextMuted
+                            [ Icons.iconSm
+                                  (TrainingPresenter.groupIcon g)
+                                  (if isSelected then color else Theme.TextMuted)
                               TextBlock.create
-                                  [ TextBlock.text "Select a player"
-                                    TextBlock.fontSize 14.0
-                                    TextBlock.fontWeight FontWeight.SemiBold
-                                    TextBlock.foreground Theme.TextMuted
-                                    TextBlock.horizontalAlignment HorizontalAlignment.Center ]
-                              TextBlock.create
-                                  [ TextBlock.text "Choose a player from the list\nto manage their training"
+                                  [ TextBlock.text (Training.groupLabel g)
                                     TextBlock.fontSize 11.0
-                                    TextBlock.foreground (Theme.TextMuted + "99")
-                                    TextBlock.textAlignment TextAlignment.Center
-                                    TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ]
+                                    TextBlock.fontWeight FontWeight.SemiBold
+                                    TextBlock.foreground (if isSelected then color else Theme.TextMain) ] ] ]
               ) ]
+        |> View.withKey $"grp-{g}"
+        :> IView
 
-    let private playerDetailPanel
+    let private batteryRow (label: string) (value: int) =
+        let color = TrainingPresenter.batteryColor value
+
+        StackPanel.create
+            [ StackPanel.spacing 4.0
+              StackPanel.margin (0.0, 0.0, 0.0, 10.0)
+              StackPanel.children
+                  [ StackPanel.create
+                        [ StackPanel.orientation Orientation.Horizontal
+                          StackPanel.children
+                              [ TextBlock.create
+                                    [ TextBlock.text label
+                                      TextBlock.fontSize 10.0
+                                      TextBlock.fontWeight FontWeight.Bold
+                                      TextBlock.foreground Theme.TextMuted ]
+                                TextBlock.create
+                                    [ TextBlock.text $"  {value}"
+                                      TextBlock.fontSize 12.0
+                                      TextBlock.fontWeight FontWeight.Black
+                                      TextBlock.foreground color ] ] ]
+                    ProgressBar.create
+                        [ ProgressBar.minimum 0.0
+                          ProgressBar.maximum 100.0
+                          ProgressBar.value (float value)
+                          ProgressBar.height 6.0
+                          ProgressBar.cornerRadius 3.0
+                          ProgressBar.background Theme.BgElevated
+                          ProgressBar.foreground color ] ] ]
+        :> IView
+
+    let private previewStat (label: string) (value: string) (color: string) =
+        StackPanel.create
+            [ StackPanel.spacing 2.0
+              StackPanel.horizontalAlignment HorizontalAlignment.Center
+              StackPanel.children
+                  [ TextBlock.create
+                        [ TextBlock.text value
+                          TextBlock.fontSize 15.0
+                          TextBlock.fontWeight FontWeight.Black
+                          TextBlock.foreground color
+                          TextBlock.horizontalAlignment HorizontalAlignment.Center ]
+                    TextBlock.create
+                        [ TextBlock.text label
+                          TextBlock.fontSize 9.0
+                          TextBlock.fontWeight FontWeight.Bold
+                          TextBlock.foreground Theme.TextDim
+                          TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ]
+        :> IView
+
+    let private detailPanel
+        (gs: GameState)
+        (cfg: Core.Match.TrainingConfig)
         (player: Player)
-        (onFocusChange: TrainingFocus -> unit)
-        (onIntensityChange: TrainingIntensity -> unit)
-        =
-        let positions: Position list =
-            [ GK; DC; DR; DL; WBR; WBL; DM; MC; MR; ML; AMC; AML; AMR; ST ]
+        (dispatch: Msg -> unit)
+        : IView =
+        let rehab = TrainingPlans.isRehab player
+        let storedPlan = player.TrainingPlan
+        let tilt = Training.tiltOf gs.TeamEmphasis
+        let recoveryWeek = gs.TeamEmphasis = EmRecovery
+        let ratings = TrainingPhaseEngine.coachingOf gs gs.UserClubId
 
-        let schedule = player.TrainingSchedule
+        let prev =
+            TrainingPhaseEngine.previewWith cfg gs.CurrentDate tilt recoveryWeek ratings player
 
-        DockPanel.create
-            [ DockPanel.lastChildFill true
-              DockPanel.children
-                  [ UI.sectionHeader IconName.training "TRAINING SCHEDULE"
-                    |> fun h -> Border.create [ DockPanel.dock Dock.Top; Border.child h ]
+        let gap = max 0 (player.PotentialSkill - player.CurrentSkill)
 
-                    ScrollViewer.create
-                        [ ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Auto
-                          ScrollViewer.content (
-                              StackPanel.create
-                                  [ StackPanel.spacing 0.0
-                                    StackPanel.children
+        let rehabBanner =
+            match player.Status with
+            | Injured(sev, until) ->
+                let days = max 0 (int (until - gs.CurrentDate).TotalDays)
+
+                Border.create
+                    [ Border.background (Theme.withAlpha "15" Theme.Warning)
+                      Border.borderBrush (Theme.withAlpha "40" Theme.Warning)
+                      Border.borderThickness 1.0
+                      Border.cornerRadius 8.0
+                      Border.padding (12.0, 10.0)
+                      Border.margin (0.0, 0.0, 0.0, 12.0)
+                      Border.child (
+                          StackPanel.create
+                              [ StackPanel.orientation Orientation.Horizontal
+                                StackPanel.spacing 10.0
+                                StackPanel.verticalAlignment VerticalAlignment.Center
+                                StackPanel.children
+                                    [ Icons.iconSm IconName.ambulance Theme.Warning
+                                      StackPanel.create
+                                          [ StackPanel.spacing 1.0
+                                            StackPanel.children
+                                                [ TextBlock.create
+                                                      [ TextBlock.text $"REHAB · {sev} · ~{days} days"
+                                                        TextBlock.fontSize 11.0
+                                                        TextBlock.fontWeight FontWeight.Bold
+                                                        TextBlock.foreground Theme.Warning ]
+                                                  TextBlock.create
+                                                      [ TextBlock.text "Plan resumes on return"
+                                                        TextBlock.fontSize 10.0
+                                                        TextBlock.foreground Theme.TextMuted ] ] ] ] ]
+                      ) ]
+                :> IView
+            | _ -> Border.create [ Border.height 0.0 ] :> IView
+
+        let targetChips =
+            match storedPlan with
+            | Develop _ ->
+                StackPanel.create
+                    [ StackPanel.spacing 0.0
+                      StackPanel.margin (0.0, 12.0, 0.0, 0.0)
+                      StackPanel.children
+                          [ sectionLabel "TARGET AREA"
+                            WrapPanel.create
+                                [ WrapPanel.children
+                                      [ for g in TrainingPlans.groupsFor player.Position do
+                                            groupChip g (storedPlan = Develop g) (fun () ->
+                                                dispatch (TrainingMsg(TrainingMsg.SetPlan(player.Id, Develop g)))) ] ] ] ]
+                :> IView
+            | _ -> Border.create [ Border.height 0.0 ] :> IView
+
+        ScrollViewer.create
+            [ ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Auto
+              ScrollViewer.content (
+                  StackPanel.create
+                      [ StackPanel.margin (20.0, 18.0)
+                        StackPanel.spacing 0.0
+                        StackPanel.children
+                            [ TextBlock.create
+                                  [ TextBlock.text player.Name
+                                    TextBlock.fontSize 17.0
+                                    TextBlock.fontWeight FontWeight.Black
+                                    TextBlock.foreground Theme.TextMain ]
+                              TextBlock.create
+                                  [ TextBlock.text
+                                        $"%A{player.Position} · Age {Player.age gs.CurrentDate player} · CA {player.CurrentSkill} → PA {player.PotentialSkill}"
+                                    TextBlock.fontSize 11.0
+                                    TextBlock.foreground Theme.TextMuted
+                                    TextBlock.margin (0.0, 2.0, 0.0, 14.0) ]
+                              rehabBanner
+                              batteryRow "CONDITION" player.Condition
+                              batteryRow "SHARPNESS" player.MatchFitness
+                              batteryRow
+                                  "POTENTIAL"
+                                  (if player.PotentialSkill = 0 then
+                                       0
+                                   else
+                                       player.CurrentSkill * 100 / player.PotentialSkill)
+                              sectionLabel "WEEKLY PLAN"
+                              Grid.create
+                                  [ Grid.columnDefinitions "*, *"
+                                    Grid.rowDefinitions "Auto, Auto"
+                                    Grid.children
                                         [ Border.create
-                                              [ Border.padding (16.0, 12.0)
-                                                Border.borderBrush Theme.Border
-                                                Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                                              [ Grid.column 0
+                                                Grid.row 0
+                                                Border.margin (0.0, 0.0, 6.0, 6.0)
                                                 Border.child (
-                                                    StackPanel.create
-                                                        [ StackPanel.spacing 2.0
-                                                          StackPanel.children
-                                                              [ TextBlock.create
-                                                                    [ TextBlock.text player.Name
-                                                                      TextBlock.fontSize 15.0
-                                                                      TextBlock.fontWeight FontWeight.Bold
-                                                                      TextBlock.foreground Theme.TextMain ]
-                                                                TextBlock.create
-                                                                    [ TextBlock.text
-                                                                          $"%s{string player.Position}  ·  Age %d{Player.age DateTime.Now player}  ·  CS %d{player.CurrentSkill}  ·  PS %d{player.PotentialSkill}"
-                                                                      TextBlock.fontSize 11.0
-                                                                      TextBlock.foreground Theme.TextMuted ] ] ]
+                                                    planButton
+                                                        (Develop(Physical))
+                                                        (match storedPlan with
+                                                         | Develop _ -> true
+                                                         | _ -> false)
+                                                        rehab
+                                                        (fun () ->
+                                                            let g =
+                                                                match storedPlan with
+                                                                | Develop g -> g
+                                                                | _ ->
+                                                                    TrainingPlans.groupsFor player.Position
+                                                                    |> List.tryHead
+                                                                    |> Option.defaultValue Physical
+
+                                                            dispatch (
+                                                                TrainingMsg(TrainingMsg.SetPlan(player.Id, Develop g))
+                                                            ))
                                                 ) ]
-                                          UI.sectionHeader IconName.training "FOCUS"
                                           Border.create
-                                              [ Border.padding (16.0, 10.0)
-                                                Border.borderBrush Theme.Border
-                                                Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                                              [ Grid.column 1
+                                                Grid.row 0
+                                                Border.margin (6.0, 0.0, 0.0, 6.0)
                                                 Border.child (
-                                                    StackPanel.create
-                                                        [ StackPanel.spacing 6.0
-                                                          StackPanel.children (
-                                                              TrainingPresenter.focusOptions
-                                                              |> List.map (fun opt ->
-                                                                  focusCard
-                                                                      opt
-                                                                      (schedule.Focus = opt.Focus)
-                                                                      onFocusChange)
-                                                          ) ]
+                                                    planButton Perform (storedPlan = Perform) rehab (fun () ->
+                                                        dispatch (TrainingMsg(TrainingMsg.SetPlan(player.Id, Perform))))
                                                 ) ]
-                                          UI.sectionHeader IconName.training "INTENSITY"
                                           Border.create
-                                              [ Border.padding (16.0, 10.0)
-                                                Border.borderBrush Theme.Border
-                                                Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                                              [ Grid.column 0
+                                                Grid.row 1
+                                                Grid.columnSpan 2
                                                 Border.child (
-                                                    StackPanel.create
-                                                        [ StackPanel.spacing 6.0
-                                                          StackPanel.children (
-                                                              TrainingPresenter.intensityOptions
-                                                              |> List.map (fun opt ->
-                                                                  intensityCard
-                                                                      opt
-                                                                      (schedule.Intensity = opt.Intensity)
-                                                                      onIntensityChange)
-                                                          ) ]
-                                                ) ]
-                                          UI.sectionHeader IconName.chart "POSITION IMPACT"
-                                          Border.create
-                                              [ Border.padding (16.0, 12.0)
-                                                Border.child (
-                                                    WrapPanel.create
-                                                        [ WrapPanel.children (
-                                                              positions
-                                                              |> List.map (fun pos ->
-                                                                  positionBadge
-                                                                      pos
-                                                                      (TrainingPresenter.getPositionImpact
-                                                                          schedule.Focus
-                                                                          schedule.Intensity
-                                                                          pos))
-                                                          ) ]
+                                                    planButton Rest (storedPlan = Rest) rehab (fun () ->
+                                                        dispatch (TrainingMsg(TrainingMsg.SetPlan(player.Id, Rest))))
                                                 ) ] ] ]
-                          ) ] ] ]
+                              targetChips
+                              Border.create
+                                  [ Border.background Theme.BgCard
+                                    Border.borderBrush Theme.Border
+                                    Border.borderThickness 1.0
+                                    Border.cornerRadius 10.0
+                                    Border.padding (14.0, 12.0)
+                                    Border.margin (0.0, 14.0, 0.0, 0.0)
+                                    Border.child (
+                                        StackPanel.create
+                                            [ StackPanel.spacing 10.0
+                                              StackPanel.children
+                                                  [ TextBlock.create
+                                                        [ TextBlock.text "THIS WEEK"
+                                                          TextBlock.fontSize 10.0
+                                                          TextBlock.fontWeight FontWeight.Black
+                                                          TextBlock.foreground Theme.TextDim ]
+                                                    Grid.create
+                                                        [ Grid.columnDefinitions "*, *, *, *"
+                                                          Grid.children
+                                                              [ Border.create
+                                                                    [ Grid.column 0
+                                                                      Border.child (
+                                                                          previewStat
+                                                                              "GROWTH"
+                                                                              (sprintf "%.0f%%" prev.GrowthPct)
+                                                                              Theme.Accent
+                                                                      ) ]
+                                                                Border.create
+                                                                    [ Grid.column 1
+                                                                      Border.child (
+                                                                          previewStat
+                                                                              "TARGET"
+                                                                              prev.Target
+                                                                              Theme.TextMain
+                                                                      ) ]
+                                                                Border.create
+                                                                    [ Grid.column 2
+                                                                      Border.child (
+                                                                          previewStat
+                                                                              "COND"
+                                                                              (if prev.ConditionDelta >= 0 then
+                                                                                   $"+{prev.ConditionDelta}"
+                                                                               else
+                                                                                   string prev.ConditionDelta)
+                                                                              (TrainingPresenter.batteryColor (
+                                                                                  max
+                                                                                      0
+                                                                                      (min
+                                                                                          100
+                                                                                          (player.Condition
+                                                                                           + prev.ConditionDelta))
+                                                                              ))
+                                                                      ) ]
+                                                                Border.create
+                                                                    [ Grid.column 3
+                                                                      Border.child (
+                                                                          previewStat
+                                                                              "INJURY"
+                                                                              (sprintf "%.1f%%" prev.InjuryPct)
+                                                                              (if prev.InjuryPct > 2.0 then
+                                                                                   Theme.Danger
+                                                                               else
+                                                                                   Theme.TextMuted)
+                                                                      ) ] ] ] ] ]
+                                    ) ] ] ]
+              ) ]
+        :> IView
+
+    let private bulkBar (dispatch: Msg -> unit) =
+        let bulkButton (label: string) (rule: TrainingBulk) =
+            Button.create
+                [ Button.content label
+                  Button.fontSize 10.0
+                  Button.padding (10.0, 6.0)
+                  Button.margin (0.0, 0.0, 6.0, 0.0)
+                  Button.background Theme.BgCard
+                  Button.borderBrush Theme.Border
+                  Button.borderThickness 1.0
+                  Button.cornerRadius 6.0
+                  Button.foreground Theme.TextSub
+                  Button.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
+                  Button.onClick (fun _ -> dispatch (TrainingMsg(TrainingMsg.BulkApply rule))) ]
+            :> IView
+
+        StackPanel.create
+            [ StackPanel.orientation Orientation.Horizontal
+              StackPanel.margin (14.0, 12.0, 14.0, 4.0)
+              StackPanel.children
+                  [ bulkButton "U21 → Develop" U21Develop
+                    bulkButton "Tired → Rest" RestTired
+                    bulkButton "XI → Rest" RestStarters
+                    bulkButton "All → Perform" AllPerform ] ]
+        :> IView
 
     let trainingView (state: State) (dispatch: Msg -> unit) : IView =
         match state.Mode with
         | InGame(gs, _) ->
-            let userClubId = gs.UserClubId
-            let selectedPlayerId = state.Training.SelectedPlayer
+            let cfg =
+                (FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave (Some state.SaveSettings))
+                    .Training
 
             let squad =
-                GameState.getSquad userClubId gs
-                |> List.sortBy (fun p -> PlayerPresenter.positionSortKey p.Position, p.CurrentSkill * -1)
+                GameState.getSquad gs.UserClubId gs
+                |> List.sortBy (fun p -> PlayerPresenter.positionSortKey p.Position, -p.CurrentSkill)
 
-            let setPlayerFocus (playerId: PlayerId) (currentSchedule: TrainingSchedule) (focus: TrainingFocus) =
-                dispatch (TrainingMsg(TrainingMsg.SetFocus(playerId, focus)))
+            let groups = TrainingPresenter.groupedByUnit squad
 
-            let setPlayerIntensity
-                (playerId: PlayerId)
-                (currentSchedule: TrainingSchedule)
-                (intensity: TrainingIntensity)
-                =
-                dispatch (TrainingMsg(TrainingMsg.SetIntensity(playerId, intensity)))
-
-            let playerScheduleKey =
-                selectedPlayerId
-                |> Option.bind (fun id -> gs.Players.TryFind id)
-                |> Option.map (fun p -> $"{p.TrainingSchedule.Focus}{p.TrainingSchedule.Intensity}")
-                |> Option.defaultValue ""
+            let rowCtx: TrainingPresenter.RowCtx =
+                { Cfg = cfg
+                  Date = gs.CurrentDate
+                  Tilt = Training.tiltOf gs.TeamEmphasis
+                  Recovery = gs.TeamEmphasis = EmRecovery
+                  Ratings = TrainingPhaseEngine.coachingOf gs gs.UserClubId
+                  Xi = TrainingPresenter.lineupIds gs }
 
             Grid.create
-                [ Grid.columnDefinitions "*, 272"
+                [ Grid.rowDefinitions "Auto, *"
+                  Grid.background Theme.BgMain
                   Grid.children
-                      [ Border.create
-                            [ Grid.column 0
-                              Border.background Theme.BgSidebar
-                              Border.borderBrush Theme.Border
-                              Border.borderThickness (0.0, 0.0, 1.0, 0.0)
-                              Border.child (
-                                  match selectedPlayerId with
-                                  | Some playerId ->
-                                      match gs.Players |> Map.tryFind playerId with
-                                      | Some player ->
-                                          playerDetailPanel
-                                              player
-                                              (fun focus -> setPlayerFocus playerId player.TrainingSchedule focus)
-                                              (fun intensity ->
-                                                  setPlayerIntensity playerId player.TrainingSchedule intensity)
-                                      | None -> DockPanel.create [ DockPanel.children [ emptyState ] ]
-                                  | None -> DockPanel.create [ DockPanel.children [ emptyState ] ]
-                              ) ]
-                        Border.create
-                            [ Grid.column 1
-                              Border.background Theme.BgSidebar
-                              Border.borderBrush Theme.Border
-                              Border.borderThickness (1.0, 1.0, 1.0, 1.0)
-                              Border.child (
-                                  DockPanel.create
-                                      [ DockPanel.lastChildFill true
-                                        DockPanel.children
-                                            [ UI.sectionHeaderWithBadge IconName.squad "SQUAD" squad.Length
-                                              |> fun h -> Border.create [ DockPanel.dock Dock.Top; Border.child h ]
-                                              ScrollViewer.create
-                                                  [ ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Auto
-                                                    ScrollViewer.content (
-                                                        StackPanel.create
-                                                            [ StackPanel.children (
-                                                                  squad
-                                                                  |> List.map (fun p ->
-                                                                      playerRow
-                                                                          p
-                                                                          (selectedPlayerId = Some p.Id)
-                                                                          (fun () ->
-                                                                              dispatch (
-                                                                                  TrainingMsg(
-                                                                                      TrainingMsg.SelectPlayer p.Id
-                                                                                  )
-                                                                              )))
-                                                              ) ]
-                                                    ) ] ] ]
-                              ) ] ] ]
-            |> View.withKey $"training-{selectedPlayerId}-{playerScheduleKey}"
+                      [ Border.create [ Grid.row 0; Border.child (emphasisStrip gs squad dispatch) ]
+                        Grid.create
+                            [ Grid.row 1
+                              Grid.columnDefinitions "*, 400"
+                              Grid.children
+                                  [ Border.create
+                                        [ Grid.column 0
+                                          Border.borderBrush Theme.Border
+                                          Border.borderThickness (0.0, 0.0, 1.0, 0.0)
+                                          Border.child (
+                                              Grid.create
+                                                  [ Grid.rowDefinitions "Auto, *"
+                                                    Grid.children
+                                                        [ Border.create [ Grid.row 0; Border.child (bulkBar dispatch) ]
+                                                          ScrollViewer.create
+                                                              [ Grid.row 1
+                                                                ScrollViewer.verticalScrollBarVisibility
+                                                                    ScrollBarVisibility.Auto
+                                                                ScrollViewer.content (
+                                                                    StackPanel.create
+                                                                        [ StackPanel.spacing 0.0
+                                                                          StackPanel.children
+                                                                              [ for label, players in groups do
+                                                                                    groupHeader label
+
+                                                                                    for p in players do
+                                                                                        playerRow
+                                                                                            rowCtx
+                                                                                            p
+                                                                                            (state.Training.SelectedPlayer = Some
+                                                                                                p.Id)
+                                                                                            (fun () ->
+                                                                                                dispatch (
+                                                                                                    TrainingMsg(
+                                                                                                        TrainingMsg.SelectPlayer
+                                                                                                            p.Id
+                                                                                                    )
+                                                                                                )) ] ]
+                                                                ) ] ] ]
+                                          ) ]
+                                    Border.create
+                                        [ Grid.column 1
+                                          Border.background Theme.BgSidebar
+                                          Border.borderBrush Theme.Border
+                                          Border.borderThickness (1.0, 0.0, 0.0, 0.0)
+                                          Border.child (
+                                              match
+                                                  state.Training.SelectedPlayer
+                                                  |> Option.bind (fun id -> gs.Players |> Map.tryFind id)
+                                              with
+                                              | Some player -> detailPanel gs cfg player dispatch
+                                              | None ->
+                                                  UI.emptyState
+                                                      IconName.squad
+                                                      "Select a player"
+                                                      "Pick a player to set their weekly plan"
+                                          ) ] ] ] ] ]
+            |> View.withKey $"training-{state.Training.SelectedPlayer}-{gs.TeamEmphasis}"
             :> IView
         | _ -> Border.create [] :> IView

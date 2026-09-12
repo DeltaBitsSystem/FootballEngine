@@ -5,10 +5,98 @@ open Elmish
 open FootballEngine.Domain
 open FootballEngine.Domain.TransferNegotiation
 open FootballEngine.Icons
+open FootballEngine.Routing
 open AppTypes
 open AppMsgs
 
 module UpdateTransfer =
+
+    let private pushNotification = AppTypes.pushNotification
+
+    let private pushRoute (route: Route) (state: State) =
+        if state.Navigation.Current = route then
+            state
+        else
+            { state with
+                Navigation =
+                    { Current = route
+                      Back = state.Navigation.Current :: state.Navigation.Back
+                      Forward = [] } }
+
+    let private routeForTab tab =
+        match tab with
+        | MarketSearch -> Route.Transfers TransferRoute.Market
+        | MyWatchlist -> Route.Transfers TransferRoute.Watchlist
+        | IncomingOffers -> Route.Transfers TransferRoute.IncomingOffers
+        | OutgoingOffers -> Route.Transfers TransferRoute.Negotiations
+        | TransferHistory -> Route.Transfers TransferRoute.History
+
+    let private scoutingStaff (gs: GameState) : FootballEngine.Domain.Staff list =
+        GameState.getStaff gs.UserClubId gs
+        |> List.filter (fun s ->
+            match s.Role with
+            | Scout
+            | RecruitmentAnalyst -> true
+            | _ -> false)
+        |> List.sortByDescending (fun s -> s.Knowledge.JudgingPlayerAbility)
+
+    let private nextScoutingId (market: MarketState) =
+        market.Assignments
+        |> Map.toList
+        |> List.choose (fun (ScoutingAssignmentId id, _) -> Some id)
+        |> List.fold (fun acc id -> max acc id) 0
+        |> fun id -> ScoutingAssignmentId(id + 1)
+
+    let private scoutingError (message: string) (state: State) =
+        state |> pushNotification NotificationIcons.error "Encargo no creado" message, Cmd.none
+
+    let private createScoutingAssignment (state: State) (gs: GameState) =
+        let t = state.Transfer
+
+        match
+            t.ScoutingPlayerId,
+            t.ScoutingScoutId,
+            System.Decimal.TryParse t.ScoutingCostText,
+            System.Int32.TryParse t.ScoutingDaysText
+        with
+        | Some playerId, Some scoutId, (true, cost), (true, days) when cost >= 0m && days > 0 ->
+            match gs.Players |> Map.tryFind playerId, gs.Staff |> Map.tryFind scoutId with
+            | Some _, Some scout when
+                List.exists (fun (s: FootballEngine.Domain.Staff) -> s.Id = scout.Id) (scoutingStaff gs)
+                ->
+                let assignment =
+                    ScoutingAssignment.assign
+                        (nextScoutingId gs.Market)
+                        (PlayerTarget playerId)
+                        scoutId
+                        cost
+                        gs.CurrentDate
+                        (gs.CurrentDate.AddDays(float days))
+
+                match TransferMarket.assignScouting assignment gs.UserClubId gs.Market with
+                | Error error -> scoutingError (string error) state
+                | Ok market ->
+                    let market =
+                        { market with
+                            Events = ScoutAssigned(assignment.Id, $"player:{playerId}") :: market.Events }
+
+                    let newGs = { gs with Market = market }
+
+                    let next =
+                        { state with
+                            Mode = InGame(newGs, managerEmployment newGs)
+                            Transfer =
+                                { t with
+                                    ScoutingPlayerId = None
+                                    ScoutingScoutId = None
+                                    ScoutingCostText = ""
+                                    ScoutingDaysText = "" } }
+
+                    next
+                    |> pushNotification ClubIcon.scouting "Encargo creado" "El encargo quedó confirmado en el mercado.",
+                    SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings
+            | _ -> scoutingError "El jugador o el scout ya no están disponibles." state
+        | _ -> scoutingError "Seleccioná jugador, scout, costo válido y plazo mayor a cero." state
 
     let private buildClubNameCache (gs: GameState) : Map<PlayerId, string> =
         gs.Players
@@ -86,8 +174,6 @@ module UpdateTransfer =
                   Season = season }
                 :: t.TransferHistory }
 
-    let private pushNotification = AppTypes.pushNotification
-
     let private completeTransferAndSave
         (p: Player)
         (buyer: Club)
@@ -114,7 +200,7 @@ module UpdateTransfer =
             NotificationIcons.win
             "Transfer Complete"
             $"{p.Name} signed for {buyer.Name} — fee: ${fee:N0}",
-        SimHelpers.saveCmd gs state.WorldClock
+        SimHelpers.saveCmdForState state gs state.WorldClock state.SaveSettings
 
     let handle (msg: TransferMsg) (state: State) : State * Cmd<Msg> =
         let t = state.Transfer
@@ -143,9 +229,12 @@ module UpdateTransfer =
             { state with Transfer = updated }, Cmd.none
 
         | TabChange tab ->
-            { state with
-                Transfer = { t with ActiveTab = tab; Page = 0 } },
-            Cmd.none
+            let next =
+                { state with
+                    Transfer = { t with ActiveTab = tab; Page = 0 } }
+                |> pushRoute (routeForTab tab)
+
+            next, Cmd.none
 
         | Search query ->
             let delayed () =
@@ -183,7 +272,8 @@ module UpdateTransfer =
 
         | PlayerSelect pid ->
             { state with
-                State.Transfer.SelectedPlayerId = Some pid },
+                State.Transfer.SelectedPlayerId = Some pid }
+            |> pushRoute (Route.Transfers(TransferRoute.Player pid)),
             Cmd.none
 
         | WatchToggle pid ->
@@ -208,7 +298,9 @@ module UpdateTransfer =
                                 { PlayerId = playerId
                                   Fee = fee
                                   Salary = salary }
-                        ActiveTab = MarketSearch } },
+                        ActiveTab = MarketSearch
+                        SelectedPlayerId = Some playerId } }
+            |> pushRoute (Route.Transfers(TransferRoute.Player playerId)),
             Cmd.none
 
         | SubmitOffer ->
@@ -247,8 +339,12 @@ module UpdateTransfer =
                                     Transfer =
                                         { t with
                                             PendingOffer = None
-                                            ActiveNegotiationId = Some neg.Id } },
-                                SimHelpers.saveCmd newGs state.WorldClock)
+                                            ActiveNegotiationId = Some neg.Id }
+                                    Navigation =
+                                        { Current = Route.Transfers(TransferRoute.Negotiation neg.Id)
+                                          Back = state.Navigation.Current :: state.Navigation.Back
+                                          Forward = [] } },
+                                SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings)
 
         | WithdrawOffer negId ->
             withGame (fun gs ->
@@ -265,7 +361,7 @@ module UpdateTransfer =
                     { state with
                         Mode = InGame(newGs, managerEmployment newGs)
                         Transfer = { t with ActiveNegotiationId = None } },
-                    SimHelpers.saveCmd newGs state.WorldClock
+                    SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings
                 | None -> state, Cmd.none)
 
         | ClearNegotiation negotiationId ->
@@ -283,7 +379,7 @@ module UpdateTransfer =
                         { state with
                             Mode = InGame(newGs, managerEmployment newGs)
                             Transfer = { t with ActiveNegotiationId = None } },
-                        SimHelpers.saveCmd newGs state.WorldClock
+                        SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings
                     | _ ->
                         { state with
                             Transfer = { t with ActiveNegotiationId = None } },
@@ -329,5 +425,58 @@ module UpdateTransfer =
 
                     { state with
                         Mode = InGame(newGs, managerEmployment newGs) },
-                    SimHelpers.saveCmd newGs state.WorldClock
+                    SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings
                 | None -> state, Cmd.none)
+
+        | SelectScoutingPlayer playerId ->
+            { state with
+                Transfer = { t with ScoutingPlayerId = playerId } },
+            Cmd.none
+
+        | SelectScoutingScout scoutId ->
+            { state with
+                Transfer = { t with ScoutingScoutId = scoutId } },
+            Cmd.none
+
+        | SetScoutingCost value ->
+            { state with
+                Transfer = { t with ScoutingCostText = value } },
+            Cmd.none
+
+        | SetScoutingDays value ->
+            { state with
+                Transfer = { t with ScoutingDaysText = value } },
+            Cmd.none
+
+        | CreateScoutingAssignment -> withGame (createScoutingAssignment state)
+
+        | ToggleShortlist playerId ->
+            withGame (fun gs ->
+                let newGs =
+                    { gs with
+                        Market = ScoutingSlice.toggleShortlist gs.UserClubId playerId gs.Market }
+
+                { state with
+                    Mode = InGame(newGs, managerEmployment newGs) },
+                SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings)
+
+        | OpenScoutingOffer playerId ->
+            withGame (fun gs ->
+                match gs.Players |> Map.tryFind playerId with
+                | None -> scoutingError "El jugador de la shortlist ya no existe." state
+                | Some p ->
+                    { state with
+                        Navigation =
+                            { Current = Route.Transfers(TransferRoute.Player playerId)
+                              Back = state.Navigation.Current :: state.Navigation.Back
+                              Forward = [] }
+                        Transfer =
+                            { t with
+                                ActiveTab = MarketSearch
+                                SelectedPlayerId = Some playerId
+                                PendingOffer =
+                                    Some
+                                        { PlayerId = playerId
+                                          Fee = Player.playerValue p.CurrentSkill
+                                          Salary = suggestedSalary p } } },
+                    Cmd.none)

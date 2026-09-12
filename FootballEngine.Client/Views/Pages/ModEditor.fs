@@ -1,7 +1,9 @@
 namespace FootballEngine.Pages
 
+open System
 open Avalonia
 open Avalonia.Controls
+open Avalonia.Controls.Primitives
 open Avalonia.FuncUI
 open Avalonia.FuncUI.DSL
 open Avalonia.FuncUI.Types
@@ -47,40 +49,145 @@ module ModEditor =
             [ Button.content label
               Button.foreground Theme.Danger
               Button.background "Transparent"
-              Button.borderBrush (Theme.Danger + "55")
+              Button.borderBrush (Theme.withAlpha "55" Theme.Danger)
               Button.borderThickness 1.0
               Button.padding (12.0, 6.0)
               Button.cornerRadius 6.0
               Button.fontSize 12.0
               Button.onClick onClick ]
 
-    /// Stat pill shown in the Overview header.
-    let private statPill (label: string) (value: string) =
+    let private pageIntro
+        (iconKind: Material.Icons.MaterialIconKind)
+        (eyebrow: string)
+        (title: string)
+        (description: string)
+        : IView =
+        let eyebrowText = eyebrow.ToUpperInvariant()
+
+        Border.create
+            [ Border.background Theme.BgCard
+              Border.borderBrush Theme.BorderLight
+              Border.borderThickness 1.0
+              Border.cornerRadius Theme.RadiusLg
+              Border.padding (20.0, 18.0)
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.spacing 7.0
+                        StackPanel.children
+                            [ StackPanel.create
+                                  [ StackPanel.orientation Orientation.Horizontal
+                                    StackPanel.spacing 8.0
+                                    StackPanel.children
+                                        [ Border.create
+                                              [ Border.background Theme.AccentLight
+                                                Border.cornerRadius Theme.RadiusSm
+                                                Border.padding 7.0
+                                                Border.child (Icons.iconMd iconKind Theme.Accent) ]
+                                          TextBlock.create
+                                              [ (TextBlock.text eyebrowText)
+                                                (TextBlock.fontSize 10.0)
+                                                (TextBlock.fontWeight FontWeight.Black)
+                                                (TextBlock.foreground Theme.Accent)
+                                                (TextBlock.verticalAlignment VerticalAlignment.Center) ] ] ]
+                              TextBlock.create
+                                  [ TextBlock.text title
+                                    TextBlock.fontSize 24.0
+                                    TextBlock.fontWeight FontWeight.Black
+                                    TextBlock.foreground Theme.TextMain ]
+                              TextBlock.create
+                                  [ TextBlock.text description
+                                    TextBlock.fontSize 12.0
+                                    TextBlock.foreground Theme.TextMuted
+                                    TextBlock.textWrapping TextWrapping.Wrap ] ] ]
+              ) ]
+
+    /// Stat card shown in the Overview header.
+    let private statPill
+        (iconKind: Material.Icons.MaterialIconKind)
+        (label: string)
+        (value: string)
+        (description: string)
+        =
         Border.create
             [ Border.background Theme.BgCard
               Border.borderBrush Theme.Border
               Border.borderThickness 1.0
-              Border.cornerRadius 8.0
-              Border.padding (16.0, 10.0)
-              Border.margin (0.0, 0.0, 12.0, 0.0)
+              Border.cornerRadius Theme.RadiusLg
+              Border.padding (14.0, 12.0)
+              Border.width 190.0
+              Border.margin (0.0, 0.0, 10.0, 0.0)
               Border.child (
-                  StackPanel.create
-                      [ StackPanel.spacing 2.0
-                        StackPanel.children
-                            [ TextBlock.create
-                                  [ TextBlock.text value
-                                    TextBlock.fontSize 22.0
-                                    TextBlock.fontWeight FontWeight.Black
-                                    TextBlock.foreground Theme.Accent ]
-                              TextBlock.create
-                                  [ TextBlock.text (label.ToUpperInvariant())
-                                    TextBlock.fontSize 10.0
-                                    TextBlock.foreground Theme.TextSub ] ] ]
+                  Grid.create
+                      [ Grid.columnDefinitions "Auto, *"
+                        Grid.children
+                            [ Border.create
+                                  [ Grid.column 0
+                                    Border.background Theme.AccentLight
+                                    Border.cornerRadius Theme.RadiusSm
+                                    Border.padding 8.0
+                                    Border.margin (0.0, 0.0, 12.0, 0.0)
+                                    Border.verticalAlignment VerticalAlignment.Center
+                                    Border.child (Icons.iconMd iconKind Theme.Accent) ]
+                              StackPanel.create
+                                  [ Grid.column 1
+                                    StackPanel.spacing 2.0
+                                    StackPanel.children
+                                        [ TextBlock.create
+                                              [ TextBlock.text value
+                                                TextBlock.fontSize 21.0
+                                                TextBlock.fontWeight FontWeight.Black
+                                                TextBlock.foreground Theme.TextMain ]
+                                          TextBlock.create
+                                              [ TextBlock.text (label.ToUpperInvariant())
+                                                TextBlock.fontSize 9.0
+                                                TextBlock.fontWeight FontWeight.Bold
+                                                TextBlock.foreground Theme.TextSub ]
+                                          TextBlock.create
+                                              [ TextBlock.text description
+                                                TextBlock.fontSize 10.0
+                                                TextBlock.foreground Theme.TextDim
+                                                TextBlock.textWrapping TextWrapping.Wrap ] ] ] ] ]
+              ) ]
+
+    let private newCountryCode (countries: Map<string, CountryDataDto>) =
+        let candidates =
+            [ "NEW" ]
+            @ [ for first in 'A' .. 'Z' do
+                    for second in 'A' .. 'Z' do
+                        yield $"N{first}{second}" ]
+            @ [ "ZZZ" ]
+
+        candidates
+        |> List.tryFind (fun code -> not (countries |> Map.containsKey code))
+        |> Option.defaultValue "ZZZ"
+
+    let private editorStatus (state: ModEditorState) =
+        if state.IsDirty then
+            "UNSAVED CHANGES", Theme.Warning
+        else
+            match state.ExportStatus with
+            | Exported -> "EXPORTED", Theme.Success
+            | ExportFailed _ -> "EXPORT FAILED", Theme.Danger
+            | NotExported -> "NOT EXPORTED", Theme.TextMuted
+
+    let private statusChip (label: string) (color: string) =
+        Border.create
+            [ Border.background (Theme.withAlpha "18" color)
+              Border.borderBrush (Theme.withAlpha "55" color)
+              Border.borderThickness 1.0
+              Border.cornerRadius Theme.RadiusPill
+              Border.padding (9.0, 4.0)
+              Border.child (
+                  TextBlock.create
+                      [ TextBlock.text label
+                        TextBlock.fontSize 9.0
+                        TextBlock.fontWeight FontWeight.Black
+                        TextBlock.foreground color ]
               ) ]
 
     // ─── Tab bar ──────────────────────────────────────────────────────────────
 
-    let private topTab activeTab tab label dispatch =
+    let private topTab activeTab tab iconKind label dispatch =
         let isActive = activeTab = tab
 
         Button.create
@@ -91,10 +198,79 @@ module ModEditor =
               Button.borderThickness (0.0, 0.0, 0.0, 2.0)
               Button.padding (16.0, 10.0)
               Button.content (
-                  TextBlock.create
-                      [ TextBlock.text label
-                        TextBlock.fontSize 13.0
-                        TextBlock.fontWeight (if isActive then FontWeight.SemiBold else FontWeight.Normal) ]
+                  StackPanel.create
+                      [ StackPanel.orientation Orientation.Horizontal
+                        StackPanel.spacing 7.0
+                        StackPanel.children
+                            [ Icons.iconSm iconKind (if isActive then Theme.Accent else Theme.TextSub)
+                              TextBlock.create
+                                  [ TextBlock.text label
+                                    TextBlock.fontSize 12.0
+                                    TextBlock.fontWeight (if isActive then FontWeight.SemiBold else FontWeight.Normal) ] ] ]
+              ) ]
+
+    let private editorHeader (state: ModEditorState) dispatch =
+        let statusText, statusColor = editorStatus state
+
+        let modName =
+            if String.IsNullOrWhiteSpace state.Manifest.Name then
+                "Untitled mod"
+            else
+                state.Manifest.Name
+
+        Border.create
+            [ DockPanel.dock Dock.Top
+              Border.background Theme.BgSidebar
+              Border.borderBrush Theme.Border
+              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+              Border.padding (20.0, 14.0)
+              Border.child (
+                  DockPanel.create
+                      [ DockPanel.lastChildFill false
+                        DockPanel.children
+                            [ StackPanel.create
+                                  [ DockPanel.dock Dock.Left
+                                    StackPanel.orientation Orientation.Horizontal
+                                    StackPanel.spacing 12.0
+                                    StackPanel.children
+                                        [ Border.create
+                                              [ Border.background Theme.AccentLight
+                                                Border.borderBrush (Theme.withAlpha "55" Theme.Accent)
+                                                Border.borderThickness 1.0
+                                                Border.cornerRadius Theme.RadiusMd
+                                                Border.padding 9.0
+                                                Border.child (Icons.iconLg IconName.fileDocumentEdit Theme.Accent) ]
+                                          StackPanel.create
+                                              [ StackPanel.spacing 2.0
+                                                StackPanel.verticalAlignment VerticalAlignment.Center
+                                                StackPanel.children
+                                                    [ TextBlock.create
+                                                          [ TextBlock.text "MOD WORKSHOP"
+                                                            TextBlock.fontSize 10.0
+                                                            TextBlock.fontWeight FontWeight.Black
+                                                            TextBlock.foreground Theme.Accent ]
+                                                      TextBlock.create
+                                                          [ TextBlock.text modName
+                                                            TextBlock.fontSize 18.0
+                                                            TextBlock.fontWeight FontWeight.Bold
+                                                            TextBlock.foreground Theme.TextMain ]
+                                                      TextBlock.create
+                                                          [ TextBlock.text
+                                                                $"{state.Manifest.Id}  ·  v{state.Manifest.Version}"
+                                                            TextBlock.fontSize 10.0
+                                                            TextBlock.foreground Theme.TextDim ] ] ] ] ]
+                              StackPanel.create
+                                  [ DockPanel.dock Dock.Right
+                                    StackPanel.orientation Orientation.Horizontal
+                                    StackPanel.spacing 8.0
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
+                                    StackPanel.children
+                                        [ UI.ghostButton "Back to menu" (Some IconName.back) (fun _ -> dispatch GoBack)
+                                          statusChip statusText statusColor
+                                          UI.ghostButton "Validate" (Some IconName.success) (fun _ ->
+                                              dispatch (ModEditorMsg Validate))
+                                          UI.primaryButton "Export" (Some IconName.save) (fun _ ->
+                                              dispatch (ModEditorMsg ModEditorMsg.Export)) ] ] ] ]
               ) ]
 
     // ─── Overview tab ─────────────────────────────────────────────────────────
@@ -108,24 +284,47 @@ module ModEditor =
             |> Map.toSeq
             |> Seq.sumBy (fun (_, c) -> c.LeagueNames |> List.length)
 
+        let splitLines (text: string) =
+            text.Split([| '\n'; '\r'; ',' |], StringSplitOptions.RemoveEmptyEntries)
+            |> Array.map (fun value -> value.Trim())
+            |> Array.filter (fun value -> value <> "")
+            |> Array.distinct
+            |> Array.toList
+
         StackPanel.create
-            [ StackPanel.spacing 24.0
+            [ StackPanel.spacing 18.0
               StackPanel.children
-                  [
+                  [ pageIntro
+                        IconName.fileDocumentEdit
+                        "MOD PROFILE"
+                        "Shape the world you want to play"
+                        "Define the package identity first, then move through the content tabs to build countries and competitions."
 
-                    // ── Stats strip ──
-                    StackPanel.create
-                        [ StackPanel.orientation Orientation.Horizontal
-                          StackPanel.children
-                              [ statPill "Countries" (string (state.Countries |> Map.count))
-                                statPill "Leagues" (string totalLeagues)
-                                statPill "Clubs" (string totalClubs) ] ]
+                    ScrollViewer.create
+                        [ ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Auto
+                          ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Disabled
+                          ScrollViewer.content (
+                              StackPanel.create
+                                  [ StackPanel.orientation Orientation.Horizontal
+                                    StackPanel.children
+                                        [ statPill
+                                              IconName.home
+                                              "Countries"
+                                              (string (state.Countries |> Map.count))
+                                              "editable datasets"
+                                          statPill IconName.league "Leagues" (string totalLeagues) "competition rules"
+                                          statPill IconName.squad "Clubs" (string totalClubs) "teams in the world"
+                                          statPill
+                                              IconName.league
+                                              "International"
+                                              (string state.InternationalComps.Length)
+                                              "global competitions" ] ]
+                          ) ]
 
-                    // ── Manifest form ──
                     UI.sectionContainer
-                        "Mod Manifest"
+                        "Manifest identity"
                         (StackPanel.create
-                            [ StackPanel.spacing 16.0
+                            [ StackPanel.spacing 14.0
                               StackPanel.margin (Thickness 16.0)
                               StackPanel.children
                                   [ fieldRow
@@ -147,12 +346,39 @@ module ModEditor =
                                                       )) ]))
                                     fieldRow
                                         (field
+                                            "Package ID"
+                                            (TextBox.create
+                                                [ TextBox.text state.Manifest.Id
+                                                  TextBox.watermark "community.my-mod"
+                                                  TextBox.onTextChanged (fun t ->
+                                                      dispatch (
+                                                          ModEditorMsg(UpdateManifest(fun m -> { m with Id = t }))
+                                                      )) ]))
+                                        (field
                                             "Version"
                                             (TextBox.create
                                                 [ TextBox.text state.Manifest.Version
+                                                  TextBox.watermark "1.0.0"
                                                   TextBox.onTextChanged (fun t ->
                                                       dispatch (
                                                           ModEditorMsg(UpdateManifest(fun m -> { m with Version = t }))
+                                                      )) ]))
+                                    fieldRow
+                                        (field
+                                            "Priority"
+                                            (NumericUpDown.create
+                                                [ NumericUpDown.value (decimal state.Manifest.Priority)
+                                                  NumericUpDown.onValueChanged (fun value ->
+                                                      let priority =
+                                                          value
+                                                          |> Option.ofNullable
+                                                          |> Option.map int
+                                                          |> Option.defaultValue 0
+
+                                                      dispatch (
+                                                          ModEditorMsg(
+                                                              UpdateManifest(fun m -> { m with Priority = priority })
+                                                          )
                                                       )) ]))
                                         (field
                                             "Merge Strategy"
@@ -171,6 +397,21 @@ module ModEditor =
                                                               )
                                                           )
                                                       | _ -> ()) ]))
+                                    field
+                                        "Dependencies (one per line)"
+                                        (TextBox.create
+                                            [ TextBox.text (String.concat "\n" state.Manifest.Dependencies)
+                                              TextBox.acceptsReturn true
+                                              TextBox.height 62.0
+                                              TextBox.watermark "Optional package IDs"
+                                              TextBox.onTextChanged (fun text ->
+                                                  dispatch (
+                                                      ModEditorMsg(
+                                                          UpdateManifest(fun m ->
+                                                              { m with
+                                                                  Dependencies = splitLines text })
+                                                      )
+                                                  )) ])
                                     field
                                         "Description"
                                         (TextBox.create
@@ -194,81 +435,128 @@ module ModEditor =
                 || c.Country.Name.ToLower().Contains(state.SearchQuery.ToLower())
                 || c.Country.Code.ToLower().Contains(state.SearchQuery.ToLower()))
 
+        let listView: IView =
+            if filtered.IsEmpty then
+                UI.emptyState IconName.search "No countries found" "Try another search or add a new country."
+            else
+                ListBox.create
+                    [ ListBox.background "Transparent"
+                      ListBox.dataItems filtered
+                      ListBox.selectedItem (
+                          state.SelectedCountryCode
+                          |> Option.bind (fun code -> state.Countries |> Map.tryFind code)
+                      )
+                      ListBox.onSelectedItemChanged (fun item ->
+                          match item with
+                          | :? CountryDataDto as c -> dispatch (ModEditorMsg(SelectCountry(Some c.Country.Code)))
+                          | _ -> ())
+                      ListBox.itemTemplate (
+                          DataTemplateView<CountryDataDto>.create (fun c ->
+                              Border.create
+                                  [ Border.background Theme.BgSubtle
+                                    Border.cornerRadius Theme.RadiusSm
+                                    Border.padding (8.0, 7.0)
+                                    Border.margin (2.0, 2.0)
+                                    Border.child (
+                                        DockPanel.create
+                                            [ DockPanel.lastChildFill true
+                                              DockPanel.children
+                                                  [ StackPanel.create
+                                                        [ DockPanel.dock Dock.Right
+                                                          StackPanel.spacing 1.0
+                                                          StackPanel.children
+                                                              [ TextBlock.create
+                                                                    [ TextBlock.text $"{c.Clubs.Length} clubs"
+                                                                      TextBlock.fontSize 9.0
+                                                                      TextBlock.foreground Theme.TextDim
+                                                                      TextBlock.horizontalAlignment
+                                                                          HorizontalAlignment.Right ]
+                                                                TextBlock.create
+                                                                    [ TextBlock.text $"{c.LeagueNames.Length} leagues"
+                                                                      TextBlock.fontSize 9.0
+                                                                      TextBlock.foreground Theme.TextDim
+                                                                      TextBlock.horizontalAlignment
+                                                                          HorizontalAlignment.Right ] ] ]
+                                                    StackPanel.create
+                                                        [ StackPanel.orientation Orientation.Horizontal
+                                                          StackPanel.spacing 9.0
+                                                          StackPanel.verticalAlignment VerticalAlignment.Center
+                                                          StackPanel.children
+                                                              [ Border.create
+                                                                    [ Border.background Theme.AccentLight
+                                                                      Border.cornerRadius Theme.RadiusXs
+                                                                      Border.padding (5.0, 2.0)
+                                                                      Border.child (
+                                                                          TextBlock.create
+                                                                              [ TextBlock.text c.Country.Code
+                                                                                TextBlock.fontSize 10.0
+                                                                                TextBlock.fontWeight FontWeight.Bold
+                                                                                TextBlock.foreground Theme.Accent ]
+                                                                      ) ]
+                                                                TextBlock.create
+                                                                    [ TextBlock.text c.Country.Name
+                                                                      TextBlock.fontSize 13.0
+                                                                      TextBlock.foreground Theme.TextMain
+                                                                      TextBlock.verticalAlignment
+                                                                          VerticalAlignment.Center ] ] ] ] ]
+                                    ) ])
+                      ) ]
+                :> IView
+
+        let countText =
+            if filtered.Length = state.Countries.Count then
+                $"%d{state.Countries.Count} countries"
+            else
+                $"%d{filtered.Length} of %d{state.Countries.Count} countries"
+
+        let searchPanel =
+            StackPanel.create
+                [ DockPanel.dock Dock.Top
+                  StackPanel.margin (16.0, 16.0, 16.0, 10.0)
+                  StackPanel.spacing 9.0
+                  StackPanel.children
+                      [ StackPanel.create
+                            [ StackPanel.spacing 2.0
+                              StackPanel.children
+                                  [ TextBlock.create
+                                        [ TextBlock.text "COUNTRY CATALOG"
+                                          TextBlock.fontSize 10.0
+                                          TextBlock.fontWeight FontWeight.Black
+                                          TextBlock.foreground Theme.Accent ]
+                                    TextBlock.create
+                                        [ TextBlock.text "Build the playable world"
+                                          TextBlock.fontSize 12.0
+                                          TextBlock.foreground Theme.TextSub ] ] ]
+                        TextBox.create
+                            [ TextBox.watermark "Search countries..."
+                              TextBox.text state.SearchQuery
+                              TextBox.onTextChanged (fun text -> dispatch (ModEditorMsg(SearchMod text))) ]
+                        UI.primaryButton "Add country" (Some IconName.add) (fun _ ->
+                            let code = newCountryCode state.Countries
+                            let country = UpdateModEditor.createEmptyCountry code "New country"
+                            dispatch (ModEditorMsg(AddCountry country))) ] ]
+
+        let countPanel =
+            Border.create
+                [ DockPanel.dock Dock.Top
+                  Border.padding (16.0, 4.0, 16.0, 8.0)
+                  Border.child (
+                      TextBlock.create
+                          [ TextBlock.text countText
+                            TextBlock.fontSize 10.0
+                            TextBlock.foreground Theme.TextMuted ]
+                  ) ]
+
         Border.create
-            [ Border.width 220.0
+            [ Border.width 260.0
+              Border.background Theme.BgSidebar
               Border.borderBrush Theme.Border
               Border.borderThickness (0.0, 0.0, 1.0, 0.0)
-              Border.child (
-                  DockPanel.create
-                      [ DockPanel.children
-                            [
-
-                              // ── Search + Add ──
-                              StackPanel.create
-                                  [ DockPanel.dock Dock.Top
-                                    StackPanel.margin (12.0, 12.0, 12.0, 8.0)
-                                    StackPanel.spacing 8.0
-                                    StackPanel.children
-                                        [ TextBox.create
-                                              [ TextBox.watermark "Search countries…"
-                                                TextBox.text state.SearchQuery
-                                                TextBox.onTextChanged (fun t -> dispatch (ModEditorMsg(SearchMod t))) ]
-                                          UI.primaryButton "Add Country" (Some IconName.add) (fun _ ->
-                                              let newCountry = UpdateModEditor.createEmptyCountry "NEW" "New Country"
-                                              dispatch (ModEditorMsg(AddCountry newCountry))) ] ]
-
-                              // ── Count label ──
-                              Border.create
-                                  [ DockPanel.dock Dock.Top
-                                    Border.padding (12.0, 4.0, 12.0, 8.0)
-                                    Border.child (
-                                        TextBlock.create
-                                            [ TextBlock.text $"%d{filtered.Length} countries"
-                                              TextBlock.fontSize 10.0
-                                              TextBlock.foreground Theme.TextSub ]
-                                    ) ]
-
-                              // ── List ──
-                              ListBox.create
-                                  [ ListBox.background "Transparent"
-                                    ListBox.dataItems filtered
-                                    ListBox.selectedItem (
-                                        state.SelectedCountryCode
-                                        |> Option.bind (fun code -> state.Countries |> Map.tryFind code)
-                                    )
-                                    ListBox.onSelectedItemChanged (fun item ->
-                                        match item with
-                                        | :? CountryDataDto as c ->
-                                            dispatch (ModEditorMsg(SelectCountry(Some c.Country.Code)))
-                                        | _ -> ())
-                                    ListBox.itemTemplate (
-                                        DataTemplateView<CountryDataDto>.create (fun c ->
-                                            StackPanel.create
-                                                [ StackPanel.orientation Orientation.Horizontal
-                                                  StackPanel.spacing 10.0
-                                                  StackPanel.margin (4.0, 2.0)
-                                                  StackPanel.children
-                                                      [ Border.create
-                                                            [ Border.background Theme.AccentLight
-                                                              Border.cornerRadius 4.0
-                                                              Border.padding (5.0, 2.0)
-                                                              Border.child (
-                                                                  TextBlock.create
-                                                                      [ TextBlock.text c.Country.Code
-                                                                        TextBlock.fontSize 10.0
-                                                                        TextBlock.fontWeight FontWeight.Bold
-                                                                        TextBlock.foreground Theme.Accent ]
-                                                              ) ]
-                                                        TextBlock.create
-                                                            [ TextBlock.text c.Country.Name
-                                                              TextBlock.fontSize 13.0
-                                                              TextBlock.verticalAlignment VerticalAlignment.Center ] ] ])
-                                    ) ] ] ]
-              ) ]
+              Border.child (DockPanel.create [ DockPanel.children [ searchPanel; countPanel; listView ] ]) ]
 
     // ─── Country detail sub-tabs ──────────────────────────────────────────────
 
-    let private generalSubTab (state: ModEditorState) (country: CountryDataDto) dispatch =
+    let private generalSubTab (_state: ModEditorState) (country: CountryDataDto) dispatch =
         UI.sectionContainer
             "Country Metadata"
             (StackPanel.create
@@ -334,7 +622,7 @@ module ModEditor =
                                       dispatch (ModEditorMsg(RemoveCountry country.Country.Code)))
                               ) ] ] ])
 
-    let private leaguesSubTab (state: ModEditorState) (country: CountryDataDto) dispatch =
+    let private leaguesSubTab (_state: ModEditorState) (country: CountryDataDto) dispatch =
         let updateCountry f =
             dispatch (ModEditorMsg(UpdateCountry(country.Country.Code, f)))
 
@@ -453,7 +741,7 @@ module ModEditor =
                                                   c.LeagueRules @ [ UpdateModEditor.createEmptyLeague "New League" ] }))
                               ) ] ] ])
 
-    let private clubsSubTab (state: ModEditorState) (country: CountryDataDto) dispatch =
+    let private clubsSubTab (_state: ModEditorState) (country: CountryDataDto) dispatch =
         let updateCountry f =
             dispatch (ModEditorMsg(UpdateCountry(country.Country.Code, f)))
 
@@ -585,7 +873,7 @@ module ModEditor =
                                               Clubs = c.Clubs @ [ UpdateModEditor.createEmptyClub "New Club" 0 ] }))
                               ) ] ] ])
 
-    let private cupsSubTab (state: ModEditorState) (country: CountryDataDto) dispatch =
+    let private cupsSubTab (_state: ModEditorState) (country: CountryDataDto) dispatch =
         let updateCup i f =
             dispatch (ModEditorMsg(UpdateCup(country.Country.Code, i, f)))
 
@@ -756,49 +1044,82 @@ module ModEditor =
     // ─── Country detail ───────────────────────────────────────────────────────
 
     let private countryDetail (state: ModEditorState) (country: CountryDataDto) dispatch =
+        let entitySummary =
+            $"{country.Clubs.Length} clubs  |  {country.LeagueNames.Length} leagues  |  {country.Cups.Length} cups  |  {country.Names.FirstNames.Length + country.Names.LastNames.Length} names"
+
         StackPanel.create
-            [ StackPanel.spacing 20.0
+            [ StackPanel.spacing 16.0
               StackPanel.children
                   [
 
                     // ── Country heading ──
-                    StackPanel.create
-                        [ StackPanel.orientation Orientation.Horizontal
-                          StackPanel.spacing 12.0
-                          StackPanel.children
-                              [ Border.create
-                                    [ Border.background Theme.AccentLight
-                                      Border.cornerRadius 6.0
-                                      Border.padding (8.0, 4.0)
-                                      Border.child (
+                    Border.create
+                        [ Border.background Theme.BgCard
+                          Border.borderBrush Theme.Border
+                          Border.borderThickness 1.0
+                          Border.cornerRadius Theme.RadiusLg
+                          Border.padding (16.0, 14.0)
+                          Border.child (
+                              DockPanel.create
+                                  [ DockPanel.lastChildFill false
+                                    DockPanel.children
+                                        [ StackPanel.create
+                                              [ DockPanel.dock Dock.Left
+                                                StackPanel.orientation Orientation.Horizontal
+                                                StackPanel.spacing 12.0
+                                                StackPanel.children
+                                                    [ Border.create
+                                                          [ Border.background Theme.AccentLight
+                                                            Border.cornerRadius Theme.RadiusMd
+                                                            Border.padding (9.0, 6.0)
+                                                            Border.child (
+                                                                TextBlock.create
+                                                                    [ TextBlock.text country.Country.Code
+                                                                      TextBlock.fontWeight FontWeight.Black
+                                                                      TextBlock.fontSize 16.0
+                                                                      TextBlock.foreground Theme.Accent ]
+                                                            ) ]
+                                                      StackPanel.create
+                                                          [ StackPanel.spacing 2.0
+                                                            StackPanel.verticalAlignment VerticalAlignment.Center
+                                                            StackPanel.children
+                                                                [ TextBlock.create
+                                                                      [ TextBlock.text country.Country.Name
+                                                                        TextBlock.fontSize 20.0
+                                                                        TextBlock.fontWeight FontWeight.Bold
+                                                                        TextBlock.foreground Theme.TextMain ]
+                                                                  TextBlock.create
+                                                                      [ TextBlock.text "COUNTRY DATA"
+                                                                        TextBlock.fontSize 9.0
+                                                                        TextBlock.fontWeight FontWeight.Black
+                                                                        TextBlock.foreground Theme.TextDim ] ] ] ] ]
                                           TextBlock.create
-                                              [ TextBlock.text country.Country.Code
-                                                TextBlock.fontWeight FontWeight.Black
-                                                TextBlock.fontSize 16.0
-                                                TextBlock.foreground Theme.Accent ]
-                                      ) ]
-                                TextBlock.create
-                                    [ TextBlock.text country.Country.Name
-                                      TextBlock.fontSize 20.0
-                                      TextBlock.fontWeight FontWeight.Bold
-                                      TextBlock.foreground Theme.TextMain
-                                      TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                                              [ DockPanel.dock Dock.Right
+                                                TextBlock.text entitySummary
+                                                TextBlock.fontSize 10.0
+                                                TextBlock.foreground Theme.TextMuted
+                                                TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                          ) ]
 
                     // ── Sub-tab bar ──
-                    StackPanel.create
-                        [ StackPanel.orientation Orientation.Horizontal
-                          StackPanel.spacing 4.0
-                          StackPanel.children
-                              [ UI.tabButton "General" (state.ActiveSubTab = General) (fun _ ->
-                                    dispatch (ModEditorMsg(SetSubTab General)))
-                                UI.tabButton "Leagues" (state.ActiveSubTab = Leagues) (fun _ ->
-                                    dispatch (ModEditorMsg(SetSubTab Leagues)))
-                                UI.tabButton "Clubs" (state.ActiveSubTab = Clubs) (fun _ ->
-                                    dispatch (ModEditorMsg(SetSubTab Clubs)))
-                                UI.tabButton "Cups" (state.ActiveSubTab = Cups) (fun _ ->
-                                    dispatch (ModEditorMsg(SetSubTab Cups)))
-                                UI.tabButton "Names" (state.ActiveSubTab = NamePool) (fun _ ->
-                                    dispatch (ModEditorMsg(SetSubTab NamePool))) ] ]
+                    ScrollViewer.create
+                        [ ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Auto
+                          ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Disabled
+                          ScrollViewer.content (
+                              StackPanel.create
+                                  [ StackPanel.orientation Orientation.Horizontal
+                                    StackPanel.children
+                                        [ UI.tabButton "General" (state.ActiveSubTab = General) (fun _ ->
+                                              dispatch (ModEditorMsg(SetSubTab General)))
+                                          UI.tabButton "Leagues" (state.ActiveSubTab = Leagues) (fun _ ->
+                                              dispatch (ModEditorMsg(SetSubTab Leagues)))
+                                          UI.tabButton "Clubs" (state.ActiveSubTab = Clubs) (fun _ ->
+                                              dispatch (ModEditorMsg(SetSubTab Clubs)))
+                                          UI.tabButton "Cups" (state.ActiveSubTab = Cups) (fun _ ->
+                                              dispatch (ModEditorMsg(SetSubTab Cups)))
+                                          UI.tabButton "Names" (state.ActiveSubTab = NamePool) (fun _ ->
+                                              dispatch (ModEditorMsg(SetSubTab NamePool))) ] ]
+                          ) ]
 
                     // ── Sub-tab content ──
                     match state.ActiveSubTab with
@@ -811,8 +1132,23 @@ module ModEditor =
     // ─── Countries tab ────────────────────────────────────────────────────────
 
     let private countriesTab (state: ModEditorState) dispatch =
+        let emptyCountry =
+            StackPanel.create
+                [ StackPanel.horizontalAlignment HorizontalAlignment.Center
+                  StackPanel.verticalAlignment VerticalAlignment.Center
+                  StackPanel.spacing 14.0
+                  StackPanel.children
+                      [ UI.emptyState
+                            IconName.home
+                            "Start with a country"
+                            "Countries contain leagues, clubs, cups and name pools."
+                        UI.primaryButton "Add country" (Some IconName.add) (fun _ ->
+                            let code = newCountryCode state.Countries
+                            let country = UpdateModEditor.createEmptyCountry code "New country"
+                            dispatch (ModEditorMsg(AddCountry country))) ] ]
+
         Grid.create
-            [ Grid.columnDefinitions "Auto, *"
+            [ Grid.columnDefinitions "260, *"
               Grid.children
                   [ Border.create [ Grid.column 0; Border.child (countrySidebar state dispatch) ]
 
@@ -825,193 +1161,365 @@ module ModEditor =
                             [ Grid.column 1
                               ScrollViewer.padding (24.0, 20.0)
                               ScrollViewer.content (countryDetail state country dispatch) ]
-                    | None ->
-                        Border.create
-                            [ Grid.column 1
-                              Border.child (
-                                  TextBlock.create
-                                      [ TextBlock.text "Select a country to edit or create a new one."
-                                        TextBlock.horizontalAlignment HorizontalAlignment.Center
-                                        TextBlock.verticalAlignment VerticalAlignment.Center
-                                        TextBlock.foreground Theme.TextSub ]
-                              ) ] ] ]
+                    | None -> Border.create [ Grid.column 1; Border.child emptyCountry ] ] ]
 
     let private internationalTab (state: ModEditorState) dispatch =
         let updateIntComp i f =
             dispatch (ModEditorMsg(UpdateInternationalComp(i, f)))
 
-        UI.sectionContainer
-            "International Competitions"
-            (StackPanel.create
-                [ StackPanel.spacing 0.0
-                  StackPanel.children
-                      [ // Column headers
-                        Border.create
-                            [ Border.background Theme.BgMain
-                              Border.padding (12.0, 8.0)
-                              Border.borderBrush Theme.Border
-                              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
-                              Border.child (
-                                  Grid.create
-                                      [ Grid.columnDefinitions "*, 120, 100, 72"
-                                        Grid.children
-                                            [ TextBlock.create
-                                                  [ Grid.column 0
-                                                    TextBlock.text "COMPETITION NAME"
-                                                    TextBlock.fontSize 10.0
-                                                    TextBlock.fontWeight FontWeight.SemiBold
-                                                    TextBlock.foreground Theme.TextSub ]
-                                              TextBlock.create
-                                                  [ Grid.column 1
-                                                    TextBlock.text "CONFEDERATION"
-                                                    TextBlock.fontSize 10.0
-                                                    TextBlock.fontWeight FontWeight.SemiBold
-                                                    TextBlock.foreground Theme.TextSub ]
-                                              TextBlock.create
-                                                  [ Grid.column 2
-                                                    TextBlock.text "FORMAT"
-                                                    TextBlock.fontSize 10.0
-                                                    TextBlock.fontWeight FontWeight.SemiBold
-                                                    TextBlock.foreground Theme.TextSub ] ] ]
-                              ) ]
+        StackPanel.create
+            [ StackPanel.spacing 18.0
+              StackPanel.children
+                  [ pageIntro
+                        IconName.league
+                        "COMPETITION BUILDER"
+                        "Shape the international calendar"
+                        "Keep global competitions readable and deterministic with explicit confederations and formats."
+                    UI.sectionContainer
+                        $"International competitions  ·  %d{state.InternationalComps.Length}"
+                        (StackPanel.create
+                            [ StackPanel.spacing 0.0
+                              StackPanel.children
+                                  [ if state.InternationalComps.IsEmpty then
+                                        UI.emptyState
+                                            IconName.league
+                                            "No international competitions"
+                                            "Add one to make the global calendar come alive."
+                                    else
+                                        Border.create
+                                            [ Border.background Theme.BgMain
+                                              Border.padding (12.0, 8.0)
+                                              Border.borderBrush Theme.Border
+                                              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                                              Border.child (
+                                                  Grid.create
+                                                      [ Grid.columnDefinitions "*, 120, 100, 72"
+                                                        Grid.children
+                                                            [ TextBlock.create
+                                                                  [ Grid.column 0
+                                                                    TextBlock.text "COMPETITION NAME"
+                                                                    TextBlock.fontSize 10.0
+                                                                    TextBlock.fontWeight FontWeight.SemiBold
+                                                                    TextBlock.foreground Theme.TextSub ]
+                                                              TextBlock.create
+                                                                  [ Grid.column 1
+                                                                    TextBlock.text "CONFEDERATION"
+                                                                    TextBlock.fontSize 10.0
+                                                                    TextBlock.fontWeight FontWeight.SemiBold
+                                                                    TextBlock.foreground Theme.TextSub ]
+                                                              TextBlock.create
+                                                                  [ Grid.column 2
+                                                                    TextBlock.text "FORMAT"
+                                                                    TextBlock.fontSize 10.0
+                                                                    TextBlock.fontWeight FontWeight.SemiBold
+                                                                    TextBlock.foreground Theme.TextSub ] ] ]
+                                              ) ]
 
-                        for i in 0 .. state.InternationalComps.Length - 1 do
-                            let comp = state.InternationalComps.[i]
+                                    for i in 0 .. state.InternationalComps.Length - 1 do
+                                        let comp = state.InternationalComps.[i]
 
-                            Border.create
-                                [ Border.borderBrush Theme.Border
-                                  Border.borderThickness (0.0, 0.0, 0.0, 1.0)
-                                  Border.padding (12.0, 6.0)
-                                  Border.child (
-                                      Grid.create
-                                          [ Grid.columnDefinitions "*, 120, 100, 72"
-                                            Grid.children
-                                                [ TextBox.create
-                                                      [ Grid.column 0
-                                                        TextBox.text comp.Name
-                                                        TextBox.margin (0.0, 0.0, 8.0, 0.0)
-                                                        TextBox.onTextChanged (fun t ->
-                                                            updateIntComp i (fun c -> { c with Name = t })) ]
-                                                  ComboBox.create
-                                                      [ Grid.column 1
-                                                        ComboBox.dataItems
-                                                            [ "UEFA"; "CONMEBOL"; "CONCACAF"; "CAF"; "AFC"; "OFC" ]
-                                                        ComboBox.selectedItem (
-                                                            comp.Confederation |> Option.defaultValue "UEFA"
-                                                        )
-                                                        ComboBox.margin (0.0, 0.0, 8.0, 0.0)
-                                                        ComboBox.onSelectedItemChanged (fun obj ->
-                                                            match obj with
-                                                            | :? string as s ->
-                                                                updateIntComp i (fun c ->
-                                                                    { c with Confederation = Some s })
-                                                            | _ -> ()) ]
-                                                  TextBox.create
-                                                      [ Grid.column 2
-                                                        TextBox.text comp.Format
-                                                        TextBox.margin (0.0, 0.0, 8.0, 0.0)
-                                                        TextBox.onTextChanged (fun t ->
-                                                            updateIntComp i (fun c -> { c with Format = t })) ]
-                                                  Border.create
-                                                      [ Grid.column 3
-                                                        Border.child (
-                                                            dangerButton "✕" (fun _ ->
-                                                                dispatch (ModEditorMsg(RemoveInternationalComp i)))
-                                                        ) ] ] ]
-                                  ) ]
+                                        Border.create
+                                            [ Border.borderBrush Theme.Border
+                                              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                                              Border.padding (12.0, 6.0)
+                                              Border.child (
+                                                  Grid.create
+                                                      [ Grid.columnDefinitions "*, 120, 100, 72"
+                                                        Grid.children
+                                                            [ TextBox.create
+                                                                  [ Grid.column 0
+                                                                    TextBox.text comp.Name
+                                                                    TextBox.margin (0.0, 0.0, 8.0, 0.0)
+                                                                    TextBox.onTextChanged (fun t ->
+                                                                        updateIntComp i (fun c -> { c with Name = t })) ]
+                                                              ComboBox.create
+                                                                  [ Grid.column 1
+                                                                    ComboBox.dataItems
+                                                                        [ "UEFA"
+                                                                          "CONMEBOL"
+                                                                          "CONCACAF"
+                                                                          "CAF"
+                                                                          "AFC"
+                                                                          "OFC" ]
+                                                                    ComboBox.selectedItem (
+                                                                        comp.Confederation |> Option.defaultValue "UEFA"
+                                                                    )
+                                                                    ComboBox.margin (0.0, 0.0, 8.0, 0.0)
+                                                                    ComboBox.onSelectedItemChanged (fun obj ->
+                                                                        match obj with
+                                                                        | :? string as s ->
+                                                                            updateIntComp i (fun c ->
+                                                                                { c with Confederation = Some s })
+                                                                        | _ -> ()) ]
+                                                              TextBox.create
+                                                                  [ Grid.column 2
+                                                                    TextBox.text comp.Format
+                                                                    TextBox.margin (0.0, 0.0, 8.0, 0.0)
+                                                                    TextBox.onTextChanged (fun t ->
+                                                                        updateIntComp i (fun c ->
+                                                                            { c with Format = t })) ]
+                                                              Border.create
+                                                                  [ Grid.column 3
+                                                                    Border.child (
+                                                                        dangerButton "Remove" (fun _ ->
+                                                                            dispatch (
+                                                                                ModEditorMsg(RemoveInternationalComp i)
+                                                                            ))
+                                                                    ) ] ] ]
+                                              ) ]
 
-                        Border.create
-                            [ Border.padding (12.0, 12.0)
-                              Border.child (
-                                  UI.primaryButton "Add Competition" (Some IconName.add) (fun _ ->
-                                      dispatch (
-                                          ModEditorMsg(
-                                              AddInternationalComp
-                                                  { Name = "New Competition"
-                                                    Confederation = Some "UEFA"
-                                                    Format = "G32:SK:SingleLeg:NoExtraTime"
-                                                    Qualification = [] }
-                                          )
-                                      ))
-                              ) ] ] ])
+                                    Border.create
+                                        [ Border.padding (12.0, 12.0)
+                                          Border.child (
+                                              UI.primaryButton "Add competition" (Some IconName.add) (fun _ ->
+                                                  dispatch (
+                                                      ModEditorMsg(
+                                                          AddInternationalComp
+                                                              { Name = "New Competition"
+                                                                Confederation = Some "UEFA"
+                                                                Format = "G32:SK:SingleLeg:NoExtraTime"
+                                                                Qualification = [] }
+                                                      )
+                                                  ))
+                                          ) ] ] ]) ] ]
 
     let private globalNamesTab (state: ModEditorState) dispatch =
-        TextBlock.create
-            [ TextBlock.text
-                  "Global Names editor will allow defining generic first/last names shared across all countries."
-              TextBlock.foreground Theme.TextSub
-              TextBlock.margin (Thickness 16.0) ]
-        :> IView
+        let firstNames =
+            state.Countries
+            |> Map.toSeq
+            |> Seq.sumBy (fun (_, country) -> country.Names.FirstNames.Length)
+
+        let lastNames =
+            state.Countries
+            |> Map.toSeq
+            |> Seq.sumBy (fun (_, country) -> country.Names.LastNames.Length)
+
+        let firstCountry = state.Countries |> Map.tryPick (fun code _ -> Some code)
+
+        StackPanel.create
+            [ StackPanel.spacing 18.0
+              StackPanel.children
+                  [ pageIntro
+                        IconName.fileDocumentEdit
+                        "NAME POOLS"
+                        "Keep generated names believable"
+                        "Names are stored per country so each football culture can have its own first and last name pool."
+                    UI.sectionContainer
+                        "Current name coverage"
+                        (StackPanel.create
+                            [ StackPanel.spacing 14.0
+                              StackPanel.margin (Thickness 16.0)
+                              StackPanel.children
+                                  [ UI.statusBanner
+                                        Theme.Info
+                                        IconName.info
+                                        "There is no separate global pool in the package format yet. Edit each country's pool from Countries > Names."
+                                    StackPanel.create
+                                        [ StackPanel.orientation Orientation.Horizontal
+                                          StackPanel.spacing 10.0
+                                          StackPanel.children
+                                              [ UI.countBadge firstNames
+                                                TextBlock.create
+                                                    [ TextBlock.text "first names"
+                                                      TextBlock.foreground Theme.TextSub
+                                                      TextBlock.verticalAlignment VerticalAlignment.Center ]
+                                                UI.countBadge lastNames
+                                                TextBlock.create
+                                                    [ TextBlock.text "last names"
+                                                      TextBlock.foreground Theme.TextSub
+                                                      TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                                    UI.primaryButton "Open country name pools" (Some IconName.next) (fun _ ->
+                                        dispatch (ModEditorMsg(SetTab Countries))
+                                        dispatch (ModEditorMsg(SelectCountry firstCountry))
+                                        dispatch (ModEditorMsg(SetSubTab NamePool))) ] ]) ] ]
 
     // ─── Validation tab ───────────────────────────────────────────────────────
 
     let private validationTab (state: ModEditorState) dispatch =
+        let diagnosticContext (error: ModDiagnostic) =
+            [ error.RelativePath |> Option.map (fun value -> "File " + value)
+              error.JsonPath |> Option.map (fun value -> "Path " + value)
+              error.EntityId |> Option.map (fun value -> "Entity " + value) ]
+            |> List.choose id
+            |> String.concat " | "
+
         StackPanel.create
-            [ StackPanel.spacing 20.0
+            [ StackPanel.spacing 18.0
               StackPanel.children
-                  [ TextBlock.create
-                        [ TextBlock.text "Validation Report"
-                          TextBlock.fontSize 18.0
-                          TextBlock.fontWeight FontWeight.Bold
-                          TextBlock.foreground Theme.TextMain ]
+                  [ pageIntro
+                        IconName.success
+                        "QUALITY CHECK"
+                        "Validate before you ship"
+                        "The same package boundary used during export runs here, so errors are actionable instead of surprising at load time."
+                    Border.create
+                        [ Border.background Theme.BgCard
+                          Border.borderBrush Theme.Border
+                          Border.borderThickness 1.0
+                          Border.cornerRadius Theme.RadiusLg
+                          Border.padding (16.0, 12.0)
+                          Border.child (
+                              DockPanel.create
+                                  [ DockPanel.lastChildFill false
+                                    DockPanel.children
+                                        [ StackPanel.create
+                                              [ DockPanel.dock Dock.Left
+                                                StackPanel.spacing 2.0
+                                                StackPanel.children
+                                                    [ TextBlock.create
+                                                          [ TextBlock.text "VALIDATION REPORT"
+                                                            TextBlock.fontSize 10.0
+                                                            TextBlock.fontWeight FontWeight.Black
+                                                            TextBlock.foreground Theme.TextDim ]
+                                                      TextBlock.create
+                                                          [ TextBlock.text (
+                                                                if state.Errors.IsEmpty then
+                                                                    "Package is ready to export"
+                                                                else
+                                                                    $"%d{state.Errors.Length} issue(s) need attention"
+                                                            )
+                                                            TextBlock.fontSize 15.0
+                                                            TextBlock.fontWeight FontWeight.Bold
+                                                            TextBlock.foreground Theme.TextMain ] ] ]
+                                          UI.ghostButton "Run validation" (Some IconName.refresh) (fun _ ->
+                                              dispatch (ModEditorMsg Validate)) ] ]
+                          ) ]
 
                     if state.Errors.IsEmpty then
-                        UI.statusBanner Theme.Success IconName.success "No errors found. Your mod is valid!"
+                        UI.statusBanner
+                            Theme.Success
+                            IconName.success
+                            "No errors found. Your mod is valid and can be exported."
                     else
                         for error in state.Errors do
+                            let context = diagnosticContext error
+
                             Border.create
-                                [ Border.background (Theme.Danger + "18")
+                                [ Border.background (Theme.withAlpha "18" Theme.Danger)
                                   Border.borderBrush Theme.Danger
                                   Border.borderThickness 1.0
-                                  Border.padding 15.0
-                                  Border.cornerRadius 8.0
+                                  Border.padding (14.0, 12.0)
+                                  Border.cornerRadius Theme.RadiusMd
                                   Border.margin (0.0, 0.0, 0.0, 4.0)
                                   Border.child (
-                                      StackPanel.create
-                                          [ StackPanel.orientation Orientation.Horizontal
-                                            StackPanel.spacing 10.0
-                                            StackPanel.children
+                                      DockPanel.create
+                                          [ DockPanel.children
                                                 [ Icons.iconSm IconName.error Theme.Danger
-                                                  TextBlock.create
-                                                      [ TextBlock.text $"%A{error}"
-                                                        TextBlock.foreground Theme.TextMain
-                                                        TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                                                  StackPanel.create
+                                                      [ StackPanel.spacing 4.0
+                                                        StackPanel.margin (10.0, 0.0, 0.0, 0.0)
+                                                        StackPanel.children
+                                                            [ TextBlock.create
+                                                                  [ TextBlock.text $"{error.Code}: {error.Message}"
+                                                                    TextBlock.foreground Theme.TextMain
+                                                                    TextBlock.fontWeight FontWeight.SemiBold
+                                                                    TextBlock.textWrapping TextWrapping.Wrap ]
+                                                              if context <> "" then
+                                                                  TextBlock.create
+                                                                      [ TextBlock.text context
+                                                                        TextBlock.foreground Theme.TextMuted
+                                                                        TextBlock.fontSize 10.0 ]
+                                                              if error.SuggestedAction <> "" then
+                                                                  TextBlock.create
+                                                                      [ TextBlock.text (
+                                                                            "Action: " + error.SuggestedAction
+                                                                        )
+                                                                        TextBlock.foreground Theme.Warning
+                                                                        TextBlock.fontSize 11.0
+                                                                        TextBlock.textWrapping TextWrapping.Wrap ] ] ] ] ]
                                   ) ] ] ]
 
     // ─── Export tab ───────────────────────────────────────────────────────────
 
     let private exportTab (state: ModEditorState) dispatch =
+        let outputName = $"{state.Manifest.Id}-{state.Manifest.Version}.femod"
+
+        let exportStatusView: IView =
+            if not state.Errors.IsEmpty then
+                UI.statusBanner
+                    Theme.Warning
+                    IconName.warning
+                    "Resolve validation issues before exporting this package."
+            elif state.IsDirty then
+                UI.statusBanner Theme.Warning IconName.warning "You have changes that are not in the package on disk."
+            else
+                match state.ExportStatus with
+                | Exported ->
+                    UI.statusBanner Theme.Success IconName.success "Package exported successfully and is ready to load."
+                | ExportFailed error -> UI.statusBanner Theme.Danger IconName.error $"Export failed: {error}"
+                | NotExported -> UI.statusBanner Theme.Info IconName.info "This mod has not been exported yet."
+
+        let exportButton =
+            Button.create
+                [ Button.isEnabled state.Errors.IsEmpty
+                  Button.background (
+                      if state.Errors.IsEmpty then
+                          Theme.Accent
+                      else
+                          Theme.BgElevated
+                  )
+                  Button.foreground (
+                      if state.Errors.IsEmpty then
+                          Theme.BgSidebar
+                      else
+                          Theme.TextDim
+                  )
+                  Button.fontWeight FontWeight.Bold
+                  Button.padding (20.0, 10.0)
+                  Button.cornerRadius Theme.RadiusMd
+                  Button.content (
+                      StackPanel.create
+                          [ StackPanel.orientation Orientation.Horizontal
+                            StackPanel.spacing 7.0
+                            StackPanel.children
+                                [ Icons.iconSm
+                                      IconName.save
+                                      (if state.Errors.IsEmpty then
+                                           Theme.BgSidebar
+                                       else
+                                           Theme.TextDim)
+                                  TextBlock.create
+                                      [ TextBlock.text "Export package"
+                                        TextBlock.fontWeight FontWeight.Bold
+                                        TextBlock.foreground (
+                                            if state.Errors.IsEmpty then
+                                                Theme.BgSidebar
+                                            else
+                                                Theme.TextDim
+                                        ) ] ] ]
+                  )
+                  Button.onClick (fun _ -> dispatch (ModEditorMsg ModEditorMsg.Export)) ]
+
         StackPanel.create
-            [ StackPanel.spacing 20.0
+            [ StackPanel.spacing 18.0
               StackPanel.children
-                  [ TextBlock.create
-                        [ TextBlock.text "Export Mod"
-                          TextBlock.fontSize 18.0
-                          TextBlock.fontWeight FontWeight.Bold
-                          TextBlock.foreground Theme.TextMain ]
+                  [ pageIntro
+                        IconName.save
+                        "RELEASE GATE"
+                        "Package the world you built"
+                        "Review the destination and validation state, then create one atomic .femod package for the Mods folder."
 
                     UI.sectionContainer
-                        "Export to Mods Folder"
+                        "Package destination"
                         (StackPanel.create
                             [ StackPanel.spacing 14.0
                               StackPanel.margin (Thickness 16.0)
                               StackPanel.children
                                   [ TextBlock.create
-                                        [ TextBlock.text $"Output path:  Mods/%s{state.Manifest.Name}/"
-                                          TextBlock.foreground Theme.TextSub
-                                          TextBlock.fontSize 13.0 ]
-
-                                    if not state.Errors.IsEmpty then
-                                        UI.statusBanner
-                                            Theme.Warning
-                                            IconName.warning
-                                            "Your mod has validation errors and may not load correctly."
-
-                                    UI.primaryButton "Export Now" (Some IconName.save) (fun _ ->
-                                        dispatch (ModEditorMsg ModEditorMsg.Export))
-
-                                    if not state.IsDirty then
-                                        UI.statusBanner Theme.Success IconName.success "Mod exported successfully!" ] ]) ] ]
+                                        [ TextBlock.text "Mods/"
+                                          TextBlock.foreground Theme.TextDim
+                                          TextBlock.fontSize 10.0 ]
+                                    TextBlock.create
+                                        [ TextBlock.text outputName
+                                          TextBlock.foreground Theme.TextMain
+                                          TextBlock.fontSize 18.0
+                                          TextBlock.fontWeight FontWeight.Bold ]
+                                    TextBlock.create
+                                        [ TextBlock.text
+                                              $"{state.Countries.Count} countries  |  {state.InternationalComps.Length} international competitions"
+                                          TextBlock.foreground Theme.TextMuted
+                                          TextBlock.fontSize 11.0 ]
+                                    exportStatusView
+                                    exportButton ] ]) ] ]
 
     // ─── Root view ────────────────────────────────────────────────────────────
 
@@ -1036,7 +1544,7 @@ module ModEditor =
                 |> List.append [ UI.ghostButton "Reload Mods" (Some IconName.refresh) (fun _ -> dispatch ReloadMods) ]
 
             Border.create
-                [ Border.background (Theme.Warning + "22")
+                [ Border.background (Theme.withAlpha "22" Theme.Warning)
                   Border.borderBrush Theme.Warning
                   Border.borderThickness 1.0
                   Border.padding 12.0
@@ -1068,11 +1576,44 @@ module ModEditor =
             else
                 StackPanel.create [ StackPanel.children [ buildErrorBanner (); contentView ] ]
 
+        let historyButton label iconKind isEnabled onClick =
+            Button.create
+                [ Button.isEnabled isEnabled
+                  Button.background "Transparent"
+                  Button.foreground Theme.TextMuted
+                  Button.borderBrush Theme.Border
+                  Button.borderThickness 1.0
+                  Button.padding (12.0, 7.0)
+                  Button.cornerRadius Theme.RadiusSm
+                  Button.content (
+                      StackPanel.create
+                          [ StackPanel.orientation Orientation.Horizontal
+                            StackPanel.spacing 6.0
+                            StackPanel.children
+                                [ Icons.iconSm iconKind Theme.TextMuted
+                                  TextBlock.create
+                                      [ TextBlock.text label
+                                        TextBlock.fontSize 11.0
+                                        TextBlock.foreground Theme.TextMuted ] ] ]
+                  )
+                  Button.onClick onClick ]
+
+        let historyPanel =
+            StackPanel.create
+                [ DockPanel.dock Dock.Right
+                  StackPanel.orientation Orientation.Horizontal
+                  StackPanel.spacing 4.0
+                  StackPanel.margin (8.0, 0.0)
+                  StackPanel.children
+                      [ historyButton "Undo" Nav.rewind (not modState.Past.IsEmpty) (fun _ ->
+                            dispatch (ModEditorMsg UndoMod))
+                        historyButton "Redo" Nav.fastForward (not modState.Future.IsEmpty) (fun _ ->
+                            dispatch (ModEditorMsg RedoMod)) ] ]
+
         DockPanel.create
             [ DockPanel.children
-                  [
+                  [ editorHeader modState dispatch
 
-                    // ── Top tab bar ──
                     Border.create
                         [ DockPanel.dock Dock.Top
                           Border.background Theme.BgCard
@@ -1080,32 +1621,58 @@ module ModEditor =
                           Border.borderThickness (0.0, 0.0, 0.0, 1.0)
                           Border.child (
                               DockPanel.create
-                                  [ DockPanel.children
+                                  [ DockPanel.lastChildFill true
+                                    DockPanel.children
                                         [
 
-                                          // Undo / Redo flush right
-                                          StackPanel.create
-                                              [ DockPanel.dock Dock.Right
-                                                StackPanel.orientation Orientation.Horizontal
-                                                StackPanel.spacing 4.0
-                                                StackPanel.margin (8.0, 0.0)
-                                                StackPanel.children
-                                                    [ UI.ghostButton "Undo" (Some IconName.refresh) (fun _ ->
-                                                          dispatch (ModEditorMsg UndoMod))
-                                                      UI.ghostButton "Redo" (Some IconName.refresh) (fun _ ->
-                                                          dispatch (ModEditorMsg RedoMod)) ] ]
+                                          historyPanel
 
                                           // Tabs
-                                          StackPanel.create
-                                              [ StackPanel.orientation Orientation.Horizontal
-                                                StackPanel.margin (12.0, 0.0)
-                                                StackPanel.children
-                                                    [ topTab modState.ActiveTab Overview "Overview" dispatch
-                                                      topTab modState.ActiveTab Countries "Countries" dispatch
-                                                      topTab modState.ActiveTab International "International" dispatch
-                                                      topTab modState.ActiveTab GlobalNames "Global Names" dispatch
-                                                      topTab modState.ActiveTab Validation "Validation" dispatch
-                                                      topTab modState.ActiveTab Export "Export" dispatch ] ] ] ]
+                                          ScrollViewer.create
+                                              [ ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Auto
+                                                ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Disabled
+                                                ScrollViewer.content (
+                                                    StackPanel.create
+                                                        [ StackPanel.orientation Orientation.Horizontal
+                                                          StackPanel.margin (12.0, 0.0)
+                                                          StackPanel.children
+                                                              [ topTab
+                                                                    modState.ActiveTab
+                                                                    Overview
+                                                                    IconName.home
+                                                                    "Overview"
+                                                                    dispatch
+                                                                topTab
+                                                                    modState.ActiveTab
+                                                                    Countries
+                                                                    IconName.squad
+                                                                    "Countries"
+                                                                    dispatch
+                                                                topTab
+                                                                    modState.ActiveTab
+                                                                    International
+                                                                    IconName.league
+                                                                    "International"
+                                                                    dispatch
+                                                                topTab
+                                                                    modState.ActiveTab
+                                                                    GlobalNames
+                                                                    IconName.fileDocumentEdit
+                                                                    "Global Names"
+                                                                    dispatch
+                                                                topTab
+                                                                    modState.ActiveTab
+                                                                    Validation
+                                                                    IconName.success
+                                                                    "Validation"
+                                                                    dispatch
+                                                                topTab
+                                                                    modState.ActiveTab
+                                                                    Export
+                                                                    IconName.save
+                                                                    "Export"
+                                                                    dispatch ] ]
+                                                ) ] ] ]
                           ) ]
 
                     // ── Content area ──

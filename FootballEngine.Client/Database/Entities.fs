@@ -4,6 +4,20 @@ open System
 open SQLite
 
 [<CLIMutable>]
+type SaveEnvelopeEntity =
+    { [<PrimaryKey>]
+      SlotId: string
+      SchemaVersion: int
+      CareerId: string
+      Revision: int64
+      ConfirmedDate: DateTime
+      Phase: string
+      EnvelopeJson: string
+      PayloadHash: string
+      BackupJson: string
+      UpdatedAtUtc: DateTime }
+
+[<CLIMutable>]
 type PlayerEntity =
     { [<PrimaryKey>]
       Id: int
@@ -47,6 +61,8 @@ type PlayerEntity =
       OneOnOne: int
       AerialReach: int
       Condition: int
+      Fatigue: int
+      RecentLoad: int
       MatchFitness: int
       Morale: int
       StatusType: string
@@ -58,8 +74,10 @@ type PlayerEntity =
       Value: decimal
       Salary: decimal
       ContractExpiry: int
+      AffiliationType: string
       TrainingFocus: string
       TrainingIntensity: string
+      TrainingPlan: string
       BehavioralProfile: string }
 
 [<CLIMutable>]
@@ -69,7 +87,7 @@ type ClubEntity =
       Name: string
       Nationality: string
       Reputation: int
-      Budget: decimal
+      FinanceJson: string
       Morale: int
       BoardObjective: string
       CoordinationMemory: string
@@ -217,7 +235,22 @@ type GameSaveMeta =
       ClockDay: int
       ClockWeek: int
       ClockMonth: int
-      ActiveModsJson: string }
+      SaveSettingsJson: string
+      TeamEmphasis: string
+      MarketJson: string }
+
+[<CLIMutable>]
+type LoanEntity =
+    { [<PrimaryKey>]
+      PlayerId: int
+      Origin: int
+      Destination: int
+      Starts: DateTime
+      Ends: DateTime
+      WageShareOrigin: decimal
+      WageShareDestination: decimal
+      BuyOption: decimal
+      RecallDate: DateTime }
 
 [<CLIMutable>]
 type InboxMessageEntity =

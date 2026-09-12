@@ -2,7 +2,6 @@ namespace FootballEngine.Pages
 
 open Avalonia.Controls
 open Avalonia.Controls.Primitives
-open Avalonia.Controls.Shapes
 open Avalonia.FuncUI.Types
 open Avalonia.Input
 open Avalonia.FuncUI.DSL
@@ -16,9 +15,6 @@ open FootballEngine.Components
 open FootballEngine.Icons
 
 module Tactics =
-
-    let private GkColor = Theme.Warning
-    let private PlayerColor = Theme.AccentAlt
 
     let private draggedId = ref<PlayerId option> None
 
@@ -36,99 +32,193 @@ module Tactics =
         |> GameState.headCoach gs.UserClubId
         |> Option.bind (fun coach -> coach.Attributes.Coaching.Lineup)
 
-    let benchRow (p: Player) dispatch : IView =
-        let col = Theme.positionColor p.Position
-        let fitCol = PlayerPresenter.fitnessColor p.MatchFitness
+    // ── Helpers ───────────────────────────────────────────────────────
 
-        Border.create
-            [ Border.background "Transparent"
-              Border.borderBrush Theme.Border
-              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
-              Border.padding (14.0, 10.0)
-              Border.onPointerPressed (fun e ->
-                  let pt = e.GetCurrentPoint(e.Source :?> Control)
+    let private sliderLabels = [ "Low"; "Mid"; "High" ]
 
-                  if pt.Properties.IsLeftButtonPressed then
-                      e.Handled <- true
-                      startDrag p.Id dispatch e)
-              Border.child (
-                  Grid.create
-                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.playerListCols)
-                        Grid.children
-                            [ Rectangle.create
-                                  [ Grid.column 0
-                                    Rectangle.width 3.0
-                                    Rectangle.fill col
-                                    Rectangle.radiusX 2.0
-                                    Rectangle.radiusY 2.0
-                                    Rectangle.margin (0.0, 0.0, 12.0, 0.0) ]
-                              UI.positionBadge p.Position
-                              |> fun b ->
-                                  Border.create
-                                      [ Grid.column 1
-                                        Border.margin (0.0, 0.0, 12.0, 0.0)
-                                        Border.verticalAlignment VerticalAlignment.Center
-                                        Border.child b ]
-                              StackPanel.create
-                                  [ Grid.column 2
-                                    StackPanel.verticalAlignment VerticalAlignment.Center
-                                    StackPanel.spacing 2.0
-                                    StackPanel.children
-                                        [ TextBlock.create
-                                              [ TextBlock.text p.Name
-                                                TextBlock.foreground Theme.TextMain
-                                                TextBlock.fontSize 12.0
-                                                TextBlock.fontWeight FontWeight.SemiBold ]
-                                          TextBlock.create
-                                              [ TextBlock.text $"CA {p.CurrentSkill}"
-                                                TextBlock.foreground Theme.TextMuted
-                                                TextBlock.fontSize 10.0 ] ] ]
-                              StackPanel.create
-                                  [ Grid.column 3
-                                    StackPanel.verticalAlignment VerticalAlignment.Center
-                                    StackPanel.horizontalAlignment HorizontalAlignment.Right
-                                    StackPanel.orientation Orientation.Horizontal
-                                    StackPanel.spacing 4.0
-                                    StackPanel.children
-                                        [ Icons.iconSm PlayerIcon.condition fitCol
-                                          TextBlock.create
-                                              [ TextBlock.text $"{p.MatchFitness}%%"
-                                                TextBlock.foreground fitCol
-                                                TextBlock.fontSize 11.0
-                                                TextBlock.fontWeight FontWeight.Bold
-                                                TextBlock.verticalAlignment VerticalAlignment.Center ] ] ] ] ]
-              ) ]
-        |> View.withKey $"bench-{p.Id}-{p.MatchFitness}"
-        :> IView
+    let private sliderValueToIndex (v: int) =
+        if v <= 0 then 0
+        elif v <= 2 then 1
+        else 2
+
+    let private indexToSliderValue (idx: int) =
+        match idx with
+        | 0 -> 0
+        | 1 -> 2
+        | 2 -> 4
+        | _ -> 2
+
+    let private positionJerseyNumber (pos: Position) =
+        match pos with
+        | GK -> 1
+        | DR -> 2
+        | DL -> 3
+        | DC -> 4
+        | WBR -> 5
+        | WBL -> 5
+        | DM -> 6
+        | MC -> 8
+        | MR -> 7
+        | ML -> 11
+        | AMR -> 7
+        | AMC -> 10
+        | AML -> 10
+        | ST -> 9
+
+    let private skillStars (skill: int) =
+        let full = skill / 20
+        let half = if (skill % 20) >= 10 then 1 else 0
+        full, half
+
+    // ── Player node on pitch (FM26-style) ─────────────────────────────
 
     let playerNode (player: Player option) (slot: LineupSlot) (_state: State) (dispatch: AppMsgs.Msg -> unit) =
         let pIdFijo = player |> Option.map _.Id |> Option.defaultValue -1
         let isEmpty = player.IsNone
 
         let nodeCol =
-            match player with
-            | Some p -> Theme.positionColor p.Position
-            | None -> "#ffffff20"
+            player
+            |> Option.map (fun p -> Theme.positionColor p.Position)
+            |> Option.defaultValue "#15ffffff"
 
         let shortName =
-            match player with
-            | None -> ""
-            | Some p ->
+            player
+            |> Option.map (fun p ->
                 let parts = p.Name.Split(' ')
 
                 if parts.Length >= 2 then
                     let last = parts |> Array.last
-                    last.Substring(0, min 7 last.Length).ToUpper()
+                    last.Substring(0, min 8 last.Length).ToUpper()
                 else
-                    p.Name.Substring(0, min 7 p.Name.Length).ToUpper()
+                    p.Name.Substring(0, min 8 p.Name.Length).ToUpper())
+            |> Option.defaultValue ""
+
+        let jerseyNumber =
+            player
+            |> Option.map (fun p -> string (positionJerseyNumber p.Position))
+            |> Option.defaultValue ""
 
         let posLabel =
-            match player with
-            | Some p -> $"%A{p.Position}"
-            | None -> $"{slot.Role}"
+            player
+            |> Option.map (fun p -> $"%A{p.Position}")
+            |> Option.defaultValue $"{slot.Role}"
+
+        let conditionColor =
+            player
+            |> Option.map (fun p ->
+                if p.MatchFitness >= 75 then Theme.Success
+                elif p.MatchFitness >= 50 then Theme.Warning
+                else Theme.Danger)
+            |> Option.defaultValue "#10ffffff"
+
+        let conditionText =
+            player |> Option.map (fun p -> $"{p.MatchFitness}%%") |> Option.defaultValue ""
+
+        let skillText =
+            player |> Option.map (fun p -> string p.CurrentSkill) |> Option.defaultValue ""
+
+        // Jersey shirt
+        let shirt =
+            Border.create
+                [ Border.width 56.0
+                  Border.height 46.0
+                  Border.background (if isEmpty then "#08ffffff" else nodeCol)
+                  Border.borderBrush (
+                      if isEmpty then
+                          "#12ffffff"
+                      else
+                          (Theme.withAlpha "66" nodeCol)
+                  )
+                  Border.borderThickness (if isEmpty then 1.0 else 1.5)
+                  Border.cornerRadius (6.0, 6.0, 2.0, 2.0)
+                  Border.verticalAlignment VerticalAlignment.Bottom
+                  Border.horizontalAlignment HorizontalAlignment.Center
+                  Border.child (
+                      Grid.create
+                          [ Grid.children
+                                [ TextBlock.create
+                                      [ TextBlock.text jerseyNumber
+                                        TextBlock.fontSize 16.0
+                                        TextBlock.fontWeight FontWeight.Black
+                                        TextBlock.foreground (if isEmpty then "#25ffffff" else "#ffffff")
+                                        TextBlock.horizontalAlignment HorizontalAlignment.Center
+                                        TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                  ) ]
+
+        // Name
+        let nameLabel =
+            TextBlock.create
+                [ TextBlock.text shortName
+                  TextBlock.fontSize 9.0
+                  TextBlock.fontWeight FontWeight.Bold
+                  TextBlock.foreground (if isEmpty then "#30ffffff" else Theme.TextMain)
+                  TextBlock.horizontalAlignment HorizontalAlignment.Center ]
+
+        // Position badge
+        let posBadge =
+            Border.create
+                [ Border.background (
+                      if isEmpty then
+                          "#08ffffff"
+                      else
+                          (Theme.withAlpha "33" nodeCol)
+                  )
+                  Border.borderBrush (
+                      if isEmpty then
+                          "#10ffffff"
+                      else
+                          (Theme.withAlpha "55" nodeCol)
+                  )
+                  Border.borderThickness 1.0
+                  Border.cornerRadius 3.0
+                  Border.padding (5.0, 2.0)
+                  Border.horizontalAlignment HorizontalAlignment.Center
+                  Border.child (
+                      TextBlock.create
+                          [ TextBlock.text posLabel
+                            TextBlock.fontSize 8.0
+                            TextBlock.fontWeight FontWeight.Black
+                            TextBlock.foreground (if isEmpty then "#35ffffff" else nodeCol)
+                            TextBlock.horizontalAlignment HorizontalAlignment.Center ]
+                  ) ]
+
+        // Condition + skill row
+        let statsRow: IView =
+            if isEmpty then
+                Border.create [ Border.height 0.0 ] :> _
+            else
+                StackPanel.create
+                    [ StackPanel.orientation Orientation.Horizontal
+                      StackPanel.spacing 4.0
+                      StackPanel.horizontalAlignment HorizontalAlignment.Center
+                      StackPanel.children
+                          [ Border.create
+                                [ Border.width 5.0
+                                  Border.height 5.0
+                                  Border.background conditionColor
+                                  Border.cornerRadius 2.5
+                                  Border.verticalAlignment VerticalAlignment.Center ]
+                            TextBlock.create
+                                [ TextBlock.text conditionText
+                                  TextBlock.fontSize 8.0
+                                  TextBlock.fontWeight FontWeight.Bold
+                                  TextBlock.foreground conditionColor
+                                  TextBlock.verticalAlignment VerticalAlignment.Center ]
+                            TextBlock.create
+                                [ TextBlock.text "·"
+                                  TextBlock.fontSize 8.0
+                                  TextBlock.foreground Theme.TextDim
+                                  TextBlock.verticalAlignment VerticalAlignment.Center ]
+                            TextBlock.create
+                                [ TextBlock.text skillText
+                                  TextBlock.fontSize 8.0
+                                  TextBlock.fontWeight FontWeight.Bold
+                                  TextBlock.foreground Theme.Accent
+                                  TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                :> _
 
         Border.create
-            [ Border.width 88.0
+            [ Border.width 96.0
               Border.background "Transparent"
               Control.allowDrop true
               Control.onDragOver (fun e -> e.DragEffects <- DragDropEffects.Move)
@@ -147,53 +237,13 @@ module Tactics =
                           startDrag player.Value.Id dispatch e)
               Border.child (
                   StackPanel.create
-                      [ StackPanel.spacing 5.0
+                      [ StackPanel.spacing 3.0
                         StackPanel.horizontalAlignment HorizontalAlignment.Center
-                        StackPanel.children
-                            [ Grid.create
-                                  [ Grid.width 56.0
-                                    Grid.height 56.0
-                                    Grid.horizontalAlignment HorizontalAlignment.Center
-                                    Grid.children
-                                        [ Ellipse.create
-                                              [ Shape.width 56.0
-                                                Shape.height 56.0
-                                                Shape.fill (if isEmpty then "#ffffff06" else nodeCol + "22")
-                                                Shape.stroke (if isEmpty then "#ffffff25" else nodeCol)
-                                                Shape.strokeThickness (if isEmpty then 1.0 else 2.5) ]
-                                          if isEmpty then
-                                              TextBlock.create
-                                                  [ TextBlock.text "+"
-                                                    TextBlock.fontSize 20.0
-                                                    TextBlock.fontWeight FontWeight.Thin
-                                                    TextBlock.foreground "#ffffff30"
-                                                    TextBlock.horizontalAlignment HorizontalAlignment.Center
-                                                    TextBlock.verticalAlignment VerticalAlignment.Center ]
-                                          else
-                                              TextBlock.create
-                                                  [ TextBlock.text shortName
-                                                    TextBlock.fontSize (if shortName.Length > 5 then 9.0 else 11.0)
-                                                    TextBlock.fontWeight FontWeight.Black
-                                                    TextBlock.foreground "#ffffff"
-                                                    TextBlock.horizontalAlignment HorizontalAlignment.Center
-                                                    TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
-                              Border.create
-                                  [ Border.background (if isEmpty then "#ffffff08" else nodeCol)
-                                    Border.borderBrush (if isEmpty then "#ffffff18" else nodeCol)
-                                    Border.borderThickness 1.0
-                                    Border.cornerRadius 5.0
-                                    Border.padding (8.0, 3.0)
-                                    Border.horizontalAlignment HorizontalAlignment.Center
-                                    Border.child (
-                                        TextBlock.create
-                                            [ TextBlock.text posLabel
-                                              TextBlock.fontSize 10.0
-                                              TextBlock.fontWeight FontWeight.Black
-                                              TextBlock.foreground (if isEmpty then "#ffffff50" else "#ffffff")
-                                              TextBlock.horizontalAlignment HorizontalAlignment.Center ]
-                                    ) ] ] ]
+                        StackPanel.children [ shirt; nameLabel; posBadge; statsRow ] ]
               ) ]
         |> View.withKey (string pIdFijo)
+
+    // ── Pitch container ───────────────────────────────────────────────
 
     let pitchContainer (state: State) dispatch =
         match state.Mode with
@@ -216,244 +266,756 @@ module Tactics =
             :> IView
         | _ -> Border.create [] :> IView
 
-    let private formationPicker (currentFormation: Formation) dispatch =
-        StackPanel.create
-            [ StackPanel.spacing 0.0
-              StackPanel.children
-                  [ UI.sectionHeader IconName.tactics "FORMATION"
-                    Border.create
-                        [ Border.padding (16.0, 12.0)
-                          Border.child (
-                              ComboBox.create
-                                  [ ComboBox.dataItems FormationLineups.all
-                                    ComboBox.selectedItem currentFormation
-                                    ComboBox.onSelectedItemChanged (fun obj ->
-                                        if obj <> null then
-                                            dispatch (AppMsgs.TacticsMsg(TacticsMsg.SetFormation(obj :?> Formation))))
-                                    ComboBox.horizontalAlignment HorizontalAlignment.Stretch
-                                    ComboBox.fontSize 13.0
-                                    ComboBox.fontWeight FontWeight.Bold ]
-                          ) ] ] ]
+    // ── Section card wrapper ──────────────────────────────────────────
 
-    let private tacticsPicker (currentTactics: TeamTactics) dispatch =
-        let allTactics = [ Balanced; Attacking; Defensive; Pressing; Counter ]
+    let private sectionCard (headerContent: IView) (bodyContent: IView) =
+        Border.create
+            [ Border.background Theme.BgCard
+              Border.borderBrush Theme.Border
+              Border.borderThickness 1.0
+              Border.cornerRadius Theme.RadiusLg
+              Border.clipToBounds true
+              Border.child (
+                  StackPanel.create [ StackPanel.spacing 0.0; StackPanel.children [ headerContent; bodyContent ] ]
+              ) ]
+        :> IView
 
-        StackPanel.create
-            [ StackPanel.spacing 0.0
-              StackPanel.children
-                  [ UI.sectionHeader IconName.tactics "TEAM TACTICS"
-                    Border.create
-                        [ Border.padding (16.0, 12.0)
-                          Border.child (
-                              ComboBox.create
-                                  [ ComboBox.dataItems allTactics
-                                    ComboBox.selectedItem currentTactics
-                                    ComboBox.onSelectedItemChanged (fun obj ->
-                                        if obj <> null then
-                                            dispatch (
-                                                AppMsgs.TacticsMsg(TacticsMsg.SetTeamTactics(obj :?> TeamTactics))
-                                            ))
-                                    ComboBox.horizontalAlignment HorizontalAlignment.Stretch
-                                    ComboBox.fontSize 13.0
-                                    ComboBox.fontWeight FontWeight.Bold ]
-                          ) ] ] ]
+    let private sectionHeader (icon: Material.Icons.MaterialIconKind) (color: string) (label: string) =
+        Border.create
+            [ Border.background Theme.BgElevated
+              Border.padding (14.0, 10.0)
+              Border.borderBrush Theme.Border
+              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.orientation Orientation.Horizontal
+                        StackPanel.spacing 8.0
+                        StackPanel.children
+                            [ Icons.iconSm icon color
+                              TextBlock.create
+                                  [ TextBlock.text label
+                                    TextBlock.fontSize 10.0
+                                    TextBlock.fontWeight FontWeight.Black
+                                    TextBlock.foreground Theme.TextMuted
+                                    TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+              ) ]
+        :> IView
 
-    let private instructionSlider
-        (label: string)
-        (value: int)
-        (minVal: int)
-        (maxVal: int)
-        (leftLabel: string)
-        (rightLabel: string)
-        (onValueChange: int -> unit)
-        =
-        let sliderColor =
-            if value <= 1 then Theme.Danger
-            elif value = 2 then Theme.Warning
-            else Theme.Accent
+    // ── Left panel sections ───────────────────────────────────────────
 
-        StackPanel.create
-            [ StackPanel.spacing 6.0
-              StackPanel.children
-                  [ Grid.create
-                        [ Grid.columnDefinitions "*, Auto"
-                          Grid.children
-                              [ TextBlock.create
-                                    [ Grid.column 0
-                                      TextBlock.text label
-                                      TextBlock.foreground Theme.TextMain
-                                      TextBlock.fontSize 11.0
-                                      TextBlock.fontWeight FontWeight.SemiBold ]
-                                TextBlock.create
-                                    [ Grid.column 1
-                                      TextBlock.text (
-                                          if value < (minVal + maxVal) / 2 then
-                                              leftLabel
-                                          else
-                                              rightLabel
-                                      )
-                                      TextBlock.foreground sliderColor
-                                      TextBlock.fontSize 10.0
-                                      TextBlock.fontWeight FontWeight.Bold ] ] ]
-                    Slider.create
-                        [ Slider.minimum (float minVal)
-                          Slider.maximum (float maxVal)
-                          Slider.value (float value)
-                          Slider.onValueChanged (fun v -> onValueChange (int v))
-                          Slider.horizontalAlignment HorizontalAlignment.Stretch ] ] ]
+    let private formationSection (currentFormation: Formation) dispatch =
+        let header = sectionHeader IconName.tactics Theme.Accent "FORMATION"
 
-    let private tacticalInstructions (currentLineup: Lineup option) dispatch =
+        let body =
+            Border.create
+                [ Border.padding (12.0, 10.0)
+                  Border.child (
+                      ComboBox.create
+                          [ ComboBox.dataItems FormationLineups.all
+                            ComboBox.selectedItem currentFormation
+                            ComboBox.onSelectedItemChanged (fun obj ->
+                                if obj <> null then
+                                    dispatch (AppMsgs.TacticsMsg(TacticsMsg.SetFormation(obj :?> Formation))))
+                            ComboBox.horizontalAlignment HorizontalAlignment.Stretch
+                            ComboBox.fontSize 13.0
+                            ComboBox.fontWeight FontWeight.Bold ]
+                  ) ]
+
+        sectionCard header body
+
+    let private playbookIcon situation =
+        match situation with
+        | TacticalSituation.ProtectLead -> Material.Icons.MaterialIconKind.Shield
+        | TacticalSituation.ChaseGoal -> Material.Icons.MaterialIconKind.ArrowUpBold
+        | TacticalSituation.ContainFastAttack -> Material.Icons.MaterialIconKind.ShieldOutline
+        | TacticalSituation.OpenLowBlock -> Material.Icons.MaterialIconKind.ExpandAll
+
+    let private presetSection (currentInstructions: TacticalInstructions) dispatch =
+        let header = sectionHeader IconName.lightning Theme.Warning "PLAYBOOKS CONTEXTUALES"
+
+        let makePlaybookCard (playbook: TacticalPlaybook) =
+            let target = TacticalPlaybooks.applyToInstructions playbook currentInstructions
+            let changed = target <> currentInstructions
+            let effectsText = String.concat " · " playbook.Effects
+            let commitmentsText = String.concat " · " playbook.Commitments
+
+            Border.create
+                [ Border.padding (8.0, 7.0)
+                  Border.margin (0.0, 0.0, 0.0, 6.0)
+                  Border.background Theme.BgCard
+                  Border.borderBrush Theme.Border
+                  Border.borderThickness 1.0
+                  Border.cornerRadius 6.0
+                  Border.child (
+                      StackPanel.create
+                          [ StackPanel.spacing 4.0
+                            StackPanel.children
+                                [ DockPanel.create
+                                      [ DockPanel.lastChildFill true
+                                        DockPanel.children
+                                            [ Button.create
+                                                  [ DockPanel.dock Dock.Right
+                                                    Button.content (if changed then "Aplicar" else "Activo")
+                                                    Button.isEnabled changed
+                                                    Button.padding (8.0, 4.0)
+                                                    Button.fontSize 10.0
+                                                    Button.onClick (fun _ ->
+                                                        dispatch (
+                                                            AppMsgs.TacticsMsg(
+                                                                TacticsMsg.SetInstruction(fun instructions ->
+                                                                    TacticalPlaybooks.applyToInstructions
+                                                                        playbook
+                                                                        instructions)
+                                                            )
+                                                        )) ]
+                                              StackPanel.create
+                                                  [ StackPanel.orientation Orientation.Horizontal
+                                                    StackPanel.spacing 5.0
+                                                    StackPanel.children
+                                                        [ Icons.iconSm (playbookIcon playbook.Situation) Theme.Warning
+                                                          TextBlock.create
+                                                              [ TextBlock.text playbook.Name
+                                                                TextBlock.fontWeight FontWeight.Bold
+                                                                TextBlock.fontSize 11.0
+                                                                TextBlock.foreground Theme.TextMain ] ] ] ] ]
+                                  TextBlock.create
+                                      [ TextBlock.text playbook.Summary
+                                        TextBlock.fontSize 10.0
+                                        TextBlock.foreground Theme.TextDim
+                                        TextBlock.textWrapping TextWrapping.Wrap ]
+                                  TextBlock.create
+                                      [ TextBlock.text ($"Efectos: {effectsText}")
+                                        TextBlock.fontSize 9.0
+                                        TextBlock.foreground Theme.Success
+                                        TextBlock.textWrapping TextWrapping.Wrap ]
+                                  TextBlock.create
+                                      [ TextBlock.text ($"Compromisos: {commitmentsText}")
+                                        TextBlock.fontSize 9.0
+                                        TextBlock.foreground Theme.Warning
+                                        TextBlock.textWrapping TextWrapping.Wrap ]
+                                  TextBlock.create
+                                      [ TextBlock.text ($"Recomendación basada en: {playbook.RecommendationBasis}")
+                                        TextBlock.fontSize 9.0
+                                        TextBlock.foreground Theme.TextMuted
+                                        TextBlock.textWrapping TextWrapping.Wrap ] ] ]
+                  ) ]
+            :> IView
+
+        let body =
+            StackPanel.create
+                [ StackPanel.margin (10.0, 8.0)
+                  StackPanel.children (TacticalPlaybooks.all |> List.map makePlaybookCard) ]
+
+        sectionCard header body
+
+    let private instructionSlider (id: string) (currentValue: int) (dispatch: AppMsgs.Msg -> unit) =
+        let idx = sliderValueToIndex currentValue
+        let label = sliderLabels.[idx]
+
+        // ids are camelCase ("DefensiveLine"); the header needs spaces.
+        let title =
+            System.Text.RegularExpressions.Regex.Replace(id, "([a-z])([A-Z])", "$1 $2").ToUpperInvariant()
+
+        let registryInfo = TacticalInstructionRegistry.tryFind id
+
+        let desc =
+            registryInfo
+            |> Option.map (fun (spec, _) -> spec.Description)
+            |> Option.defaultValue ""
+
+        let tradeoff = registryInfo |> Option.map snd
+
+        let cost =
+            tradeoff
+            |> Option.map (fun t -> $"Condición: {t.Condition} · Ventaja: {t.Advantage} · Costo: {t.Cost}")
+            |> Option.defaultValue ""
+
+        let accentColor =
+            if idx = 0 then Theme.AccentAlt
+            elif idx = 1 then Theme.Accent
+            else Theme.Danger
+
+        let makeSliderButton (i: int) (lbl: string) =
+            let isSelected = i = idx
+
+            Button.create
+                [ Button.padding (4.0, 5.0)
+                  Button.cornerRadius 4.0
+                  Button.background (if isSelected then accentColor else "Transparent")
+                  Button.borderThickness 0.0
+                  Button.cursor Avalonia.Input.Cursor.Default
+                  Button.onClick (fun _ ->
+                      let newValue = indexToSliderValue i
+
+                      dispatch (
+                          AppMsgs.TacticsMsg(
+                              TacticsMsg.SetInstruction(fun instr -> TacticalInstructions.set id newValue instr)
+                          )
+                      ))
+                  Button.content (
+                      TextBlock.create
+                          [ TextBlock.text lbl
+                            TextBlock.fontSize 10.0
+                            TextBlock.fontWeight (if isSelected then FontWeight.Bold else FontWeight.Medium)
+                            TextBlock.foreground (if isSelected then "#ffffff" else Theme.TextDim)
+                            TextBlock.horizontalAlignment HorizontalAlignment.Center ]
+                  ) ]
+            :> IView
+
+        Border.create
+            [ Border.background Theme.BgCard
+              Border.borderBrush Theme.Border
+              Border.borderThickness 1.0
+              Border.cornerRadius Theme.RadiusMd
+              Border.padding (12.0, 10.0)
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.spacing 6.0
+                        StackPanel.children
+                            [ DockPanel.create
+                                  [ DockPanel.lastChildFill true
+                                    DockPanel.children
+                                        [ TextBlock.create
+                                              [ TextBlock.text title
+                                                TextBlock.fontSize 10.0
+                                                TextBlock.fontWeight FontWeight.Black
+                                                TextBlock.foreground Theme.TextSub
+                                                TextBlock.verticalAlignment VerticalAlignment.Center ]
+                                          Border.create
+                                              [ DockPanel.dock Dock.Right
+                                                Border.background (Theme.withAlpha "22" accentColor)
+                                                Border.cornerRadius 4.0
+                                                Border.padding (6.0, 2.0)
+                                                Border.child (
+                                                    TextBlock.create
+                                                        [ TextBlock.text label
+                                                          TextBlock.fontSize 9.0
+                                                          TextBlock.fontWeight FontWeight.Bold
+                                                          TextBlock.foreground accentColor ]
+                                                ) ] ] ]
+                              TextBlock.create
+                                  [ TextBlock.text desc
+                                    TextBlock.fontSize 10.0
+                                    TextBlock.foreground Theme.TextDim
+                                    TextBlock.textWrapping TextWrapping.Wrap ]
+                              Grid.create
+                                  [ Grid.columnDefinitions "*, *, *"
+                                    Grid.children (sliderLabels |> List.mapi makeSliderButton) ]
+                              if cost <> "" then
+                                  Border.create
+                                      [ Border.background Theme.BgElevated
+                                        Border.cornerRadius 4.0
+                                        Border.padding (6.0, 4.0)
+                                        Border.child (
+                                            TextBlock.create
+                                                [ TextBlock.text cost
+                                                  TextBlock.fontSize 9.0
+                                                  TextBlock.foreground Theme.TextDim
+                                                  TextBlock.textWrapping TextWrapping.Wrap ]
+                                        ) ] ] ]
+              ) ]
+
+    let private instructionsPanel (currentLineup: Lineup option) dispatch =
         let instructions =
             currentLineup
             |> Option.bind _.Instructions
             |> Option.defaultValue TacticalInstructions.defaultInstructions
 
-        StackPanel.create
-            [ StackPanel.spacing 0.0
-              StackPanel.children
-                  [ tacticsPicker (currentLineup |> Option.map _.Tactics |> Option.defaultValue Balanced) dispatch
-                    Border.create [ Border.height 1.0; Border.background Theme.Border; Border.margin (0.0, 4.0) ]
-                    UI.sectionHeader IconName.tactics "INSTRUCTIONS"
-                    Border.create
-                        [ Border.padding (16.0, 12.0)
-                          Border.child (
-                              StackPanel.create
-                                  [ StackPanel.spacing 14.0
-                                    StackPanel.children
-                                        [ instructionSlider "Mentality" instructions.Mentality 0 4 "Def" "Att" (fun v ->
-                                              dispatch (
-                                                  AppMsgs.TacticsMsg(
-                                                      TacticsMsg.SetInstruction(fun i -> { i with Mentality = v })
-                                                  )
-                                              ))
-                                          instructionSlider
-                                              "Defensive Line"
-                                              instructions.DefensiveLine
-                                              0
-                                              4
-                                              "Low"
-                                              "High"
-                                              (fun v ->
-                                                  dispatch (
-                                                      AppMsgs.TacticsMsg(
-                                                          TacticsMsg.SetInstruction(fun i ->
-                                                              { i with DefensiveLine = v })
-                                                      )
-                                                  ))
-                                          instructionSlider
-                                              "Pressing"
-                                              instructions.PressingIntensity
-                                              0
-                                              4
-                                              "Low"
-                                              "High"
-                                              (fun v ->
-                                                  dispatch (
-                                                      AppMsgs.TacticsMsg(
-                                                          TacticsMsg.SetInstruction(fun i ->
-                                                              { i with PressingIntensity = v })
-                                                      )
-                                                  ))
-                                          instructionSlider "Width" instructions.Width 0 4 "Narrow" "Wide" (fun v ->
-                                              dispatch (
-                                                  AppMsgs.TacticsMsg(
-                                                      TacticsMsg.SetInstruction(fun i -> { i with Width = v })
-                                                  )
-                                              ))
-                                          instructionSlider "Tempo" instructions.Tempo 0 4 "Slow" "Fast" (fun v ->
-                                              dispatch (
-                                                  AppMsgs.TacticsMsg(
-                                                      TacticsMsg.SetInstruction(fun i -> { i with Tempo = v })
-                                                  )
-                                              ))
-                                          instructionSlider
-                                              "Directness"
-                                              instructions.Directness
-                                              0
-                                              4
-                                              "Elaborate"
-                                              "Direct"
-                                              (fun v ->
-                                                  dispatch (
-                                                      AppMsgs.TacticsMsg(
-                                                          TacticsMsg.SetInstruction(fun i -> { i with Directness = v })
-                                                      )
-                                                  ))
-                                          instructionSlider
-                                              "Press Trigger"
-                                              instructions.PressTriggerZone
-                                              0
-                                              2
-                                              "Own Half"
-                                              "High Press"
-                                              (fun v ->
-                                                  dispatch (
-                                                      AppMsgs.TacticsMsg(
-                                                          TacticsMsg.SetInstruction(fun i ->
-                                                              { i with PressTriggerZone = v })
-                                                      )
-                                                  ))
-                                          instructionSlider
-                                              "Defensive Shape"
-                                              instructions.DefensiveShape
-                                              0
-                                              4
-                                              "Zonal"
-                                              "Man"
-                                              (fun v ->
-                                                  dispatch (
-                                                      AppMsgs.TacticsMsg(
-                                                          TacticsMsg.SetInstruction(fun i ->
-                                                              { i with DefensiveShape = v })
-                                                      )
-                                                  )) ] ]
-                          ) ] ] ]
+        let currentTactics =
+            currentLineup |> Option.map _.Tactics |> Option.defaultValue Balanced
 
-    let private teamStats (starterIds: Set<PlayerId>) (gs: GameState) =
+        let header = sectionHeader IconName.tactics Theme.Accent "INSTRUCTIONS"
+
+        let body =
+            StackPanel.create
+                [ StackPanel.spacing 0.0
+                  StackPanel.children
+                      [ Border.create
+                            [ Border.padding (12.0, 8.0)
+                              Border.borderBrush Theme.Border
+                              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                              Border.child (
+                                  ComboBox.create
+                                      [ ComboBox.dataItems [ Balanced; Attacking; Defensive; Pressing; Counter ]
+                                        ComboBox.selectedItem currentTactics
+                                        ComboBox.onSelectedItemChanged (fun obj ->
+                                            if obj <> null then
+                                                dispatch (
+                                                    AppMsgs.TacticsMsg(TacticsMsg.SetTeamTactics(obj :?> TeamTactics))
+                                                ))
+                                        ComboBox.horizontalAlignment HorizontalAlignment.Stretch
+                                        ComboBox.fontSize 12.0
+                                        ComboBox.fontWeight FontWeight.Bold ]
+                              ) ]
+                        Border.create
+                            [ Border.padding (10.0, 8.0)
+                              Border.child (
+                                  StackPanel.create
+                                      [ StackPanel.spacing 6.0
+                                        StackPanel.children
+                                            [ instructionSlider "Mentality" instructions.Mentality dispatch
+                                              instructionSlider "DefensiveLine" instructions.DefensiveLine dispatch
+                                              instructionSlider
+                                                  "PressingIntensity"
+                                                  instructions.PressingIntensity
+                                                  dispatch
+                                              instructionSlider "Width" instructions.Width dispatch
+                                              instructionSlider "Tempo" instructions.Tempo dispatch
+                                              instructionSlider "Directness" instructions.Directness dispatch ] ]
+                              ) ] ] ]
+
+        sectionCard header body
+
+    // ── Right panel: Selection Info ────────────────────────────────────
+
+    let private starGlyphs (stars: float) =
+        let full = int (round stars) |> max 0 |> min 5
+        String.replicate full "★" + String.replicate (5 - full) "☆"
+
+    // Advice: the starter most out of his depth and the bench player who fixes
+    // it. Same suitability function as the stars and Quick Pick, so the three
+    // can never disagree.
+    let private adviceOf (gs: GameState) : (string * string) option =
+        match TacticsSlice.Query.currentLineup gs with
+        | None -> None
+        | Some lu ->
+            let squad = GameState.getSquad gs.UserClubId gs
+
+            let starters =
+                lu.Slots
+                |> List.choose (fun s -> s.PlayerId |> Option.map (fun pid -> pid, s.Role))
+
+            let startersSet = starters |> List.map fst |> Set.ofList
+
+            starters
+            |> List.choose (fun (pid, role) ->
+                gs.Players
+                |> Map.tryFind pid
+                |> Option.map (fun p ->
+                    let mine = TacticalSuitability.stars p role
+
+                    let best =
+                        squad
+                        |> List.filter (fun q -> not (startersSet.Contains q.Id))
+                        |> List.sortByDescending (fun q -> TacticalSuitability.stars q role)
+                        |> List.tryHead
+                        |> Option.map (fun q -> q, TacticalSuitability.stars q role)
+
+                    mine, role, p, best))
+            |> List.choose (fun (mine, role, p, best) ->
+                match best with
+                | Some(q, theirs) when theirs - mine >= 1.0 -> Some(mine, role, p, (q, theirs))
+                | _ -> None)
+            |> List.sortByDescending (fun (_, _, _, (_, theirs)) -> theirs)
+            |> List.tryHead
+            |> Option.map (fun (mine, role, p, (q, theirs)) ->
+                let last (n: string) = n.Split(' ') |> Array.last
+                let mineText = sprintf "%.1f" mine
+                let theirsText = sprintf "%.1f" theirs
+                $"{last p.Name} looks off at {role} ({mineText}★)", $"Try {last q.Name} ({theirsText}★)")
+
+    let private selectionInfoRow
+        (p: Player)
+        (isStarter: bool)
+        (slotRole: Position option)
+        (dispatch: AppMsgs.Msg -> unit)
+        =
+        let col = Theme.positionColor p.Position
+        let fitCol = PlayerPresenter.fitnessColor p.MatchFitness
+
+        let suitPos = slotRole |> Option.defaultValue p.Position
+        let stars = TacticalSuitability.stars p suitPos
+
+        let posText = $"%A{p.Position}"
+
+        Border.create
+            [ Border.background "Transparent"
+              Border.borderBrush Theme.Border
+              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+              Border.padding (8.0, 6.0)
+              Border.onPointerPressed (fun e ->
+                  let pt = e.GetCurrentPoint(e.Source :?> Control)
+
+                  if pt.Properties.IsLeftButtonPressed then
+                      e.Handled <- true
+                      startDrag p.Id dispatch e)
+              Border.child (
+                  Grid.create
+                      [ Grid.columnDefinitions "30, *, 66, 46"
+                        Grid.children
+                            [ // Position badge
+                              Border.create
+                                  [ Grid.column 0
+                                    Border.background (Theme.withAlpha "22" col)
+                                    Border.borderBrush (Theme.withAlpha "44" col)
+                                    Border.borderThickness 1.0
+                                    Border.cornerRadius 4.0
+                                    Border.padding (4.0, 2.0)
+                                    Border.verticalAlignment VerticalAlignment.Center
+                                    Border.child (
+                                        TextBlock.create
+                                            [ TextBlock.text posText
+                                              TextBlock.fontSize 8.0
+                                              TextBlock.fontWeight FontWeight.Black
+                                              TextBlock.foreground col
+                                              TextBlock.horizontalAlignment HorizontalAlignment.Center ]
+                                    ) ]
+                              // Name + skill
+                              StackPanel.create
+                                  [ Grid.column 1
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
+                                    StackPanel.spacing 1.0
+                                    StackPanel.children
+                                        [ TextBlock.create
+                                              [ TextBlock.text p.Name
+                                                TextBlock.foreground Theme.TextMain
+                                                TextBlock.fontSize 11.0
+                                                TextBlock.fontWeight FontWeight.SemiBold
+                                                TextBlock.textTrimming TextTrimming.CharacterEllipsis ]
+                                          TextBlock.create
+                                              [ TextBlock.text $"CA {p.CurrentSkill}"
+                                                TextBlock.foreground Theme.TextMuted
+                                                TextBlock.fontSize 9.0 ] ] ]
+                              // Suitability stars for the slot (own position off the pitch)
+                              TextBlock.create
+                                  [ Grid.column 2
+                                    TextBlock.text (starGlyphs stars)
+                                    TextBlock.fontSize 10.0
+                                    TextBlock.foreground Theme.Warning
+                                    TextBlock.verticalAlignment VerticalAlignment.Center
+                                    TextBlock.margin (6.0, 0.0) ]
+                              // Condition
+                              StackPanel.create
+                                  [ Grid.column 3
+                                    StackPanel.orientation Orientation.Horizontal
+                                    StackPanel.spacing 2.0
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
+                                    StackPanel.children
+                                        [ Border.create
+                                              [ Border.width 5.0
+                                                Border.height 5.0
+                                                Border.background fitCol
+                                                Border.cornerRadius 2.5
+                                                Border.verticalAlignment VerticalAlignment.Center ]
+                                          TextBlock.create
+                                              [ TextBlock.text (sprintf "%d%%" p.MatchFitness)
+                                                TextBlock.foreground fitCol
+                                                TextBlock.fontSize 9.0
+                                                TextBlock.fontWeight FontWeight.Bold
+                                                TextBlock.verticalAlignment VerticalAlignment.Center ] ] ] ] ]
+              ) ]
+
+    let private selectionInfoPanel (starterIds: Set<PlayerId>) (benchPlayers: Player list) (gs: GameState) dispatch =
         let starters = starterIds |> Set.toList |> List.choose gs.Players.TryFind
 
-        let avg f =
-            if starters.IsEmpty then
-                0
-            else
-                starters |> List.averageBy (fun p -> float (f p)) |> int
+        let slotRoleOf =
+            TacticsSlice.Query.currentLineup gs
+            |> Option.map (fun lu ->
+                lu.Slots
+                |> List.choose (fun s -> s.PlayerId |> Option.map (fun pid -> pid, s.Role))
+                |> Map.ofList)
+            |> Option.defaultValue Map.empty
 
-        let avgFitness = avg (fun p -> p.MatchFitness)
-        let avgSkill = avg (fun p -> p.CurrentSkill)
-        let avgMorale = avg (fun p -> p.Morale)
+        let allPlayers =
+            starters
+            |> List.map (fun p -> p, true, Map.tryFind p.Id slotRoleOf)
+            |> List.append (benchPlayers |> List.map (fun p -> p, false, None))
 
-        StackPanel.create
-            [ StackPanel.spacing 0.0
-              StackPanel.children
-                  [ UI.sectionHeader IconName.info "SQUAD OVERVIEW"
-                    Border.create
-                        [ Border.padding (16.0, 14.0)
-                          Border.child (
+        let advice =
+            match adviceOf gs with
+            | None -> Border.create [ Border.height 0.0 ] :> IView
+            | Some(title, body) ->
+                Border.create
+                    [ Border.background (Theme.withAlpha "15" Theme.AccentAlt)
+                      Border.borderBrush (Theme.withAlpha "40" Theme.AccentAlt)
+                      Border.borderThickness 1.0
+                      Border.cornerRadius 8.0
+                      Border.padding (10.0, 8.0)
+                      Border.margin (8.0, 8.0, 8.0, 0.0)
+                      Border.child (
+                          StackPanel.create
+                              [ StackPanel.spacing 2.0
+                                StackPanel.children
+                                    [ TextBlock.create
+                                          [ TextBlock.text title
+                                            TextBlock.fontSize 10.0
+                                            TextBlock.fontWeight FontWeight.Bold
+                                            TextBlock.foreground Theme.TextMain
+                                            TextBlock.textWrapping TextWrapping.Wrap ]
+                                      TextBlock.create
+                                          [ TextBlock.text body
+                                            TextBlock.fontSize 10.0
+                                            TextBlock.foreground Theme.AccentAlt
+                                            TextBlock.fontWeight FontWeight.SemiBold ] ] ]
+                      ) ]
+                :> IView
+
+        let header =
+            Border.create
+                [ Border.background Theme.BgElevated
+                  Border.padding (14.0, 10.0)
+                  Border.borderBrush Theme.Border
+                  Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                  Border.child (
+                      StackPanel.create
+                          [ StackPanel.orientation Orientation.Horizontal
+                            StackPanel.spacing 8.0
+                            StackPanel.children
+                                [ Icons.iconSm IconName.squad Theme.Accent
+                                  TextBlock.create
+                                      [ TextBlock.text "SELECTION INFO"
+                                        TextBlock.fontSize 10.0
+                                        TextBlock.fontWeight FontWeight.Black
+                                        TextBlock.foreground Theme.TextMuted
+                                        TextBlock.verticalAlignment VerticalAlignment.Center ]
+                                  UI.countBadge (starterIds.Count + benchPlayers.Length) ] ]
+                  ) ]
+
+        // Column headers
+        let columnHeaders =
+            Border.create
+                [ Border.padding (8.0, 6.0)
+                  Border.borderBrush Theme.Border
+                  Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                  Border.child (
+                      Grid.create
+                          [ Grid.columnDefinitions "30, *, 66, 46"
+                            Grid.children
+                                [ TextBlock.create
+                                      [ Grid.column 0
+                                        TextBlock.text "POS"
+                                        TextBlock.fontSize 8.0
+                                        TextBlock.fontWeight FontWeight.Black
+                                        TextBlock.foreground Theme.TextDim ]
+                                  TextBlock.create
+                                      [ Grid.column 1
+                                        TextBlock.text "PLAYER"
+                                        TextBlock.fontSize 8.0
+                                        TextBlock.fontWeight FontWeight.Black
+                                        TextBlock.foreground Theme.TextDim ]
+                                  TextBlock.create
+                                      [ Grid.column 2
+                                        TextBlock.text "SUIT"
+                                        TextBlock.fontSize 8.0
+                                        TextBlock.fontWeight FontWeight.Black
+                                        TextBlock.foreground Theme.TextDim
+                                        TextBlock.margin (6.0, 0.0) ]
+                                  TextBlock.create
+                                      [ Grid.column 3
+                                        TextBlock.text "FIT"
+                                        TextBlock.fontSize 8.0
+                                        TextBlock.fontWeight FontWeight.Black
+                                        TextBlock.foreground Theme.TextDim ] ] ]
+                  ) ]
+
+        let bodyItems =
+            [ yield columnHeaders :> IView
+              yield!
+                  allPlayers
+                  |> List.map (fun (p, isStarter, slotRole) -> selectionInfoRow p isStarter slotRole dispatch :> IView) ]
+
+        Border.create
+            [ Border.background Theme.BgCard
+              Border.borderBrush Theme.Border
+              Border.borderThickness 1.0
+              Border.cornerRadius Theme.RadiusLg
+              Border.clipToBounds true
+              Border.child (
+                  DockPanel.create
+                      [ DockPanel.lastChildFill true
+                        DockPanel.children
+                            [ Border.create [ DockPanel.dock Dock.Top; Border.child header ]
+                              Border.create [ DockPanel.dock Dock.Top; Border.child advice ]
+                              ScrollViewer.create
+                                  [ ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Auto
+                                    ScrollViewer.content (
+                                        StackPanel.create [ StackPanel.spacing 0.0; StackPanel.children bodyItems ]
+                                    ) ] ] ]
+              ) ]
+        :> IView
+
+    // ── Bottom: Substitutes bar ───────────────────────────────────────
+
+    let private substituteSlot (p: Player option) (idx: int) dispatch =
+        let bgColor, borderColor, textColor, name, subText =
+            match p with
+            | Some player ->
+                let col = Theme.positionColor player.Position
+
+                Theme.withAlpha "22" col,
+                Theme.withAlpha "55" col,
+                Theme.TextMain,
+                player.Name.Split(' ') |> Array.last,
+                $"%A{player.Position}"
+            | None -> "#06ffffff", "#12ffffff", Theme.TextDim, $"S{idx + 1}", ""
+
+        Border.create
+            [ Border.width 100.0
+              Border.height 48.0
+              Border.background bgColor
+              Border.borderBrush borderColor
+              Border.borderThickness 1.0
+              Border.cornerRadius 6.0
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.spacing 2.0
+                        StackPanel.horizontalAlignment HorizontalAlignment.Center
+                        StackPanel.verticalAlignment VerticalAlignment.Center
+                        StackPanel.children
+                            [ TextBlock.create
+                                  [ TextBlock.text name
+                                    TextBlock.fontSize 9.0
+                                    TextBlock.fontWeight FontWeight.Bold
+                                    TextBlock.foreground textColor
+                                    TextBlock.horizontalAlignment HorizontalAlignment.Center
+                                    TextBlock.textTrimming TextTrimming.CharacterEllipsis ]
+                              if subText <> "" then
+                                  TextBlock.create
+                                      [ TextBlock.text subText
+                                        TextBlock.fontSize 8.0
+                                        TextBlock.foreground Theme.TextDim
+                                        TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ]
+              ) ]
+
+    let private substitutesBar (benchPlayers: Player list) (dispatch: AppMsgs.Msg -> unit) =
+        let slots = [ 0..9 ] |> List.map (fun i -> List.tryItem i benchPlayers)
+
+        Border.create
+            [ Border.background Theme.BgSidebar
+              Border.borderBrush Theme.Border
+              Border.borderThickness (0.0, 1.0, 0.0, 0.0)
+              Border.padding (16.0, 10.0)
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.orientation Orientation.Horizontal
+                        StackPanel.spacing 6.0
+                        StackPanel.children
+                            [ // Label
                               StackPanel.create
-                                  [ StackPanel.spacing 8.0
+                                  [ StackPanel.orientation Orientation.Vertical
+                                    StackPanel.spacing 2.0
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
+                                    StackPanel.margin (0.0, 0.0, 8.0, 0.0)
                                     StackPanel.children
-                                        [ Grid.create
-                                              [ Grid.columnDefinitions "*, 6, *"
-                                                Grid.children
-                                                    [ UI.statMiniCard
-                                                          PlayerIcon.condition
-                                                          "FITNESS"
-                                                          $"{avgFitness}%%"
-                                                          (PlayerPresenter.fitnessColor avgFitness)
-                                                      Grid.create
-                                                          [ Grid.column 2
-                                                            Grid.children
-                                                                [ UI.statMiniCard
-                                                                      PlayerIcon.skill
-                                                                      "AVG SKILL"
-                                                                      (string avgSkill)
-                                                                      Theme.Accent ] ] ] ]
-                                          UI.statMiniCard
-                                              PlayerIcon.morale
-                                              "MORALE"
-                                              $"{avgMorale}%%"
-                                              (Theme.moraleColor avgMorale) ] ]
-                          ) ] ] ]
+                                        [ TextBlock.create
+                                              [ TextBlock.text "SUBSTITUTES"
+                                                TextBlock.fontSize 9.0
+                                                TextBlock.fontWeight FontWeight.Black
+                                                TextBlock.foreground Theme.TextMuted ]
+                                          TextBlock.create
+                                              [ TextBlock.text $"{benchPlayers.Length} available"
+                                                TextBlock.fontSize 8.0
+                                                TextBlock.foreground Theme.TextDim ] ] ]
+                              // Slot grid
+                              yield! slots |> List.mapi (fun i p -> substituteSlot p i dispatch :> IView) ] ]
+              ) ]
+
+    // ── Top bar ───────────────────────────────────────────────────────
+
+    // ── Main view ─────────────────────────────────────────────────────
+
+    // ── Top strip: familiarity, next match, Undo, Quick Pick ────────────
+
+    let private topStrip (gs: GameState) (state: State) (dispatch: AppMsgs.Msg -> unit) : IView =
+        let formation =
+            TacticsSlice.Query.currentLineup gs
+            |> Option.map _.Formation
+            |> Option.defaultValue state.SelectedTactics
+
+        let familiarity =
+            gs.Clubs
+            |> Map.tryFind gs.UserClubId
+            |> Option.map (fun c ->
+                c.CoordinationMemory.TacticalFamiliarity
+                |> Map.tryFind (string formation)
+                |> Option.defaultValue 0.5)
+            |> Option.defaultValue 0.5
+
+        let nextText =
+            match HomePresenter.getNextMatch gs with
+            | None -> "No fixture scheduled"
+            | Some m -> $"{m.LocalName} vs {m.VisitName} · " + m.Date.ToString("dd MMM")
+
+        let famColor =
+            if familiarity >= 0.8 then Theme.Success
+            elif familiarity >= 0.6 then Theme.Accent
+            else Theme.Warning
+
+        Border.create
+            [ Border.background Theme.BgSidebar
+              Border.borderBrush Theme.Border
+              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+              Border.padding (16.0, 10.0)
+              Border.child (
+                  Grid.create
+                      [ Grid.columnDefinitions "Auto, *, Auto"
+                        Grid.children
+                            [ StackPanel.create
+                                  [ Grid.column 0
+                                    StackPanel.orientation Orientation.Horizontal
+                                    StackPanel.spacing 10.0
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
+                                    StackPanel.children
+                                        [ TextBlock.create
+                                              [ TextBlock.text $"FAMILIARITY · {string formation}"
+                                                TextBlock.fontSize 10.0
+                                                TextBlock.fontWeight FontWeight.Black
+                                                TextBlock.foreground Theme.TextMuted
+                                                TextBlock.verticalAlignment VerticalAlignment.Center ]
+                                          ProgressBar.create
+                                              [ ProgressBar.minimum 0.0
+                                                ProgressBar.maximum 1.0
+                                                ProgressBar.value familiarity
+                                                ProgressBar.width 110.0
+                                                ProgressBar.height 6.0
+                                                ProgressBar.cornerRadius 3.0
+                                                ProgressBar.background Theme.BgElevated
+                                                ProgressBar.foreground famColor
+                                                ProgressBar.verticalAlignment VerticalAlignment.Center ]
+                                          TextBlock.create
+                                              [ TextBlock.text (sprintf "%d%%" (int (familiarity * 100.0)))
+                                                TextBlock.fontSize 11.0
+                                                TextBlock.fontWeight FontWeight.Black
+                                                TextBlock.foreground famColor
+                                                TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                              TextBlock.create
+                                  [ Grid.column 1
+                                    TextBlock.text nextText
+                                    TextBlock.fontSize 11.0
+                                    TextBlock.foreground Theme.TextDim
+                                    TextBlock.horizontalAlignment HorizontalAlignment.Center
+                                    TextBlock.verticalAlignment VerticalAlignment.Center ]
+                              StackPanel.create
+                                  [ Grid.column 2
+                                    StackPanel.orientation Orientation.Horizontal
+                                    StackPanel.spacing 8.0
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
+                                    StackPanel.children
+                                        [ Button.create
+                                              [ Button.content "Undo"
+                                                Button.fontSize 11.0
+                                                Button.padding (12.0, 7.0)
+                                                Button.background Theme.BgCard
+                                                Button.borderBrush Theme.Border
+                                                Button.borderThickness 1.0
+                                                Button.cornerRadius 6.0
+                                                Button.foreground Theme.TextSub
+                                                Button.isEnabled (not state.Tactics.History.IsEmpty)
+                                                Button.onClick (fun _ ->
+                                                    dispatch (AppMsgs.TacticsMsg(TacticsMsg.UndoTactics))) ]
+                                          Button.create
+                                              [ Button.content "Quick Pick"
+                                                Button.fontSize 11.0
+                                                Button.fontWeight FontWeight.Bold
+                                                Button.padding (12.0, 7.0)
+                                                Button.background Theme.Accent
+                                                Button.borderThickness 0.0
+                                                Button.cornerRadius 6.0
+                                                Button.foreground Theme.BgSidebar
+                                                Button.onClick (fun _ ->
+                                                    dispatch (AppMsgs.TacticsMsg(TacticsMsg.QuickPick))) ] ] ] ] ]
+              ) ]
+        :> IView
 
     let tacticView (state: State) dispatch : IView =
         match state.Mode with
@@ -474,61 +1036,56 @@ module Tactics =
                 |> List.filter (fun p -> not (starterIds.Contains p.Id))
                 |> List.sortBy (fun p -> PlayerPresenter.positionSortKey p.Position, p.CurrentSkill * -1)
 
-            let benchItems: IView list =
-                [ yield! benchPlayers |> Seq.map (fun p -> benchRow p dispatch)
-                  yield Border.create [ Border.height 20.0 ] ]
+            let currentInstructions =
+                lineup
+                |> Option.bind _.Instructions
+                |> Option.defaultValue TacticalInstructions.defaultInstructions
 
             Grid.create
-
-                [ Grid.columnDefinitions "272, *, 296"
+                [ Grid.rowDefinitions "Auto, *, Auto"
                   Grid.children
-                      [ Border.create
-                            [ Grid.column 0
-                              Border.background Theme.BgSidebar
-                              Border.borderBrush Theme.Border
-                              Border.borderThickness (0.0, 0.0, 1.0, 0.0)
-                              Border.child (
-                                  ScrollViewer.create
-                                      [ ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Auto
-                                        ScrollViewer.content (
-                                            StackPanel.create
-                                                [ StackPanel.spacing 0.0
-                                                  StackPanel.children
-                                                      [ formationPicker currentFormation dispatch
-                                                        Border.create
-                                                            [ Border.height 1.0
-                                                              Border.background Theme.Border
-                                                              Border.margin (0.0, 4.0) ]
-                                                        tacticalInstructions lineup dispatch
-                                                        Border.create
-                                                            [ Border.height 1.0
-                                                              Border.background Theme.Border
-                                                              Border.margin (0.0, 4.0) ]
-                                                        teamStats starterIds gs ] ]
-                                        ) ]
-                              ) ]
-                        Border.create
-                            [ Grid.column 1
-                              Border.padding (20.0, 16.0)
-                              Border.child (pitchContainer state dispatch) ]
-                        Border.create
-                            [ Grid.column 2
-                              Border.background Theme.BgSidebar
-                              Border.borderBrush Theme.Border
-                              Border.borderThickness (1.0, 0.0, 0.0, 0.0)
-                              Border.child (
-                                  DockPanel.create
-                                      [ DockPanel.lastChildFill true
-                                        DockPanel.children
-                                            [ UI.sectionHeaderWithBadge IconName.squad "BENCH" benchPlayers.Length
-                                              |> fun h -> Border.create [ DockPanel.dock Dock.Top; Border.child h ]
+                      [ Border.create [ Grid.row 0; Border.child (topStrip gs state dispatch) ]
+                        Grid.create
+                            [ Grid.row 1
+                              Grid.columnDefinitions "256, *, 280"
+                              Grid.children
+                                  [ Border.create
+                                        [ Grid.column 0
+                                          Border.background Theme.BgSidebar
+                                          Border.borderBrush Theme.Border
+                                          Border.borderThickness (0.0, 0.0, 1.0, 0.0)
+                                          Border.child (
                                               ScrollViewer.create
                                                   [ ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Auto
-                                                    ScrollViewer.verticalAlignment VerticalAlignment.Stretch
                                                     ScrollViewer.content (
-                                                        StackPanel.create [ StackPanel.children benchItems ]
-                                                    ) ] ] ]
-                              ) ] ] ]
+                                                        StackPanel.create
+                                                            [ StackPanel.spacing 8.0
+                                                              StackPanel.margin (8.0, 8.0)
+                                                              StackPanel.children
+                                                                  [ formationSection currentFormation dispatch
+                                                                    presetSection currentInstructions dispatch
+                                                                    instructionsPanel lineup dispatch ] ]
+                                                    ) ]
+                                          ) ]
+                                    Border.create
+                                        [ Grid.column 1
+                                          Border.padding (8.0, 8.0)
+                                          Border.child (
+                                              Border.create
+                                                  [ Border.background Theme.BgSubtle
+                                                    Border.borderBrush Theme.Border
+                                                    Border.borderThickness 1.0
+                                                    Border.cornerRadius 12.0
+                                                    Border.clipToBounds true
+                                                    Border.child (pitchContainer state dispatch) ]
+                                          ) ]
+                                    Border.create
+                                        [ Grid.column 2
+                                          Border.background Theme.BgSidebar
+                                          Border.borderBrush Theme.Border
+                                          Border.borderThickness (1.0, 0.0, 0.0, 0.0)
+                                          Border.child (selectionInfoPanel starterIds benchPlayers gs dispatch) ] ] ]
+                        Border.create [ Grid.row 2; Border.child (substitutesBar benchPlayers dispatch) ] ] ]
             |> View.withKey $"tactics-{currentFormation}-{starterIds.Count}"
             :> IView
 

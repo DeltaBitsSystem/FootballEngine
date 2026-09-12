@@ -5,10 +5,11 @@ open FootballEngine.Domain
 
 module Formatters =
 
+    // Single currency symbol app-wide: Home/Squad/Transfers mixed € and $.
     let money (v: decimal) : string =
-        if v >= 1_000_000m then $"${v / 1_000_000m:F1}M"
-        elif v >= 1_000m then $"${v / 1_000m:F0}K"
-        else $"${v:F0}"
+        if v >= 1_000_000m then $"€{v / 1_000_000m:F1}M"
+        elif v >= 1_000m then $"€{v / 1_000m:F0}K"
+        else $"€{v:F0}"
 
     let salary (v: decimal) : string = $"{money v}/wk"
 

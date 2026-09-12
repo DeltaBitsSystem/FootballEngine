@@ -68,7 +68,7 @@ module Inbox =
 
         Border.create
             [ Border.background (SelectionStyle.rowBgColor isSelected categoryColor)
-              Border.borderBrush (SelectionStyle.rowBorderColor isSelected (categoryColor + "60"))
+              Border.borderBrush (SelectionStyle.rowBorderColor isSelected (Theme.withAlpha "60" categoryColor))
               Border.borderThickness (2.0, 0.0, 0.0, 1.0)
               Border.cursor Avalonia.Input.Cursor.Default
               Border.onPointerReleased (fun _ -> dispatch (InboxMsg(InboxMsg.SelectMessage message.Id)))
@@ -81,7 +81,7 @@ module Inbox =
                             [ Border.create
                                   [ Grid.column 0
                                     Grid.rowSpan 2
-                                    Border.background (categoryColor + "20")
+                                    Border.background (Theme.withAlpha "20" categoryColor)
                                     Border.cornerRadius 8.0
                                     Border.padding 8.0
                                     Border.margin (0.0, 0.0, 10.0, 0.0)
@@ -110,8 +110,8 @@ module Inbox =
                                                 TextBlock.textTrimming TextTrimming.CharacterEllipsis ]
                                           if hasAction then
                                               Border.create
-                                                  [ Border.background (Theme.Warning + "25")
-                                                    Border.borderBrush (Theme.Warning + "60")
+                                                  [ Border.background (Theme.withAlpha "25" Theme.Warning)
+                                                    Border.borderBrush (Theme.withAlpha "60" Theme.Warning)
                                                     Border.borderThickness 1.0
                                                     Border.cornerRadius 3.0
                                                     Border.padding (5.0, 1.0)
@@ -213,7 +213,7 @@ module Inbox =
                           StackPanel.create
                               [ StackPanel.horizontalAlignment HorizontalAlignment.Center
                                 StackPanel.children
-                                    [ Icons.icon IconName.inboxArrowDown 36.0 (Theme.TextMuted + "80")
+                                    [ Icons.icon IconName.inboxArrowDown 36.0 (Theme.withAlpha "80" Theme.TextMuted)
                                       TextBlock.create
                                           [ TextBlock.text "No messages yet"
                                             TextBlock.fontSize 13.0
@@ -222,7 +222,7 @@ module Inbox =
                                       TextBlock.create
                                           [ TextBlock.text "Messages will appear here as\nyour season progresses"
                                             TextBlock.fontSize 10.0
-                                            TextBlock.foreground (Theme.TextMuted + "80")
+                                            TextBlock.foreground (Theme.withAlpha "80" Theme.TextMuted)
                                             TextBlock.textAlignment TextAlignment.Center
                                             TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ]
                       ) ]
@@ -254,7 +254,7 @@ module Inbox =
                             StackPanel.horizontalAlignment HorizontalAlignment.Center
                             StackPanel.verticalAlignment VerticalAlignment.Center
                             StackPanel.children
-                                [ Icons.icon IconName.mailOpen 44.0 (Theme.TextMuted + "60")
+                                [ Icons.icon IconName.mailOpen 44.0 (Theme.withAlpha "60" Theme.TextMuted)
                                   TextBlock.create
                                       [ TextBlock.text "Select a message"
                                         TextBlock.fontSize 14.0
@@ -264,7 +264,7 @@ module Inbox =
                                   TextBlock.create
                                       [ TextBlock.text "Choose a message from the list to read it"
                                         TextBlock.fontSize 11.0
-                                        TextBlock.foreground (Theme.TextMuted + "80")
+                                        TextBlock.foreground (Theme.withAlpha "80" Theme.TextMuted)
                                         TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ]
                   ) ]
             :> IView
@@ -298,7 +298,7 @@ module Inbox =
                                                 [ StackPanel.spacing 10.0
                                                   StackPanel.children
                                                       [ Border.create
-                                                            [ Border.background (categoryColor + "20")
+                                                            [ Border.background (Theme.withAlpha "20" categoryColor)
                                                               Border.cornerRadius 3.0
                                                               Border.padding (6.0, 2.0)
                                                               Border.horizontalAlignment HorizontalAlignment.Left
@@ -389,16 +389,25 @@ module Inbox =
             | InGame(gs, _) -> gs.CurrentDate
             | _ -> DateTime.Now
 
-        Grid.create
-            [ Grid.columnDefinitions "320, *"
-              Grid.children
-                  [ Border.create
-                        [ Grid.column 0
-                          Border.borderBrush Theme.Border
-                          Border.borderThickness (0.0, 0.0, 1.0, 0.0)
-                          Border.child (messageList messages state.Inbox.SelectedMessageId currentDate dispatch) ]
+        // Empty inbox gets one centered state: the list/detail split only makes sense
+        // once there is something to select.
+        if messages.IsEmpty then
+            UI.emptyState
+                IconName.inboxArrowDown
+                "No messages yet"
+                "Messages will appear here as your season progresses"
+        else
+            Grid.create
+                [ Grid.columnDefinitions "320, *"
+                  Grid.children
+                      [ Border.create
+                            [ Grid.column 0
+                              Border.borderBrush Theme.Border
+                              Border.borderThickness (0.0, 0.0, 1.0, 0.0)
+                              Border.child (messageList messages state.Inbox.SelectedMessageId currentDate dispatch) ]
 
-                    Border.create
-                        [ Grid.column 1
-                          Border.padding (16.0, 16.0)
-                          Border.child (messageDetail selectedMessage currentDate dispatch) ] ] ]
+                        Border.create
+                            [ Grid.column 1
+                              Border.padding (16.0, 16.0)
+                              Border.child (messageDetail selectedMessage currentDate dispatch) ] ] ]
+            :> IView

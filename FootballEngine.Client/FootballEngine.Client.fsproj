@@ -12,21 +12,30 @@
         <Compile Include="Database\Serializers.fs"/>
         <Compile Include="Database\Mappers.fs"/>
         <Compile Include="Database\Repository.fs"/>
+        <Compile Include="Settings\SettingsStorage.fs"/>
         <Compile Include="AppState\Icons.fs"/>
+        <Compile Include="Routing\Route.fs"/>
         <Compile Include="AppState\ModEditorTypes.fs"/>
         <Compile Include="AppState\Types.fs"/>
         <Compile Include="AppState\Msg.fs"/>
+        <Compile Include="AppState\ModEditorPackage.fs"/>
+        <Compile Include="Shots\Shots.fs"/>
+        <Compile Include="Views\Shared\Localization.fs"/>
         <Compile Include="Views\Theme.fs"/>
         <Compile Include="Views\Shared\Formatters.fs"/>
+        <Compile Include="AppState\Projections.fs"/>
         <Compile Include="Views\Shared\PlayerPresenter.fs"/>
         <Compile Include="Views\Shared\ColumnDefs.fs"/>
         <Compile Include="Views\Shared\SelectionStyle.fs"/>
         <Compile Include="AppState\Slices\SquadSlice.fs"/>
         <Compile Include="AppState\Slices\TacticsSlice.fs"/>
         <Compile Include="AppState\Slices\TrainingSlice.fs"/>
+        <Compile Include="AppState\Slices\FinanceSlice.fs"/>
         <Compile Include="AppState\Slices\InboxSlice.fs"/>
+        <Compile Include="AppState\Slices\CalendarSlice.fs"/>
         <Compile Include="AppState\Slices\MatchSlice.fs"/>
         <Compile Include="AppState\Slices\ScoutingSlice.fs"/>
+        <Compile Include="AppState\Slices\SettingsSlice.fs"/>
         <Compile Include="AppState\UpdateSetup.fs"/>
         <Compile Include="AppState\UpdateSim.fs"/>
         <Compile Include="AppState\UpdateTransfer.fs"/>
@@ -44,13 +53,16 @@
         <Compile Include="Views\Pages\Loading.fs"/>
         <Compile Include="Views\Pages\Setup.fs"/>
         <Compile Include="Views\Pages\Home.fs"/>
+        <Compile Include="Views\Pages\Calendar.fs"/>
         <Compile Include="Views\Pages\Inbox.fs"/>
         <Compile Include="Views\Pages\Squad.fs"/>
         <Compile Include="Views\Pages\Tactic.fs"/>
         <Compile Include="Views\Pages\Training.fs"/>
+        <Compile Include="Views\Pages\Finances.fs"/>
         <Compile Include="Views\Pages\Scouting.fs"/>
         <Compile Include="Views\Pages\Transfer.fs"/>
         <Compile Include="Views\Pages\ModEditor.fs"/>
+        <Compile Include="Views\Pages\Settings.fs"/>
         <Compile Include="Program.fs"/>
     </ItemGroup>
 
@@ -75,6 +87,7 @@
         <PackageReference Include="FsToolkit.ErrorHandling" Version="5.2.0"/>
         <PackageReference Include="Material.Icons.Avalonia" Version="3.0.0"/>
         <PackageReference Include="sqlite-net-pcl" Version="1.9.172"/>
+        <PackageReference Include="FSharp.SystemTextJson" Version="1.3.13"/>
     </ItemGroup>
 
 </Project>

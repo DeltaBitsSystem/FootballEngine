@@ -50,8 +50,8 @@ module Transfers =
             [ Border.width size
               Border.height size
               Border.cornerRadius (size / 2.0)
-              Border.background (color + "22")
-              Border.borderBrush (color + "66")
+              Border.background (Theme.withAlpha "22" color)
+              Border.borderBrush (Theme.withAlpha "66" color)
               Border.borderThickness 1.5
               Border.child (
                   TextBlock.create
@@ -128,8 +128,8 @@ module Transfers =
                               Border.create
                                   [ Grid.column 2
                                     Border.margin (0.0, 0.0, 16.0, 0.0)
-                                    Border.background (posColor + "22")
-                                    Border.borderBrush (posColor + "55")
+                                    Border.background (Theme.withAlpha "22" posColor)
+                                    Border.borderBrush (Theme.withAlpha "55" posColor)
                                     Border.borderThickness 1.0
                                     Border.cornerRadius 4.0
                                     Border.padding (6.0, 3.0)
@@ -166,8 +166,18 @@ module Transfers =
                                     Button.margin (8.0, 0.0, 0.0, 0.0)
                                     Button.padding (6.0, 4.0)
                                     Button.cornerRadius 6.0
-                                    Button.background (if isWatched then Theme.Warning + "22" else "Transparent")
-                                    Button.borderBrush (if isWatched then Theme.Warning + "66" else Theme.Border)
+                                    Button.background (
+                                        (if isWatched then
+                                             Theme.withAlpha "22" Theme.Warning
+                                         else
+                                             "Transparent")
+                                    )
+                                    Button.borderBrush (
+                                        (if isWatched then
+                                             Theme.withAlpha "66" Theme.Warning
+                                         else
+                                             Theme.Border)
+                                    )
                                     Button.borderThickness 1.0
                                     Button.verticalAlignment VerticalAlignment.Center
                                     Button.onClick (fun e ->
@@ -272,7 +282,10 @@ module Transfers =
                       StackPanel.children
                           [ infoRow "Offered Fee" (Formatters.money fee) Theme.Accent
                             infoRow "Market Value" (Formatters.money (Player.playerValue p.CurrentSkill)) Theme.TextSub
-                            infoRow "Your Budget" (Formatters.money buyer.Budget) Theme.Accent
+                            infoRow
+                                "Transfer capacity"
+                                (Formatters.money (Finance.availableForTransfers buyer.Finance))
+                                Theme.Accent
                             Border.create
                                 [ Border.height 1.0; Border.background Theme.Border; Border.margin (0.0, 4.0) ]
                             if not canAffordIt then
@@ -398,7 +411,7 @@ module Transfers =
 
         Border.create
             [ Border.background Theme.BgCard
-              Border.borderBrush (Theme.Accent + "44")
+              Border.borderBrush (Theme.withAlpha "44" Theme.Accent)
               Border.borderThickness 1.0
               Border.cornerRadius 10.0
               Border.margin (0.0, 12.0, 0.0, 0.0)
@@ -465,8 +478,12 @@ module Transfers =
                                                                 StackPanel.spacing 8.0
                                                                 StackPanel.children
                                                                     [ Border.create
-                                                                          [ Border.background (posColor + "22")
-                                                                            Border.borderBrush (posColor + "55")
+                                                                          [ Border.background (
+                                                                                Theme.withAlpha "22" posColor
+                                                                            )
+                                                                            Border.borderBrush (
+                                                                                Theme.withAlpha "55" posColor
+                                                                            )
                                                                             Border.borderThickness 1.0
                                                                             Border.cornerRadius 4.0
                                                                             Border.padding (6.0, 2.0)
@@ -582,7 +599,10 @@ module Transfers =
                                                 [ Button.create
                                                       [ Button.horizontalAlignment HorizontalAlignment.Stretch
                                                         Button.background (
-                                                            if isWatched then Theme.Warning + "22" else "Transparent"
+                                                            (if isWatched then
+                                                                 Theme.withAlpha "22" Theme.Warning
+                                                             else
+                                                                 "Transparent")
                                                         )
                                                         Button.borderBrush (
                                                             if isWatched then Theme.Warning else Theme.Border
@@ -731,8 +751,8 @@ module Transfers =
         | OfferStatus.RejectedByClub -> "Rejected", Theme.Danger
         | ContractOffered _ -> "Negotiating", Theme.AccentAlt
         | ContractRejectedByPlayer -> "Player Refused", Theme.Danger
-        | Completed -> "Completed", Theme.Accent
-        | Withdrawn -> "Withdrawn", Theme.TextMuted
+        | OfferStatus.Completed -> "Completed", Theme.Accent
+        | OfferStatus.Withdrawn -> "Withdrawn", Theme.TextMuted
 
     let private offerRow
         (offer: TransferOffer)
@@ -786,8 +806,8 @@ module Transfers =
                                     TextBlock.verticalAlignment VerticalAlignment.Center ]
                               Border.create
                                   [ Grid.column 2
-                                    Border.background (color + "18")
-                                    Border.borderBrush (color + "55")
+                                    Border.background (Theme.withAlpha "18" color)
+                                    Border.borderBrush (Theme.withAlpha "55" color)
                                     Border.borderThickness 1.0
                                     Border.cornerRadius 4.0
                                     Border.padding (6.0, 3.0)
@@ -799,7 +819,7 @@ module Transfers =
                                               TextBlock.fontWeight FontWeight.Bold
                                               TextBlock.foreground color ]
                                     ) ]
-                              if offer.Status <> Completed && offer.Status <> Withdrawn then
+                              if offer.Status <> OfferStatus.Completed && offer.Status <> OfferStatus.Withdrawn then
                                   Button.create
                                       [ Grid.column 3
                                         Button.padding (6.0, 4.0)
@@ -863,7 +883,7 @@ module Transfers =
                 ts.ClubNameCache |> Map.tryFind pid |> Option.defaultValue "Unknown"
 
             let buyer = gs.Clubs[gs.UserClubId]
-            let userBudget = buyer.Budget
+            let userBudget = Finance.availableForTransfers buyer.Finance
 
             let topBar =
                 Border.create
@@ -1087,6 +1107,10 @@ module Transfers =
             let marketContent =
                 Grid.create
                     [ Grid.columnDefinitions "*, 300"
+                      // Star row constrains the inner list grid: without it the implicit Auto
+                      // row measures the ScrollViewer with infinite height, it never scrolls
+                      // and the pager renders underneath the last row.
+                      Grid.rowDefinitions "*"
                       Grid.children
                           [ Border.create
                                 [ Grid.column 0
@@ -1258,8 +1282,12 @@ module Transfers =
                                                                                           VerticalAlignment.Center ]
                                                                                 Border.create
                                                                                     [ Grid.column 2
-                                                                                      Border.background (color + "18")
-                                                                                      Border.borderBrush (color + "55")
+                                                                                      Border.background (
+                                                                                          Theme.withAlpha "18" color
+                                                                                      )
+                                                                                      Border.borderBrush (
+                                                                                          Theme.withAlpha "55" color
+                                                                                      )
                                                                                       Border.borderThickness 1.0
                                                                                       Border.cornerRadius 4.0
                                                                                       Border.padding (6.0, 3.0)

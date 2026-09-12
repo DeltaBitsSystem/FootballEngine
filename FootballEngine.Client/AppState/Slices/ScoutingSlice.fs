@@ -6,6 +6,51 @@ open FootballEngine.Core.Match
 
 module ScoutingSlice =
 
+    type AssignmentRow =
+        { Assignment: ScoutingAssignment
+          Player: FootballEngine.Domain.Player option
+          Knowledge: PlayerKnowledge option }
+
+    let private targetPlayer target =
+        match target with
+        | PlayerTarget playerId -> Some playerId
+        | PositionTarget _ -> None
+
+    let assignmentRows (gs: GameState) : AssignmentRow list =
+        gs.Market.Assignments
+        |> Map.toList
+        |> List.map snd
+        |> List.sortByDescending _.Started
+        |> List.map (fun assignment ->
+            let playerId = targetPlayer assignment.Target
+
+            { Assignment = assignment
+              Player = playerId |> Option.bind (fun id -> gs.Players |> Map.tryFind id)
+              Knowledge = playerId |> Option.bind (fun id -> gs.Market.Knowledge |> Map.tryFind id) })
+
+    let shortlist (gs: GameState) =
+        gs.Market.Shortlists |> Map.tryFind gs.UserClubId |> Option.defaultValue []
+
+    let toggleShortlist (clubId: ClubId) (playerId: FootballEngine.Domain.PlayerId) (market: MarketState) =
+        let current = market.Shortlists |> Map.tryFind clubId |> Option.defaultValue []
+
+        let updated =
+            if List.contains playerId current then
+                current |> List.filter ((<>) playerId)
+            else
+                current @ [ playerId ]
+
+        { market with
+            Shortlists = market.Shortlists |> Map.add clubId updated }
+
+    let status (row: AssignmentRow) =
+        match row.Knowledge, row.Assignment.Status with
+        | Some _, _ -> "Informe listo"
+        | None, AssignmentAssigned -> "Asignado"
+        | None, AssignmentInProgress -> "En curso"
+        | None, AssignmentReady -> "Listo para revisar"
+        | None, AssignmentCancelled -> "Cancelado"
+
     type ScoutingView =
         { NextOpponent: ClubId option
           Report: ScoutReport option }
@@ -47,14 +92,14 @@ module ScoutingSlice =
 
     /// Human report: noised by the staff's judging ability, seeded per day so
     /// the report is stable within a day and reproducible across replays.
-    let buildReport (gs: GameState) : ScoutReport option =
+    let buildReportWithBalance (balance: BalanceConfig) (gs: GameState) : ScoutReport option =
         match nextOpponent gs with
         | None -> None
         | Some rivalId ->
             match gs.Clubs[gs.UserClubId].ScoutingMemory |> Map.tryFind rivalId with
             | None -> None
             | Some mem ->
-                let cfg = BalanceConfig.defaultConfig.Scout
+                let cfg = balance.Scout
 
                 let noise =
                     match scoutingStaff gs with
@@ -71,6 +116,25 @@ module ScoutingSlice =
 
                 Some(ScoutReport.generate cfg noise seed gs.UserClubId rivalId mem)
 
+    let buildReport (gs: GameState) : ScoutReport option =
+        let balance = WeightMergeSettings.mergeWithOverridesSave None
+        buildReportWithBalance balance gs
+
+    let buildReportWithSave
+        (saveOpt: FootballEngine.Settings.SaveSettings option)
+        (gs: GameState)
+        : ScoutReport option =
+        let balance = WeightMergeSettings.mergeWithOverridesSave saveOpt
+        buildReportWithBalance balance gs
+
+    let viewWithBalance (balance: BalanceConfig) (gs: GameState) : ScoutingView =
+        { NextOpponent = nextOpponent gs
+          Report = buildReportWithBalance balance gs }
+
     let view (gs: GameState) : ScoutingView =
         { NextOpponent = nextOpponent gs
           Report = buildReport gs }
+
+    let viewWithSave (saveOpt: FootballEngine.Settings.SaveSettings option) (gs: GameState) : ScoutingView =
+        let balance = WeightMergeSettings.mergeWithOverridesSave saveOpt
+        viewWithBalance balance gs

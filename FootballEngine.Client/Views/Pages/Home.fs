@@ -222,8 +222,8 @@ module Home =
             [ Border.width 22.0
               Border.height 22.0
               Border.cornerRadius 11.0
-              Border.background (color + "33")
-              Border.borderBrush (color + "88")
+              Border.background (Theme.withAlpha "33" color)
+              Border.borderBrush (Theme.withAlpha "88" color)
               Border.borderThickness 1.0
               Border.child (
                   TextBlock.create
@@ -237,9 +237,9 @@ module Home =
 
     let private summaryBar (userTeam: Club) (pos: int option) (total: int option) (standing: LeagueStanding option) =
         Grid.create
-            [ Grid.columnDefinitions "*, 8, *, 8, *, 8, *"
+            [ Grid.columnDefinitions "*, 10, *, 10, *, 10, *"
               Grid.children
-                  [ UI.iconStatCard "BUDGET" $"€{int (userTeam.Budget / 1_000_000m)}M" ClubIcon.finances "Available"
+                  [ UI.iconStatCard "CASH" $"€{int (userTeam.Finance.Cash / 1_000_000m)}M" ClubIcon.finances "Available"
                     |> fun c -> Border.create [ Grid.column 0; Border.child c ]
 
                     Border.create
@@ -252,7 +252,10 @@ module Home =
                                    | _ -> "—")
                                   IconName.league
                                   (match standing with
-                                   | Some s -> $"{s.Points} pts"
+                                   | Some s ->
+                                       let gd = s.GoalsFor - s.GoalsAgainst
+                                       let gdStr = if gd >= 0 then $"+{gd}" else $"{gd}"
+                                       $"{s.Points} pts • {gdStr} GD"
                                    | _ -> "")
                           ) ]
 
@@ -266,11 +269,17 @@ module Home =
                                    | None -> "—")
                                   MatchEvent.goal
                                   (match standing with
-                                   | Some s -> $"{s.Played} played"
+                                   | Some s -> $"Played {s.Played}"
                                    | None -> "")
                           ) ]
 
-                    UI.iconStatCard "MORALE" $"{userTeam.Morale}%%" PlayerIcon.morale ""
+                    UI.iconStatCard
+                        "MORALE"
+                        $"{userTeam.Morale}%%"
+                        PlayerIcon.morale
+                        (if userTeam.Morale > 70 then "High"
+                         elif userTeam.Morale > 45 then "Okay"
+                         else "Low")
                     |> fun c -> Border.create [ Grid.column 6; Border.child c ] ] ]
 
     let private notificationRow (note: Notification) dispatch =
@@ -290,7 +299,7 @@ module Home =
             [ Border.padding (12.0, 10.0)
               Border.borderBrush Theme.Border
               Border.borderThickness (0.0, 0.0, 0.0, 1.0)
-              Border.background (color + "0A")
+              Border.background (Theme.withAlpha "0A" color)
               Border.child (
                   Grid.create
                       [ Grid.columnDefinitions "Auto, *, Auto"
@@ -418,8 +427,8 @@ module Home =
                         Grid.children
                             [ Border.create
                                   [ Grid.column 0
-                                    Border.background (locationColor + "22")
-                                    Border.borderBrush (locationColor + "55")
+                                    Border.background (Theme.withAlpha "22" locationColor)
+                                    Border.borderBrush (Theme.withAlpha "55" locationColor)
                                     Border.borderThickness 1.0
                                     Border.cornerRadius 4.0
                                     Border.padding (5.0, 2.0)
@@ -496,8 +505,8 @@ module Home =
                                     TextBlock.verticalAlignment VerticalAlignment.Center ]
                               Border.create
                                   [ Grid.column 1
-                                    Border.background (resultColor + "22")
-                                    Border.borderBrush (resultColor + "55")
+                                    Border.background (Theme.withAlpha "22" resultColor)
+                                    Border.borderBrush (Theme.withAlpha "55" resultColor)
                                     Border.borderThickness 1.0
                                     Border.cornerRadius 6.0
                                     Border.padding (10.0, 4.0)
@@ -557,57 +566,63 @@ module Home =
                             StackPanel.children
                                 [ for label, icon, items in groups do
                                       Border.create
-                                          [ Border.padding (12.0, 7.0)
-                                            Border.background Theme.BgCard
+                                          [ Border.padding (14.0, 9.0)
+                                            Border.background Theme.BgElevated
                                             Border.borderBrush Theme.Border
                                             Border.borderThickness (0.0, 0.0, 0.0, 1.0)
                                             Border.child (
                                                 StackPanel.create
                                                     [ StackPanel.orientation Orientation.Horizontal
-                                                      StackPanel.spacing 5.0
+                                                      StackPanel.spacing 6.0
                                                       StackPanel.children
-                                                          [ Icons.iconSm icon Theme.TextMuted
+                                                          [ Icons.iconSm icon Theme.TextDim
                                                             TextBlock.create
                                                                 [ TextBlock.text label
                                                                   TextBlock.fontSize 9.0
-                                                                  TextBlock.fontWeight FontWeight.Black
-                                                                  TextBlock.foreground Theme.TextMuted
+                                                                  TextBlock.fontWeight FontWeight.Bold
+                                                                  TextBlock.foreground Theme.TextDim
                                                                   TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
                                             ) ]
 
                                       for id, name in items do
                                           let isActive = selectedId = id
 
-                                          Button.create
-                                              [ Button.horizontalAlignment HorizontalAlignment.Stretch
-                                                Button.padding (16.0, 9.0)
-                                                Button.background (
+                                          Border.create
+                                              [ Border.background (
                                                     if isActive then Theme.AccentLight else "Transparent"
                                                 )
-                                                Button.borderThickness (Avalonia.Thickness(3.0, 0.0, 0.0, 0.0))
-                                                Button.borderBrush (if isActive then Theme.Accent else "Transparent")
-                                                Button.cornerRadius 0.0
-                                                Button.onClick (fun _ -> onSelect id)
-                                                Button.content (
-                                                    TextBlock.create
-                                                        [ TextBlock.text name
-                                                          TextBlock.fontSize 12.0
-                                                          TextBlock.fontWeight (
-                                                              if isActive then
-                                                                  FontWeight.SemiBold
-                                                              else
-                                                                  FontWeight.Normal
-                                                          )
-                                                          TextBlock.foreground (
-                                                              if isActive then Theme.Accent else Theme.TextMain
+                                                Border.borderBrush (if isActive then Theme.Accent else "Transparent")
+                                                Border.borderThickness (3.0, 0.0, 0.0, 0.0)
+                                                Border.child (
+                                                    Button.create
+                                                        [ Button.horizontalAlignment HorizontalAlignment.Stretch
+                                                          Button.padding (14.0, 9.0)
+                                                          Button.background "Transparent"
+                                                          Button.borderThickness 0.0
+                                                          Button.cornerRadius 0.0
+                                                          Button.cursor Avalonia.Input.Cursor.Default
+                                                          Button.onClick (fun _ -> onSelect id)
+                                                          Button.content (
+                                                              TextBlock.create
+                                                                  [ TextBlock.text name
+                                                                    TextBlock.fontSize 12.0
+                                                                    TextBlock.fontWeight (
+                                                                        if isActive then
+                                                                            FontWeight.SemiBold
+                                                                        else
+                                                                            FontWeight.Medium
+                                                                    )
+                                                                    TextBlock.foreground (
+                                                                        if isActive then Theme.Accent else Theme.TextSub
+                                                                    ) ]
                                                           ) ]
                                                 ) ] ] ]
                   ) ]
             :> IView
 
         Border.create
-            [ Border.background Theme.BgSidebar
-              Border.cornerRadius 10.0
+            [ Border.background Theme.BgCard
+              Border.cornerRadius Theme.RadiusLg
               Border.borderBrush Theme.Border
               Border.borderThickness 1.0
               Border.clipToBounds true
@@ -619,42 +634,46 @@ module Home =
         let header =
             Border.create
                 [ Border.padding (14.0, 10.0)
-                  Border.background Theme.BgCard
+                  Border.background Theme.BgElevated
                   Border.borderBrush Theme.Border
                   Border.borderThickness (0.0, 0.0, 0.0, 1.0)
                   Border.child (
                       Grid.create
-                          [ Grid.columnDefinitions "*, Auto, Auto, Auto"
+                          [ Grid.columnDefinitions "32, *, 64, 40, 40"
                             Grid.children
                                 [ TextBlock.create
                                       [ Grid.column 0
-                                        TextBlock.text "CLUB"
+                                        TextBlock.text "#"
                                         TextBlock.fontSize 9.0
-                                        TextBlock.fontWeight FontWeight.Black
-                                        TextBlock.foreground Theme.TextMuted ]
+                                        TextBlock.fontWeight FontWeight.Bold
+                                        TextBlock.foreground Theme.TextDim
+                                        TextBlock.textAlignment TextAlignment.Center ]
                                   TextBlock.create
                                       [ Grid.column 1
-                                        TextBlock.text "W-D-L"
+                                        TextBlock.text "CLUB"
                                         TextBlock.fontSize 9.0
-                                        TextBlock.fontWeight FontWeight.Black
-                                        TextBlock.foreground Theme.TextMuted
-                                        TextBlock.width 60.0
-                                        TextBlock.textAlignment TextAlignment.Right ]
+                                        TextBlock.fontWeight FontWeight.Bold
+                                        TextBlock.foreground Theme.TextDim ]
                                   TextBlock.create
                                       [ Grid.column 2
-                                        TextBlock.text "GD"
+                                        TextBlock.text "W-D-L"
                                         TextBlock.fontSize 9.0
-                                        TextBlock.fontWeight FontWeight.Black
-                                        TextBlock.foreground Theme.TextMuted
-                                        TextBlock.width 36.0
-                                        TextBlock.textAlignment TextAlignment.Right ]
+                                        TextBlock.fontWeight FontWeight.Bold
+                                        TextBlock.foreground Theme.TextDim
+                                        TextBlock.textAlignment TextAlignment.Center ]
                                   TextBlock.create
                                       [ Grid.column 3
+                                        TextBlock.text "GD"
+                                        TextBlock.fontSize 9.0
+                                        TextBlock.fontWeight FontWeight.Bold
+                                        TextBlock.foreground Theme.TextDim
+                                        TextBlock.textAlignment TextAlignment.Center ]
+                                  TextBlock.create
+                                      [ Grid.column 4
                                         TextBlock.text "PTS"
                                         TextBlock.fontSize 9.0
-                                        TextBlock.fontWeight FontWeight.Black
-                                        TextBlock.foreground Theme.TextMuted
-                                        TextBlock.width 36.0
+                                        TextBlock.fontWeight FontWeight.Bold
+                                        TextBlock.foreground Theme.TextDim
                                         TextBlock.textAlignment TextAlignment.Right ] ] ]
                   ) ]
             :> IView
@@ -662,40 +681,74 @@ module Home =
         let body =
             if rows.IsEmpty then
                 Border.create
-                    [ Border.padding (14.0, 16.0)
+                    [ Border.padding (20.0, 24.0)
                       Border.child (
-                          TextBlock.create
-                              [ TextBlock.text "No standings available"
-                                TextBlock.fontSize 12.0
-                                TextBlock.foreground Theme.TextMuted ]
+                          StackPanel.create
+                              [ StackPanel.spacing 8.0
+                                StackPanel.horizontalAlignment HorizontalAlignment.Center
+                                StackPanel.children
+                                    [ Icons.iconSm IconName.league Theme.TextDim
+                                      TextBlock.create
+                                          [ TextBlock.text "No standings available"
+                                            TextBlock.fontSize 12.0
+                                            TextBlock.foreground Theme.TextDim
+                                            TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ]
                       ) ]
                 :> IView
             else
                 ScrollViewer.create
-                    [ ScrollViewer.maxHeight 440.0
+                    [ ScrollViewer.maxHeight 420.0
                       ScrollViewer.content (
                           StackPanel.create
-                              [ StackPanel.children
+                              [ StackPanel.spacing 0.0
+                                StackPanel.children
                                     [ for row in rows do
+                                          let isTop4 = row.Pos <= 4
+                                          let isRelegation = row.Pos >= 18
+                                          // Row tint only for user — top/relegation get only badge, not full bg
+                                          let rowBg =
+                                              (if row.IsUser then
+                                                   Theme.withAlpha "14" Theme.Accent
+                                               else
+                                                   "Transparent")
+
+                                          let badgeBg, badgeFg =
+                                              if row.IsUser then Theme.Accent, Theme.BgSidebar
+                                              elif isTop4 then Theme.AccentAlt, "#ffffff"
+                                              elif isRelegation then Theme.Danger, "#ffffff"
+                                              else Theme.BgElevated, Theme.TextMuted
+
                                           Border.create
-                                              [ Border.background (
-                                                    if row.IsUser then Theme.AccentAlt + "22" else "Transparent"
-                                                )
-                                                Border.borderBrush Theme.Border
-                                                Border.borderThickness (0.0, 0.0, 0.0, 1.0)
-                                                Border.padding (14.0, 9.0)
+                                              [ Border.background rowBg
+                                                Border.borderBrush (if row.IsUser then Theme.Accent else "Transparent")
+                                                Border.borderThickness (3.0, 0.0, 0.0, 0.0)
+                                                // left accent only for user; top/relegation badge does the job
+                                                Border.padding (8.0, 7.0)
                                                 Border.child (
                                                     Grid.create
-                                                        [ Grid.columnDefinitions "24, *, Auto, Auto, Auto"
+                                                        [ Grid.columnDefinitions "32, *, 64, 40, 40"
                                                           Grid.children
-                                                              [ TextBlock.create
+                                                              [ // ── Pos badge — solid, high contrast (fixes Screenshot_20260822_005723)
+                                                                Border.create
                                                                     [ Grid.column 0
-                                                                      TextBlock.text (string row.Pos)
-                                                                      TextBlock.fontSize 11.0
-                                                                      TextBlock.fontWeight FontWeight.Bold
-                                                                      TextBlock.foreground row.PosColor
-                                                                      TextBlock.verticalAlignment
-                                                                          VerticalAlignment.Center ]
+                                                                      Border.background badgeBg
+                                                                      Border.cornerRadius 6.0
+                                                                      Border.width 22.0
+                                                                      Border.height 20.0
+                                                                      Border.verticalAlignment VerticalAlignment.Center
+                                                                      Border.horizontalAlignment
+                                                                          HorizontalAlignment.Center
+                                                                      Border.child (
+                                                                          TextBlock.create
+                                                                              [ TextBlock.text (string row.Pos)
+                                                                                TextBlock.fontSize 10.0
+                                                                                TextBlock.fontWeight FontWeight.Black
+                                                                                TextBlock.foreground badgeFg
+                                                                                TextBlock.horizontalAlignment
+                                                                                    HorizontalAlignment.Center
+                                                                                TextBlock.verticalAlignment
+                                                                                    VerticalAlignment.Center ]
+                                                                      ) ]
                                                                 TextBlock.create
                                                                     [ Grid.column 1
                                                                       TextBlock.text row.TeamName
@@ -704,7 +757,7 @@ module Home =
                                                                           if row.IsUser then
                                                                               FontWeight.Bold
                                                                           else
-                                                                              FontWeight.Normal
+                                                                              FontWeight.Medium
                                                                       )
                                                                       TextBlock.foreground (
                                                                           if row.IsUser then
@@ -713,28 +766,36 @@ module Home =
                                                                               Theme.TextSub
                                                                       )
                                                                       TextBlock.verticalAlignment
-                                                                          VerticalAlignment.Center ]
+                                                                          VerticalAlignment.Center
+                                                                      TextBlock.textTrimming
+                                                                          TextTrimming.CharacterEllipsis ]
                                                                 TextBlock.create
                                                                     [ Grid.column 2
                                                                       TextBlock.text row.Stats
                                                                       TextBlock.fontSize 11.0
                                                                       TextBlock.foreground Theme.TextMuted
-                                                                      TextBlock.width 60.0
-                                                                      TextBlock.textAlignment TextAlignment.Right
+                                                                      TextBlock.textAlignment TextAlignment.Center
                                                                       TextBlock.verticalAlignment
                                                                           VerticalAlignment.Center ]
                                                                 TextBlock.create
                                                                     [ Grid.column 3
-                                                                      TextBlock.text ""
-                                                                      TextBlock.width 36.0
-                                                                      TextBlock.textAlignment TextAlignment.Right ]
+                                                                      TextBlock.text "—"
+                                                                      TextBlock.fontSize 11.0
+                                                                      TextBlock.foreground Theme.TextMuted
+                                                                      TextBlock.textAlignment TextAlignment.Center
+                                                                      TextBlock.verticalAlignment
+                                                                          VerticalAlignment.Center ]
                                                                 TextBlock.create
                                                                     [ Grid.column 4
                                                                       TextBlock.text (string row.Points)
-                                                                      TextBlock.fontSize 12.0
-                                                                      TextBlock.fontWeight FontWeight.Bold
-                                                                      TextBlock.foreground Theme.TextMain
-                                                                      TextBlock.width 36.0
+                                                                      TextBlock.fontSize 12.5
+                                                                      TextBlock.fontWeight FontWeight.Black
+                                                                      TextBlock.foreground (
+                                                                          if row.IsUser then
+                                                                              Theme.Accent
+                                                                          else
+                                                                              Theme.TextMain
+                                                                      )
                                                                       TextBlock.textAlignment TextAlignment.Right
                                                                       TextBlock.verticalAlignment
                                                                           VerticalAlignment.Center ] ] ]
@@ -787,6 +848,7 @@ module Home =
                                                     Grid.children
                                                         [ Border.create
                                                               [ Grid.column 0
+                                                                Border.verticalAlignment VerticalAlignment.Top
                                                                 Border.child (
                                                                     competitionPicker
                                                                         groups

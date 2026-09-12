@@ -7,6 +7,33 @@ open FootballEngine.Database.Serializers
 
 module Mappers =
 
+    let toLoanEntity (loan: LoanAgreement) : LoanEntity =
+        { PlayerId = loan.Player
+          Origin = loan.Origin
+          Destination = loan.Destination
+          Starts = loan.Starts
+          Ends = loan.Ends
+          WageShareOrigin = loan.WageShareOrigin
+          WageShareDestination = loan.WageShareDestination
+          BuyOption = loan.BuyOption |> Option.defaultValue -1m
+          RecallDate = loan.RecallDate |> Option.defaultValue DateTime.MinValue }
+
+    let toLoanDomain (e: LoanEntity) : PlayerId * LoanAgreement =
+        e.PlayerId,
+        { Player = e.PlayerId
+          Origin = e.Origin
+          Destination = e.Destination
+          Starts = e.Starts
+          Ends = e.Ends
+          WageShareOrigin = e.WageShareOrigin
+          WageShareDestination = e.WageShareDestination
+          BuyOption = if e.BuyOption < 0m then None else Some e.BuyOption
+          RecallDate =
+            if e.RecallDate = DateTime.MinValue then
+                None
+            else
+                Some e.RecallDate }
+
     let toInboxMessageEntity (gameSaveId: int) (msg: InboxMessage) : InboxMessageEntity =
         { Id = msg.Id
           GameSaveId = gameSaveId
@@ -39,7 +66,9 @@ module Mappers =
                 None }
 
     let private affiliationFromEntity (e: PlayerEntity) : PlayerAffiliation =
-        if e.ClubId <= 0 then
+        if e.AffiliationType = "YouthProspect" && e.ClubId > 0 then
+            YouthProspect e.ClubId
+        elif e.ClubId <= 0 then
             FreeAgent
         else
             Contracted(
@@ -113,6 +142,8 @@ module Mappers =
           OneOnOne = player.Goalkeeping.OneOnOne
           AerialReach = player.Goalkeeping.AerialReach
           Condition = player.Condition
+          Fatigue = player.Fatigue
+          RecentLoad = player.RecentLoad
           MatchFitness = player.MatchFitness
           Morale = player.Morale
           StatusType = statusType
@@ -124,8 +155,15 @@ module Mappers =
           Value = Player.playerValue player.CurrentSkill
           Salary = salary
           ContractExpiry = contractExpiry
-          TrainingFocus = trainingFocusToString player.TrainingSchedule.Focus
-          TrainingIntensity = trainingIntensityToString player.TrainingSchedule.Intensity
+          AffiliationType =
+            match player.Affiliation with
+            | Contracted _ -> "Contracted"
+            | YouthProspect _ -> "YouthProspect"
+            | FreeAgent -> "FreeAgent"
+            | Retired -> "Retired"
+          TrainingFocus = ""
+          TrainingIntensity = ""
+          TrainingPlan = planToString player.TrainingPlan
           BehavioralProfile = behavioralProfileToString (Player.profile player ProfileWeightDefaults.defaults) }
 
     let toPlayerDomain (e: PlayerEntity) : Player =
@@ -187,6 +225,8 @@ module Mappers =
               OneOnOne = e.OneOnOne
               AerialReach = e.AerialReach }
           Condition = e.Condition
+          Fatigue = e.Fatigue
+          RecentLoad = e.RecentLoad
           MatchFitness = e.MatchFitness
           Morale = e.Morale
           Status = status
@@ -194,9 +234,7 @@ module Mappers =
           PotentialSkill = e.PotentialSkill
           Reputation = e.Reputation
           Affiliation = affiliationFromEntity e
-          TrainingSchedule =
-            { Focus = parseTrainingFocus e.TrainingFocus
-              Intensity = parseTrainingIntensity e.TrainingIntensity }
+          TrainingPlan = parseTrainingPlan e.TrainingPlan
           ExperienceModifiers = ExperienceModifiers.defaultModifiers }
 
     let toClubEntity (club: Club) : ClubEntity =
@@ -204,7 +242,7 @@ module Mappers =
           Name = club.Name
           Nationality = club.Nationality
           Reputation = club.Reputation
-          Budget = club.Budget
+          FinanceJson = JsonSerializer.Serialize(club.Finance)
           Morale = club.Morale
           BoardObjective = boardObjectiveToString club.BoardObjective
           CoordinationMemory = JsonSerializer.Serialize(club.CoordinationMemory)
@@ -237,7 +275,14 @@ module Mappers =
           Reputation = ce.Reputation
           PlayerIds = playerIds
           StaffIds = staffIds
-          Budget = ce.Budget
+          Finance =
+            if String.IsNullOrWhiteSpace ce.FinanceJson then
+                Finance.initial 0m
+            else
+                try
+                    JsonSerializer.Deserialize<ClubFinance>(ce.FinanceJson)
+                with _ ->
+                    Finance.initial 0m
           Morale = ce.Morale
           BoardObjective = parseBoardObjective ce.BoardObjective
           CoordinationMemory =
@@ -489,4 +534,4 @@ module Mappers =
         { Code = cd.Country.Code
           DataJson = serializeCountryData cd }
 
-    let toCountryDomain (e: CountryEntity) : CountryData = deserializeCountryData e.DataJson
+    let toCountryDomain (e: CountryEntity) : Result<CountryData, string> = deserializeCountryData e.DataJson

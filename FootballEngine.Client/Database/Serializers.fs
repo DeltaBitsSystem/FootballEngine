@@ -385,33 +385,40 @@ module Serializers =
             InternationalCup(conf, parseCupFormat param1[.. idx - 1], parseList ',' parseQualificationSlot param2)
         | _ -> defaultLeague
 
-    let trainingFocusToString =
+    let planToString =
         function
-        | TrainingFocus.TrainingPhysical -> "Physical"
-        | TrainingFocus.TrainingTechnical -> "Technical"
-        | TrainingFocus.TrainingMental -> "Mental"
-        | TrainingFocus.TrainingGoalkeeping -> "Goalkeeping"
-        | TrainingFocus.TrainingAllRound -> "AllRound"
+        | Develop g -> $"Develop:{Training.groupLabel g}"
+        | Perform -> "Perform"
+        | Rest -> "Rest"
 
-    let parseTrainingFocus (s: string) : TrainingFocus =
-        match s with
-        | "Physical" -> TrainingFocus.TrainingPhysical
-        | "Technical" -> TrainingFocus.TrainingTechnical
-        | "Mental" -> TrainingFocus.TrainingMental
-        | "Goalkeeping" -> TrainingFocus.TrainingGoalkeeping
-        | _ -> TrainingFocus.TrainingAllRound
+    let parseTrainingPlan (s: string) : IndividualPlan =
+        // Saves written before the plan column existed read back NULL: fall back to
+        // Perform instead of crashing the whole load.
+        match (if isNull s then "" else s).Split(':') with
+        | [| "Develop"; g |] ->
+            match g with
+            | "Finishing" -> Develop Finishing
+            | "Creation" -> Develop Creation
+            | "Technique" -> Develop Technique
+            | "Defending" -> Develop Defending
+            | "Physical" -> Develop Physical
+            | "Mental" -> Develop Mental
+            | "Goalkeeping" -> Develop Goalkeeping
+            | _ -> Perform
+        | [| "Rest" |] -> Rest
+        | _ -> Perform
 
-    let trainingIntensityToString =
-        function
-        | TrainingIntensity.TrainingLight -> "Light"
-        | TrainingIntensity.TrainingNormal -> "Normal"
-        | TrainingIntensity.TrainingHeavy -> "Heavy"
+    let emphasisToString (e: TeamEmphasis) : string = Training.emphasisLabel e
 
-    let parseTrainingIntensity (s: string) : TrainingIntensity =
-        match s with
-        | "Light" -> TrainingIntensity.TrainingLight
-        | "Normal" -> TrainingIntensity.TrainingNormal
-        | _ -> TrainingIntensity.TrainingHeavy
+    let parseTeamEmphasis (s: string) : TeamEmphasis =
+        match (if isNull s then "" else s) with
+        | "High Press" -> EmHighPress
+        | "Possession" -> EmPossession
+        | "Attack" -> EmAttack
+        | "Defense" -> EmDefense
+        | "Set Pieces" -> EmSetPieces
+        | "Recovery" -> EmRecovery
+        | _ -> EmPossession
 
     let inboxCategoryToString =
         function
@@ -453,12 +460,9 @@ module Serializers =
         let dto = JsonConverters.countryDataToDto cd
         System.Text.Json.JsonSerializer.Serialize(dto)
 
-    let deserializeCountryData (json: string) : CountryData =
+    let deserializeCountryData (json: string) : Result<CountryData, string> =
         let dto = System.Text.Json.JsonSerializer.Deserialize<CountryDataDto>(json)
-
-        match JsonConverters.countryDataFromDto dto with
-        | Ok cd -> cd
-        | Error msg -> failwithf $"deserializeCountryData: %s{msg}"
+        JsonConverters.countryDataFromDto dto
 
     /// Scouting memory serializes as a plain map of records; Map sorts by key
     /// and records keep field order, so the JSON is deterministic per memory.

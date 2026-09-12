@@ -34,12 +34,14 @@ module UpdateModEditor =
         let item =
             { ModManifest = state.Manifest
               Countries = state.Countries
-              InternationalComps = state.InternationalComps }
+              InternationalComps = state.InternationalComps
+              SelectedCountryCode = state.SelectedCountryCode }
 
         { state with
             Past = item :: (state.Past |> List.truncate 50)
             Future = []
-            IsDirty = true }
+            IsDirty = true
+            ExportStatus = NotExported }
 
     let undo (state: ModEditorState) : ModEditorState =
         match state.Past with
@@ -48,15 +50,18 @@ module UpdateModEditor =
             let current =
                 { ModManifest = state.Manifest
                   Countries = state.Countries
-                  InternationalComps = state.InternationalComps }
+                  InternationalComps = state.InternationalComps
+                  SelectedCountryCode = state.SelectedCountryCode }
 
             { state with
                 Manifest = head.ModManifest
                 Countries = head.Countries
                 InternationalComps = head.InternationalComps
+                SelectedCountryCode = head.SelectedCountryCode
                 Past = tail
                 Future = current :: state.Future
-                IsDirty = true }
+                IsDirty = true
+                ExportStatus = NotExported }
 
     let redo (state: ModEditorState) : ModEditorState =
         match state.Future with
@@ -65,15 +70,18 @@ module UpdateModEditor =
             let current =
                 { ModManifest = state.Manifest
                   Countries = state.Countries
-                  InternationalComps = state.InternationalComps }
+                  InternationalComps = state.InternationalComps
+                  SelectedCountryCode = state.SelectedCountryCode }
 
             { state with
                 Manifest = head.ModManifest
                 Countries = head.Countries
                 InternationalComps = head.InternationalComps
+                SelectedCountryCode = head.SelectedCountryCode
                 Past = current :: state.Past
                 Future = tail
-                IsDirty = true }
+                IsDirty = true
+                ExportStatus = NotExported }
 
     let update (msg: ModEditorMsg) (state: ModEditorState) : ModEditorState * Elmish.Cmd<ModEditorMsg> =
         let runValidation nextState = nextState, Elmish.Cmd.ofMsg Validate
@@ -96,21 +104,41 @@ module UpdateModEditor =
             Elmish.Cmd.none
 
         | AddCountry data ->
-            let newState = pushHistory state
+            if state.Countries |> Map.containsKey data.Country.Code then
+                state, Elmish.Cmd.none
+            else
+                let newState = pushHistory state
 
-            { newState with
-                Countries = state.Countries |> Map.add data.Country.Code data
-                SelectedCountryCode = Some data.Country.Code }
-            |> runValidation
+                { newState with
+                    Countries = state.Countries |> Map.add data.Country.Code data
+                    SelectedCountryCode = Some data.Country.Code }
+                |> runValidation
 
         | UpdateCountry(code, updater) ->
             match state.Countries |> Map.tryFind code with
             | Some data ->
                 let newState = pushHistory state
+                let updatedData = updater data
+                let nextCode = updatedData.Country.Code
 
-                { newState with
-                    Countries = state.Countries |> Map.add code (updater data) }
-                |> runValidation
+                // Country codes are map keys as well as editable data. Reject a rename
+                // that would silently replace another country and keep the current edit
+                // session usable while validation reports other data issues.
+                if nextCode <> code && state.Countries |> Map.containsKey nextCode then
+                    state, Elmish.Cmd.none
+                else
+                    let nextCountries =
+                        state.Countries |> Map.remove code |> Map.add nextCode updatedData
+
+                    let nextSelection =
+                        match state.SelectedCountryCode with
+                        | Some selected when selected = code -> Some nextCode
+                        | selected -> selected
+
+                    { newState with
+                        Countries = nextCountries
+                        SelectedCountryCode = nextSelection }
+                    |> runValidation
             | None -> state, Elmish.Cmd.none
 
         | AddCup(code, cup) ->
@@ -164,16 +192,22 @@ module UpdateModEditor =
 
 
         | RemoveCountry code ->
-            let newState = pushHistory state
+            if not (state.Countries |> Map.containsKey code) then
+                state, Elmish.Cmd.none
+            else
+                let newState = pushHistory state
+                let nextCountries = state.Countries |> Map.remove code
 
-            { newState with
-                Countries = state.Countries |> Map.remove code
-                SelectedCountryCode =
+                let nextSelection =
                     if state.SelectedCountryCode = Some code then
-                        None
+                        nextCountries |> Map.tryPick (fun key _ -> Some key)
                     else
-                        state.SelectedCountryCode }
-            |> runValidation
+                        state.SelectedCountryCode
+
+                { newState with
+                    Countries = nextCountries
+                    SelectedCountryCode = nextSelection }
+                |> runValidation
 
         | AddInternationalComp comp ->
             let newState = pushHistory state
@@ -216,18 +250,26 @@ module UpdateModEditor =
 
         | RedoMod -> redo state |> runValidation
 
-        | Export ->
-            match ModSaver.saveMod ModPaths.modsDir state.Manifest state.Countries state.InternationalComps with
-            | Ok() -> { state with IsDirty = false }, Elmish.Cmd.none
+        | ModEditorMsg.Export ->
+            match ModEditorPackage.saveMod ModPaths.modsDir state.Manifest state.Countries state.InternationalComps with
+            | Ok() ->
+                { state with
+                    IsDirty = false
+                    ExportStatus = Exported },
+                Elmish.Cmd.none
             | Error err ->
                 System.Diagnostics.Debug.WriteLine($"Export failed: {err}")
-                state, Elmish.Cmd.none
+
+                { state with
+                    ExportStatus = ExportFailed err },
+                Elmish.Cmd.none
 
         | Validate ->
-            let allErrors =
-                [ for KeyValue(_, data) in state.Countries do
-                      yield! ModValidator.validateCountryData state.Manifest.Name data ]
-
-            { state with Errors = allErrors }, Elmish.Cmd.none
+            match ModEditorPackage.validateMod state.Manifest state.Countries state.InternationalComps with
+            | Ok() -> { state with Errors = [] }, Elmish.Cmd.none
+            | Error error ->
+                { state with
+                    Errors = error.Diagnostics },
+                Elmish.Cmd.none
 
         | SearchMod query -> { state with SearchQuery = query }, Elmish.Cmd.none

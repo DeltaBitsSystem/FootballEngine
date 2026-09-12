@@ -10,8 +10,9 @@ module TrainingSlice =
         match msg with
         | TrainingMsg.SelectPlayer id -> { state with SelectedPlayer = Some id }
         | TrainingMsg.ClearSelection -> { state with SelectedPlayer = None }
-        | TrainingMsg.SetFocus _
-        | TrainingMsg.SetIntensity _ -> state
+        | TrainingMsg.SetPlan _
+        | TrainingMsg.SetTeamEmphasis _
+        | TrainingMsg.BulkApply _ -> state
 
     module Query =
 

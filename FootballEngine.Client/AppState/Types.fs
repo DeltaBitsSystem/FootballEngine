@@ -4,29 +4,28 @@ open FootballEngine.Core.Match
 open FootballEngine.World
 open ModEditorTypes
 open FootballEngine.Domain
+open FootballEngine.Data
+open FootballEngine.Settings
+open FootballEngine.Routing
 
 module AppTypes =
-
-    type Page =
-        | Loading
-        | Setup
-        | HomePage
-        | Inbox
-        | Squad
-        | Tactics
-        | Training
-        | Scouting
-        | Transfers
-        | Finances
-        | Settings
-        | Match
-        | ModEditor
 
     type SetupStep =
         | MainMenu
         | CountrySelection
-        | ClubSelection
         | ManagerNaming
+        | ClubSelection
+        | OptionalSettings
+        | Summary
+        | LoadGame
+
+    type SetupLoadState =
+        | LoadClosed
+        | LoadingSlots of requestId: uint64
+        | SlotsReady of SaveSlotInfo list
+        | LoadingSlot of slot: string * requestId: uint64
+        | SlotsLoadFailed of message: string
+        | LoadFailed of slot: string * error: LoadError
 
     type TransferTab =
         | MarketSearch
@@ -66,7 +65,14 @@ module AppTypes =
         { Step: SetupStep
           SelectedCountry: CountryCode option
           SecondaryCountries: CountryCode list
-          ManagerName: string }
+          SelectedLeagueLevel: int option
+          ManagerName: string
+          ManagementStyle: TeamEmphasis option
+          SelectedClubName: string option
+          Difficulty: DifficultyPreset option
+          Seed: uint64
+          SaveSlots: SaveSlotInfo list
+          LoadState: SetupLoadState }
 
     type PendingOffer =
         { PlayerId: PlayerId
@@ -88,7 +94,11 @@ module AppTypes =
           Page: int
           TransferHistory: TransferRecord list
           ActiveNegotiationId: int option
-          PendingOffer: PendingOffer option }
+          PendingOffer: PendingOffer option
+          ScoutingPlayerId: PlayerId option
+          ScoutingScoutId: StaffId option
+          ScoutingCostText: string
+          ScoutingDaysText: string }
 
     type MatchLabState =
         { HomeClubId: ClubId option
@@ -101,11 +111,68 @@ module AppTypes =
           SelectedPlayer: PlayerId option
           DraggedPlayer: PlayerId option }
 
-    type TacticsState = { DraggedPlayer: PlayerId option }
+    type TacticsState =
+        { DraggedPlayer: PlayerId option
+          History: Lineup list }
 
     type TrainingState = { SelectedPlayer: PlayerId option }
 
-    type InboxState = { SelectedMessageId: int option }
+    type FinanceLedgerFilter =
+        | AllLedgerEntries
+        | IncomeEntries
+        | ExpenseEntries
+        | CommitmentEntries
+
+    type FinanceLedgerSort =
+        | NewestLedgerFirst
+        | OldestLedgerFirst
+        | LargestLedgerFirst
+        | SmallestLedgerFirst
+
+    type FinanceState =
+        { SelectedOperationId: string option
+          ShowObligations: bool
+          LedgerFilter: FinanceLedgerFilter
+          LedgerSort: FinanceLedgerSort }
+
+    type CalendarView =
+        | MonthView
+        | AgendaView
+
+    type CalendarDateFilter =
+        | AllCalendarDates
+        | PastCalendarDates
+        | FutureCalendarDates
+
+    type CalendarTeamFilter =
+        | MyTeam
+        | AllTeams
+        | SelectedTeam of ClubId
+
+    type CalendarState =
+        { View: CalendarView
+          DateFilter: CalendarDateFilter
+          TeamFilter: CalendarTeamFilter
+          CompetitionFilter: CompetitionId option
+          AnchorMonth: System.DateTime option
+          SelectedFixtureId: MatchId option }
+
+    /// One-click bulk rules for the squad list.
+    type TrainingBulk =
+        | U21Develop
+        | RestTired
+        | RestStarters
+        | AllPerform
+
+    type InboxCategoryFilter =
+        | AllInboxCategories
+        | InboxCategory of InboxMessageCategory
+
+    type InboxState =
+        { SelectedMessageId: int option
+          RequiresActionOnly: bool
+          UnreadOnly: bool
+          CategoryFilter: InboxCategoryFilter }
 
     type MatchState =
         { ActiveReplay: Replay.ReplayData option
@@ -117,9 +184,32 @@ module AppTypes =
           Accumulator: float
           InterpolationT: float }
 
+    type SettingsCategory = FootballEngine.Routing.SettingsCategory
+
+    type SettingsState =
+        { Global: GlobalSettings
+          Save: SaveSettings
+          SearchQuery: string
+          SelectedCategory: SettingsCategory
+          Dirty: bool
+          ValidationErrors: Map<string, string>
+          History: (GlobalSettings * SaveSettings) list
+          Future: (GlobalSettings * SaveSettings) list }
+
     type ManagerEmployment =
         | Employed of clubId: ClubId
         | NotEmployed
+
+    type SaveStatus =
+        | SaveIdle
+        | Saving of requestId: uint64
+        | Saved of at: System.DateTime
+        | SaveFailed of message: string
+
+    type NavigationState =
+        { Current: Route
+          Back: Route list
+          Forward: Route list }
 
     type AppMode =
         | Initializing
@@ -128,13 +218,15 @@ module AppTypes =
 
     type State =
         { Mode: AppMode
-          CurrentPage: Page
+          Navigation: NavigationState
           IsProcessing: bool
 
           Setup: SetupState
           Squad: SquadState
           Tactics: TacticsState
           Training: TrainingState
+          Finance: FinanceState
+          Calendar: CalendarState
           Inbox: InboxState
           Match: MatchState
           Transfer: TransferState
@@ -147,6 +239,13 @@ module AppTypes =
           SelectedTactics: Formation
           WorldClock: WorldClock
           ModLoadErrors: string list
+          ResolvedData: ResolvedDataSet option
+          SaveSettings: SaveSettings
+          Settings: SettingsState
+          ActiveSlot: string option
+          PersistenceRequestId: uint64
+          SaveStatus: SaveStatus
+          GlobalSearchQuery: string
 
           PrevUserClubSkills: Map<PlayerId, int> option
           PrevUserClubStatus: Map<PlayerId, PlayerStatus> option }
@@ -155,7 +254,14 @@ module AppTypes =
         { Step = MainMenu
           SelectedCountry = None
           SecondaryCountries = []
-          ManagerName = "" }
+          SelectedLeagueLevel = None
+          ManagerName = ""
+          ManagementStyle = None
+          SelectedClubName = None
+          Difficulty = None
+          Seed = 0x464F4F5442414C4CUL
+          SaveSlots = []
+          LoadState = LoadClosed }
 
     let initTransferState =
         { ActiveTab = MarketSearch
@@ -172,7 +278,11 @@ module AppTypes =
           Page = 0
           TransferHistory = []
           ActiveNegotiationId = None
-          PendingOffer = None }
+          PendingOffer = None
+          ScoutingPlayerId = None
+          ScoutingScoutId = None
+          ScoutingCostText = ""
+          ScoutingDaysText = "" }
 
     let initMatchLabState =
         { HomeClubId = None
@@ -180,20 +290,66 @@ module AppTypes =
           Result = None
           Snapshot = 0 }
 
-    let initInboxState = { SelectedMessageId = None }
+    let initInboxState =
+        { SelectedMessageId = None
+          RequiresActionOnly = false
+          UnreadOnly = false
+          CategoryFilter = AllInboxCategories }
+
+    let private buildValidationErrors
+        (globalSettings: GlobalSettings)
+        (saveSettings: SaveSettings)
+        : Map<string, string> =
+        // why map string->string: UI binds ValidationErrors by field key, Map allows O(log n) lookup per row
+        let gErrs =
+            match GlobalSettings.validate globalSettings with
+            | Ok _ -> []
+            | Error errs -> errs
+
+        let sErrs =
+            match SaveSettings.validate saveSettings with
+            | Ok _ -> []
+            | Error errs -> errs
+
+        (gErrs @ sErrs) |> List.map (fun e -> e, e) |> Map.ofList
+
+    let initSettingsState (globalSettings: GlobalSettings) (saveSettings: SaveSettings) : SettingsState =
+        { Global = globalSettings
+          Save = saveSettings
+          SearchQuery = ""
+          SelectedCategory = All
+          Dirty = false
+          ValidationErrors = buildValidationErrors globalSettings saveSettings
+          History = []
+          Future = [] }
 
     let initialState () : State =
         { Mode = Initializing
-          CurrentPage = Loading
+          Navigation =
+            { Current = Route.Loading
+              Back = []
+              Forward = [] }
           IsProcessing = true
           Setup = initSetupState
           Squad =
             { SortBy = ByPosition
               SelectedPlayer = None
               DraggedPlayer = None }
-          Tactics = { DraggedPlayer = None }
+          Tactics = { DraggedPlayer = None; History = [] }
           Training = { SelectedPlayer = None }
-          Inbox = { SelectedMessageId = None }
+          Finance =
+            { SelectedOperationId = None
+              ShowObligations = true
+              LedgerFilter = AllLedgerEntries
+              LedgerSort = NewestLedgerFirst }
+          Calendar =
+            { View = AgendaView
+              DateFilter = FutureCalendarDates
+              TeamFilter = MyTeam
+              CompetitionFilter = None
+              AnchorMonth = None
+              SelectedFixtureId = None }
+          Inbox = initInboxState
           Match =
             { ActiveReplay = None
               HomeClubId = None
@@ -212,6 +368,13 @@ module AppTypes =
           SelectedTactics = F433
           WorldClock = WorldClockOps.init 1
           ModLoadErrors = []
+          ResolvedData = None
+          SaveSettings = SaveSettings.defaults
+          Settings = initSettingsState GlobalSettings.defaults SaveSettings.defaults
+          ActiveSlot = None
+          PersistenceRequestId = 0UL
+          SaveStatus = SaveIdle
+          GlobalSearchQuery = ""
           PrevUserClubSkills = None
           PrevUserClubStatus = None }
 

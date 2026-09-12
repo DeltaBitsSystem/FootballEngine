@@ -1,7 +1,6 @@
 namespace FootballEngine
 
 open FootballEngine.Data
-open FootballEngine.Data.ModTypes
 
 module ModEditorTypes =
 
@@ -23,7 +22,13 @@ module ModEditorTypes =
     type HistoryItem =
         { ModManifest: ModManifestDto
           Countries: Map<string, CountryDataDto>
-          InternationalComps: InternationalCompDto list }
+          InternationalComps: InternationalCompDto list
+          SelectedCountryCode: string option }
+
+    type ExportStatus =
+        | NotExported
+        | Exported
+        | ExportFailed of string
 
     type ModEditorState =
         { ActiveTab: ModEditorTab
@@ -43,11 +48,13 @@ module ModEditorTypes =
           Future: HistoryItem list
 
           // Validation
-          Errors: ModError list
-          IsDirty: bool }
+          Errors: ModDiagnostic list
+          IsDirty: bool
+          ExportStatus: ExportStatus }
 
-    let initManifest =
-        { Name = "My New Mod"
+    let initManifest: ModManifestDto =
+        { Id = "community.my-new-mod"
+          Name = "My New Mod"
           Author = "Anonymous"
           Version = "1.0.0"
           Priority = 100
@@ -55,7 +62,7 @@ module ModEditorTypes =
           Description = ""
           MergeStrategy = Some "Append" }
 
-    let initModEditorState =
+    let initModEditorState: ModEditorState =
         { ActiveTab = Overview
           ActiveSubTab = General
           Manifest = initManifest
@@ -66,4 +73,5 @@ module ModEditorTypes =
           Past = []
           Future = []
           Errors = []
-          IsDirty = false }
+          IsDirty = false
+          ExportStatus = NotExported }

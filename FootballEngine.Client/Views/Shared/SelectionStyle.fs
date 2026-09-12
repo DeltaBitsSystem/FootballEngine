@@ -12,4 +12,7 @@ module SelectionStyle =
         if isSelected then color else "Transparent"
 
     let rowBgColor (isSelected: bool) (color: string) : string =
-        if isSelected then color + "18" else "Transparent"
+        if isSelected then
+            Theme.withAlpha "18" color
+        else
+            "Transparent"

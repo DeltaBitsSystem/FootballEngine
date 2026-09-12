@@ -5,6 +5,7 @@ open Elmish
 open FootballEngine.Core.Match
 open FootballEngine.Domain
 open FootballEngine.Icons
+open FootballEngine.Routing
 open AppTypes
 open AppMsgs
 open FootballEngine.World.WorldRunner
@@ -15,7 +16,7 @@ module UpdateSim =
 
     let private addLog = AppTypes.addLog
     let private pushNotification = AppTypes.pushNotification
-    let private saveCmd = SimHelpers.saveCmd
+    let private saveCmd = SimHelpers.saveCmdForState
     let private primaryLeagueId = SimHelpers.primaryLeagueId
 
     let private userMatchNotif (gs: GameState) (fixture: MatchFixture) (state: State) =
@@ -195,6 +196,7 @@ module UpdateSim =
             { stateWithInbox with
                 IsProcessing = false
                 SelectedLeagueId = primaryLeagueId result.NextSeasonGs
+                WorldClock = result.NextSeasonClock
                 LogMessages = messages @ stateWithInbox.LogMessages |> List.truncate 50 }
             |> pushNotification
                 NotificationIcons.seasonComplete
@@ -208,10 +210,10 @@ module UpdateSim =
         | None -> nextState
 
     let rec handle (msg: SimMsg) (state: State) : State * Cmd<Msg> =
-        let getGs () =
+        let tryGetGs () =
             match state.Mode with
-            | InGame(gs, _) -> gs
-            | _ -> failwith "Engine call attempted outside of InGame state"
+            | InGame(gs, _) -> Some gs
+            | _ -> None
 
         match msg with
         | Advance days ->
@@ -221,27 +223,30 @@ module UpdateSim =
 
                 state, Cmd.none
             else
-                let gs = getGs ()
+                match tryGetGs () with
+                | None -> state, Cmd.none
+                | Some gs ->
 
-                let prevSkills =
-                    GameState.getUserSquad gs
-                    |> List.map (fun p -> p.Id, p.CurrentSkill)
-                    |> Map.ofList
+                    let prevSkills =
+                        GameState.getUserSquad gs
+                        |> List.map (fun p -> p.Id, p.CurrentSkill)
+                        |> Map.ofList
 
-                let prevStatus =
-                    GameState.getUserSquad gs |> List.map (fun p -> p.Id, p.Status) |> Map.ofList
+                    let prevStatus =
+                        GameState.getUserSquad gs |> List.map (fun p -> p.Id, p.Status) |> Map.ofList
 
-                { state with
-                    IsProcessing = true
-                    PrevUserClubSkills = Some prevSkills
-                    PrevUserClubStatus = Some prevStatus },
-                Cmd.OfTask.either
-                    (fun () -> Task.Run(fun () -> advanceDays days state.WorldClock gs))
-                    ()
-                    (SimMsg << AdvanceDone)
-                    (fun ex ->
-                        printfn $"[CRASH] Advance Error: {ex.ToString()}"
-                        SetProcessing false)
+                    { state with
+                        IsProcessing = true
+                        PrevUserClubSkills = Some prevSkills
+                        PrevUserClubStatus = Some prevStatus },
+                    Cmd.OfTask.either
+                        (fun () ->
+                            Task.Run(fun () -> advanceDaysWithSave (Some state.SaveSettings) days state.WorldClock gs))
+                        ()
+                        (SimMsg << AdvanceDone)
+                        (fun ex ->
+                            eprintfn $"[CRASH] Advance Error: {ex.ToString()}"
+                            SetProcessing false)
 
         | AdvanceDone result ->
 
@@ -252,7 +257,7 @@ module UpdateSim =
 
                     Cmd.ofMsg (SimMsg AdvanceSeason)
                 else
-                    saveCmd result.GameState state.WorldClock
+                    saveCmd state result.GameState result.WorldClock state.SaveSettings
 
             if hasUserMatchToday result.GameState then
 
@@ -267,20 +272,24 @@ module UpdateSim =
 
                 state, Cmd.none
             else
-                { state with IsProcessing = true },
-                Cmd.OfTask.perform
-                    (fun () -> Task.Run(fun () -> simulateUserMatch state.WorldClock (getGs ())))
-                    ()
-                    (SimMsg << UserMatchDone)
+                match tryGetGs () with
+                | None -> state, Cmd.none
+                | Some gs ->
+                    { state with IsProcessing = true },
+                    Cmd.OfTask.perform
+                        (fun () ->
+                            Task.Run(fun () -> simulateUserMatchWithSave (Some state.SaveSettings) state.WorldClock gs))
+                        ()
+                        (SimMsg << UserMatchDone)
 
         | UserMatchDone(Ok matchDay) ->
 
             let nextState = applyDayResult matchDay.DayResult state
 
-            let homeClubId, awayClubId =
+            let matchId, homeClubId, awayClubId =
                 match matchDay.DayResult.PlayedMatches with
-                | (_, f) :: _ -> Some f.HomeClubId, Some f.AwayClubId
-                | [] -> None, None
+                | (fixtureId, f) :: _ -> Some fixtureId, Some f.HomeClubId, Some f.AwayClubId
+                | [] -> None, None, None
 
             let withMatch =
                 { nextState with
@@ -290,17 +299,23 @@ module UpdateSim =
                             HomeClubId = homeClubId
                             AwayClubId = awayClubId
                             Snapshot = 0 }
-                    CurrentPage = Match }
+                    Navigation =
+                        match matchId with
+                        | Some fixtureId ->
+                            { Current = Route.Match(fixtureId, Replay)
+                              Back = nextState.Navigation.Current :: nextState.Navigation.Back
+                              Forward = [] }
+                        | None -> nextState.Navigation }
 
             if matchDay.DayResult.SeasonComplete then
                 withMatch,
                 Cmd.batch
                     [ Cmd.ofMsg (SimMsg AdvanceSeason)
-                      saveCmd matchDay.DayResult.GameState state.WorldClock ]
+                      saveCmd state matchDay.DayResult.GameState matchDay.DayResult.WorldClock state.SaveSettings ]
             else
                 withMatch,
                 Cmd.batch
-                    [ saveCmd matchDay.DayResult.GameState state.WorldClock
+                    [ saveCmd state matchDay.DayResult.GameState matchDay.DayResult.WorldClock state.SaveSettings
                       Cmd.ofMsg (SimMsg SimulateAiFixtures) ]
 
         | UserMatchDone(Error _) ->
@@ -309,11 +324,14 @@ module UpdateSim =
 
         | SimulateAiFixtures ->
 
-            state,
-            Cmd.OfTask.perform
-                (fun () -> Task.Run(fun () -> runAiFixtures state.WorldClock (getGs ())))
-                ()
-                (SimMsg << AiMatchesDone)
+            match tryGetGs () with
+            | None -> state, Cmd.none
+            | Some gs ->
+                state,
+                Cmd.OfTask.perform
+                    (fun () -> Task.Run(fun () -> runAiFixturesWithSave (Some state.SaveSettings) state.WorldClock gs))
+                    ()
+                    (SimMsg << AiMatchesDone)
 
         | AiMatchesDone result ->
             match state.Mode with
@@ -325,7 +343,7 @@ module UpdateSim =
                             WorldClock = result.WorldClock }
                         |> applyMatchNotifs result.GameState result.PlayedMatches
 
-                    nextState, saveCmd result.GameState result.WorldClock
+                    nextState, saveCmd state result.GameState result.WorldClock state.SaveSettings
                 else
                     state, Cmd.none
             | _ -> state, Cmd.none
@@ -337,29 +355,32 @@ module UpdateSim =
 
                 state, Cmd.none
             else
-                let gs = getGs ()
+                match tryGetGs () with
+                | None -> state, Cmd.none
+                | Some gs ->
 
 
+                    let prevSkills =
+                        GameState.getUserSquad gs
+                        |> List.map (fun p -> p.Id, p.CurrentSkill)
+                        |> Map.ofList
 
-                let prevSkills =
-                    GameState.getUserSquad gs
-                    |> List.map (fun p -> p.Id, p.CurrentSkill)
-                    |> Map.ofList
+                    let prevStatus =
+                        GameState.getUserSquad gs |> List.map (fun p -> p.Id, p.Status) |> Map.ofList
 
-                let prevStatus =
-                    GameState.getUserSquad gs |> List.map (fun p -> p.Id, p.Status) |> Map.ofList
-
-                { state with
-                    IsProcessing = true
-                    PrevUserClubSkills = Some prevSkills
-                    PrevUserClubStatus = Some prevStatus },
-                Cmd.OfTask.either
-                    (fun () -> Task.Run(fun () -> simulateFullSeasonAndAdvance state.WorldClock gs))
-                    ()
-                    (SimMsg << SeasonAdvanceDone)
-                    (fun ex ->
-                        printfn $"[CRASH] SimulateSeason Error: {ex.ToString()}"
-                        SetProcessing false)
+                    { state with
+                        IsProcessing = true
+                        PrevUserClubSkills = Some prevSkills
+                        PrevUserClubStatus = Some prevStatus },
+                    Cmd.OfTask.either
+                        (fun () ->
+                            Task.Run(fun () ->
+                                simulateFullSeasonAndAdvanceWithSave (Some state.SaveSettings) state.WorldClock gs))
+                        ()
+                        (SimMsg << SeasonAdvanceDone)
+                        (fun ex ->
+                            eprintfn $"[CRASH] SimulateSeason Error: {ex.ToString()}"
+                            SetProcessing false)
 
 
         | SeasonAdvanceDone(Ok result) ->
@@ -369,7 +390,7 @@ module UpdateSim =
             let nextState = applySeasonResult result state
 
             match nextState.Mode with
-            | InGame(gs, _) -> nextState, saveCmd gs state.WorldClock
+            | InGame(gs, _) -> nextState, saveCmd state gs result.NextSeasonClock state.SaveSettings
             | _ -> nextState, Cmd.none
 
         | SeasonAdvanceDone(Error NoFixturesToPlay) ->
@@ -388,30 +409,29 @@ module UpdateSim =
 
                 state, Cmd.none
             else
-                let gs = getGs ()
+                match tryGetGs () with
+                | None -> state, Cmd.none
+                | Some gs ->
 
 
-                let prevSkills =
-                    GameState.getUserSquad gs
-                    |> List.map (fun p -> p.Id, p.CurrentSkill)
-                    |> Map.ofList
+                    let prevSkills =
+                        GameState.getUserSquad gs
+                        |> List.map (fun p -> p.Id, p.CurrentSkill)
+                        |> Map.ofList
 
-                let prevStatus =
-                    GameState.getUserSquad gs |> List.map (fun p -> p.Id, p.Status) |> Map.ofList
+                    let prevStatus =
+                        GameState.getUserSquad gs |> List.map (fun p -> p.Id, p.Status) |> Map.ofList
 
-                { state with
-                    IsProcessing = true
-                    PrevUserClubSkills = Some prevSkills
-                    PrevUserClubStatus = Some prevStatus },
-                Cmd.OfTask.either
-                    (fun () -> Task.Run(fun () -> advanceToNextSeason state.WorldClock gs))
-                    ()
-                    (SimMsg << SeasonAdvanceDone << Ok)
-                    (fun ex ->
-                        printfn $"[CRASH] AdvanceSeason Error: {ex.ToString()}"
-                        SetProcessing false)
-
-        | SaveGame ->
-            match state.Mode with
-            | InGame(gs, _) -> state, saveCmd gs state.WorldClock
-            | _ -> state, Cmd.none
+                    { state with
+                        IsProcessing = true
+                        PrevUserClubSkills = Some prevSkills
+                        PrevUserClubStatus = Some prevStatus },
+                    Cmd.OfTask.either
+                        (fun () ->
+                            Task.Run(fun () ->
+                                advanceToNextSeasonWithSave (Some state.SaveSettings) state.WorldClock gs))
+                        ()
+                        (SimMsg << SeasonAdvanceDone << Ok)
+                        (fun ex ->
+                            eprintfn $"[CRASH] AdvanceSeason Error: {ex.ToString()}"
+                            SetProcessing false)

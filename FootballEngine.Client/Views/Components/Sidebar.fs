@@ -10,52 +10,115 @@ open FootballEngine.AppMsgs
 open FootballEngine.AppTypes
 open FootballEngine.Domain
 open FootballEngine.Icons
+open FootballEngine.Routing
 open Material.Icons
 
 module Navigation =
     type NavItem =
-        { Page: Page
-          Label: string
+        { Route: Route
+          Label: TranslationKey
           Icon: MaterialIconKind }
 
-    let menuItems =
-        [ { Page = HomePage
-            Label = "Home"
-            Icon = IconName.home }
-          { Page = Inbox
-            Label = "Inbox"
-            Icon = IconName.inbox }
-          { Page = Squad
-            Label = "Squad"
-            Icon = IconName.squad }
-          { Page = Tactics
-            Label = "Tactics"
-            Icon = IconName.tactics }
-          { Page = Training
-            Label = "Training"
-            Icon = PlayerIcon.stamina }
-          { Page = Scouting
-            Label = "Scouting"
-            Icon = ClubIcon.scouting }
-          { Page = Transfers
-            Label = "Transfers"
-            Icon = ClubIcon.transfer }
-          { Page = Finances
-            Label = "Finances"
-            Icon = ClubIcon.finances }
-          { Page = Settings
-            Label = "Settings"
-            Icon = IconName.settings }
-          { Page = ModEditor
-            Label = "Mod Editor"
-            Icon = IconName.fileDocumentEdit } ]
+    type NavSection =
+        { Title: TranslationKey
+          Items: NavItem list }
+
+    let menuSections: NavSection list =
+        [ { Title = TranslationKey.Today
+            Items =
+              [ { Route = Route.Home
+                  Label = TranslationKey.Today
+                  Icon = IconName.home }
+                { Route = Route.Inbox(InboxRoute None)
+                  Label = TranslationKey.Inbox
+                  Icon = IconName.inbox } ] }
+          { Title = TranslationKey.Squad
+            Items =
+              [ { Route = Route.Squad SquadRoute.All
+                  Label = TranslationKey.Squad
+                  Icon = IconName.squad }
+                { Route = Route.Tactics TacticsRoute.Overview
+                  Label = TranslationKey.Tactics
+                  Icon = IconName.tactics }
+                { Route = Route.Training TrainingRoute.Overview
+                  Label = TranslationKey.Training
+                  Icon = PlayerIcon.stamina }
+                { Route = Route.Staff StaffRoute.AllStaff
+                  Label = TranslationKey.Staff
+                  Icon = ClubIcon.staff } ] }
+          { Title = TranslationKey.Shortlist
+            Items =
+              [ { Route = Route.Scouting ScoutingRoute.Overview
+                  Label = TranslationKey.Scouting
+                  Icon = ClubIcon.scouting }
+                { Route = Route.Transfers TransferRoute.Watchlist
+                  Label = TranslationKey.Shortlist
+                  Icon = IconName.filter }
+                { Route = Route.Transfers TransferRoute.Negotiations
+                  Label = TranslationKey.Negotiations
+                  Icon = ClubIcon.transfer } ] }
+          { Title = TranslationKey.Finances
+            Items =
+              [ { Route = Route.Finances FinanceRoute.Overview
+                  Label = TranslationKey.Finances
+                  Icon = ClubIcon.finances }
+                { Route = Route.Board
+                  Label = TranslationKey.Board
+                  Icon = IconName.bullhorn }
+                { Route = Route.Youth
+                  Label = TranslationKey.Youth
+                  Icon = IconName.school } ] }
+          { Title = TranslationKey.Calendar
+            Items =
+              [ { Route = Route.Calendar
+                  Label = TranslationKey.Calendar
+                  Icon = IconName.calendar }
+                { Route = Route.Competitions
+                  Label = TranslationKey.Competitions
+                  Icon = IconName.league }
+                { Route = Route.News
+                  Label = TranslationKey.News
+                  Icon = IconName.bullhorn } ] }
+          { Title = TranslationKey.Settings
+            Items =
+              [ { Route = Route.Settings SettingsRoute.Overview
+                  Label = TranslationKey.Settings
+                  Icon = IconName.settings } ] } ]
+
+    let menuItems = menuSections |> List.collect _.Items
 
 module Sidebar =
-    let private navButton (item: Navigation.NavItem) (isActive: bool) (badgeCount: int option) dispatch =
-        let accentBg = Theme.Accent + "18"
-        let activeFg = Theme.Accent
-        let inactiveFg = Theme.TextSub
+    let private sameDestination (left: Route) (right: Route) =
+        match left, right with
+        | Route.Home, Route.Home
+        | Route.Calendar, Route.Calendar
+        | Route.Competitions, Route.Competitions
+        | Route.News, Route.News
+        | Route.Board, Route.Board
+        | Route.Youth, Route.Youth
+        | Route.Inbox _, Route.Inbox _
+        | Route.Squad _, Route.Squad _
+        | Route.Staff _, Route.Staff _
+        | Route.Tactics _, Route.Tactics _
+        | Route.Training _, Route.Training _
+        | Route.Scouting _, Route.Scouting _
+        | Route.Transfers TransferRoute.Market, Route.Transfers(TransferRoute.Player _)
+        | Route.Transfers TransferRoute.Watchlist, Route.Transfers TransferRoute.Watchlist
+        | Route.Transfers TransferRoute.IncomingOffers, Route.Transfers TransferRoute.IncomingOffers
+        | Route.Transfers TransferRoute.Negotiations, Route.Transfers TransferRoute.Negotiations
+        | Route.Transfers TransferRoute.Negotiations, Route.Transfers(TransferRoute.Negotiation _)
+        | Route.Transfers TransferRoute.Negotiations, Route.Transfers(TransferRoute.Offer _)
+        | Route.Transfers TransferRoute.History, Route.Transfers TransferRoute.History
+        | Route.Finances _, Route.Finances _
+        | Route.Settings _, Route.Settings _ -> true
+        | _ -> left = right
 
+    let private navButton
+        (item: Navigation.NavItem)
+        (isActive: bool)
+        (badgeCount: int option)
+        (dispatch: Msg -> unit)
+        : IView =
         let badge =
             match badgeCount with
             | Some count when count > 0 ->
@@ -75,50 +138,61 @@ module Sidebar =
             | _ -> TextBlock.create [ TextBlock.text "" ] :> IView
 
         Button.create
-            [ Button.background (if isActive then accentBg else "Transparent")
-
+            [ Button.background (
+                  if isActive then
+                      Theme.withAlpha "18" Theme.Accent
+                  else
+                      "Transparent"
+              )
               Button.borderBrush (if isActive then Theme.Accent else "Transparent")
+              Button.borderThickness (
+                  if isActive then
+                      Avalonia.Thickness(3.0, 0.0, 0.0, 0.0)
+                  else
+                      Avalonia.Thickness(0.0)
+              )
               Button.cornerRadius 0.0
-              Button.padding (20.0, 12.0)
+              Button.padding (18.0, 11.0)
               Button.horizontalAlignment HorizontalAlignment.Stretch
               Button.horizontalContentAlignment HorizontalAlignment.Left
-              Button.onClick (fun _ -> dispatch (ChangePage item.Page))
+              Button.onClick (fun _ -> dispatch (Navigate item.Route))
               Button.content (
                   DockPanel.create
                       [ DockPanel.lastChildFill true
                         DockPanel.children
-                            [ badge |> fun b -> Border.create [ Border.child b; Border.dock Dock.Right ]
+                            [ badge
+                              |> fun value -> Border.create [ Border.child value; Border.dock Dock.Right ]
                               StackPanel.create
                                   [ StackPanel.orientation Orientation.Horizontal
-                                    StackPanel.spacing 14.0
+                                    StackPanel.spacing 12.0
                                     StackPanel.verticalAlignment VerticalAlignment.Center
                                     StackPanel.children
-                                        [ Icons.icon item.Icon 18.0 (if isActive then activeFg else inactiveFg)
+                                        [ Icons.icon item.Icon 18.0 (if isActive then Theme.Accent else Theme.TextSub)
                                           TextBlock.create
-                                              [ TextBlock.text item.Label
+                                              [ TextBlock.text (Localization.resolve item.Label [])
                                                 TextBlock.fontSize 13.0
                                                 TextBlock.fontWeight (
                                                     if isActive then FontWeight.SemiBold else FontWeight.Normal
                                                 )
-                                                TextBlock.foreground (if isActive then activeFg else inactiveFg)
+                                                TextBlock.foreground (
+                                                    if isActive then Theme.TextMain else Theme.TextSub
+                                                )
                                                 TextBlock.verticalAlignment VerticalAlignment.Center ] ] ] ] ]
               ) ]
 
-    let sidebar (state: State) dispatch =
+    let sidebar (state: State) (dispatch: Msg -> unit) =
         let unreadCount, visibleItems =
             match state.Mode with
             | InGame(gs, employment) ->
-                let unread = GameState.unreadInboxCount gs
-
-                let items =
+                let isEmployed =
                     match employment with
-                    | Employed _ -> Navigation.menuItems
-                    | NotEmployed ->
-                        Navigation.menuItems
-                        |> List.filter (fun item -> item.Page <> Squad && item.Page <> Tactics && item.Page <> Training)
+                    | Employed _ -> true
+                    | NotEmployed -> false
 
-                unread, items
-            | _ -> 0, Navigation.menuItems
+                GameState.unreadInboxCount gs,
+                Navigation.menuItems
+                |> List.filter (fun item -> Route.canNavigate isEmployed item.Route)
+            | _ -> 0, []
 
         Border.create
             [ Border.width 220.0
@@ -151,12 +225,37 @@ module Sidebar =
                                                           TextBlock.foreground Theme.Accent
                                                           TextBlock.lineSpacing 2.0 ] ] ]
                                     ) ]
-
                               StackPanel.create
                                   [ DockPanel.dock Dock.Top
-                                    StackPanel.margin (0.0, 8.0)
+                                    StackPanel.margin (0.0, 4.0)
                                     StackPanel.children
-                                        [ for item in visibleItems do
-                                              let badge = if item.Page = Inbox then Some unreadCount else None
-                                              navButton item (state.CurrentPage = item.Page) badge dispatch ] ] ] ]
+                                        [ for section in Navigation.menuSections do
+                                              let sectionItems =
+                                                  section.Items
+                                                  |> List.filter (fun item -> List.contains item visibleItems)
+
+                                              if not sectionItems.IsEmpty then
+                                                  Border.create
+                                                      [ Border.padding (18.0, 12.0, 18.0, 4.0)
+                                                        Border.child (
+                                                            TextBlock.create
+                                                                [ TextBlock.text (Localization.resolve section.Title [])
+                                                                  TextBlock.fontSize 10.0
+                                                                  TextBlock.fontWeight FontWeight.Bold
+                                                                  TextBlock.foreground Theme.TextDim
+                                                                  TextBlock.opacity 0.7 ]
+                                                        ) ]
+                                                  :> IView
+
+                                              for item in sectionItems do
+                                                  let badge =
+                                                      match item.Route with
+                                                      | Route.Inbox _ -> Some unreadCount
+                                                      | _ -> None
+
+                                                  navButton
+                                                      item
+                                                      (sameDestination item.Route state.Navigation.Current)
+                                                      badge
+                                                      dispatch ] ] ] ]
               ) ]

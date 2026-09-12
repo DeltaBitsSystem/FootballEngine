@@ -6,6 +6,22 @@ open AppMsgs
 
 module TacticsSlice =
 
+    [<Literal>]
+    let DraftHistoryLimit = 20
+
+    /// History contains only confirmed pre-edit lineups. Keeping this pure
+    /// makes undo a draft operation and prevents it from becoming a save or
+    /// match command by accident.
+    let recordDraft (lineup: Lineup) (history: Lineup list) : Lineup list =
+        match history with
+        | previous :: _ when previous = lineup -> history
+        | _ -> (lineup :: history) |> List.truncate DraftHistoryLimit
+
+    let undoDraft (history: Lineup list) : (Lineup * Lineup list) option =
+        match history with
+        | previous :: rest -> Some(previous, rest)
+        | [] -> None
+
     let update (msg: TacticsMsg) (state: TacticsState) : TacticsState =
         match msg with
         | TacticsMsg.StartDrag id -> { state with DraggedPlayer = Some id }
@@ -13,7 +29,9 @@ module TacticsSlice =
         | TacticsMsg.SetFormation _
         | TacticsMsg.SetTeamTactics _
         | TacticsMsg.SetInstruction _
-        | TacticsMsg.DropPlayerInSlot _ -> state
+        | TacticsMsg.DropPlayerInSlot _
+        | TacticsMsg.QuickPick
+        | TacticsMsg.UndoTactics -> state
 
     module Query =
 

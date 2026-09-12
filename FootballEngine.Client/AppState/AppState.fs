@@ -1,47 +1,32 @@
 namespace FootballEngine
 
+open System
 open Elmish
 open FootballEngine.AppMsgs
 open FootballEngine.Domain
 open AppTypes
+open FootballEngine.Settings
 open FootballEngine.World
 open FootballEngine.Data
+open FootballEngine.Routing
 
 
 module AppState =
 
-    let private initialState () : State =
-        { Mode = Initializing
-          CurrentPage = Loading
-          IsProcessing = true
-          Setup = initSetupState
-          Squad =
-            { SortBy = ByPosition
-              SelectedPlayer = None
-              DraggedPlayer = None }
-          Tactics = { DraggedPlayer = None }
-          Training = { SelectedPlayer = None }
-          Inbox = { SelectedMessageId = None }
-          Match =
-            { ActiveReplay = None
-              HomeClubId = None
-              AwayClubId = None
-              Snapshot = 0
-              IsPlaying = false
-              PlaybackSpeed = 20
-              Accumulator = 0.0
-              InterpolationT = 0.0 }
-          Transfer = initTransferState
-          ModEditor = ModEditorTypes.initModEditorState
-          Notifications = []
-          NextNotificationId = 1
-          LogMessages = [ "Football Engine 2026 Initialized" ]
-          SelectedLeagueId = 1
-          SelectedTactics = F433
-          WorldClock = WorldClockOps.init 1
-          ModLoadErrors = []
-          PrevUserClubSkills = None
-          PrevUserClubStatus = None }
+    // why mutable preloaded: Program.main loads GlobalSettings synchronously before AppBuilder, Elmish init then sees cached value without waiting for async Cmd
+    let mutable initialGlobalOverride: GlobalSettings option = None
+
+    // CLI parsing happens in Program.main before AppBuilder starts; the Avalonia App
+    // reads it back in OnFrameworkInitializationCompleted.
+    let mutable shotsContext: Shots.Context option = None
+
+    // Startup resolves the immutable content profile before Avalonia starts. Keeping the
+    // value here only bridges the host lifecycle; runtime consumers read State.ResolvedData.
+    let mutable initialResolvedDataOverride: ResolvedDataSet option = None
+
+    let private initialState (resolvedData: ResolvedDataSet option) : State =
+        { AppTypes.initialState () with
+            ResolvedData = resolvedData }
 
     let private addLog msg (state: State) =
         { state with
@@ -49,6 +34,18 @@ module AppState =
 
     let private headCoach (clubId: ClubId) (gs: GameState) : Staff option =
         GameState.getStaff clubId gs |> List.tryFind (fun s -> s.Role = HeadCoach)
+
+    let private pushTacticsHistory (gs: GameState) (state: State) : State =
+        match
+            headCoach gs.UserClubId gs
+            |> Option.bind (fun c -> c.Attributes.Coaching.Lineup)
+        with
+        | None -> state
+        | Some lu ->
+            { state with
+                Tactics =
+                    { state.Tactics with
+                        History = TacticsSlice.recordDraft lu state.Tactics.History } }
 
     let private buildNewLineupSlots (formation: Formation) (existing: Lineup option) =
         let newFormationSlots = FormationData.getFormation formation
@@ -92,9 +89,191 @@ module AppState =
                     CachedPlayers = []
                     FilteredPlayers = [] } }
 
+    let initWithGlobal (preloaded: GlobalSettings) (resolvedData: ResolvedDataSet option) () : State * Cmd<Msg> =
+        let baseState = initialState resolvedData
+        // why override Settings here: initialState uses defaults, but startup may have loaded user GlobalSettings from disk
+        let stateWithPreloaded =
+            { baseState with
+                Settings = initSettingsState preloaded baseState.SaveSettings }
+
+        // why sync Theme here: ensures currentPalette matches preloaded Appearance before first view renders
+        try
+            Theme.currentPalette.Value <- Theme.paletteForSettings preloaded.Appearance
+        with _ ->
+            ()
+
+        match Localization.setActiveCode preloaded.Appearance.Language with
+        | Ok() -> ()
+        | Error _ -> ()
+
+        stateWithPreloaded, Cmd.ofMsg StartupReady
+
     let init () =
-        let loadCmd = Cmd.OfTask.perform (fun () -> Db.loadGame ()) () GameLoaded
-        initialState (), loadCmd
+        let resolvedData = initialResolvedDataOverride
+
+        match initialGlobalOverride with
+        | Some g -> initWithGlobal g resolvedData ()
+        | None -> initialState resolvedData, Cmd.ofMsg StartupReady
+
+    let private routeAllowed (state: State) (route: Route) =
+        match state.Mode with
+        | Initializing -> route = Route.Loading
+        | NoSave -> route = Route.Setup || route = Route.ModEditor
+        | InGame(_, _employment) when Shots.Enabled && route = Route.Setup -> true
+        | InGame(_, employment) ->
+            let isEmployed =
+                match employment with
+                | Employed _ -> true
+                | NotEmployed -> false
+
+            route <> Route.Loading
+            && route <> Route.Setup
+            && Route.canNavigate isEmployed route
+
+    let private applyRouteContext (route: Route) (state: State) =
+        match route with
+        | Route.Inbox(InboxRoute messageId) ->
+            { state with
+                Inbox =
+                    { state.Inbox with
+                        SelectedMessageId = messageId } }
+        | Route.Squad(SquadRoute.Detail playerId) ->
+            { state with
+                Squad =
+                    { state.Squad with
+                        SelectedPlayer = Some playerId } }
+        | Route.Squad _ ->
+            { state with
+                Squad =
+                    { state.Squad with
+                        SelectedPlayer = None } }
+        | Route.Training(TrainingRoute.Player playerId) ->
+            { state with
+                Training = { SelectedPlayer = Some playerId } }
+        | Route.Training _ ->
+            { state with
+                Training = { SelectedPlayer = None } }
+        | Route.Transfers TransferRoute.Market ->
+            { state with
+                Transfer =
+                    { state.Transfer with
+                        ActiveTab = MarketSearch
+                        SelectedPlayerId = None
+                        ActiveNegotiationId = None } }
+        | Route.Transfers(TransferRoute.Player playerId) ->
+            { state with
+                Transfer =
+                    { state.Transfer with
+                        SelectedPlayerId = Some playerId } }
+        | Route.Transfers TransferRoute.Watchlist ->
+            { state with
+                Transfer =
+                    { state.Transfer with
+                        ActiveTab = MyWatchlist } }
+        | Route.Transfers TransferRoute.IncomingOffers ->
+            { state with
+                Transfer =
+                    { state.Transfer with
+                        ActiveTab = AppTypes.IncomingOffers } }
+        | Route.Transfers TransferRoute.Negotiations ->
+            { state with
+                Transfer =
+                    { state.Transfer with
+                        ActiveTab = OutgoingOffers } }
+        | Route.Transfers(TransferRoute.Negotiation negotiationId)
+        | Route.Transfers(TransferRoute.Offer negotiationId) ->
+            let selectedPlayerId =
+                match state.Mode with
+                | InGame(gs, _) -> gs.PendingNegotiations |> Map.tryFind negotiationId |> Option.map _.PlayerId
+                | _ -> None
+
+            { state with
+                Transfer =
+                    { state.Transfer with
+                        ActiveTab = OutgoingOffers
+                        ActiveNegotiationId = Some negotiationId
+                        SelectedPlayerId = selectedPlayerId } }
+        | Route.Transfers TransferRoute.History ->
+            { state with
+                Transfer =
+                    { state.Transfer with
+                        ActiveTab = TransferHistory } }
+        | Route.Finances(FinanceRoute.Operation operationId) ->
+            { state with
+                Finance =
+                    { state.Finance with
+                        SelectedOperationId = Some operationId } }
+        | Route.Finances FinanceRoute.Overview ->
+            { state with
+                Finance =
+                    { state.Finance with
+                        SelectedOperationId = None } }
+        | Route.Calendar ->
+            { state with
+                Calendar =
+                    { state.Calendar with
+                        SelectedFixtureId = None } }
+        | Route.Settings(SettingsRoute.Category category) ->
+            { state with
+                Settings = SettingsSlice.selectCategory category state.Settings }
+        | Route.Settings SettingsRoute.Overview ->
+            { state with
+                Settings = SettingsSlice.selectCategory SettingsCategory.All state.Settings }
+        | _ -> state
+
+    let private navigateTo (route: Route) (state: State) : State =
+        if not (routeAllowed state route) || state.Navigation.Current = route then
+            state
+        else
+            { state with
+                Navigation =
+                    { Current = route
+                      Back = state.Navigation.Current :: state.Navigation.Back
+                      Forward = [] } }
+            |> applyRouteContext route
+
+    let private replaceRoute (route: Route) (state: State) : State =
+        { state with
+            Navigation =
+                { Current = route
+                  Back = []
+                  Forward = [] } }
+
+    let private goBack (state: State) : State =
+        match state.Navigation.Back with
+        | previous :: rest when routeAllowed state previous ->
+            { state with
+                Navigation =
+                    { Current = previous
+                      Back = rest
+                      Forward = state.Navigation.Current :: state.Navigation.Forward } }
+            |> applyRouteContext previous
+        | _ -> state
+
+    let private goForward (state: State) : State =
+        match state.Navigation.Forward with
+        | next :: rest when routeAllowed state next ->
+            { state with
+                Navigation =
+                    { Current = next
+                      Back = state.Navigation.Current :: state.Navigation.Back
+                      Forward = rest } }
+            |> applyRouteContext next
+        | _ -> state
+
+    let private listSlotsCmd (requestId: uint64) : Cmd<Msg> =
+        Cmd.OfTask.either
+            (fun () -> Db.listSaveSlotsAsync ())
+            ()
+            (fun result -> AppMsgs.PersistenceMsg(AppMsgs.SaveSlotsLoaded(requestId, result)))
+            (fun ex -> AppMsgs.PersistenceMsg(AppMsgs.SaveSlotsLoaded(requestId, Error ex.Message)))
+
+    let private loadSlotCmd (requestId: uint64) (slot: string) : Cmd<Msg> =
+        Cmd.OfTask.either
+            (fun () -> Db.loadGameInSlot slot)
+            ()
+            (fun result -> AppMsgs.GameLoaded(requestId, slot, result))
+            (fun ex -> AppMsgs.GameLoaded(requestId, slot, Error(Corrupt(slot, ex.Message))))
 
     let update (msg: Msg) (state: State) : State * Cmd<Msg> =
         let withGame (f: GameState -> State * Cmd<Msg>) =
@@ -104,7 +283,169 @@ module AppState =
 
         match msg with
 
+        | StartupReady ->
+            { state with
+                Mode = NoSave
+                Navigation =
+                    { Current = Route.Setup
+                      Back = []
+                      Forward = [] }
+                IsProcessing = false
+                Setup = initSetupState
+                ModLoadErrors =
+                    if state.ResolvedData.IsSome then
+                        []
+                    else
+                        [ "World data is unavailable. Check the installed data packages before starting a career." ] },
+            Cmd.none
+
+        | SetupMsg OpenLoadGame ->
+            let requestId = state.PersistenceRequestId + 1UL
+
+            { state with
+                Mode = NoSave
+                Navigation = replaceRoute Route.Setup state |> fun next -> next.Navigation
+                IsProcessing = false
+                PersistenceRequestId = requestId
+                Setup =
+                    { state.Setup with
+                        Step = LoadGame
+                        SaveSlots = []
+                        LoadState = LoadingSlots requestId } },
+            listSlotsCmd requestId
+
+        | SetupMsg CloseLoadGame -> UpdateSetup.handle CloseLoadGame state
+
+        | SetupMsg CancelSetup -> UpdateSetup.handle CancelSetup state
+
         | SetupMsg m -> UpdateSetup.handle m state
+
+        | PersistenceMsg ListSaveSlots ->
+            let requestId = state.PersistenceRequestId + 1UL
+
+            { state with
+                PersistenceRequestId = requestId
+                Setup =
+                    { state.Setup with
+                        Step = LoadGame
+                        LoadState = LoadingSlots requestId } },
+            listSlotsCmd requestId
+
+        | PersistenceMsg(SaveSlotsLoaded(requestId, Ok slots)) ->
+            match state.Setup.LoadState with
+            | LoadingSlots current when current = requestId ->
+                { state with
+                    Setup =
+                        { state.Setup with
+                            SaveSlots = slots
+                            LoadState = SlotsReady slots } },
+                Cmd.none
+            | _ -> state, Cmd.none
+
+        | PersistenceMsg(SaveSlotsLoaded(requestId, Error error)) ->
+            match state.Setup.LoadState with
+            | LoadingSlots current when current = requestId ->
+                { state with
+                    Setup =
+                        { state.Setup with
+                            LoadState = SlotsLoadFailed error } },
+                Cmd.none
+            | _ -> state, Cmd.none
+
+        | PersistenceMsg(LoadSlot slot) ->
+            let knownSlot =
+                state.Setup.SaveSlots |> List.exists (fun save -> save.SlotId = slot)
+
+            if not knownSlot then
+                { state with
+                    Setup =
+                        { state.Setup with
+                            LoadState = SlotsLoadFailed $"Save slot '{slot}' is not in the current slot list." } },
+                Cmd.none
+            else
+                let requestId = state.PersistenceRequestId + 1UL
+
+                { state with
+                    Mode = NoSave
+                    Navigation = replaceRoute Route.Setup state |> fun next -> next.Navigation
+                    IsProcessing = true
+                    PersistenceRequestId = requestId
+                    Setup =
+                        { state.Setup with
+                            Step = LoadGame
+                            LoadState = LoadingSlot(slot, requestId) } },
+                loadSlotCmd requestId slot
+
+        | GameLoaded(requestId, slot, result) ->
+            match state.Setup.LoadState with
+            | LoadingSlot(currentSlot, currentRequest) when currentSlot = slot && currentRequest = requestId ->
+                match result with
+                | Ok(gs, clock, saveSettings, resolvedData) ->
+                    match Localization.setActiveCode state.Settings.Global.Appearance.Language with
+                    | Ok() -> ()
+                    | Error _ -> ()
+
+                    { state with
+                        Mode = InGame(gs, managerEmployment gs)
+                        Navigation =
+                            { Current = Route.Home
+                              Back = []
+                              Forward = [] }
+                        IsProcessing = false
+                        WorldClock = clock
+                        ResolvedData = Some resolvedData
+                        SaveSettings = saveSettings
+                        Settings = initSettingsState state.Settings.Global saveSettings
+                        ActiveSlot = Some slot
+                        SaveStatus = Saved gs.CurrentDate
+                        Setup = initSetupState
+                        ModLoadErrors = [] },
+                    Cmd.none
+                | Error error ->
+                    { state with
+                        Mode = NoSave
+                        Navigation =
+                            { Current = Route.Setup
+                              Back = []
+                              Forward = [] }
+                        IsProcessing = false
+                        Setup =
+                            { state.Setup with
+                                LoadState = LoadFailed(slot, error) } },
+                    Cmd.none
+            | _ -> state, Cmd.none
+
+        | PersistenceMsg SaveCurrent ->
+            match state.Mode with
+            | InGame(gs, _) when not state.IsProcessing ->
+                let requestId = state.PersistenceRequestId + 1UL
+
+                let nextState =
+                    { state with
+                        PersistenceRequestId = requestId
+                        SaveStatus = Saving requestId }
+
+                nextState, SimHelpers.saveCmdWithRequest nextState requestId gs state.WorldClock state.SaveSettings
+            | _ -> state, Cmd.none
+
+        | PersistenceMsg(SaveCompleted(requestId, slot, revision, result)) ->
+            match state.SaveStatus, state.ActiveSlot with
+            | Saving currentRequest, Some activeSlot when
+                currentRequest = requestId
+                && activeSlot = slot
+                && state.WorldClock.Revision = revision
+                ->
+                match result with
+                | Ok() ->
+                    { state with
+                        SaveStatus = Saved DateTime.UtcNow },
+                    Cmd.none
+                | Error error ->
+                    { state with
+                        SaveStatus = SaveFailed error }
+                    |> pushNotification Material.Icons.MaterialIconKind.AlertCircleOutline "Save failed" error,
+                    Cmd.none
+            | _ -> state, Cmd.none
 
         | ModEditorMsg m ->
             let nextEditorState, cmd = UpdateModEditor.update m state.ModEditor
@@ -127,6 +468,16 @@ module AppState =
 
         | TransferMsg m -> UpdateTransfer.handle m state
 
+        | FinanceMsg m ->
+            { state with
+                Finance = FinanceSlice.update m state.Finance },
+            Cmd.none
+
+        | CalendarMsg m ->
+            { state with
+                Calendar = CalendarSlice.update m state.Calendar },
+            Cmd.none
+
         | NotificationMsg nm ->
             match nm with
             | DismissNotification id ->
@@ -147,6 +498,8 @@ module AppState =
 
         | TacticsMsg(TacticsMsg.SetFormation formation) ->
             withGame (fun gs ->
+                let state = pushTacticsHistory gs state
+
                 let newGs =
                     GameState.updateLineup
                         gs.UserClubId
@@ -174,6 +527,8 @@ module AppState =
 
         | TacticsMsg(TacticsMsg.SetTeamTactics tactics) ->
             withGame (fun gs ->
+                let state = pushTacticsHistory gs state
+
                 let newGs =
                     GameState.updateLineup gs.UserClubId (Option.map (fun l -> { l with Tactics = tactics })) gs
 
@@ -183,6 +538,8 @@ module AppState =
 
         | TacticsMsg(TacticsMsg.SetInstruction f) ->
             withGame (fun gs ->
+                let state = pushTacticsHistory gs state
+
                 let newGs =
                     GameState.updateLineup
                         gs.UserClubId
@@ -201,6 +558,8 @@ module AppState =
 
         | TacticsMsg(TacticsMsg.DropPlayerInSlot(targetIdx, pId)) ->
             withGame (fun gs ->
+                let state = pushTacticsHistory gs state
+
                 let swapPlayer (idx: int) (pid: PlayerId) (lineup: Lineup) : Lineup =
                     let updatedSlots =
                         lineup.Slots
@@ -258,6 +617,65 @@ module AppState =
                         DraggedPlayer = None } },
             Cmd.none
 
+        | TacticsMsg TacticsMsg.QuickPick ->
+            withGame (fun gs ->
+                let state = pushTacticsHistory gs state
+                let squad = GameState.getSquad gs.UserClubId gs
+
+                let formation =
+                    headCoach gs.UserClubId gs
+                    |> Option.bind (fun c -> c.Attributes.Coaching.Lineup)
+                    |> Option.map _.Formation
+                    |> Option.defaultValue state.SelectedTactics
+
+                let slots = FormationData.getFormation formation
+                let picks = TacticalSuitability.quickPick slots squad
+
+                let newGs =
+                    GameState.updateLineup
+                        gs.UserClubId
+                        (fun currentOpt ->
+                            let current =
+                                currentOpt
+                                |> Option.defaultValue
+                                    { Formation = formation
+                                      Tactics = TeamTactics.Balanced
+                                      Instructions = Some TacticalInstructions.defaultInstructions
+                                      Slots = [] }
+
+                            let filled =
+                                slots
+                                |> List.map (fun fs ->
+                                    { Index = fs.Index
+                                      Role = fs.Role
+                                      X = fs.X
+                                      Y = fs.Y
+                                      PlayerId = picks.TryFind fs.Index })
+
+                            Some
+                                { current with
+                                    Formation = formation
+                                    Slots = filled })
+                        gs
+
+                { state with
+                    Mode = InGame(newGs, managerEmployment newGs)
+                    SelectedTactics = formation }
+                |> addLog "Quick Pick: best XI by suitability and sharpness",
+                Cmd.none)
+
+        | TacticsMsg TacticsMsg.UndoTactics ->
+            withGame (fun gs ->
+                match TacticsSlice.undoDraft state.Tactics.History with
+                | None -> state, Cmd.none
+                | Some(head, tail) ->
+                    let newGs = GameState.updateLineup gs.UserClubId (fun _ -> Some head) gs
+
+                    { state with
+                        Mode = InGame(newGs, managerEmployment newGs)
+                        Tactics = { state.Tactics with History = tail } },
+                    Cmd.none)
+
         | TrainingMsg(TrainingMsg.SelectPlayer id) ->
             { state with
                 Training =
@@ -272,48 +690,55 @@ module AppState =
                         SelectedPlayer = None } },
             Cmd.none
 
-        | TrainingMsg(TrainingMsg.SetFocus(playerId, focus)) ->
+        | TrainingMsg(TrainingMsg.SetPlan(playerId, plan)) ->
             withGame (fun gs ->
                 let newGs =
                     { gs with
                         Players =
                             gs.Players
-                            |> Map.add
-                                playerId
-                                { gs.Players[playerId] with
-                                    TrainingSchedule =
-                                        { gs.Players[playerId].TrainingSchedule with
-                                            Focus = focus } } }
+                            |> Map.change playerId (Option.map (fun p -> { p with TrainingPlan = plan })) }
 
                 { state with
                     Mode = InGame(newGs, managerEmployment newGs) },
-                SimHelpers.saveCmd newGs state.WorldClock)
+                SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings)
 
-        | TrainingMsg(TrainingMsg.SetIntensity(playerId, intensity)) ->
+        | TrainingMsg(TrainingMsg.SetTeamEmphasis emphasis) ->
             withGame (fun gs ->
-                let newGs =
-                    { gs with
-                        Players =
-                            gs.Players
-                            |> Map.add
-                                playerId
-                                { gs.Players[playerId] with
-                                    TrainingSchedule =
-                                        { gs.Players[playerId].TrainingSchedule with
-                                            Intensity = intensity } } }
+                let newGs = { gs with TeamEmphasis = emphasis }
 
                 { state with
                     Mode = InGame(newGs, managerEmployment newGs) },
-                SimHelpers.saveCmd newGs state.WorldClock)
+                SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings)
 
-        | InboxMsg(InboxMsg.SelectMessage messageId) ->
+        | TrainingMsg(TrainingMsg.BulkApply rule) ->
             withGame (fun gs ->
-                let newGs = GameState.markMessageAsRead messageId gs
+                let squad = GameState.getSquad gs.UserClubId gs
+
+                let starters =
+                    GameState.headCoach gs.UserClubId gs
+                    |> Option.bind (fun c -> c.Attributes.Coaching.Lineup)
+                    |> Option.map (fun lu -> lu.Slots |> List.choose _.PlayerId |> Set.ofList)
+                    |> Option.defaultValue Set.empty
+
+                let decide (p: Player) : IndividualPlan option =
+                    match rule with
+                    | U21Develop when Player.age gs.CurrentDate p <= 21 ->
+                        Some(TrainingPlans.defaultPlanFor p.Position (Player.age gs.CurrentDate p))
+                    | RestTired when p.Condition < 65 -> Some Rest
+                    | RestStarters when starters.Contains p.Id -> Some Rest
+                    | AllPerform -> Some Perform
+                    | _ -> None
+
+                let newPlayers =
+                    squad
+                    |> List.choose (fun p -> decide p |> Option.map (fun plan -> p.Id, { p with TrainingPlan = plan }))
+                    |> List.fold (fun acc (pid, p) -> acc |> Map.add pid p) gs.Players
+
+                let newGs = { gs with Players = newPlayers }
 
                 { state with
-                    Mode = InGame(newGs, managerEmployment newGs)
-                    Inbox = { SelectedMessageId = Some messageId } },
-                SimHelpers.saveCmd newGs state.WorldClock)
+                    Mode = InGame(newGs, managerEmployment newGs) },
+                SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings)
 
         | InboxMsg(InboxMsg.MarkAsRead messageId) ->
             withGame (fun gs ->
@@ -321,7 +746,7 @@ module AppState =
 
                 { state with
                     Mode = InGame(newGs, managerEmployment newGs) },
-                SimHelpers.saveCmd newGs state.WorldClock)
+                SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings)
 
         | InboxMsg(InboxMsg.MarkActionTaken messageId) ->
             withGame (fun gs ->
@@ -329,65 +754,223 @@ module AppState =
 
                 { state with
                     Mode = InGame(newGs, managerEmployment newGs) },
-                SimHelpers.saveCmd newGs state.WorldClock)
+                SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings)
 
-        | MatchMsg m ->
+        | InboxMsg(InboxMsg.SetRequiresActionOnly value) ->
             { state with
-                Match = MatchSlice.update m state.Match },
+                Inbox = InboxSlice.update (InboxMsg.SetRequiresActionOnly value) state.Inbox },
             Cmd.none
 
-        | GameLoaded result ->
-            match result with
-            | Some(gs, clock) ->
-                let leagueId = SimHelpers.primaryLeagueId gs
+        | InboxMsg(InboxMsg.SetUnreadOnly value) ->
+            { state with
+                Inbox = InboxSlice.update (InboxMsg.SetUnreadOnly value) state.Inbox },
+            Cmd.none
 
-                match ModLoader.loadAll ModPaths.builtinsDir ModPaths.modsDir with
-                | Ok data ->
-                    DataRegistry.setLoadedData data
+        | InboxMsg(InboxMsg.SetCategoryFilter category) ->
+            { state with
+                Inbox = InboxSlice.update (InboxMsg.SetCategoryFilter category) state.Inbox },
+            Cmd.none
 
+        | InboxMsg InboxMsg.ClearSelection ->
+            { state with
+                Inbox = InboxSlice.update InboxMsg.ClearSelection state.Inbox },
+            Cmd.none
+
+        | InboxMsg(InboxMsg.SelectMessage messageId) ->
+            withGame (fun gs ->
+                let newGs = GameState.markMessageAsRead messageId gs
+
+                let selected =
                     { state with
-                        Mode = InGame(gs, managerEmployment gs)
-                        CurrentPage = HomePage
-                        SelectedLeagueId = leagueId
-                        IsProcessing = false
-                        WorldClock = clock
-                        ModLoadErrors = data.Errors |> List.map string },
-                    Cmd.none
-                | Error errs ->
-                    { state with
-                        Mode = InGame(gs, managerEmployment gs)
-                        CurrentPage = HomePage
-                        SelectedLeagueId = leagueId
-                        IsProcessing = false
-                        WorldClock = clock
-                        ModLoadErrors = errs |> List.map string },
-                    Cmd.none
-            | None ->
+                        Mode = InGame(newGs, managerEmployment newGs)
+                        Inbox = InboxSlice.update (InboxMsg.SelectMessage messageId) state.Inbox }
+
+                let navigated = navigateTo (Route.Inbox(InboxRoute(Some messageId))) selected
+                navigated, SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings)
+
+        | MatchMsg m ->
+            let nextState =
                 { state with
-                    Mode = NoSave
-                    CurrentPage = Setup
-                    IsProcessing = false },
+                    Match = MatchSlice.update m state.Match }
+
+            if m = MatchMsg.Close then
+                let backed = goBack nextState
+
+                if backed.Navigation.Current = state.Navigation.Current then
+                    replaceRoute Route.Home backed, Cmd.none
+                else
+                    backed, Cmd.none
+            else
+                nextState, Cmd.none
+
+        | SettingsMsg m ->
+            match m with
+            | SetSearch q ->
+                { state with
+                    Settings = SettingsSlice.setSearch q state.Settings },
+                Cmd.none
+            | SelectCategory cat ->
+                { state with
+                    Settings = SettingsSlice.selectCategory cat state.Settings },
+                Cmd.none
+            | UpdateGlobal f ->
+                let next = SettingsSlice.updateGlobal f state.Settings
+                // why sync palette: theme changes without restart via paletteForSettings
+                try
+                    Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                with _ ->
+                    ()
+
+                match Localization.setActiveCode next.Global.Appearance.Language with
+                | Ok() -> ()
+                | Error _ -> ()
+
+                // DataSettings changes apply to the next career; an active career keeps its DataLock.
+                let dataChanged = next.Global.Data <> state.Settings.Global.Data
+                let saveCmd = if dataChanged then SettingsSlice.saveCmd next else Cmd.none
+                { state with Settings = next }, saveCmd
+            | UpdateSave f ->
+                let next = SettingsSlice.updateSave f state.Settings
+
+                let perSaveCmd =
+                    match state.Mode with
+                    | InGame(gs, _) -> SimHelpers.saveCmdForState state gs state.WorldClock next.Save
+                    | _ -> Cmd.none
+
+                { state with
+                    Settings = next
+                    SaveSettings = next.Save },
+                perSaveCmd
+            | ApplyPreset preset ->
+                let next = SettingsSlice.applyPreset preset state.Settings
+
+                let perSaveCmd =
+                    match state.Mode with
+                    | InGame(gs, _) -> SimHelpers.saveCmdForState state gs state.WorldClock next.Save
+                    | _ -> Cmd.none
+
+                { state with
+                    Settings = next
+                    SaveSettings = next.Save },
+                perSaveCmd
+            | ResetCategory cat ->
+                let next = SettingsSlice.resetCategory cat state.Settings
+                // why sync palette: reset may affect Appearance, so palette must follow
+                try
+                    Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                with _ ->
+                    ()
+
+                let perSaveCmd =
+                    match state.Mode with
+                    | InGame(gs, _) -> SimHelpers.saveCmdForState state gs state.WorldClock next.Save
+                    | _ -> Cmd.none
+
+                { state with
+                    Settings = next
+                    SaveSettings = next.Save },
+                Cmd.batch [ perSaveCmd; SettingsSlice.saveCmd next ]
+            | ResetAll ->
+                let next = SettingsSlice.resetAll state.Settings
+                // why sync palette: ResetAll restores default Appearance, so theme must reset without restart
+                try
+                    Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                with _ ->
+                    ()
+
+                let perSaveCmd =
+                    match state.Mode with
+                    | InGame(gs, _) -> SimHelpers.saveCmdForState state gs state.WorldClock next.Save
+                    | _ -> Cmd.none
+
+                { state with
+                    Settings = next
+                    SaveSettings = next.Save },
+                Cmd.batch [ perSaveCmd; SettingsSlice.saveCmd next ]
+            | SaveSettings ->
+                let globalCmd = SettingsSlice.saveCmd state.Settings
+
+                let perSaveCmd =
+                    match state.Mode with
+                    | InGame(gs, _) -> SimHelpers.saveCmdForState state gs state.WorldClock state.Settings.Save
+                    | _ -> Cmd.none
+
+                { state with
+                    Settings = SettingsSlice.markClean state.Settings },
+                Cmd.batch [ globalCmd; perSaveCmd ]
+            | LoadSettings -> state, SettingsSlice.loadCmd
+            | Undo ->
+                let next = SettingsSlice.undo state.Settings
+                // why sync palette: undo may revert Appearance change
+                try
+                    Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                with _ ->
+                    ()
+
+                { state with Settings = next }, Cmd.none
+            | Redo ->
+                let next = SettingsSlice.redo state.Settings
+                // why sync palette: redo may reapply Appearance change
+                try
+                    Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                with _ ->
+                    ()
+
+                { state with Settings = next }, Cmd.none
+            | Import json ->
+                match SettingsSlice.tryImport json state.Settings with
+                | Ok next ->
+                    // why sync palette: imported Appearance may differ, theme must update without restart
+                    try
+                        Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                    with _ ->
+                        ()
+
+                    let perSaveCmd =
+                        match state.Mode with
+                        | InGame(gs, _) -> SimHelpers.saveCmdForState state gs state.WorldClock next.Save
+                        | _ -> Cmd.none
+
+                    { state with
+                        Settings = next
+                        SaveSettings = next.Save },
+                    Cmd.batch [ perSaveCmd; SettingsSlice.saveCmd next ]
+                | Error err ->
+                    state
+                    |> pushNotification Material.Icons.MaterialIconKind.AlertCircleOutline "Import failed" err,
+                    Cmd.none
+            | Export ->
+                let json = SettingsSlice.exportState state.Settings
+
+                state
+                |> addLog $"Settings exported ({json.Length} chars)"
+                |> pushNotification Material.Icons.MaterialIconKind.ContentCopy "Settings exported" "JSON copied to log",
                 Cmd.none
 
-        | ChangePage page ->
-            let cmd =
-                if page = Transfers && state.Transfer.CachedPlayers.IsEmpty then
-                    Cmd.ofMsg (TransferMsg Load)
-                else
-                    Cmd.none
+        | Navigate route ->
+            let nextState =
+                let navigated = navigateTo route state
 
-            let saveCmdVal =
-                match state.Mode with
-                | InGame(gs, _) ->
-                    if state.CurrentPage = Tactics && page <> Tactics then
-                        SimHelpers.saveCmd gs state.WorldClock
-                    elif state.CurrentPage = Training && page <> Training then
-                        SimHelpers.saveCmd gs state.WorldClock
-                    else
-                        Cmd.none
+                match route with
+                | Route.Settings _ ->
+                    { navigated with
+                        Settings =
+                            { navigated.Settings with
+                                ValidationErrors = SettingsSlice.validateState navigated.Settings } }
+                | _ -> navigated
+
+            let cmd =
+                match route with
+                | Route.Transfers _ when state.Transfer.CachedPlayers.IsEmpty -> Cmd.ofMsg (TransferMsg Load)
                 | _ -> Cmd.none
 
-            { state with CurrentPage = page }, Cmd.batch [ cmd; saveCmdVal ]
+            nextState, cmd
+
+        | GoBack -> goBack state, Cmd.none
+
+        | GoForward -> goForward state, Cmd.none
+
+        | SearchGlobal query -> { state with GlobalSearchQuery = query }, Cmd.none
 
         | ChangeLeague leagueId ->
             { state with
@@ -397,14 +980,26 @@ module AppState =
         | NoOp -> state, Cmd.none
 
         | ReloadMods ->
-            match ModLoader.loadAll ModPaths.builtinsDir ModPaths.modsDir with
-            | Ok data ->
-                DataRegistry.setLoadedData data
-
+            match state.Mode with
+            | InGame _ ->
                 { state with
-                    ModLoadErrors = data.Errors |> List.map string },
+                    ModLoadErrors =
+                        [ "El contenido de una carrera activa está congelado; los cambios aplican a la próxima carrera." ] },
                 Cmd.none
-            | Error errs ->
-                { state with
-                    ModLoadErrors = errs |> List.map string },
-                Cmd.none
+            | _ ->
+                match
+                    ModSystem.loadInstalledPackages
+                        ModPaths.builtinsDir
+                        ModPaths.modsDir
+                        state.Settings.Global.Data.ActiveMods
+                        state.Settings.Global.Data.ModOrder
+                with
+                | Ok resolved ->
+                    { state with
+                        ResolvedData = Some resolved
+                        ModLoadErrors = [] },
+                    Cmd.none
+                | Error error ->
+                    { state with
+                        ModLoadErrors = error.Diagnostics |> List.map (fun d -> $"{d.Code}: {d.Message}") },
+                    Cmd.none

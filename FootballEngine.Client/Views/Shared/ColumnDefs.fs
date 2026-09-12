@@ -21,7 +21,15 @@ module ColumnDefs =
             | Star f -> $"{f}*")
         |> String.concat ", "
 
-    let playerListCols = [ col (Fixed 3); col Auto; col (Star 1.0); col Auto ]
+    // PlayerView.row/tableHeader address columns 0..4 (PLAYER, POS, AGE, CA/PA, VALUE);
+    // fewer definitions made Avalonia stack the extra children on top of each other
+    // (invisible names, overlapping headers).
+    let playerListCols =
+        [ col (Star 1.0)
+          col (Fixed 52)
+          col (Fixed 48)
+          col (Fixed 110)
+          col (Fixed 76) ]
 
     let transferListCols =
         [ col Auto; col (Star 1.0); col Auto; col (Fixed 70); col (Fixed 70); col Auto ]
