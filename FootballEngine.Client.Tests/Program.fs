@@ -11,4 +11,10 @@ let main argv =
     runTestsWithCLIArgs
         []
         argv
-        (testList "FootballEngine.Client" [ tests; routingTests; tacticsTests; ModEditorTests.tests ])
+        (testList
+            "FootballEngine.Client"
+            [ tests
+              routingTests
+              tacticsTests
+              ModEditorTests.tests
+              LiveMatchTests.tests ])

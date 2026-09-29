@@ -7,6 +7,7 @@ open FootballEngine.Domain
 open AppTypes
 open FootballEngine.Settings
 open FootballEngine.World
+open FootballEngine.World.WorldRunner
 open FootballEngine.Data
 open FootballEngine.Routing
 
@@ -259,6 +260,16 @@ module AppState =
                       Back = state.Navigation.Current :: state.Navigation.Back
                       Forward = rest } }
             |> applyRouteContext next
+        | _ -> state
+
+    let private closeMatchRuntimeWhenLeaving (fromRoute: Route) (toRoute: Route) (state: State) =
+        match fromRoute, toRoute with
+        | Route.Match _, Route.Match _ -> state
+        | Route.Match _, _ ->
+            state.Match.RuntimeId |> Option.iter MatchRuntime.close
+
+            { state with
+                Match = MatchSlice.update LiveMsg.Close state.Match }
         | _ -> state
 
     let private listSlotsCmd (requestId: uint64) : Cmd<Msg> =
@@ -788,20 +799,186 @@ module AppState =
                 let navigated = navigateTo (Route.Inbox(InboxRoute(Some messageId))) selected
                 navigated, SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings)
 
-        | MatchMsg m ->
+        | LiveMsg(LiveMsg.RuntimePublicationAvailable runtimeId) ->
+            match state.Match.RuntimeId with
+            | Some activeRuntime when activeRuntime = runtimeId ->
+                match MatchRuntime.tryTake runtimeId with
+                | None -> state, Cmd.none
+                | Some publication ->
+                    let nextWake = Cmd.ofMsg (LiveMsg(LiveMsg.RuntimePublicationAvailable runtimeId))
+
+                    match publication with
+                    | MatchRuntimePublication.Connected(sessionId, fixture, revision, source) ->
+                        { state with
+                            Match =
+                                MatchSlice.update
+                                    (LiveMsg.SessionConnected(sessionId, fixture, revision, source))
+                                    state.Match },
+                        nextWake
+                    | MatchRuntimePublication.CommandAccepted(commandId, point) ->
+                        { state with
+                            Match = MatchSlice.update (LiveMsg.CommandAccepted(commandId, point)) state.Match },
+                        nextWake
+                    | MatchRuntimePublication.CommandApplied(commandId, revision, appliedAt) ->
+                        { state with
+                            Match =
+                                MatchSlice.update (LiveMsg.CommandApplied(commandId, revision, appliedAt)) state.Match },
+                        nextWake
+                    | MatchRuntimePublication.CommandRejected(commandId, rejection) ->
+                        { state with
+                            Match = MatchSlice.update (LiveMsg.CommandRejected(commandId, rejection)) state.Match },
+                        nextWake
+                    | MatchRuntimePublication.StatusChanged status ->
+                        { state with
+                            Match = MatchSlice.update (LiveMsg.RuntimeStatusChanged status) state.Match },
+                        nextWake
+                    | MatchRuntimePublication.Semantic semantic ->
+                        { state with
+                            Match = MatchSlice.applySemantic semantic state.Match },
+                        nextWake
+                    | MatchRuntimePublication.Failed error ->
+                        MatchRuntime.close runtimeId
+
+                        { state with
+                            IsProcessing = false
+                            Match = MatchSlice.applyFailed error state.Match },
+                        Cmd.none
+                    | MatchRuntimePublication.Finished result ->
+                        MatchRuntime.close runtimeId
+
+                        { state with
+                            Match =
+                                { MatchSlice.applyFinished runtimeId result state.Match with
+                                    RuntimeId = None
+                                    PendingResult = Some result } },
+                        Cmd.none
+            | _ -> state, Cmd.none
+
+        | LiveMsg LiveMsg.ConfirmFinish ->
+            match state.Match.PendingResult with
+            | None -> state, Cmd.none
+            | Some result ->
+                let runtimeId = state.Match.RuntimeId |> Option.defaultValue (MatchRuntimeId 0UL)
+
+                let commit () =
+                    let isReplay =
+                        state.Match.Live
+                        |> Option.exists (fun live ->
+                            match live.Source with
+                            | FootballEngine.LiveMatch.RecordedReplay -> true
+                            | FootballEngine.LiveMatch.LiveSession -> false)
+
+                    if isReplay then
+                        MatchRuntime.close runtimeId
+
+                        { state with
+                            Match =
+                                state.Match
+                                |> MatchSlice.applyFinished runtimeId result
+                                |> fun matchState ->
+                                    { matchState with
+                                        RuntimeId = None
+                                        PendingResult = None } },
+                        Cmd.none
+                    else
+                        match state.Mode with
+                        | InGame(gs, _) ->
+                            let balance =
+                                FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave (
+                                    Some state.SaveSettings
+                                )
+
+                            match commitUserMatchJobWithBalance balance state.WorldClock gs result with
+                            | Error error ->
+                                MatchRuntime.close runtimeId
+
+                                { state with
+                                    IsProcessing = false
+                                    Match = MatchSlice.applyFailed error state.Match },
+                                Cmd.none
+                            | Ok matchDay ->
+                                let committed, cmd = UpdateSim.handle (UserMatchDone(Ok matchDay)) state
+
+                                { committed with
+                                    Match =
+                                        MatchSlice.applyFinished runtimeId result committed.Match
+                                        |> fun matchState -> { matchState with PendingResult = None } }
+                                |> invalidateTransferCache,
+                                cmd
+                        | _ ->
+                            MatchRuntime.close runtimeId
+                            state, Cmd.none
+
+                commit ()
+
+        | LiveMsg(LiveMsg.OpenReplay) ->
+            match state.Mode, state.Navigation.Current with
+            | InGame(gs, _), Route.Match(matchId, _) ->
+                state.Match.RuntimeId |> Option.iter MatchRuntime.close
+
+                let runtimeId =
+                    MatchRuntime.createReplay matchId gs state.WorldClock (Some state.SaveSettings)
+
+                { state with
+                    IsProcessing = false
+                    Match =
+                        { MatchSlice.clearState with
+                            RuntimeId = Some runtimeId
+                            RequestedMatchId = Some matchId
+                            Live = None } },
+                Cmd.ofEffect (fun dispatch -> MatchRuntime.start runtimeId dispatch)
+            | _ -> state, Cmd.none
+
+        | LiveMsg LiveMsg.TogglePause ->
+            match state.Match.Live with
+            | None -> state, Cmd.none
+            | Some live ->
+                let payload =
+                    match live.Status with
+                    | FootballEngine.LiveMatch.Paused
+                    | FootballEngine.LiveMatch.HalfTime -> FootballEngine.LiveMatch.ResumeMatch
+                    | _ -> FootballEngine.LiveMatch.PauseMatch
+
+                let command: FootballEngine.LiveMatch.LiveMatchCommand =
+                    { CommandId = FootballEngine.LiveMatch.MatchCommandId live.NextCommandId
+                      SessionId = live.SessionId
+                      ExpectedRevision = live.Revision
+                      IssuedAt = live.Clock.Elapsed
+                      Payload = payload }
+
+                state.Match.RuntimeId
+                |> Option.iter (fun runtimeId -> MatchRuntime.submit runtimeId command)
+
+                { state with
+                    Match = MatchSlice.update (LiveMsg.CommandSubmitted command) state.Match },
+                Cmd.none
+
+        | LiveMsg(LiveMsg.CommandSubmitted command) ->
+            state.Match.RuntimeId
+            |> Option.iter (fun runtimeId -> MatchRuntime.submit runtimeId command)
+
+            { state with
+                Match = MatchSlice.update (LiveMsg.CommandSubmitted command) state.Match },
+            Cmd.none
+
+        | LiveMsg(LiveMsg.Close) ->
+            state.Match.RuntimeId |> Option.iter MatchRuntime.close
+
             let nextState =
                 { state with
-                    Match = MatchSlice.update m state.Match }
+                    Match = MatchSlice.update LiveMsg.Close state.Match }
 
-            if m = MatchMsg.Close then
-                let backed = goBack nextState
+            let backed = goBack nextState
 
-                if backed.Navigation.Current = state.Navigation.Current then
-                    replaceRoute Route.Home backed, Cmd.none
-                else
-                    backed, Cmd.none
+            if backed.Navigation.Current = state.Navigation.Current then
+                replaceRoute Route.Home backed, Cmd.none
             else
-                nextState, Cmd.none
+                backed, Cmd.none
+
+        | LiveMsg m ->
+            { state with
+                Match = MatchSlice.update m state.Match },
+            Cmd.none
 
         | SettingsMsg m ->
             match m with
@@ -951,6 +1128,9 @@ module AppState =
             let nextState =
                 let navigated = navigateTo route state
 
+                let navigated =
+                    closeMatchRuntimeWhenLeaving state.Navigation.Current navigated.Navigation.Current navigated
+
                 match route with
                 | Route.Settings _ ->
                     { navigated with
@@ -961,14 +1141,20 @@ module AppState =
 
             let cmd =
                 match route with
+                | Route.Match(_, MatchPhase.Live) when nextState.Match.RuntimeId.IsNone ->
+                    Cmd.ofMsg (SimMsg SimulateUserFixture)
                 | Route.Transfers _ when state.Transfer.CachedPlayers.IsEmpty -> Cmd.ofMsg (TransferMsg Load)
                 | _ -> Cmd.none
 
             nextState, cmd
 
-        | GoBack -> goBack state, Cmd.none
+        | GoBack ->
+            let backed = goBack state
+            closeMatchRuntimeWhenLeaving state.Navigation.Current backed.Navigation.Current backed, Cmd.none
 
-        | GoForward -> goForward state, Cmd.none
+        | GoForward ->
+            let forwarded = goForward state
+            closeMatchRuntimeWhenLeaving state.Navigation.Current forwarded.Navigation.Current forwarded, Cmd.none
 
         | SearchGlobal query -> { state with GlobalSearchQuery = query }, Cmd.none
 

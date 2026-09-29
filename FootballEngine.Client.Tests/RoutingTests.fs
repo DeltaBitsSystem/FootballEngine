@@ -1,12 +1,17 @@
 module FootballEngine.Client.Tests.RoutingTests
 
+open System
 open Expecto
 open FootballEngine
 open FootballEngine.AppMsgs
 open FootballEngine.AppTypes
+open FootballEngine.Client.Views.Components
+open FootballEngine.Core.Match
 open FootballEngine.Domain
 open FootballEngine.Routing
 open FootballEngine.Settings
+open FootballEngine.World
+open FootballEngine.World.WorldRunner
 
 let private roundTrip route =
     testCase (Route.toPath route)
@@ -82,6 +87,299 @@ let employmentGateTests =
         Expect.isTrue (Route.canNavigate false Route.Home) "home is always available"
         Expect.isFalse (Route.canNavigate false (Route.Training TrainingRoute.Overview)) "training requires employment"
 
+let matchNavigationTests =
+    testList
+        "Match viewer routing"
+        [ testCase "a user match opens prematch before simulation starts"
+          <| fun _ ->
+              let date = DateTime(2026, 8, 1)
+
+              let fixture =
+                  { Id = 42
+                    CompetitionId = 1
+                    Round = None
+                    HomeClubId = 7
+                    AwayClubId = 8
+                    ScheduledDate = date
+                    Played = false
+                    HomeScore = None
+                    AwayScore = None
+                    Events = [] }
+
+              let competition =
+                  { Id = 1
+                    Name = "Test League"
+                    BroadcastIdentity = BroadcastIdentity.generated "competition:1"
+                    Type =
+                      NationalLeague(
+                          LeagueLevel 0,
+                          { PointsForWin = 3
+                            PointsForDraw = 1
+                            Tiebreakers = []
+                            Promotion = []
+                            Relegation = [] }
+                      )
+                    Country = Some "TST"
+                    Season = 2026
+                    ClubIds = [ 7; 8 ]
+                    Fixtures = Map.ofList [ fixture.Id, fixture ]
+                    Standings = Map.empty
+                    KnockoutTies = Map.empty }
+
+              let gameState =
+                  { CurrentDate = date
+                    Season = 2026
+                    TrainingWeeksApplied = 0
+                    Clubs = Map.empty
+                    Players = Map.empty
+                    Staff = Map.empty
+                    Competitions = Map.ofList [ competition.Id, competition ]
+                    Countries = Map.empty
+                    DataLock = Unchecked.defaultof<_>
+                    UserClubId = fixture.HomeClubId
+                    UserStaffId = 0
+                    PrimaryCountry = "TST"
+                    Inbox = []
+                    NextInboxId = 1
+                    PendingNegotiations = Map.empty
+                    NextNegotiationId = 1
+                    ProfileCache = Map.empty
+                    PlayerExperiences = Map.empty
+                    TeamEmphasis = EmPossession
+                    SeasonHistory = []
+                    CareerHistory = []
+                    Market = MarketState.empty }
+
+              let initial =
+                  { AppTypes.initialState () with
+                      Mode = InGame(gameState, NotEmployed)
+                      Navigation =
+                          { Current = Route.Home
+                            Back = []
+                            Forward = [] }
+                      IsProcessing = true }
+
+              let result: DayResult =
+                  { GameState = gameState
+                    WorldClock = WorldClockOps.init gameState.Season
+                    PlayedMatches = []
+                    Logs = []
+                    SeasonComplete = false }
+
+              let _, command = UpdateSim.handle (AdvanceDone result) initial
+              let mutable emitted = None
+
+              command
+              |> List.head
+              |> fun effect -> effect (fun message -> emitted <- Some message)
+
+              match emitted with
+              | Some(Navigate(Route.Match(matchId, MatchPhase.Prematch))) ->
+                  Expect.equal matchId fixture.Id "the current user match opens"
+              | message -> failtestf "expected prematch navigation first, got %A" message
+
+          testCase "replay v6 preserves roster identity and remaps active substitutes"
+          <| fun _ ->
+              let snapshot: Replay.ReplaySnapshot =
+                  { Tick = 0<subtick>
+                    HomePlayerIds =
+                      [| FootballEngine.Core.Match.PlayerId 1
+                         FootballEngine.Core.Match.PlayerId 2
+                         FootballEngine.Core.Match.PlayerId 3 |]
+                    AwayPlayerIds =
+                      [| FootballEngine.Core.Match.PlayerId 4
+                         FootballEngine.Core.Match.PlayerId 5
+                         FootballEngine.Core.Match.PlayerId 6 |]
+                    HomeScore = 0
+                    AwayScore = 0
+                    Flow = 0uy
+                    BallX = 0.0f
+                    BallY = 0.0f
+                    BallZ = 0.0f
+                    BallVx = 8.0f
+                    BallVy = -2.0f
+                    BallVz = 1.0f
+                    BallSpinTop = 3.0f
+                    BallSpinSide = 0.5f
+                    BallControlSide = 0y
+                    BallController = 1
+                    RefereeX = 2.0f
+                    RefereeY = 3.0f
+                    NearAssistantX = -4.0f
+                    NearAssistantY = -34.0f
+                    FarAssistantX = 4.0f
+                    FarAssistantY = 34.0f
+                    RefereeSignal = 1uy
+                    HomeX = [| -10.0f; 0.0f; 0.0f |]
+                    HomeY = [| 0.0f; 5.0f; 0.0f |]
+                    HomeVx = [| 4.0f; 2.0f; 0.0f |]
+                    HomeVy = [| 1.0f; 0.0f; 0.0f |]
+                    HomeCondition = [| 0.9f; 0.7f; 0.5f |]
+                    HomeIntent = [| 1uy; 2uy; 0uy |]
+                    HomeActive = [| true; true; false |]
+                    AwayX = [| 10.0f; 0.0f; 0.0f |]
+                    AwayY = [| 0.0f; -5.0f; 0.0f |]
+                    AwayVx = [| -3.0f; -1.0f; 0.0f |]
+                    AwayVy = [| 0.0f; 1.0f; 0.0f |]
+                    AwayCondition = [| 0.8f; 0.6f; 0.5f |]
+                    AwayIntent = [| 1uy; 2uy; 0uy |]
+                    AwayActive = [| true; true; false |] }
+
+              let replay = Replay.write [ snapshot ]
+              let restored = Replay.read replay |> Seq.exactlyOne
+              Expect.equal restored.HomePlayerIds snapshot.HomePlayerIds "home roster identity survives serialization"
+              Expect.equal restored.AwayPlayerIds snapshot.AwayPlayerIds "away roster identity survives serialization"
+
+              let frame =
+                  MatchProjection.project
+                      [| "A"; "B"; "C" |]
+                      [| "D"; "E"; "F" |]
+                      [| FootballEngine.Core.Match.PlayerId 1
+                         FootballEngine.Core.Match.PlayerId 2
+                         FootballEngine.Core.Match.PlayerId 3 |]
+                      [| FootballEngine.Core.Match.PlayerId 4
+                         FootballEngine.Core.Match.PlayerId 5
+                         FootballEngine.Core.Match.PlayerId 6 |]
+                      2
+                      2
+                      7
+                      8
+                      "Home"
+                      "Away"
+                      None
+                      restored
+                      0.0
+
+              Expect.equal replay.Meta.Version 6 "visual replay schema is explicit"
+              Expect.equal frame.Players.Length 4 "only active players are rendered"
+              Expect.equal frame.Officials.Length 3 "the referee team is projected"
+              Expect.equal frame.Officials[0].Signal OfficialSignal.Whistle "the referee signal survives replay"
+              Expect.equal frame.Ball.Velocity.X 8.0 "ball velocity survives replay"
+
+              let oldFormat = Array.copy replay.Snapshots
+
+              BitConverter.GetBytes(5)
+              |> fun version -> Array.blit version 0 oldFormat 4 version.Length
+
+              let oldReplayRejected =
+                  try
+                      Replay.readFrame { replay with Snapshots = oldFormat } 0 |> ignore
+                      false
+                  with :? ArgumentException ->
+                      true
+
+              Expect.isTrue oldReplayRejected "replay readers reject incompatible formats explicitly"
+
+              Expect.isTrue
+                  (frame.Players |> Array.exists (fun player -> player.Id = 1 && player.HasBall))
+                  "ball control survives replay"
+
+              Expect.isFalse (frame.Players |> Array.exists (fun player -> player.Id = 3)) "bench slots stay hidden"
+
+              let substitutionSnapshot =
+                  { restored with
+                      HomeActive = [| true; false; true |] }
+
+              let afterSubstitution =
+                  MatchProjection.project
+                      [| "A"; "B"; "C" |]
+                      [| "D"; "E"; "F" |]
+                      [| FootballEngine.Core.Match.PlayerId 1
+                         FootballEngine.Core.Match.PlayerId 2
+                         FootballEngine.Core.Match.PlayerId 3 |]
+                      [| FootballEngine.Core.Match.PlayerId 4
+                         FootballEngine.Core.Match.PlayerId 5
+                         FootballEngine.Core.Match.PlayerId 6 |]
+                      2
+                      2
+                      7
+                      8
+                      "Home"
+                      "Away"
+                      None
+                      substitutionSnapshot
+                      1.0
+
+              let substitute =
+                  afterSubstitution.Players |> Array.find (fun player -> player.Id = 3)
+
+              Expect.equal substitute.VisualSlot 1 "a substitute reuses the vacant starter model"
+
+              Expect.isFalse
+                  (afterSubstitution.Players |> Array.exists (fun player -> player.Id = 2))
+                  "the outgoing player is not rendered"
+
+              let mismatchedRoster =
+                  { restored with
+                      HomePlayerIds =
+                          [| FootballEngine.Core.Match.PlayerId 1
+                             FootballEngine.Core.Match.PlayerId 22
+                             FootballEngine.Core.Match.PlayerId 3 |] }
+
+              let mismatchedRosterRejected =
+                  try
+                      MatchProjection.project
+                          [| "A"; "B"; "C" |]
+                          [| "D"; "E"; "F" |]
+                          [| FootballEngine.Core.Match.PlayerId 1
+                             FootballEngine.Core.Match.PlayerId 2
+                             FootballEngine.Core.Match.PlayerId 3 |]
+                          [| FootballEngine.Core.Match.PlayerId 4
+                             FootballEngine.Core.Match.PlayerId 5
+                             FootballEngine.Core.Match.PlayerId 6 |]
+                          2
+                          2
+                          7
+                          8
+                          "Home"
+                          "Away"
+                          None
+                          mismatchedRoster
+                          1.0
+                      |> ignore
+
+                      false
+                  with :? ArgumentException ->
+                      true
+
+              Expect.isTrue mismatchedRosterRejected "a replay cannot be projected against another fixture"
+
+          testCase "restart projection names the awarded set piece"
+          <| fun _ ->
+              [ RestartVisual.KickOff, "KICK-OFF"
+                RestartVisual.ThrowIn, "THROW-IN"
+                RestartVisual.Corner, "CORNER"
+                RestartVisual.GoalKick, "GOAL KICK"
+                RestartVisual.FreeKick, "FREE KICK"
+                RestartVisual.Penalty, "PENALTY" ]
+              |> List.iter (fun (restart, expected) ->
+                  Expect.equal
+                      (MatchProjection.restartDescription restart)
+                      expected
+                      "the replay signal retains its football meaning") ]
+
+let matchRuntimeLifecycleTests =
+    testCase "leaving the match route clears the live runtime"
+    <| fun _ ->
+        let initial, _ = AppState.initWithGlobal GlobalSettings.defaults None ()
+
+        let state =
+            { initial with
+                Mode = InGame(Unchecked.defaultof<GameState>, NotEmployed)
+                Navigation =
+                    { Current = Route.Match(42, MatchPhase.Live)
+                      Back = []
+                      Forward = [] }
+                Match =
+                    { initial.Match with
+                        RuntimeId = Some(MatchRuntimeId 99UL) } }
+
+        let next, _ = AppState.update (Navigate Route.Home) state
+
+        Expect.equal next.Navigation.Current Route.Home "navigation leaves the match route"
+        Expect.equal next.Match.RuntimeId None "the runtime id is released"
+        Expect.equal next.Match.Live None "the live session is released"
+
 let routingTests =
     testList
         "Routing"
@@ -89,4 +387,6 @@ let routingTests =
           setupLoadTests
           setupDraftTests
           modEditorBackTests
-          employmentGateTests ]
+          employmentGateTests
+          matchNavigationTests
+          matchRuntimeLifecycleTests ]

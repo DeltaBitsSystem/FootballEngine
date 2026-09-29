@@ -100,12 +100,6 @@ module AppTypes =
           ScoutingCostText: string
           ScoutingDaysText: string }
 
-    type MatchLabState =
-        { HomeClubId: ClubId option
-          AwayClubId: ClubId option
-          Result: Replay.ReplayData option
-          Snapshot: int }
-
     type SquadState =
         { SortBy: SortField
           SelectedPlayer: PlayerId option
@@ -157,6 +151,18 @@ module AppTypes =
           AnchorMonth: System.DateTime option
           SelectedFixtureId: MatchId option }
 
+    [<Struct>]
+    type MatchRuntimeId = MatchRuntimeId of uint64
+
+    type LiveRuntimeSemantic =
+        { RuntimeId: MatchRuntimeId
+          Revision: uint64
+          Frontier: int<subtick>
+          Events: MatchEvent array
+          Clock: FootballEngine.LiveMatch.LiveClock
+          Score: int * int
+          Stats: TeamStats * TeamStats }
+
     /// One-click bulk rules for the squad list.
     type TrainingBulk =
         | U21Develop
@@ -175,14 +181,11 @@ module AppTypes =
           CategoryFilter: InboxCategoryFilter }
 
     type MatchState =
-        { ActiveReplay: Replay.ReplayData option
-          HomeClubId: ClubId option
-          AwayClubId: ClubId option
-          Snapshot: int
-          IsPlaying: bool
-          PlaybackSpeed: int
-          Accumulator: float
-          InterpolationT: float }
+        { RuntimeId: MatchRuntimeId option
+          RequestedMatchId: MatchId option
+          PendingResult: MatchJobResult option
+          Error: string option
+          Live: FootballEngine.LiveMatch.LiveMatchState option }
 
     type SettingsCategory = FootballEngine.Routing.SettingsCategory
 
@@ -284,12 +287,6 @@ module AppTypes =
           ScoutingCostText = ""
           ScoutingDaysText = "" }
 
-    let initMatchLabState =
-        { HomeClubId = None
-          AwayClubId = None
-          Result = None
-          Snapshot = 0 }
-
     let initInboxState =
         { SelectedMessageId = None
           RequiresActionOnly = false
@@ -351,14 +348,11 @@ module AppTypes =
               SelectedFixtureId = None }
           Inbox = initInboxState
           Match =
-            { ActiveReplay = None
-              HomeClubId = None
-              AwayClubId = None
-              Snapshot = 0
-              IsPlaying = false
-              PlaybackSpeed = 20
-              Accumulator = 0.0
-              InterpolationT = 0.0 }
+            { RuntimeId = None
+              RequestedMatchId = None
+              PendingResult = None
+              Error = None
+              Live = None }
           Transfer = initTransferState
           ModEditor = ModEditorTypes.initModEditorState
           Notifications = []

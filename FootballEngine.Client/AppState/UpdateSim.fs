@@ -10,6 +10,7 @@ open AppTypes
 open AppMsgs
 open FootballEngine.World.WorldRunner
 open FootballEngine.World.Phases
+open FootballEngine.LiveMatch
 
 
 module UpdateSim =
@@ -18,6 +19,15 @@ module UpdateSim =
     let private pushNotification = AppTypes.pushNotification
     let private saveCmd = SimHelpers.saveCmdForState
     let private primaryLeagueId = SimHelpers.primaryLeagueId
+
+    let private userFixture (gs: GameState) : (MatchId * MatchFixture) option =
+        gs.Competitions
+        |> Map.toSeq
+        |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
+        |> Seq.tryFind (fun (_, fixture) ->
+            fixture.ScheduledDate.Date = gs.CurrentDate.Date
+            && MatchFixture.isPending fixture
+            && MatchFixture.involves gs.UserClubId fixture)
 
     let private userMatchNotif (gs: GameState) (fixture: MatchFixture) (state: State) =
         match fixture.HomeScore, fixture.AwayScore with
@@ -259,28 +269,53 @@ module UpdateSim =
                 else
                     saveCmd state result.GameState result.WorldClock state.SaveSettings
 
-            if hasUserMatchToday result.GameState then
+            let userMatchId = userFixture result.GameState |> Option.map fst
 
-                nextState, Cmd.batch [ baseCmd; Cmd.ofMsg (SimMsg SimulateUserFixture) ]
-            else
-                nextState, Cmd.batch [ baseCmd; Cmd.ofMsg (SimMsg SimulateAiFixtures) ]
+            match userMatchId with
+            | Some matchId ->
+                nextState,
+                Cmd.batch
+                    [ Cmd.ofMsg (Navigate(Route.Match(matchId, Prematch)))
+                      Cmd.ofMsg (SimMsg SimulateUserFixture)
+                      baseCmd ]
+            | None -> nextState, Cmd.batch [ baseCmd; Cmd.ofMsg (SimMsg SimulateAiFixtures) ]
 
         | SimulateUserFixture ->
-
-
-            if state.IsProcessing then
-
+            if state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome then
                 state, Cmd.none
             else
+                state.Match.RuntimeId |> Option.iter MatchRuntime.close
+
                 match tryGetGs () with
-                | None -> state, Cmd.none
                 | Some gs ->
-                    { state with IsProcessing = true },
-                    Cmd.OfTask.perform
-                        (fun () ->
-                            Task.Run(fun () -> simulateUserMatchWithSave (Some state.SaveSettings) state.WorldClock gs))
-                        ()
-                        (SimMsg << UserMatchDone)
+                    match userFixture gs with
+                    | Some(matchId, _) when
+                        match state.Navigation.Current with
+                        | Route.Match(requested, _) -> requested = matchId
+                        | _ -> false
+                        ->
+                        let runtimeId =
+                            MatchRuntime.createUserMatch matchId gs state.WorldClock (Some state.SaveSettings)
+
+                        let matchState =
+                            { state.Match with
+                                RuntimeId = Some runtimeId
+                                RequestedMatchId = Some matchId
+                                PendingResult = None
+                                Error = None
+                                Live = None }
+
+                        { state with
+                            IsProcessing = false
+                            Match = matchState },
+                        Cmd.ofEffect (fun dispatch -> MatchRuntime.start runtimeId dispatch)
+                    | _ ->
+                        { state with
+                            Match =
+                                { state.Match with
+                                    Error = Some "The requested fixture is not a pending match for your club today." } },
+                        Cmd.none
+                | None -> state, Cmd.none
 
         | UserMatchDone(Ok matchDay) ->
 
@@ -295,27 +330,25 @@ module UpdateSim =
                 { nextState with
                     Match =
                         { nextState.Match with
-                            ActiveReplay = matchDay.MatchReplay
-                            HomeClubId = homeClubId
-                            AwayClubId = awayClubId
-                            Snapshot = 0 }
-                    Navigation =
-                        match matchId with
-                        | Some fixtureId ->
-                            { Current = Route.Match(fixtureId, Replay)
-                              Back = nextState.Navigation.Current :: nextState.Navigation.Back
-                              Forward = [] }
-                        | None -> nextState.Navigation }
+                            RuntimeId = None
+                            Live = nextState.Match.Live |> Option.map (fun live -> { live with Status = Finished }) } }
+
+            let openMatchCmd =
+                match matchId with
+                | Some fixtureId -> Cmd.ofMsg (Navigate(Route.Match(fixtureId, Postmatch)))
+                | None -> Cmd.none
 
             if matchDay.DayResult.SeasonComplete then
                 withMatch,
                 Cmd.batch
                     [ Cmd.ofMsg (SimMsg AdvanceSeason)
+                      openMatchCmd
                       saveCmd state matchDay.DayResult.GameState matchDay.DayResult.WorldClock state.SaveSettings ]
             else
                 withMatch,
                 Cmd.batch
                     [ saveCmd state matchDay.DayResult.GameState matchDay.DayResult.WorldClock state.SaveSettings
+                      openMatchCmd
                       Cmd.ofMsg (SimMsg SimulateAiFixtures) ]
 
         | UserMatchDone(Error _) ->

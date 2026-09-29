@@ -152,7 +152,7 @@ module UpdateSetup =
                                         LogMessages = [ $"Career started by {GameState.userManagerName gameState}" ] }
 
                                 nextState,
-                                SimHelpers.saveCmdWithRequest nextState requestId gameState clock saveSettings
+                                SimHelpers.replaceSaveCmdWithRequest nextState requestId gameState clock saveSettings
 
     let handle (msg: SetupMsg) (state: State) : State * Cmd<Msg> =
         match msg with

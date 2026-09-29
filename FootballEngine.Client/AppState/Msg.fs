@@ -8,6 +8,7 @@ open FootballEngine.Settings
 open FootballEngine.World
 open FootballEngine.World.WorldRunner
 open FootballEngine.Routing
+open FootballEngine.LiveMatch
 
 module AppMsgs =
 
@@ -119,12 +120,31 @@ module AppMsgs =
         | SetCategoryFilter of InboxCategoryFilter
         | ClearSelection
 
-    type MatchMsg =
-        | Step of delta: int
+    type LiveMsg =
+        | RuntimePublicationAvailable of runtimeId: MatchRuntimeId
+        | SessionConnected of LiveMatchSessionId * FixtureContext * revision: uint64 * LiveMatchSource
+        | SemanticReceived of
+            revision: uint64 *
+            LiveClock *
+            (int * int) *
+            FootballEngine.Core.Match.TeamStats *
+            FootballEngine.Core.Match.TeamStats *
+            FootballEngine.Core.Match.MatchEvent list
+        | CommandSubmitted of LiveMatchCommand
+        | CommandAccepted of MatchCommandId * ApplicationPoint
+        | CommandApplied of MatchCommandId * revision: uint64 * appliedAt: int<FootballEngine.Core.Match.subtick>
+        | CommandRejected of MatchCommandId * CommandRejection
+        | RuntimeStatusChanged of LiveMatchStatus
+        | SelectManagerWorkspace of MatchDayWorkspace
+        | SelectIntelligenceWorkspace of IntelligenceWorkspace
+        | SelectPlayer of FootballEngine.Domain.PlayerId option
+        | SetDraftSubstitutions of SubstitutionChange list
+        | SubmitDraftSubstitutions
+        | DismissError
+        | OpenReplay
+        | TogglePause
+        | ConfirmFinish
         | Close
-        | TogglePlay
-        | SetSpeed of int
-        | Tick
 
     type ModEditorMsg =
         | SetTab of ModEditorTypes.ModEditorTab
@@ -189,7 +209,7 @@ module AppMsgs =
         | TacticsMsg of TacticsMsg
         | TrainingMsg of TrainingMsg
         | InboxMsg of InboxMsg
-        | MatchMsg of MatchMsg
+        | LiveMsg of LiveMsg
 
 module SimHelpers =
     let primaryLeagueId (gs: GameState) =
@@ -249,6 +269,21 @@ module SimHelpers =
 
         Elmish.Cmd.OfTask.either
             (fun () -> Db.saveGameInSlotAsync slot gs clock saveSettings)
+            ()
+            (fun () -> AppMsgs.PersistenceMsg(AppMsgs.SaveCompleted(requestId, slot, clock.Revision, Ok())))
+            (fun ex -> AppMsgs.PersistenceMsg(AppMsgs.SaveCompleted(requestId, slot, clock.Revision, Error ex.Message)))
+
+    let replaceSaveCmdWithRequest
+        (state: AppTypes.State)
+        (requestId: uint64)
+        (gs: GameState)
+        (clock: WorldClock)
+        (saveSettings: SaveSettings)
+        : Elmish.Cmd<AppMsgs.Msg> =
+        let slot = state.ActiveSlot |> Option.defaultValue Db.DefaultSlot
+
+        Elmish.Cmd.OfTask.either
+            (fun () -> Db.replaceGameInSlotAsync slot gs clock saveSettings)
             ()
             (fun () -> AppMsgs.PersistenceMsg(AppMsgs.SaveCompleted(requestId, slot, clock.Revision, Ok())))
             (fun ex -> AppMsgs.PersistenceMsg(AppMsgs.SaveCompleted(requestId, slot, clock.Revision, Error ex.Message)))

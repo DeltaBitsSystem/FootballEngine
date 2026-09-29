@@ -1,71 +1,84 @@
 namespace FootballEngine
 
-open FootballEngine.Core.Match
+open FootballEngine.AppMsgs
 open FootballEngine.AppTypes
-open AppMsgs
+open FootballEngine.Core.Match
+open FootballEngine.LiveMatch
 
 module MatchSlice =
+    let clearState =
+        { RuntimeId = None
+          RequestedMatchId = None
+          PendingResult = None
+          Error = None
+          Live = None }
 
-    let private totalOf (replay: Replay.ReplayData) : int = max 0 (replay.Count - 1)
+    let private applyCore (message: FootballEngine.LiveMatch.LiveMatchMsg) (state: AppTypes.MatchState) =
+        let live, _ = LiveMatchUpdate.update message state.Live
+        { state with Live = live }
 
-    let update (msg: MatchMsg) (state: MatchState) : MatchState =
-        let total = state.ActiveReplay |> Option.map totalOf |> Option.defaultValue 0
+    let applySemantic (semantic: LiveRuntimeSemantic) (state: AppTypes.MatchState) =
+        applyCore
+            (FootballEngine.LiveMatch.SemanticReceived(
+                semantic.Revision,
+                semantic.Clock,
+                semantic.Score,
+                fst semantic.Stats,
+                snd semantic.Stats,
+                Array.toList semantic.Events
+            ))
+            state
 
-        match msg with
-        | MatchMsg.Step delta ->
+    let applyFinished (_runtimeId: MatchRuntimeId) (_result: MatchJobResult) (state: AppTypes.MatchState) =
+        match state.Live with
+        | None -> state
+        | Some live ->
             { state with
-                Snapshot = max 0 (min total (state.Snapshot + delta))
-                Accumulator = 0.0
-                InterpolationT = 0.0 }
+                Live = Some { live with Status = Finished } }
 
-        | MatchMsg.Close ->
-            { ActiveReplay = None
-              HomeClubId = None
-              AwayClubId = None
-              Snapshot = 0
-              IsPlaying = false
-              PlaybackSpeed = 20
-              Accumulator = 0.0
-              InterpolationT = 0.0 }
-
-        | MatchMsg.TogglePlay ->
+    let applyFailed message (state: AppTypes.MatchState) =
+        let state =
             { state with
-                IsPlaying = not state.IsPlaying }
+                Error = Some message
+                RuntimeId = None }
 
-        | MatchMsg.SetSpeed s -> { state with PlaybackSpeed = s }
+        match state.Live with
+        | None -> state
+        | Some live ->
+            { state with
+                Live =
+                    Some
+                        { live with
+                            Status = Failed message
+                            Error = Some message } }
 
-        | MatchMsg.Tick ->
-            if not state.IsPlaying then
+    let update (message: LiveMsg) (state: AppTypes.MatchState) =
+        match message with
+        | LiveMsg.SessionConnected(sessionId, fixture, revision, source) ->
+            applyCore (FootballEngine.LiveMatch.SessionConnected(sessionId, fixture, revision, source)) state
+        | LiveMsg.SemanticReceived(revision, clock, score, homeStats, awayStats, events) ->
+            applyCore
+                (FootballEngine.LiveMatch.SemanticReceived(revision, clock, score, homeStats, awayStats, events))
                 state
-            else
-                let dt = 16.67
-                let newAcc = state.Accumulator + dt
-
-                let effectiveSpeed =
-                    match state.ActiveReplay with
-                    | Some replay when state.Snapshot < replay.Count ->
-                        let snaps = Replay.read replay |> Seq.toArray
-
-                        if state.Snapshot < snaps.Length then
-                            match snaps[state.Snapshot].Flow with
-                            | 0uy -> state.PlaybackSpeed
-                            | _ -> max 1 (state.PlaybackSpeed / 4)
-                        else
-                            state.PlaybackSpeed
-                    | _ -> state.PlaybackSpeed
-
-                let snapInterval = 125.0 / float effectiveSpeed
-
-                if newAcc >= snapInterval then
-                    let newSnap = min total (state.Snapshot + 1)
-                    let finished = newSnap >= total
-
-                    { state with
-                        Accumulator = newAcc - snapInterval
-                        InterpolationT = 0.0
-                        Snapshot = newSnap
-                        IsPlaying = not finished }
-                else
-                    { state with
-                        Accumulator = newAcc
-                        InterpolationT = newAcc / snapInterval }
+        | LiveMsg.CommandSubmitted command -> applyCore (FootballEngine.LiveMatch.CommandSubmitted command) state
+        | LiveMsg.CommandAccepted(commandId, point) ->
+            applyCore (FootballEngine.LiveMatch.CommandAccepted(commandId, point)) state
+        | LiveMsg.CommandApplied(commandId, revision, appliedAt) ->
+            applyCore (FootballEngine.LiveMatch.CommandApplied(commandId, revision, appliedAt)) state
+        | LiveMsg.CommandRejected(commandId, rejection) ->
+            applyCore (FootballEngine.LiveMatch.CommandRejected(commandId, rejection)) state
+        | LiveMsg.RuntimeStatusChanged status -> applyCore (FootballEngine.LiveMatch.RuntimeStatusChanged status) state
+        | LiveMsg.SelectManagerWorkspace workspace ->
+            applyCore (FootballEngine.LiveMatch.SelectManagerWorkspace workspace) state
+        | LiveMsg.SelectIntelligenceWorkspace workspace ->
+            applyCore (FootballEngine.LiveMatch.SelectIntelligenceWorkspace workspace) state
+        | LiveMsg.SelectPlayer playerId -> applyCore (FootballEngine.LiveMatch.SelectPlayer playerId) state
+        | LiveMsg.SetDraftSubstitutions changes ->
+            applyCore (FootballEngine.LiveMatch.SetDraftSubstitutions changes) state
+        | LiveMsg.SubmitDraftSubstitutions -> applyCore FootballEngine.LiveMatch.SubmitDraftSubstitutions state
+        | LiveMsg.DismissError -> applyCore FootballEngine.LiveMatch.DismissError state
+        | LiveMsg.OpenReplay -> state
+        | LiveMsg.TogglePause -> state
+        | LiveMsg.ConfirmFinish -> state
+        | LiveMsg.Close -> clearState
+        | LiveMsg.RuntimePublicationAvailable _ -> state
