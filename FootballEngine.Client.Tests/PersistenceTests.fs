@@ -230,6 +230,78 @@ let equivalenceTests =
             Expect.equal resumed.GameState.DataLock direct.GameState.DataLock "canonical state converges"
         | Error error -> failtestf "roundtrip failed: %A" error
 
+let discriminatedUnionRoundtripTests =
+    testCase "save round-trips union values used by finance and world clock"
+    <| fun _ ->
+        let root = tempRoot ()
+        let date = DateTime(2027, 1, 1)
+
+        let finance =
+            { Finance.initial 100000m with
+                Obligations =
+                    [ { Id = "stadium-maintenance"
+                        Counterparty = "Stadium Services"
+                        Description = "Pitch maintenance"
+                        DueDate = date.AddDays 7.0
+                        Amount = 250m
+                        Currency = EUR
+                        Condition = "scheduled"
+                        State = ObligationCommitted
+                        AccruedAmount = 250m
+                        PaidAmount = 0m } ] }
+
+        let club =
+            { Id = 1
+              Name = "Union Test FC"
+              Nationality = "ARG"
+              Reputation = 50
+              PlayerIds = []
+              StaffIds = []
+              Finance = finance
+              Morale = 60
+              BoardObjective = LeagueObjective MidTable
+              CoordinationMemory = CoordinationMemory.defaultMemory
+              ScoutingMemory = Map.empty }
+
+        let game =
+            { state date (dataLock None) with
+                Clubs = Map.ofList [ club.Id, club ] }
+
+        let savedClock =
+            { clock 1UL 1 with
+                PhaseHistory =
+                    [ { Phase = ResolveFixtures
+                        Date = date
+                        RevisionBefore = 0UL
+                        RevisionAfter = 1UL } ] }
+
+        save root "unions" game savedClock
+
+        match load root "unions" with
+        | Ok loaded ->
+            Expect.equal loaded.WorldClock.PhaseHistory savedClock.PhaseHistory "phase history round-trips"
+            Expect.equal loaded.State.Clubs[club.Id].Finance finance "financial unions round-trip"
+        | Error error -> failtestf "union roundtrip failed: %A" error
+
+let newCareerReplacementTests =
+    testCase "a new career can replace a slot with a newer stored revision"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "new-career"
+        let oldState = state (DateTime(2027, 1, 1)) (dataLock None)
+        let newState = state (DateTime(2026, 7, 1)) (dataLock None)
+        save root slot oldState (clock 271UL 271)
+
+        Db.replaceGameInSlotAsync slot newState (clock 0UL 1) saveSettings
+        |> Async.AwaitTask
+        |> Async.RunSynchronously
+
+        match load root slot with
+        | Ok loaded ->
+            Expect.equal loaded.Envelope.ConfirmedRevision 0UL "new career resets the slot revision"
+            Expect.equal loaded.State.CurrentDate newState.CurrentDate "new career replaces the stored state"
+        | Error error -> failtestf "new career replacement failed: %A" error
+
 let tests =
     testList
         "Persistence"
@@ -237,4 +309,6 @@ let tests =
           backupTests
           commitFailureTests
           manifestTests
-          equivalenceTests ]
+          equivalenceTests
+          discriminatedUnionRoundtripTests
+          newCareerReplacementTests ]

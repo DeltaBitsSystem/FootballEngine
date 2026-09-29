@@ -1,7 +1,6 @@
 namespace FootballEngine.Database
 
 open System
-open System.Text.Json
 open FootballEngine.Domain
 open FootballEngine.Database.Serializers
 
@@ -242,10 +241,10 @@ module Mappers =
           Name = club.Name
           Nationality = club.Nationality
           Reputation = club.Reputation
-          FinanceJson = JsonSerializer.Serialize(club.Finance)
+          FinanceJson = JsonCodec.serialize club.Finance
           Morale = club.Morale
           BoardObjective = boardObjectiveToString club.BoardObjective
-          CoordinationMemory = JsonSerializer.Serialize(club.CoordinationMemory)
+          CoordinationMemory = JsonCodec.serialize club.CoordinationMemory
           ScoutingMemory = serializeScoutingMemory club.ScoutingMemory }
 
     let toClubDomain (players: Map<PlayerId, Player>) (staff: Map<StaffId, Staff>) (ce: ClubEntity) : ClubId * Club =
@@ -280,7 +279,7 @@ module Mappers =
                 Finance.initial 0m
             else
                 try
-                    JsonSerializer.Deserialize<ClubFinance>(ce.FinanceJson)
+                    JsonCodec.deserialize<ClubFinance> ce.FinanceJson
                 with _ ->
                     Finance.initial 0m
           Morale = ce.Morale
@@ -291,7 +290,7 @@ module Mappers =
             | "" -> CoordinationMemory.defaultMemory
             | json ->
                 try
-                    JsonSerializer.Deserialize<CoordinationMemory>(json)
+                    JsonCodec.deserialize<CoordinationMemory> json
                 with _ ->
                     CoordinationMemory.defaultMemory
           ScoutingMemory = deserializeScoutingMemory ce.ScoutingMemory }
@@ -518,6 +517,7 @@ module Mappers =
         ce.Id,
         { Id = ce.Id
           Name = ce.Name
+          BroadcastIdentity = BroadcastIdentity.generated ($"competition:{ce.Id}")
           Type = parseCompetitionType ce.TypeTag ce.TypeParam1 ce.TypeParam2
           Country =
             if String.IsNullOrEmpty(ce.Country) then

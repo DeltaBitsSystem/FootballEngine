@@ -1,7 +1,21 @@
 namespace FootballEngine.Database
 
+open System.Text.Json
+open System.Text.Json.Serialization
 open FootballEngine.Data
 open FootballEngine.Domain
+
+module JsonCodec =
+    let private options =
+        let value = JsonSerializerOptions(JsonSerializerDefaults.General)
+        value.Converters.Add(JsonFSharpConverter())
+        value
+
+    let serialize<'T> (value: 'T) =
+        JsonSerializer.Serialize(value, options)
+
+    let deserialize<'T> (json: string) =
+        JsonSerializer.Deserialize<'T>(json, options)
 
 module Serializers =
 
@@ -458,16 +472,15 @@ module Serializers =
 
     let serializeCountryData (cd: CountryData) : string =
         let dto = JsonConverters.countryDataToDto cd
-        System.Text.Json.JsonSerializer.Serialize(dto)
+        JsonCodec.serialize dto
 
     let deserializeCountryData (json: string) : Result<CountryData, string> =
-        let dto = System.Text.Json.JsonSerializer.Deserialize<CountryDataDto>(json)
+        let dto = JsonCodec.deserialize<CountryDataDto> json
         JsonConverters.countryDataFromDto dto
 
     /// Scouting memory serializes as a plain map of records; Map sorts by key
     /// and records keep field order, so the JSON is deterministic per memory.
-    let serializeScoutingMemory (mem: Map<ClubId, OpponentMemory>) : string =
-        System.Text.Json.JsonSerializer.Serialize(mem)
+    let serializeScoutingMemory (mem: Map<ClubId, OpponentMemory>) : string = JsonCodec.serialize mem
 
     /// A corrupt or missing blob must not kill the save load: forgetting is
     /// the sanctioned failure mode, exactly like CoordinationMemory.
@@ -476,6 +489,6 @@ module Serializers =
             ScoutingMemory.empty
         else
             try
-                System.Text.Json.JsonSerializer.Deserialize<Map<ClubId, OpponentMemory>>(json)
+                JsonCodec.deserialize<Map<ClubId, OpponentMemory>> json
             with _ ->
                 ScoutingMemory.empty

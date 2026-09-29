@@ -2,12 +2,10 @@ namespace FootballEngine
 
 open System
 open System.IO
-open System.Text.Json
 open System.Security.Cryptography
 open System.Text
 open System.Threading.Tasks
 open System.Threading
-open System.Text.Json.Serialization
 open FootballEngine.Domain
 open FootballEngine.Core.Match
 open FootballEngine.World
@@ -33,23 +31,14 @@ type SaveSlotInfo =
 
 module Db =
 
-    // MarketState contains F# unions and maps; the converter keeps every
-    // operation, contract, loan and report round-trippable instead of reducing
-    // the save to the legacy LoanEntity projection.
-    let private fsharpJsonOptions =
-        let options = JsonSerializerOptions(JsonSerializerDefaults.General)
-        options.Converters.Add(JsonFSharpConverter())
-        options
-
-    let private marketToJson market =
-        JsonSerializer.Serialize(market, fsharpJsonOptions)
+    let private marketToJson market = JsonCodec.serialize market
 
     let private marketFromJson (json: string) =
         if String.IsNullOrWhiteSpace json then
             Ok MarketState.empty
         else
             try
-                let market = JsonSerializer.Deserialize<MarketState>(json, fsharpJsonOptions)
+                let market = JsonCodec.deserialize<MarketState> json
 
                 if box market = null then
                     Error "Market JSON is empty"
@@ -141,7 +130,7 @@ module Db =
               ContentHash = package.PackageSha256 })
 
     let private resolvedDataContentOfDataLock (dataLock: DataLock) =
-        JsonSerializer.Serialize<DataSnapshot>(dataLock.Snapshot, fsharpJsonOptions)
+        JsonCodec.serialize<DataSnapshot> dataLock.Snapshot
 
     let private modErrorMessage (error: ModError) =
         error.Diagnostics
@@ -161,7 +150,7 @@ module Db =
             let manifest = manifestOfDataLock dataLock
             let resolvedDataContent = resolvedDataContentOfDataLock dataLock
             let resolvedDataHash = sha256 resolvedDataContent
-            let clockJson = JsonSerializer.Serialize clock
+            let clockJson = JsonCodec.serialize clock
 
             let stored =
                 { SchemaVersion = CurrentSchema
@@ -180,19 +169,20 @@ module Db =
                     sha256 (
                         clockJson
                         + effective.Content
-                        + (JsonSerializer.Serialize manifest)
-                        + (JsonSerializer.Serialize dataLock)
+                        + (JsonCodec.serialize manifest)
+                        + (JsonCodec.serialize dataLock)
                         + resolvedDataHash
                         + resolvedDataContent
                     ) }
 
-            stored, JsonSerializer.Serialize stored
+            stored, JsonCodec.serialize stored
 
     let private saveGameInSlotCoreAsync
         (slot: string)
         (state: GameState)
         (clock: WorldClock)
         (saveSettings: SaveSettings)
+        (replaceExisting: bool)
         =
         task {
             let saveSettingsJson = SaveSettings.toJson saveSettings
@@ -206,7 +196,11 @@ module Db =
                 db.RunInTransactionAsync(fun (conn: SQLiteConnection) ->
                     let previous = conn.Find<SaveEnvelopeEntity>(slot)
 
-                    if box previous <> null && previous.Revision > int64 clock.Revision then
+                    if
+                        not replaceExisting
+                        && box previous <> null
+                        && previous.Revision > int64 clock.Revision
+                    then
                         raise (
                             InvalidOperationException(
                                 $"Save revision {clock.Revision} is older than stored revision {previous.Revision}"
@@ -348,8 +342,21 @@ module Db =
                             )
                         )
                 | _ ->
-                    do! saveGameInSlotCoreAsync slot state clock saveSettings
+                    do! saveGameInSlotCoreAsync slot state clock saveSettings false
                     lastCommittedRevision[storageKey] <- clock.Revision
+            finally
+                gate.Release() |> ignore
+        }
+
+    let replaceGameInSlotAsync (slot: string) (state: GameState) (clock: WorldClock) (saveSettings: SaveSettings) =
+        task {
+            let storageKey = slotPath slot
+            let gate = slotWriteGates.GetOrAdd(storageKey, fun _ -> new SemaphoreSlim(1, 1))
+            do! gate.WaitAsync()
+
+            try
+                do! saveGameInSlotCoreAsync slot state clock saveSettings true
+                lastCommittedRevision[storageKey] <- clock.Revision
             finally
                 gate.Release() |> ignore
         }
@@ -767,7 +774,7 @@ module Db =
                     else
                         let parseStoredEnvelope (json: string) =
                             try
-                                let stored = JsonSerializer.Deserialize<StoredEnvelope>(json)
+                                let stored = JsonCodec.deserialize<StoredEnvelope> json
 
                                 if box stored = null then
                                     Error "Envelope JSON is empty"
@@ -794,8 +801,8 @@ module Db =
                                         sha256 (
                                             stored.ClockJson
                                             + stored.ConfigContent
-                                            + (JsonSerializer.Serialize stored.Manifest)
-                                            + (JsonSerializer.Serialize stored.DataLock)
+                                            + (JsonCodec.serialize stored.Manifest)
+                                            + (JsonCodec.serialize stored.DataLock)
                                             + stored.ResolvedDataHash
                                             + stored.ResolvedDataContent
                                         )
@@ -858,7 +865,7 @@ module Db =
                             else
                                 let clockResult =
                                     try
-                                        let clock = JsonSerializer.Deserialize<WorldClock>(stored.ClockJson)
+                                        let clock = JsonCodec.deserialize<WorldClock> stored.ClockJson
 
                                         if box clock = null then
                                             Error "WorldClock JSON is empty"
