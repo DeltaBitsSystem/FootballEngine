@@ -281,7 +281,7 @@ module AppState =
 
     let private loadSlotCmd (requestId: uint64) (slot: string) : Cmd<Msg> =
         Cmd.OfTask.either
-            (fun () -> Db.loadGameInSlot slot)
+            (fun () -> Db.loadEnvelope slot)
             ()
             (fun result -> AppMsgs.GameLoaded(requestId, slot, result))
             (fun ex -> AppMsgs.GameLoaded(requestId, slot, Error(Corrupt(slot, ex.Message))))
@@ -391,26 +391,41 @@ module AppState =
             match state.Setup.LoadState with
             | LoadingSlot(currentSlot, currentRequest) when currentSlot = slot && currentRequest = requestId ->
                 match result with
-                | Ok(gs, clock, saveSettings, resolvedData) ->
+                | Ok loaded ->
+                    let gs = loaded.State
+                    let clock = loaded.WorldClock
+                    let saveSettings = loaded.SaveSettings
+                    let resolvedData = loaded.ResolvedData
+
                     match Localization.setActiveCode state.Settings.Global.Appearance.Language with
                     | Ok() -> ()
                     | Error _ -> ()
 
-                    { state with
-                        Mode = InGame(gs, managerEmployment gs)
-                        Navigation =
-                            { Current = Route.Home
-                              Back = []
-                              Forward = [] }
-                        IsProcessing = false
-                        WorldClock = clock
-                        ResolvedData = Some resolvedData
-                        SaveSettings = saveSettings
-                        Settings = initSettingsState state.Settings.Global saveSettings
-                        ActiveSlot = Some slot
-                        SaveStatus = Saved gs.CurrentDate
-                        Setup = initSetupState
-                        ModLoadErrors = [] },
+                    let nextState =
+                        { state with
+                            Mode = InGame(gs, managerEmployment gs)
+                            Navigation =
+                                { Current = Route.Home
+                                  Back = []
+                                  Forward = [] }
+                            IsProcessing = false
+                            WorldClock = clock
+                            ResolvedData = Some resolvedData
+                            SaveSettings = saveSettings
+                            Settings = initSettingsState state.Settings.Global saveSettings
+                            ActiveSlot = Some slot
+                            SaveStatus = Saved gs.CurrentDate
+                            Setup = initSetupState
+                            ModLoadErrors = [] }
+
+                    (if loaded.RecoveredFromBackup then
+                         nextState
+                         |> pushNotification
+                             Material.Icons.MaterialIconKind.AlertCircleOutline
+                             "Save recovered"
+                             "The primary save was damaged. The previous backup was restored; the damaged file was kept."
+                     else
+                         nextState),
                     Cmd.none
                 | Error error ->
                     { state with

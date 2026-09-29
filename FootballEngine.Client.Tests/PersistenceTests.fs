@@ -163,6 +163,35 @@ let backupTests =
         | Ok recovered ->
             Expect.equal recovered.Envelope.ConfirmedRevision 1UL "backup revision"
             Expect.equal recovered.State.CurrentDate (DateTime(2027, 1, 1)) "backup state"
+            Expect.isTrue recovered.RecoveredFromBackup "the UI can report recovery"
+
+            let initial =
+                { AppTypes.initialState () with
+                    Setup =
+                        { AppTypes.initSetupState with
+                            LoadState = AppTypes.LoadingSlot(slot, 1UL) } }
+
+            let notified, _ =
+                AppState.update (AppMsgs.GameLoaded(1UL, slot, Ok recovered)) initial
+
+            Expect.isTrue
+                (notified.Notifications
+                 |> List.exists (fun note -> note.Title = "Save recovered"))
+                "recovery is visible to the player"
+
+            Expect.equal
+                (Directory.EnumerateFiles(root, "career-backup.db3.corrupt-*") |> Seq.length)
+                1
+                "the damaged primary remains available for inspection"
+
+            let next = state (DateTime(2027, 1, 3)) (dataLock None)
+            save root slot next (clock 3UL 3)
+
+            match load root slot with
+            | Ok resumed ->
+                Expect.equal resumed.State.CurrentDate next.CurrentDate "recovered career can save again"
+                Expect.isFalse resumed.RecoveredFromBackup "healthy loads do not repeat the recovery warning"
+            | Error error -> failtestf "recovered career could not save again: %A" error
         | Error error -> failtestf "backup was not recovered: %A" error
 
 let commitFailureTests =
@@ -350,6 +379,86 @@ let fullStateTests =
             Expect.equal result.WorldClock (clock 1UL 1) "the world revision is independent of saves"
         | Error error -> failtestf "state round-trip failed: %A" error
 
+let outOfOrderWriteTests =
+    testCase "older commands cannot overwrite a later same-revision edit or new career"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "ordered"
+        let first = state (DateTime(2027, 1, 1)) (dataLock None)
+
+        let later =
+            { first with
+                TeamEmphasis = EmHighPress }
+
+        Db.configureStorageDirectoryForTests root
+        Db.initTablesForSlot slot |> Async.AwaitTask |> Async.RunSynchronously
+
+        let stale = Db.prepareSaveInSlot slot first (clock 1UL 1) saveSettings false
+        let latest = Db.prepareSaveInSlot slot later (clock 1UL 1) saveSettings false
+        latest () |> Async.AwaitTask |> Async.RunSynchronously
+        stale () |> Async.AwaitTask |> Async.RunSynchronously
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State later "the later command wins even at the same world revision"
+        | Error error -> failtestf "latest command was not saved: %A" error
+
+        let oldCareer = Db.prepareSaveInSlot slot first (clock 2UL 2) saveSettings false
+        let newCareer = state (DateTime(2026, 7, 1)) (dataLock None)
+        let replace = Db.prepareSaveInSlot slot newCareer (clock 0UL 1) saveSettings true
+        replace () |> Async.AwaitTask |> Async.RunSynchronously
+        oldCareer () |> Async.AwaitTask |> Async.RunSynchronously
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State newCareer "old career writes cannot revive a replaced slot"
+        | Error error -> failtestf "replacement was overwritten: %A" error
+
+let longCareerTests =
+    testCase "decades of season results and inbox messages survive repeated saves"
+    <| fun _ ->
+        let root = tempRoot ()
+        let date = DateTime(2070, 7, 1)
+
+        let seasons =
+            [ 2027..2069 ]
+            |> List.map (fun year ->
+                { Season = year
+                  CompetitionIds = [ 1; 2 ]
+                  Winners = [ 1, 3 ]
+                  Promoted = [ 4 ]
+                  Relegated = [ 5 ]
+                  CompletedOn = DateTime(year, 6, 30) })
+
+        let inbox =
+            [ 1..4000 ]
+            |> List.map (fun id ->
+                { Id = id
+                  Date = DateTime(2027 + id / 100, 1, 1)
+                  From = "Board"
+                  Subject = $"Season report {id}"
+                  Body = "A long-lived career must retain its messages."
+                  Category = InboxMessageCategory.BoardUpdate
+                  IsRead = id % 2 = 0
+                  RequiresAction = id % 7 = 0
+                  ActionTaken = if id % 7 = 0 then Some true else None })
+
+        let career =
+            { state date (dataLock None) with
+                Season = 2070
+                SeasonHistory = seasons
+                CareerHistory = seasons |> List.map (fun season -> ManagerHired(season.CompletedOn, 3))
+                Inbox = inbox
+                NextInboxId = inbox.Length + 1 }
+
+        let worldClock = WorldClockOps.init career.Season
+        save root "long-career" career worldClock
+        save root "long-career" career worldClock
+
+        match load root "long-career" with
+        | Ok loaded ->
+            Expect.equal loaded.State career "the complete long-lived world is retained"
+            Expect.equal loaded.WorldClock worldClock "the clock is unchanged"
+        | Error error -> failtestf "long career could not be loaded: %A" error
+
 let metadataTests =
     testCase "listing slots reads metadata without deserializing the world"
     <| fun _ ->
@@ -443,7 +552,9 @@ let missingPrimaryTests =
         | other -> failtestf "backup was not listed: %A" other
 
         match load root slot with
-        | Ok loaded -> Expect.equal loaded.State.CurrentDate first.CurrentDate "backup is loadable"
+        | Ok loaded ->
+            Expect.equal loaded.State.CurrentDate first.CurrentDate "backup is loadable"
+            Expect.isTrue (File.Exists path) "loading the backup restores an active primary"
         | Error error -> failtestf "backup was not loaded: %A" error
 
 let invalidSlotTests =
@@ -455,6 +566,139 @@ let invalidSlotTests =
         Expect.throws
             (fun () -> Db.initTablesForSlot "../other" |> Async.AwaitTask |> Async.RunSynchronously)
             "invalid slot names are rejected"
+
+let incompatibleSchemaTests =
+    testCase "old formats are identified without changing their SQLite files"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "legacy"
+        let path = Path.Combine(root, "career-legacy.db3")
+        Db.configureStorageDirectoryForTests root
+
+        use db = new SQLiteConnection(path, true)
+
+        db.Execute("CREATE TABLE SaveEnvelopeEntity (SlotId TEXT PRIMARY KEY, SchemaVersion INTEGER)")
+        |> ignore
+
+        db.Execute("INSERT INTO SaveEnvelopeEntity (SlotId, SchemaVersion) VALUES (?, ?)", slot, 4)
+        |> ignore
+
+        Db.initTablesForSlot slot |> Async.AwaitTask |> Async.RunSynchronously
+
+        Expect.equal
+            (db.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE name='CareerSnapshot'"))
+            0
+            "initialization does not modify a legacy save"
+
+        match Db.listSaveSlotsAsync () |> Async.AwaitTask |> Async.RunSynchronously with
+        | Ok [ info ] -> Expect.equal info.Status (IncompatibleSlot(Db.CurrentSchema, 4)) "old format is explicit"
+        | other -> failtestf "legacy slot was not listed: %A" other
+
+        match load root slot with
+        | Error(Incompatible(_, expected, actual)) ->
+            Expect.equal (expected, actual) (Db.CurrentSchema, 4) "load rejects unsupported formats"
+        | other -> failtestf "old save was not rejected: %A" other
+
+let legacyReplacementTests =
+    testCase "explicit replacement archives a legacy save and failed replacement restores it"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "old-default"
+        let path = Path.Combine(root, "career-old-default.db3")
+        Db.configureStorageDirectoryForTests root
+
+        do
+            use db = new SQLiteConnection(path, true)
+
+            db.Execute("CREATE TABLE SaveEnvelopeEntity (SlotId TEXT PRIMARY KEY, SchemaVersion INTEGER)")
+            |> ignore
+
+            db.Execute("INSERT INTO SaveEnvelopeEntity (SlotId, SchemaVersion) VALUES (?, ?)", slot, 4)
+            |> ignore
+
+        let replacement = state (DateTime(2027, 1, 1)) (dataLock None)
+        Db.injectCommitFailureForTests true
+
+        let failed =
+            try
+                Db.replaceGameInSlotAsync slot replacement (clock 0UL 1) saveSettings
+                |> Async.AwaitTask
+                |> Async.RunSynchronously
+
+                false
+            with _ ->
+                true
+
+        Db.injectCommitFailureForTests false
+        Expect.isTrue failed "injected failure rejects the replacement"
+
+        match load root slot with
+        | Error(Incompatible _) -> ()
+        | other -> failtestf "failed replacement removed the previous save: %A" other
+
+        Db.replaceGameInSlotAsync slot replacement (clock 0UL 1) saveSettings
+        |> Async.AwaitTask
+        |> Async.RunSynchronously
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State replacement "new career starts in the old slot"
+        | Error error -> failtestf "replacement did not load: %A" error
+
+        Expect.equal
+            (Directory.EnumerateFiles(root, "career-old-default.db3.legacy-*")
+             |> Seq.filter (fun file -> not (file.EndsWith(".bak", StringComparison.Ordinal)))
+             |> Seq.length)
+            1
+            "the old save is archived rather than deleted"
+
+let unsupportedSnapshotTests =
+    testCase "a newer snapshot stays untouched until explicitly replaced"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "future"
+        let first = state (DateTime(2027, 1, 1)) (dataLock None)
+        save root slot first (clock 1UL 1)
+
+        do
+            use db = new SQLiteConnection(Path.Combine(root, "career-future.db3"), true)
+
+            db.Execute("UPDATE CareerSnapshot SET SchemaVersion = ? WHERE Id = 1", Db.CurrentSchema + 1)
+            |> ignore
+
+        Db.initTablesForSlot slot |> Async.AwaitTask |> Async.RunSynchronously
+
+        match load root slot with
+        | Error(Incompatible(_, _, version)) -> Expect.equal version (Db.CurrentSchema + 1) "future format is rejected"
+        | other -> failtestf "unknown snapshot format was loaded: %A" other
+
+        let next = state (DateTime(2028, 1, 1)) (dataLock None)
+
+        Db.replaceGameInSlotAsync slot next (clock 0UL 1) saveSettings
+        |> Async.AwaitTask
+        |> Async.RunSynchronously
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State next "replacement makes a new career"
+        | Error error -> failtestf "replacement did not load: %A" error
+
+let damagedStartupTests =
+    testCase "initializing an unreadable default save does not prevent the application from starting"
+    <| fun _ ->
+        let root = tempRoot ()
+        let path = Path.Combine(root, "career-career-1.db3")
+        File.WriteAllBytes(path, [| 1uy; 2uy; 3uy |])
+        Db.configureStorageDirectoryForTests root
+        Db.initTables () |> Async.AwaitTask |> Async.RunSynchronously
+
+        let next = state (DateTime(2027, 1, 1)) (dataLock None)
+
+        Db.replaceGameInSlotAsync Db.DefaultSlot next (clock 0UL 1) saveSettings
+        |> Async.AwaitTask
+        |> Async.RunSynchronously
+
+        match load root Db.DefaultSlot with
+        | Ok loaded -> Expect.equal loaded.State next "corrupt file is archived and replaced"
+        | Error error -> failtestf "corrupt save could not be replaced: %A" error
 
 let generatedCareerTests =
     testCase "a generated career with players, fixtures and clubs survives a full round-trip"
@@ -554,8 +798,14 @@ let tests =
           discriminatedUnionRoundtripTests
           newCareerReplacementTests
           fullStateTests
+          outOfOrderWriteTests
+          longCareerTests
           metadataTests
           chunkTests
           missingPrimaryTests
           invalidSlotTests
+          incompatibleSchemaTests
+          legacyReplacementTests
+          unsupportedSnapshotTests
+          damagedStartupTests
           generatedCareerTests ]

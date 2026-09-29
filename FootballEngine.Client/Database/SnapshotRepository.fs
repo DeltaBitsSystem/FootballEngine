@@ -81,7 +81,8 @@ module Db =
           State: GameState
           WorldClock: WorldClock
           SaveSettings: SaveSettings
-          ResolvedData: ResolvedDataSet }
+          ResolvedData: ResolvedDataSet
+          RecoveredFromBackup: bool }
 
     let private databaseDirectory = new AsyncLocal<string>()
     let private commitFailure = new AsyncLocal<bool>()
@@ -105,10 +106,29 @@ module Db =
 
         Path.Combine(storageDirectory (), $"career-{slot}.db3")
 
-    let private gates = ConcurrentDictionary<string, SemaphoreSlim>()
+    type private SlotWriteGate() =
+        let semaphore = new SemaphoreSlim(1, 1)
+        let sync = obj ()
+        let mutable issued = 0L
+        let mutable committed = 0L
+
+        member _.Semaphore = semaphore
+
+        member _.Issue() =
+            lock sync (fun () ->
+                issued <- issued + 1L
+                issued)
+
+        member _.Superseded sequence =
+            lock sync (fun () -> sequence <= committed)
+
+        member _.Commit sequence =
+            lock sync (fun () -> committed <- max committed sequence)
+
+    let private gates = ConcurrentDictionary<string, SlotWriteGate>()
 
     let private gateFor slot =
-        gates.GetOrAdd(slotPath slot, fun _ -> new SemaphoreSlim(1, 1))
+        gates.GetOrAdd(slotPath slot, fun _ -> SlotWriteGate())
 
     let private openDb (path: string) =
         let db = new SQLiteConnection(path, true)
@@ -118,6 +138,37 @@ module Db =
 
     let private openRead path =
         new SQLiteConnection(path, SQLiteOpenFlags.ReadOnly, true)
+
+    let private legacySchema path =
+        use db = openRead path
+
+        if
+            db.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='CareerSnapshot'") = 0
+            && db.ExecuteScalar<int>(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='SaveEnvelopeEntity'"
+            ) > 0
+        then
+            Some(db.ExecuteScalar<int>("SELECT COALESCE(MAX(SchemaVersion), 4) FROM SaveEnvelopeEntity"))
+        else
+            None
+
+    let private incompatibleSchema path =
+        match legacySchema path with
+        | Some version -> Some version
+        | None ->
+            use db = openRead path
+
+            if
+                db.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='CareerSnapshot'") = 0
+            then
+                None
+            elif db.ExecuteScalar<int>("SELECT COUNT(*) FROM CareerSnapshot WHERE Id = 1") = 0 then
+                None
+            else
+                let version =
+                    db.ExecuteScalar<int>("SELECT SchemaVersion FROM CareerSnapshot WHERE Id = 1")
+
+                if version = CurrentSchema then None else Some version
 
     let private hash (bytes: byte[]) =
         Convert.ToHexString(SHA256.HashData bytes).ToLowerInvariant()
@@ -235,6 +286,11 @@ module Db =
         let path = slotPath slot
         Directory.CreateDirectory(storageDirectory ()) |> ignore
 
+        if File.Exists path then
+            match incompatibleSchema path with
+            | Some version -> invalidOp $"Save schema {version} is incompatible with schema {CurrentSchema}."
+            | None -> ()
+
         match SaveSettings.validate settings with
         | Error errors -> invalidOp ("Invalid save settings: " + String.concat "; " errors)
         | Ok _ -> ()
@@ -343,22 +399,79 @@ module Db =
             // A replaced slot belongs to a different career; recovery must never revive the old one.
             db.Backup(path + ".bak", "main")
 
-    let private saveAsync (slot: string) (state: GameState) (clock: WorldClock) (settings: SaveSettings) replace =
-        task {
-            let gate = gateFor slot
-            do! gate.WaitAsync()
+    let private replaceLegacy slot state clock settings =
+        let path = slotPath slot
+
+        let oldFormat =
+            if File.Exists path then
+                try
+                    incompatibleSchema path
+                with _ ->
+                    // Explicit slot replacement may archive an unreadable database too.
+                    Some -1
+            else
+                None
+
+        match oldFormat with
+        | None -> saveCore slot state clock settings true
+        | Some _ ->
+            let archived = path + ".legacy-" + Guid.NewGuid().ToString("N")
+            let backup = path + ".bak"
+            let archivedBackup = archived + ".bak"
+            let mutable movedPrimary = false
 
             try
-                do! Task.Run(fun () -> saveCore slot state clock settings replace)
-            finally
-                gate.Release() |> ignore
-        }
+                File.Move(path, archived)
+                movedPrimary <- true
+
+                if File.Exists backup then
+                    File.Move(backup, archivedBackup)
+
+                saveCore slot state clock settings true
+            with error ->
+                if movedPrimary then
+                    let failed = path + ".failed-" + Guid.NewGuid().ToString("N")
+
+                    if File.Exists path then
+                        File.Move(path, failed)
+
+                    if File.Exists backup then
+                        File.Move(backup, failed + ".bak")
+
+                    File.Move(archived, path)
+
+                    if File.Exists archivedBackup then
+                        File.Move(archivedBackup, backup)
+
+                raise error
+
+    let prepareSaveInSlot (slot: string) (state: GameState) (clock: WorldClock) (settings: SaveSettings) replace =
+        let writer = gateFor slot
+        let sequence = writer.Issue()
+
+        fun () ->
+            task {
+                do! writer.Semaphore.WaitAsync()
+
+                try
+                    if not (writer.Superseded sequence) then
+                        do!
+                            Task.Run(fun () ->
+                                if replace then
+                                    replaceLegacy slot state clock settings
+                                else
+                                    saveCore slot state clock settings false)
+
+                        writer.Commit sequence
+                finally
+                    writer.Semaphore.Release() |> ignore
+            }
 
     let saveGameInSlotAsync slot state clock settings =
-        saveAsync slot state clock settings false
+        (prepareSaveInSlot slot state clock settings false) ()
 
     let replaceGameInSlotAsync slot state clock settings =
-        saveAsync slot state clock settings true
+        (prepareSaveInSlot slot state clock settings true) ()
 
     let saveGameAsync state clock settings =
         saveGameInSlotAsync DefaultSlot state clock settings
@@ -374,13 +487,10 @@ module Db =
           Cancel: unit -> bool }
 
     type private AutosavePayload =
-        { Slot: string
-          Revision: uint64
-          State: GameState
-          Clock: WorldClock
-          Settings: SaveSettings
+        { Revision: uint64
           Completion: TaskCompletionSource<AutosaveResult>
-          Cancellation: CancellationToken }
+          Cancellation: CancellationToken
+          Save: unit -> Task<unit> }
 
     let private queueLock = obj ()
 
@@ -411,9 +521,7 @@ module Db =
                     if item.Cancellation.IsCancellationRequested then
                         item.Completion.TrySetCanceled item.Cancellation |> ignore
                     else
-                        saveGameInSlotAsync item.Slot item.State item.Clock item.Settings
-                        |> Async.AwaitTask
-                        |> Async.RunSynchronously
+                        item.Save() |> Async.AwaitTask |> Async.RunSynchronously
 
                         item.Completion.TrySetResult Saved |> ignore
                 with error ->
@@ -428,13 +536,10 @@ module Db =
             TaskCompletionSource<AutosaveResult>(TaskCreationOptions.RunContinuationsAsynchronously)
 
         let item =
-            { Slot = slot
-              Revision = clock.Revision
-              State = state
-              Clock = clock
-              Settings = settings
+            { Revision = clock.Revision
               Completion = completion
-              Cancellation = cancellation }
+              Cancellation = cancellation
+              Save = prepareSaveInSlot slot state clock settings false }
 
         lock queueLock (fun () ->
             let staleActive =
@@ -481,8 +586,14 @@ module Db =
               Precedence = package.Precedence
               ContentHash = package.PackageSha256 })
 
+    exception private UnsupportedSave of int
+
     let private loadFile slot path : Result<LoadedCareer, LoadError> =
         try
+            match incompatibleSchema path with
+            | Some version -> raise (UnsupportedSave version)
+            | None -> ()
+
             use db = openRead path
             let entry = db.Find<CareerSnapshot>(1)
 
@@ -530,30 +641,10 @@ module Db =
                           ConfirmedRevision = payload.Clock.Revision
                           ConfirmedState = state
                           ConfirmedDate = state.CurrentDate
-                          Phase = BeforeMatch
                           ClockDay = payload.Clock.Current.Day
                           ClockWeek = payload.Clock.Current.Week
                           ClockMonth = payload.Clock.Current.Month
                           ClockSeason = payload.Clock.Current.Season
-                          Rng =
-                            { Seed = 0UL
-                              S0 = 0UL
-                              S1 = 0UL
-                              S2 = 0UL
-                              S3 = 0UL }
-                          NextIds =
-                            { NextInboxId = state.NextInboxId
-                              NextNegotiationId = state.NextNegotiationId
-                              NextScheduledWorkId = 0UL
-                              NextCommandId = 0UL
-                              NextEventId = 0UL }
-                          PendingCommands = []
-                          PendingAgendaJson = ""
-                          EntitiesJson = ""
-                          ObligationsJson = ""
-                          RelationsJson = ""
-                          LearningJson = ""
-                          KnowledgeJson = ""
                           ConfigContent = payload.ConfigContent
                           ConfigHash = payload.ConfigHash
                           DataManifest = manifest dataLock
@@ -578,9 +669,39 @@ module Db =
                                       State = state
                                       WorldClock = payload.Clock
                                       SaveSettings = settings
-                                      ResolvedData = resolved }
+                                      ResolvedData = resolved
+                                      RecoveredFromBackup = false }
+        with
+        | UnsupportedSave version -> Error(Incompatible(slot, CurrentSchema, version))
+        | error -> Error(Corrupt(slot, error.Message))
+
+    let private restorePrimary slot path =
+        let backup = path + ".bak"
+        let recovered = path + ".recovered-" + Guid.NewGuid().ToString("N")
+        let mutable quarantined = None
+
+        try
+            use db = openRead backup
+            db.Backup(recovered, "main")
+
+            if File.Exists path then
+                // Preserve the damaged primary for diagnosis; never overwrite user data while recovering.
+                let damaged = path + ".corrupt-" + Guid.NewGuid().ToString("N")
+                File.Move(path, damaged)
+                quarantined <- Some damaged
+
+            File.Move(recovered, path)
+            Ok()
         with error ->
-            Error(Corrupt(slot, error.Message))
+            match quarantined with
+            | Some damaged when not (File.Exists path) ->
+                try
+                    File.Move(damaged, path)
+                with _ ->
+                    ()
+            | _ -> ()
+
+            Error(Corrupt(slot, "Backup is valid but cannot restore the primary: " + error.Message))
 
     let loadEnvelope slot : Task<Result<LoadedCareer, LoadError>> =
         task {
@@ -589,7 +710,7 @@ module Db =
             if not (File.Exists path || File.Exists(path + ".bak")) then
                 return Error(Missing slot)
             else
-                let gate = gateFor slot
+                let gate = (gateFor slot).Semaphore
                 do! gate.WaitAsync()
 
                 try
@@ -607,7 +728,11 @@ module Db =
                             | Error error ->
                                 if File.Exists(path + ".bak") then
                                     match loadFile slot (path + ".bak") with
-                                    | Ok result -> Ok result
+                                    | Ok result ->
+                                        restorePrimary slot path
+                                        |> Result.map (fun () ->
+                                            { result with
+                                                RecoveredFromBackup = true })
                                     | Error _ -> Error error
                                 else
                                     Error error)
@@ -672,6 +797,10 @@ module Db =
                                 let path = slotPath slot
 
                                 let readHeader source =
+                                    match incompatibleSchema source with
+                                    | Some version -> raise (UnsupportedSave version)
+                                    | None -> ()
+
                                     use db = openRead source
 
                                     db.Query<CareerSlotHeader>(
@@ -683,8 +812,9 @@ module Db =
                                     let entry =
                                         try
                                             readHeader path
-                                        with _ when File.Exists(path + ".bak") ->
-                                            readHeader (path + ".bak")
+                                        with
+                                        | UnsupportedSave version -> raise (UnsupportedSave version)
+                                        | _ when File.Exists(path + ".bak") -> readHeader (path + ".bak")
 
                                     if entry.IsNone then
                                         { SlotId = slot
@@ -712,7 +842,10 @@ module Db =
                                       ManagerName = None
                                       GameDate = None
                                       LastWrittenUtc = DateTime.MinValue
-                                      Status = CorruptSlot error.Message })
+                                      Status =
+                                        match error with
+                                        | UnsupportedSave version -> IncompatibleSlot(CurrentSchema, version)
+                                        | _ -> CorruptSlot error.Message })
                             |> Seq.sortByDescending _.LastWrittenUtc
                             |> Seq.toList
                             |> Ok)
@@ -723,7 +856,13 @@ module Db =
     let initTablesForSlot slot =
         task {
             Directory.CreateDirectory(storageDirectory ()) |> ignore
-            use _db = openDb (slotPath slot)
+
+            let path = slotPath slot
+
+            if not (File.Exists path || File.Exists(path + ".bak")) then
+                use _db = openDb path
+                ()
+
             return ()
         }
 

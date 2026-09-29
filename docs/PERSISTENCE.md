@@ -14,10 +14,9 @@ The other `GameState` fields, including market, negotiations, histories,
 experiences, inbox, cached profiles, and the locked resolved mod snapshot, remain
 in the snapshot payload. The complete clock includes scheduled and consumed work,
 pending events, phase history and world revision. No field is reconstructed with
-the legacy mapper defaults. The `SaveEnvelope` returned to existing callers has
-legacy placeholder fields (RNG/commands/JSON sections) that are **not** active
-world state; the canonical continuation state is `LoadedCareer.State` plus
-`LoadedCareer.WorldClock`. Do not add a live world feature to these placeholders.
+the legacy mapper defaults. `SaveEnvelope` exposes only state backed by the
+snapshot; it does not claim that a world RNG or pending commands exist. The
+canonical continuation state is `LoadedCareer.State` plus `LoadedCareer.WorldClock`.
 
 SQLite updates changed chunks, deletes missing chunks, and replaces the snapshot
 inside one transaction. A `SaveSequence` advances even when `WorldClock.Revision`
@@ -28,7 +27,18 @@ backup is made with SQLite's backup API rather than copying an open `.db3` file.
 A failed transaction leaves the previous confirmed snapshot intact. A corrupted
 primary can be loaded from its previous full backup; replacing a slot also
 replaces its backup, so an old career cannot reappear as a new career. No
-old save formats are migrated: schema mismatch is incompatible.
+old save formats are migrated: schema mismatch is incompatible. Startup does
+not modify existing files. Explicitly replacing an incompatible or unreadable
+slot archives its previous database as `*.db3.legacy-<id>` before creating the
+new career; failed replacements attempt to restore the original path and never
+delete the archived file.
+
+After recovery, the damaged primary is kept as `*.db3.corrupt-<id>` and a
+consistent SQLite copy of the backup becomes the active primary. Subsequent
+saves work normally and the client notifies the player about the recovery.
+Save commands receive an in-process per-slot sequence when they are created:
+an older command that runs after a newer confirmed command cannot overwrite it,
+even if both represent the same world-clock revision or a slot replacement.
 
 ## Verification
 
@@ -53,6 +63,9 @@ careers before setting budgets or changing format/compression.
 
 - Keep persistence codecs and state reconstruction behind `Db`; update the
   round-trip and save-load-continuation tests whenever `GameState` changes.
+- `SaveEnvelope` has no invented world RNG, command queue, IDs or phase: all
+  active saved state comes from `GameState` and `WorldClock`. A future world
+  feature must add real persisted fields before exposing them in this contract.
 - Bump `CurrentSchema` when the stored shape or codec changes. Before the first
   public release, replace the current hard incompatibility with explicit,
   version-by-version migration tests if old public saves must remain loadable.

@@ -192,10 +192,7 @@ module AppMsgs =
         | ModEditorMsg of ModEditorMsg
         | SettingsMsg of SettingsMsg
         | StartupReady
-        | GameLoaded of
-            requestId: uint64 *
-            slot: string *
-            Result<GameState * WorldClock * SaveSettings * ResolvedDataSet, LoadError>
+        | GameLoaded of requestId: uint64 * slot: string * Result<Db.LoadedCareer, LoadError>
         | Navigate of Route
         | GoBack
         | GoForward
@@ -232,19 +229,17 @@ module SimHelpers =
         (clock: WorldClock)
         (saveSettings: SaveSettings)
         : Elmish.Cmd<AppMsgs.Msg> =
-        Elmish.Cmd.OfTask.either
-            (fun () -> Db.saveGameInSlotAsync slot gs clock saveSettings)
-            ()
-            (fun () -> AppMsgs.NoOp)
-            (fun ex ->
-                AppMsgs.NotificationMsg(
-                    AppMsgs.PushNotification
-                        { Id = 0
-                          Icon = Material.Icons.MaterialIconKind.AlertCircleOutline
-                          Title = "Save failed"
-                          Body = ex.Message
-                          IsRead = false }
-                ))
+        let save = Db.prepareSaveInSlot slot gs clock saveSettings false
+
+        Elmish.Cmd.OfTask.either save () (fun () -> AppMsgs.NoOp) (fun ex ->
+            AppMsgs.NotificationMsg(
+                AppMsgs.PushNotification
+                    { Id = 0
+                      Icon = Material.Icons.MaterialIconKind.AlertCircleOutline
+                      Title = "Save failed"
+                      Body = ex.Message
+                      IsRead = false }
+            ))
 
     let saveCmd (gs: GameState) (clock: WorldClock) (saveSettings: SaveSettings) : Elmish.Cmd<AppMsgs.Msg> =
         saveCmdInSlot Db.DefaultSlot gs clock saveSettings
@@ -266,9 +261,10 @@ module SimHelpers =
         (saveSettings: SaveSettings)
         : Elmish.Cmd<AppMsgs.Msg> =
         let slot = state.ActiveSlot |> Option.defaultValue Db.DefaultSlot
+        let save = Db.prepareSaveInSlot slot gs clock saveSettings false
 
         Elmish.Cmd.OfTask.either
-            (fun () -> Db.saveGameInSlotAsync slot gs clock saveSettings)
+            save
             ()
             (fun () -> AppMsgs.PersistenceMsg(AppMsgs.SaveCompleted(requestId, slot, clock.Revision, Ok())))
             (fun ex -> AppMsgs.PersistenceMsg(AppMsgs.SaveCompleted(requestId, slot, clock.Revision, Error ex.Message)))
@@ -281,9 +277,10 @@ module SimHelpers =
         (saveSettings: SaveSettings)
         : Elmish.Cmd<AppMsgs.Msg> =
         let slot = state.ActiveSlot |> Option.defaultValue Db.DefaultSlot
+        let save = Db.prepareSaveInSlot slot gs clock saveSettings true
 
         Elmish.Cmd.OfTask.either
-            (fun () -> Db.replaceGameInSlotAsync slot gs clock saveSettings)
+            save
             ()
             (fun () -> AppMsgs.PersistenceMsg(AppMsgs.SaveCompleted(requestId, slot, clock.Revision, Ok())))
             (fun ex -> AppMsgs.PersistenceMsg(AppMsgs.SaveCompleted(requestId, slot, clock.Revision, Error ex.Message)))
