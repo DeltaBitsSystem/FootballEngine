@@ -179,6 +179,17 @@ module HomePresenter =
 
 module Home =
 
+    let private compactViewport () =
+        match Avalonia.Application.Current with
+        | null -> false
+        | app ->
+            match app.ApplicationLifetime with
+            | :? Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime as desktop when
+                not (isNull desktop.MainWindow)
+                ->
+                desktop.MainWindow.ClientSize.Width < 800.0
+            | _ -> false
+
     let private panelHeader (iconKind: Material.Icons.MaterialIconKind) (label: string) (extra: IView option) =
         Border.create
             [ Border.padding (14.0, 10.0)
@@ -235,52 +246,69 @@ module Home =
                         TextBlock.verticalAlignment VerticalAlignment.Center ]
               ) ]
 
-    let private summaryBar (userTeam: Club) (pos: int option) (total: int option) (standing: LeagueStanding option) =
-        Grid.create
-            [ Grid.columnDefinitions "*, 10, *, 10, *, 10, *"
-              Grid.children
-                  [ UI.iconStatCard "CASH" $"€{int (userTeam.Finance.Cash / 1_000_000m)}M" ClubIcon.finances "Available"
-                    |> fun c -> Border.create [ Grid.column 0; Border.child c ]
+    let private summaryBar
+        (compact: bool)
+        (userTeam: Club)
+        (pos: int option)
+        (total: int option)
+        (standing: LeagueStanding option)
+        =
+        let statCard label compactLabel value icon sub =
+            UI.iconStatCard (if compact then compactLabel else label) value icon (if compact then "" else sub)
 
-                    Border.create
-                        [ Grid.column 2
-                          Border.child (
-                              UI.iconStatCard
-                                  "POSITION"
-                                  (match pos, total with
-                                   | Some p, Some t -> $"{p} / {t}"
-                                   | _ -> "—")
-                                  IconName.league
-                                  (match standing with
-                                   | Some s ->
-                                       let gd = s.GoalsFor - s.GoalsAgainst
-                                       let gdStr = if gd >= 0 then $"+{gd}" else $"{gd}"
-                                       $"{s.Points} pts • {gdStr} GD"
-                                   | _ -> "")
-                          ) ]
+        let cards: IView list =
+            [ statCard "CASH" "CASH" $"€{int (userTeam.Finance.Cash / 1_000_000m)}M" ClubIcon.finances "Available"
+              statCard
+                  "POSITION"
+                  "POS"
+                  (match pos, total with
+                   | Some p, Some t -> $"{p} / {t}"
+                   | _ -> "—")
+                  IconName.league
+                  (match standing with
+                   | Some s ->
+                       let gd = s.GoalsFor - s.GoalsAgainst
+                       let gdStr = if gd >= 0 then $"+{gd}" else $"{gd}"
+                       $"{s.Points} pts • {gdStr} GD"
+                   | _ -> "")
+              statCard
+                  "FORM"
+                  "FORM"
+                  (match standing with
+                   | Some s -> $"{s.Won}W {s.Drawn}D {s.Lost}L"
+                   | None -> "—")
+                  MatchEvent.goal
+                  (match standing with
+                   | Some s -> $"Played {s.Played}"
+                   | None -> "")
+              statCard
+                  "MORALE"
+                  "MORALE"
+                  $"{userTeam.Morale}%%"
+                  PlayerIcon.morale
+                  (if userTeam.Morale > 70 then "High"
+                   elif userTeam.Morale > 45 then "Okay"
+                   else "Low") ]
 
-                    Border.create
-                        [ Grid.column 4
-                          Border.child (
-                              UI.iconStatCard
-                                  "FORM"
-                                  (match standing with
-                                   | Some s -> $"{s.Won}W {s.Drawn}D {s.Lost}L"
-                                   | None -> "—")
-                                  MatchEvent.goal
-                                  (match standing with
-                                   | Some s -> $"Played {s.Played}"
-                                   | None -> "")
-                          ) ]
-
-                    UI.iconStatCard
-                        "MORALE"
-                        $"{userTeam.Morale}%%"
-                        PlayerIcon.morale
-                        (if userTeam.Morale > 70 then "High"
-                         elif userTeam.Morale > 45 then "Okay"
-                         else "Low")
-                    |> fun c -> Border.create [ Grid.column 6; Border.child c ] ] ]
+        if compact then
+            Grid.create
+                [ Grid.columnDefinitions "*, *"
+                  Grid.rowDefinitions "*, *"
+                  Grid.children
+                      [ for index, card in List.indexed cards do
+                            Border.create
+                                [ Grid.column (index % 2)
+                                  Grid.row (index / 2)
+                                  Border.margin 4.0
+                                  Border.child card ] ] ]
+        else
+            Grid.create
+                [ Grid.columnDefinitions "*, 10, *, 10, *, 10, *"
+                  Grid.children
+                      [ Border.create [ Grid.column 0; Border.child cards[0] ]
+                        Border.create [ Grid.column 2; Border.child cards[1] ]
+                        Border.create [ Grid.column 4; Border.child cards[2] ]
+                        Border.create [ Grid.column 6; Border.child cards[3] ] ] ]
 
     let private notificationRow (note: Notification) dispatch =
         let icon = note.Icon
@@ -294,6 +322,61 @@ module Home =
             | Material.Icons.MaterialIconKind.AlertCircleOutline -> Theme.Danger
             | Material.Icons.MaterialIconKind.FlagCheckered -> Theme.Warning
             | _ -> Theme.TextMuted
+
+        let copyText =
+            if note.Body = "" then
+                note.Title
+            else
+                note.Title + "\n" + note.Body
+
+        let copyNotification (event: Avalonia.Interactivity.RoutedEventArgs) =
+            event.Handled <- true
+
+            match event.Source with
+            | :? Control as source ->
+                match TopLevel.GetTopLevel(source) with
+                | null -> ()
+                | topLevel ->
+                    match topLevel.Clipboard with
+                    | null -> ()
+                    | clipboard ->
+                        Async.StartImmediate(
+                            async {
+                                try
+                                    let data = Avalonia.Input.DataTransfer()
+                                    data.Add(Avalonia.Input.DataTransferItem.CreateText(copyText))
+                                    do! clipboard.SetDataAsync(data) |> Async.AwaitTask
+                                with _ ->
+                                    ()
+                            }
+                        )
+            | _ -> ()
+
+        let actions =
+            StackPanel.create
+                [ Grid.column 2
+                  StackPanel.orientation Orientation.Horizontal
+                  StackPanel.spacing 2.0
+                  StackPanel.children
+                      [ UI.iconOnlyButton
+                            "Copy notification"
+                            Material.Icons.MaterialIconKind.ContentCopy
+                            UI.ButtonVariant.Ghost
+                            UI.ControlState.Default
+                            copyNotification
+                        Button.create
+                            [ Button.background "Transparent"
+                              Button.borderThickness 0.0
+                              Button.padding (4.0, 0.0)
+                              Button.verticalAlignment VerticalAlignment.Top
+                              Button.cursor Avalonia.Input.Cursor.Default
+                              Button.onClick (fun _ -> dispatch (NotificationMsg(DismissNotification note.Id)))
+                              Button.content (
+                                  TextBlock.create
+                                      [ TextBlock.text "✕"
+                                        TextBlock.fontSize 10.0
+                                        TextBlock.foreground Theme.TextMuted ]
+                              ) ] ] ]
 
         Border.create
             [ Border.padding (12.0, 10.0)
@@ -323,20 +406,7 @@ module Home =
                                                     TextBlock.foreground Theme.TextMuted
                                                     TextBlock.textWrapping TextWrapping.Wrap ] ] ]
 
-                              Button.create
-                                  [ Grid.column 2
-                                    Button.background "Transparent"
-                                    Button.borderThickness 0.0
-                                    Button.padding (4.0, 0.0)
-                                    Button.verticalAlignment VerticalAlignment.Top
-                                    Button.cursor Avalonia.Input.Cursor.Default
-                                    Button.onClick (fun _ -> dispatch (NotificationMsg(DismissNotification note.Id)))
-                                    Button.content (
-                                        TextBlock.create
-                                            [ TextBlock.text "✕"
-                                              TextBlock.fontSize 10.0
-                                              TextBlock.foreground Theme.TextMuted ]
-                                    ) ] ] ]
+                              actions ] ]
               ) ]
 
     let private notificationsPanel (notes: Notification list) dispatch =
@@ -813,12 +883,17 @@ module Home =
         : IView =
         match state.Mode with
         | InGame(gs, _) ->
+            let compact = compactViewport ()
             let userTeam = gs.Clubs[gs.UserClubId]
 
             let banner =
                 match HomePresenter.getNextMatch gs with
                 | None -> Display.Matches.emptyBanner ()
-                | Some m -> Display.Matches.nextMatchBanner m.LocalName m.VisitName m.Date m.LocationTag
+                | Some m ->
+                    if compact then
+                        Display.Matches.nextMatchBannerCompact m.LocalName m.VisitName m.Date m.LocationTag
+                    else
+                        Display.Matches.nextMatchBanner m.LocalName m.VisitName m.Date m.LocationTag
 
             let upcomingFixtures = HomePresenter.getUpcomingFixtures gs 5
             let recentResults = HomePresenter.getRecentResults gs 5
@@ -830,42 +905,50 @@ module Home =
                 | Some(p, t, s) -> Some p, Some t, Some s
                 | None -> None, None, None
 
-            ScrollViewer.create
+            let bodyColumns: IView =
+                if compact then
+                    StackPanel.create
+                        [ StackPanel.spacing 16.0
+                          StackPanel.children
+                              [ competitionPicker groups selectedLeagueId onLeagueChange
+                                standingsPanel gs selectedLeagueId
+                                recentResultsPanel recentResults
+                                upcomingPanel upcomingFixtures gs
+                                notificationsPanel state.Notifications dispatch ] ]
+                    :> IView
+                else
+                    Grid.create
+                        [ Grid.columnDefinitions "1.6*, 20, 1*"
+                          Grid.children
+                              [ Grid.create
+                                    [ Grid.column 0
+                                      Grid.columnDefinitions "190, 12, *"
+                                      Grid.children
+                                          [ Border.create
+                                                [ Grid.column 0
+                                                  Border.verticalAlignment VerticalAlignment.Top
+                                                  Border.child (
+                                                      competitionPicker groups selectedLeagueId onLeagueChange
+                                                  ) ]
+                                            StackPanel.create
+                                                [ Grid.column 2
+                                                  StackPanel.spacing 16.0
+                                                  StackPanel.children
+                                                      [ standingsPanel gs selectedLeagueId
+                                                        recentResultsPanel recentResults ] ] ] ]
+                                StackPanel.create
+                                    [ Grid.column 2
+                                      StackPanel.spacing 16.0
+                                      StackPanel.children
+                                          [ upcomingPanel upcomingFixtures gs
+                                            notificationsPanel state.Notifications dispatch ] ] ] ]
+                    :> IView
 
+            ScrollViewer.create
                 [ ScrollViewer.content (
                       StackPanel.create
                           [ StackPanel.margin (24.0, 24.0)
                             StackPanel.spacing 16.0
-                            StackPanel.children
-                                [ banner
-                                  summaryBar userTeam pos total standing
-                                  Grid.create
-                                      [ Grid.columnDefinitions "1.6*, 20, 1*"
-                                        Grid.children
-                                            [ Grid.create
-                                                  [ Grid.column 0
-                                                    Grid.columnDefinitions "190, 12, *"
-                                                    Grid.children
-                                                        [ Border.create
-                                                              [ Grid.column 0
-                                                                Border.verticalAlignment VerticalAlignment.Top
-                                                                Border.child (
-                                                                    competitionPicker
-                                                                        groups
-                                                                        selectedLeagueId
-                                                                        onLeagueChange
-                                                                ) ]
-                                                          StackPanel.create
-                                                              [ Grid.column 2
-                                                                StackPanel.spacing 16.0
-                                                                StackPanel.children
-                                                                    [ standingsPanel gs selectedLeagueId
-                                                                      recentResultsPanel recentResults ] ] ] ]
-                                              StackPanel.create
-                                                  [ Grid.column 2
-                                                    StackPanel.spacing 16.0
-                                                    StackPanel.children
-                                                        [ upcomingPanel upcomingFixtures gs
-                                                          notificationsPanel state.Notifications dispatch ] ] ] ] ] ]
+                            StackPanel.children [ banner; summaryBar compact userTeam pos total standing; bodyColumns ] ]
                   ) ]
         | _ -> Border.create [] :> IView

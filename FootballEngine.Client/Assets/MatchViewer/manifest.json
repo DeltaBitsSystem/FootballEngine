@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "assets": [
+    {
+      "id": "pitch.floodlit-v1",
+      "kind": "procedural",
+      "source": "Views/MatchPitch/PitchRenderer.fs",
+      "license": "LicenseRef-FootballEngine"
+    },
+    {
+      "id": "player.broadcast-v1",
+      "kind": "blender-rendered",
+      "source": "generate_players.py#players.blend",
+      "files": ["player-home.png", "player-away.png", "player-keeper.png", "player-official.png"],
+      "license": "LicenseRef-FootballEngine"
+    },
+    {
+      "id": "ball.classic-v1",
+      "kind": "procedural",
+      "source": "Views/MatchPitch/EntityRenderer.fs#ball",
+      "license": "LicenseRef-FootballEngine"
+    },
+    {
+      "id": "stadium.matchday-v1",
+      "kind": "static-environment",
+      "format": "glTF 2.0 GLB",
+      "runtimeFile": {
+        "path": "stadium.glb",
+        "sha256": "a152247e8b0e2656f0d0fca724026a166d82fb0aab0d41368a5fce1c9b9dd082"
+      },
+      "sourceFiles": [
+        {
+          "path": "pitch-floodlit.blend",
+          "sha256": "3b645abf3386dc60335adaeaf2b6c0b4debfe769416bda5c694803c3a1e10a5c"
+        },
+        {
+          "path": "players.blend",
+          "sha256": "06aeabd18c47ec7ae36054dec109e6579c3ddb25527caa40dd6e6cde41d28cbe"
+        }
+      ],
+      "exporter": "Blender glTF I/O 5.2.40",
+      "authoringBlenderVersion": null,
+      "license": null,
+      "rightsStatus": "unverified",
+      "distribution": "blocked-until-provenance-and-rights-are-attested",
+      "features": {
+        "skins": 0,
+        "animations": 0
+      }
+    }
+  ]
+}

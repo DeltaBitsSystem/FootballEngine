@@ -35,23 +35,16 @@ open FootballEngine.Settings
 open Material.Icons.Avalonia
 
 module Views =
-    let private playbackTimer: Avalonia.Threading.DispatcherTimer option ref = ref None
+    let private viewportWidth () =
+        match Avalonia.Application.Current with
+        | null -> 1600.0
+        | app ->
+            match app.ApplicationLifetime with
+            | :? IClassicDesktopStyleApplicationLifetime as desktop when not (isNull desktop.MainWindow) ->
+                desktop.MainWindow.ClientSize.Width
+            | _ -> 1600.0
 
     let mainView (state: State) dispatch =
-        match playbackTimer.Value, state.Match.IsPlaying with
-        | Some timer, true when timer.IsEnabled -> ()
-        | Some timer, false ->
-            timer.Stop()
-            playbackTimer.Value <- None
-        | None, true ->
-            let timer =
-                new Avalonia.Threading.DispatcherTimer(Interval = System.TimeSpan.FromMilliseconds 16.67)
-
-            timer.Tick.Add(fun _ -> dispatch (MatchMsg MatchMsg.Tick))
-            timer.Start()
-            playbackTimer.Value <- Some timer
-        | _ -> ()
-
         let unavailableRoute route : IView =
             Border.create
                 [ Border.padding 32.0
@@ -105,8 +98,67 @@ module Views =
             | InGame _, _ -> true
             | _ -> false
 
+        let compactHeader: IView =
+            let clubName =
+                match state.Mode with
+                | InGame(gs, _) -> gs.Clubs |> Map.tryFind gs.UserClubId |> Option.map _.Name
+                | _ -> None
+
+            Border.create
+                [ DockPanel.dock Dock.Top
+                  Border.height 56.0
+                  Border.background Theme.BgSidebar
+                  Border.borderBrush Theme.Border
+                  Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                  Border.padding (10.0, 0.0)
+                  Border.child (
+                      DockPanel.create
+                          [ DockPanel.lastChildFill true
+                            DockPanel.children
+                                [ Button.create
+                                      [ DockPanel.dock Dock.Left
+                                        Button.background Theme.BgCard
+                                        Button.borderBrush Theme.BorderLight
+                                        Button.borderThickness 1.0
+                                        Button.cornerRadius Theme.RadiusMd
+                                        Button.padding (10.0, 6.0)
+                                        Button.onClick (fun _ -> dispatch (Navigate Route.Home))
+                                        Button.content (TextBlock.create [ TextBlock.text "Home" ]) ]
+                                  Button.create
+                                      [ DockPanel.dock Dock.Right
+                                        Button.isEnabled (
+                                            state.Mode
+                                            |> function
+                                                | InGame _ -> not state.IsProcessing
+                                                | _ -> false
+                                        )
+                                        Button.background Theme.Accent
+                                        Button.borderThickness 0.0
+                                        Button.cornerRadius Theme.RadiusMd
+                                        Button.padding (10.0, 6.0)
+                                        Button.onClick (fun _ -> dispatch (SimMsg(Advance 1)))
+                                        Button.content (TextBlock.create [ TextBlock.text ">" ]) ]
+                                  TextBlock.create
+                                      [ TextBlock.text (clubName |> Option.defaultValue "Football Engine")
+                                        TextBlock.fontSize 14.0
+                                        TextBlock.fontWeight FontWeight.Bold
+                                        TextBlock.foreground Theme.TextMain
+                                        TextBlock.horizontalAlignment HorizontalAlignment.Center
+                                        TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                  ) ]
+
+        let compactThreshold =
+            match state.Navigation.Current with
+            | Route.Match _ -> 1100.0
+            | _ -> 800.0
+
         if not shellVisible then
             content
+        elif viewportWidth () < compactThreshold then
+            DockPanel.create
+                [ DockPanel.background Theme.BgMain
+                  DockPanel.lastChildFill true
+                  DockPanel.children [ compactHeader; content ] ]
         else
             DockPanel.create
                 [ DockPanel.background Theme.BgMain
@@ -138,6 +190,7 @@ type MainWindow(initialGlobal: GlobalSettings, resolvedData: Data.ResolvedDataSe
         Theme.applyToApp initialGlobal.Appearance this
 
         let mutable dispatchCell: (Msg -> unit) option = None
+        let mutable stateCell: State option = None
 
         let initFn () =
             match shots with
@@ -147,14 +200,18 @@ type MainWindow(initialGlobal: GlobalSettings, resolvedData: Data.ResolvedDataSe
                 s.Demo, Elmish.Cmd.ofEffect (fun dispatch -> dispatchCell <- Some dispatch)
             | None -> AppState.initWithGlobal initialGlobal resolvedData ()
 
-        Elmish.Program.mkProgram initFn AppState.update Views.mainView
+        let viewFn state dispatch =
+            stateCell <- Some state
+            Views.mainView state dispatch
+
+        Elmish.Program.mkProgram initFn AppState.update viewFn
         |> Elmish.Program.withHost this
         |> Elmish.Program.runWithAvaloniaSyncDispatch ()
 
         match shots with
         | Some s ->
             Avalonia.Threading.Dispatcher.UIThread.Post(fun () ->
-                Async.StartImmediate(Shots.runLoop this (fun () -> dispatchCell) s))
+                Async.StartImmediate(Shots.runLoop this (fun () -> dispatchCell) (fun () -> stateCell) s))
         | None -> ()
 
 type App() =
@@ -167,6 +224,8 @@ type App() =
     override this.OnFrameworkInitializationCompleted() =
         match this.ApplicationLifetime with
         | :? IClassicDesktopStyleApplicationLifetime as desktop ->
+            desktop.Exit.Add(fun _ -> MatchRuntime.disposeAll ())
+
             let startupGlobal =
                 match AppState.initialGlobalOverride with
                 | Some g -> g
@@ -215,7 +274,9 @@ module Program =
             // keeps the window responsive once shown.
             printfn $"[shots] building demo career..."
             Shots.Enabled <- true
-            let demo = Shots.buildDemoState initialGlobal resolved
+
+            let demo = Shots.buildDemoState opts initialGlobal resolved
+
             AppState.shotsContext <- Some { Opts = opts; Demo = demo }
             printfn $"[shots] demo ready, capturing {opts.Pages.Length} pages into {opts.Dir}"
         | Some _, None -> eprintfn "[shots] cannot build demo career because the resolved dataset is unavailable"

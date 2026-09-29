@@ -2,6 +2,7 @@ namespace FootballEngine
 
 open System
 open System.IO
+open System.Diagnostics
 open Avalonia
 open Avalonia.Controls
 open Avalonia.Media.Imaging
@@ -34,7 +35,13 @@ module Shots =
           Width: float
           Height: float
           Pages: Route list
-          SettleMs: int }
+          SettleMs: int
+          VideoPath: string option
+          VideoFps: int
+          VideoStep: int
+          VideoFrames: int
+          MatchIndex: int
+          MatchSeed: uint64 option }
 
     type Context = { Opts: Options; Demo: State }
 
@@ -53,7 +60,7 @@ module Shots =
           Route.Transfers TransferRoute.Market
           Route.Finances FinanceRoute.Overview
           Route.Settings SettingsRoute.Overview
-          Route.Match(1, MatchPhase.Replay)
+          Route.Match(1, MatchPhase.Live)
           Route.ModEditor ]
 
     let private parsePage (s: string) : Route option =
@@ -71,7 +78,7 @@ module Shots =
         | "transfers" -> Some(Route.Transfers TransferRoute.Market)
         | "finances" -> Some(Route.Finances FinanceRoute.Overview)
         | "settings" -> Some(Route.Settings SettingsRoute.Overview)
-        | "match" -> Some(Route.Match(1, MatchPhase.Replay))
+        | "match" -> Some(Route.Match(1, MatchPhase.Live))
         | "modeditor" -> Some Route.ModEditor
         | _ -> None
 
@@ -81,9 +88,13 @@ module Shots =
             |> Array.tryFindIndex (fun a -> a = flag)
             |> Option.bind (fun i -> if i + 1 < args.Length then Some args.[i + 1] else None)
 
-        match getValue "--shots" with
-        | None -> None
-        | Some dir ->
+        match getValue "--shots", getValue "--match-video" with
+        | None, None -> None
+        | shotsDir, videoPath ->
+            let dir =
+                shotsDir
+                |> Option.defaultValue (Path.Combine(Path.GetTempPath(), "football-engine-video"))
+
             let width, height =
                 match getValue "--shots-size" with
                 | Some s ->
@@ -108,14 +119,45 @@ module Shots =
                 | Some s ->
                     let ps = s.Split(',') |> Array.choose parsePage |> List.ofArray
                     if ps.IsEmpty then allPages else ps
+                | None when videoPath.IsSome -> [ Route.Match(1, MatchPhase.Live) ]
                 | None -> allPages
+
+            let positiveValue flag fallback =
+                match getValue flag with
+                | Some value ->
+                    match Int32.TryParse value with
+                    | true, parsed when parsed > 0 -> parsed
+                    | _ -> fallback
+                | None -> fallback
+
+            let nonNegativeValue flag fallback =
+                match getValue flag with
+                | Some value ->
+                    match Int32.TryParse value with
+                    | true, parsed when parsed >= 0 -> parsed
+                    | _ -> fallback
+                | None -> fallback
+
+            let matchSeed =
+                match getValue "--match-seed" with
+                | Some value ->
+                    match UInt64.TryParse value with
+                    | true, parsed -> Some parsed
+                    | _ -> None
+                | None -> None
 
             Some
                 { Dir = dir
                   Width = width
                   Height = height
                   Pages = pages
-                  SettleMs = settle }
+                  SettleMs = settle
+                  VideoPath = videoPath |> Option.map Path.GetFullPath
+                  VideoFps = positiveValue "--video-fps" 30
+                  VideoStep = positiveValue "--video-step" 4
+                  VideoFrames = positiveValue "--video-frames" 3600
+                  MatchIndex = nonNegativeValue "--match-index" 0
+                  MatchSeed = matchSeed }
 
     // Sync replica of UpdateTransfer.buildCacheAsync: the async Load races the screenshot
     // timer; pre-populating keeps Transfers deterministic and spinner-free.
@@ -137,43 +179,7 @@ module Shots =
 
         players, clubNames
 
-    // Mirrors WorldRunner.simulateUserMatchWithBalance: the Match screenshot must show the
-    // exact replay pipeline a real user match produces (same systems, same snapshot cadence).
-    let private demoReplayOf (gs: GameState) =
-        let fixturePick =
-            gs.Competitions
-            |> Map.toSeq
-            |> Seq.collect (fun (_, comp) -> comp.Fixtures |> Map.toSeq)
-            |> Seq.filter (fun (_, f) -> MatchFixture.isPending f && MatchFixture.involves gs.UserClubId f)
-            |> Seq.sortBy (fun (_, f) -> f.ScheduledDate)
-            |> Seq.tryHead
-
-        match fixturePick with
-        | None -> None
-        | Some(fixtureId, fixture) ->
-            let gsReady =
-                gs
-                |> LineupOps.ensureForClub fixture.HomeClubId
-                |> LineupOps.ensureForClub fixture.AwayClubId
-
-            match MatchContextBuilder.build gsReady fixture BalanceConfig.defaultConfig with
-            | None -> None
-            | Some ctx ->
-                let outcome =
-                    Simulator.runMatch
-                        Scheduler.systems
-                        ctx
-                        (MatchContextBuilder.seedOf fixtureId)
-                        (Simulator.RunMode.Replay 20<tickDelta>)
-                        None
-
-                match outcome.Replay with
-                | None -> None
-                | Some replay ->
-                    let total = max 0 (replay.Count - 1)
-                    Some(gsReady, fixture, replay, total / 2)
-
-    let buildDemoState (globalSettings: GlobalSettings) (resolved: ResolvedDataSet) : State =
+    let buildDemoState (opts: Options) (globalSettings: GlobalSettings) (resolved: ResolvedDataSet) : State =
         // generateNewGame needs a primary country with a level-0 league; ARG is the
         // flagship builtin dataset.
         let gs0 =
@@ -209,6 +215,22 @@ module Shots =
                     InboxMessageCategory.Transfer
                     true
             )
+
+        let gs =
+            let fixtures =
+                gs.Competitions
+                |> Map.toSeq
+                |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
+                |> Seq.filter (fun (_, fixture) ->
+                    MatchFixture.isPending fixture && MatchFixture.involves gs.UserClubId fixture)
+                |> Seq.sortBy (fun (_, fixture) -> fixture.ScheduledDate)
+                |> Seq.toArray
+
+            fixtures
+            |> Array.tryItem opts.MatchIndex
+            |> Option.orElseWith (fun () -> fixtures |> Array.tryHead)
+            |> Option.map (fun (_, fixture) -> { gs with CurrentDate = fixture.ScheduledDate.Date })
+            |> Option.defaultValue gs
 
         let cachedPlayers, clubNames = transferCacheOf gs
 
@@ -277,20 +299,7 @@ module Shots =
                 "Season preview"
                 "Board expects a top-4 finish"
 
-        match demoReplayOf gs with
-        | None -> withNotes
-        | Some(gsReady, fixture, replay, mid) ->
-            { withNotes with
-                Mode = InGame(gsReady, AppTypes.managerEmployment gsReady)
-                Match =
-                    { ActiveReplay = Some replay
-                      HomeClubId = Some fixture.HomeClubId
-                      AwayClubId = Some fixture.AwayClubId
-                      Snapshot = mid
-                      IsPlaying = false
-                      PlaybackSpeed = 20
-                      Accumulator = 0.0
-                      InterpolationT = 0.0 } }
+        withNotes
 
     let private captureTo (window: Window) (path: string) : unit =
         // Window chrome differs between X11/Wayland; reading back the real size keeps
@@ -302,30 +311,106 @@ module Shots =
         bmp.Render(window)
         bmp.Save(path)
 
-    let runLoop (window: Window) (getDispatch: unit -> (Msg -> unit) option) (ctx: Context) : Async<unit> =
+    let private encodeVideo (opts: Options) framesDir =
+        match opts.VideoPath with
+        | None -> ()
+        | Some output ->
+            let parent = Path.GetDirectoryName output
+
+            if not (String.IsNullOrWhiteSpace parent) then
+                Directory.CreateDirectory(parent) |> ignore
+
+            let info = ProcessStartInfo("ffmpeg", UseShellExecute = false)
+
+            for argument in
+                [ "-y"
+                  "-framerate"
+                  string opts.VideoFps
+                  "-i"
+                  Path.Combine(framesDir, "%06d.png")
+                  "-c:v"
+                  "libx264"
+                  "-crf"
+                  "20"
+                  "-pix_fmt"
+                  "yuv420p"
+                  output ] do
+                info.ArgumentList.Add argument
+
+            use encoder = Process.Start info
+            encoder.WaitForExit()
+
+            if encoder.ExitCode <> 0 then
+                failwith $"ffmpeg failed with exit code {encoder.ExitCode}"
+
+    let runLoop
+        (window: Window)
+        (getDispatch: unit -> (Msg -> unit) option)
+        (getState: unit -> State option)
+        (ctx: Context)
+        : Async<unit> =
         async {
+            let liveRoute fallback =
+                getState ()
+                |> Option.bind (fun state ->
+                    match state.Mode with
+                    | InGame(gs, _) ->
+                        gs.Competitions
+                        |> Map.toSeq
+                        |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
+                        |> Seq.tryPick (fun (matchId, fixture) ->
+                            if fixture.ScheduledDate.Date = gs.CurrentDate.Date
+                               && MatchFixture.isPending fixture
+                               && MatchFixture.involves gs.UserClubId fixture then
+                                Some(Route.Match(matchId, MatchPhase.Live))
+                            else None)
+                    | _ -> None)
+                |> Option.defaultValue fallback
+
             Directory.CreateDirectory(ctx.Opts.Dir) |> ignore
             // Cold start still compiles shaders and lays out the first view; later pages
             // only need a FuncUI diff + one render.
             do! Async.Sleep 1500
 
-            let mutable idx = 0
+            match ctx.Opts.VideoPath, getDispatch () with
+            | Some _, Some dispatch ->
+                let framesDir = Path.Combine(ctx.Opts.Dir, "frames")
 
-            for page in ctx.Opts.Pages do
-                match getDispatch () with
-                | None -> eprintfn $"[shots] no dispatch yet, skipping %A{page}"
-                | Some dispatch ->
-                    // Sync Invoke blocks the pool thread until the UI thread ran the
-                    // dispatch; no DispatcherOperation/Task interop needed.
-                    Dispatcher.UIThread.Invoke(fun () -> dispatch (Navigate page))
+                if Directory.Exists framesDir then
+                    Directory.Delete(framesDir, true)
 
-                    do! Async.Sleep ctx.Opts.SettleMs
-                    let file = Path.Combine(ctx.Opts.Dir, $"%02d{idx}_{page}.png")
+                Directory.CreateDirectory(framesDir) |> ignore
+                Dispatcher.UIThread.Invoke(fun () -> dispatch (Navigate(liveRoute (Route.Match(1, MatchPhase.Live)))))
+                do! Async.Sleep ctx.Opts.SettleMs
 
-                    Dispatcher.UIThread.Invoke(fun () -> captureTo window file)
+                for frame = 0 to ctx.Opts.VideoFrames - 1 do
 
-                    printfn $"[shots] %A{page} -> {file}"
-                    idx <- idx + 1
+                    do!
+                        Dispatcher.UIThread
+                            .InvokeAsync((fun () -> window.UpdateLayout()), DispatcherPriority.Render)
+                            .GetTask()
+                        |> Async.AwaitTask
+
+                    Dispatcher.UIThread.Invoke(fun () -> captureTo window (Path.Combine(framesDir, $"%06d{frame}.png")))
+                    do! Async.Sleep ctx.Opts.VideoStep
+
+                encodeVideo ctx.Opts framesDir
+                Directory.Delete(framesDir, true)
+            | Some _, None -> eprintfn "[video] no dispatch available"
+            | None, _ ->
+                let mutable idx = 0
+
+                for page in ctx.Opts.Pages do
+                    match getDispatch () with
+                    | None -> eprintfn $"[shots] no dispatch yet, skipping %A{page}"
+                    | Some dispatch ->
+                        let route = match page with Route.Match _ -> liveRoute page | _ -> page
+                        Dispatcher.UIThread.Invoke(fun () -> dispatch (Navigate route))
+                        do! Async.Sleep ctx.Opts.SettleMs
+                        let file = Path.Combine(ctx.Opts.Dir, $"%02d{idx}_{page}.png")
+                        Dispatcher.UIThread.Invoke(fun () -> captureTo window file)
+                        printfn $"[shots] %A{page} -> {file}"
+                        idx <- idx + 1
 
             Dispatcher.UIThread.Invoke(fun () -> window.Close())
         }

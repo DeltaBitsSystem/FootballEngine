@@ -403,8 +403,10 @@ module UI =
                           CheckBox.fontSize tokens.Typography.Body
                           CheckBox.minHeight tokens.Controls.MinimumTarget
                           CheckBox.isEnabled isEnabled
-                          CheckBox.onChecked (fun _ -> onChanged true)
-                          CheckBox.onUnchecked (fun _ -> onChanged false)
+                          CheckBox.onIsCheckedChanged (fun args ->
+                               match args.Source with
+                               | :? CheckBox as checkBox -> onChanged (checkBox.IsChecked = Nullable true)
+                               | _ -> ())
                           automationName label
                           automationHelp (help |> Option.defaultValue "") ]
                     yield!
@@ -1765,6 +1767,46 @@ module Display =
                                         StackPanel.margin (0.0, 20.0, 28.0, 20.0)
                                         StackPanel.children
                                             [ teamBlock awayName (awayName.Substring(0, 1)) HorizontalAlignment.Left ] ] ] ]
+                  ) ]
+
+        let nextMatchBannerCompact (homeName: string) (awayName: string) (date: DateTime) (location: string) =
+            Border.create
+                [ Border.cornerRadius Theme.RadiusXl
+                  Border.margin (0.0, 0.0, 0.0, 20.0)
+                  Border.background Theme.BgCard
+                  Border.borderBrush Theme.Border
+                  Border.borderThickness 1.0
+                  Border.clipToBounds true
+                  Border.child (
+                      StackPanel.create
+                          [ StackPanel.spacing 6.0
+                            StackPanel.horizontalAlignment HorizontalAlignment.Center
+                            StackPanel.margin (16.0, 18.0)
+                            StackPanel.children
+                                [ Border.create
+                                      [ Border.background (Theme.withAlpha "18" Theme.Accent)
+                                        Border.cornerRadius Theme.RadiusPill
+                                        Border.padding (8.0, 3.0)
+                                        Border.horizontalAlignment HorizontalAlignment.Center
+                                        Border.child (
+                                            TextBlock.create
+                                                [ TextBlock.text $"NEXT MATCH  |  {location}"
+                                                  TextBlock.foreground Theme.Accent
+                                                  TextBlock.fontSize Theme.currentTokens.Value.Typography.Detail
+                                                  TextBlock.fontWeight FontWeight.Bold ]
+                                        ) ]
+                                  TextBlock.create
+                                      [ TextBlock.text $"{homeName.ToUpper()}  VS  {awayName.ToUpper()}"
+                                        TextBlock.fontSize 18.0
+                                        TextBlock.fontWeight FontWeight.Black
+                                        TextBlock.foreground Theme.TextMain
+                                        TextBlock.textAlignment TextAlignment.Center
+                                        TextBlock.textWrapping TextWrapping.Wrap ]
+                                  TextBlock.create
+                                      [ TextBlock.text (date.ToString("dddd, dd MMMM yyyy").ToUpper())
+                                        TextBlock.fontSize Theme.currentTokens.Value.Typography.Detail
+                                        TextBlock.foreground Theme.TextMuted
+                                        TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ]
                   ) ]
 
         let emptyBanner () =

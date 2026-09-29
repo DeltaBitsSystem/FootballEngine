@@ -175,11 +175,12 @@ module Settings =
         :> IView
 
     let private toggleControl (isOn: bool) (onToggle: bool -> unit) : IView =
-        // why CheckBox for toggle: FuncUI 1.5.2 exposes isChecked via ToggleButton, CheckBox is the stable toggle surface
         CheckBox.create
             [ CheckBox.isChecked isOn
-              CheckBox.onChecked (fun _ -> onToggle true)
-              CheckBox.onUnchecked (fun _ -> onToggle false)
+              CheckBox.onIsCheckedChanged (fun args ->
+                  match args.Source with
+                  | :? CheckBox as checkBox -> onToggle (checkBox.IsChecked = System.Nullable true)
+                  | _ -> ())
               CheckBox.content (if isOn then "On" else "Off")
               CheckBox.foreground (if isOn then Theme.Accent else Theme.TextMuted)
               CheckBox.verticalAlignment VerticalAlignment.Center ]
@@ -1010,12 +1011,10 @@ module Settings =
         CheckBox.create
             [ CheckBox.isChecked isOn
               CheckBox.isEnabled isEnabled
-              CheckBox.onChecked (fun _ ->
-                  if isEnabled then
-                      onToggle true)
-              CheckBox.onUnchecked (fun _ ->
-                  if isEnabled then
-                      onToggle false)
+              CheckBox.onIsCheckedChanged (fun args ->
+                  match args.Source with
+                  | :? CheckBox as checkBox when isEnabled -> onToggle (checkBox.IsChecked = System.Nullable true)
+                  | _ -> ())
               CheckBox.content (if isOn then "On" else "Off")
               CheckBox.foreground (if isOn then Theme.Accent else Theme.TextMuted)
               CheckBox.verticalAlignment VerticalAlignment.Center ]
@@ -1372,37 +1371,36 @@ module Settings =
                 let toggle =
                     CheckBox.create
                         [ CheckBox.isChecked isOn
-                          CheckBox.onChecked (fun _ ->
-                              dispatch (
-                                  SettingsMsg(
-                                      UpdateGlobal(fun gs ->
-                                          let d = gs.Data
-                                          let nextActive = (modId :: d.ActiveMods) |> List.distinct
+                          CheckBox.onIsCheckedChanged (fun args ->
+                               match args.Source with
+                               | :? CheckBox as checkBox ->
+                                   dispatch (
+                                       SettingsMsg(
+                                           UpdateGlobal(fun gs ->
+                                               let d = gs.Data
 
-                                          let nextOrder =
-                                              if List.contains modId d.ModOrder then
-                                                  d.ModOrder
-                                              else
-                                                  d.ModOrder @ [ modId ]
+                                               if checkBox.IsChecked = System.Nullable true then
+                                                   let nextActive = (modId :: d.ActiveMods) |> List.distinct
 
-                                          { gs with
-                                              Data =
-                                                  { d with
-                                                      ActiveMods = nextActive
-                                                      ModOrder = nextOrder } })
-                                  )
-                              ))
-                          CheckBox.onUnchecked (fun _ ->
-                              dispatch (
-                                  SettingsMsg(
-                                      UpdateGlobal(fun gs ->
-                                          let d = gs.Data
-                                          let nextActive = d.ActiveMods |> List.filter ((<>) modId)
+                                                   let nextOrder =
+                                                       if List.contains modId d.ModOrder then
+                                                           d.ModOrder
+                                                       else
+                                                           d.ModOrder @ [ modId ]
 
-                                          { gs with
-                                              Data = { d with ActiveMods = nextActive } })
-                                  )
-                              ))
+                                                   { gs with
+                                                       Data =
+                                                           { d with
+                                                               ActiveMods = nextActive
+                                                               ModOrder = nextOrder } }
+                                               else
+                                                   let nextActive = d.ActiveMods |> List.filter ((<>) modId)
+
+                                                   { gs with
+                                                       Data = { d with ActiveMods = nextActive } })
+                                       )
+                                   )
+                               | _ -> ())
                           CheckBox.content (if isOn then "Activo" else "Inactivo")
                           CheckBox.foreground (if isOn then Theme.Success else Theme.TextMuted) ]
                     :> IView
