@@ -13,6 +13,8 @@ open FootballEngine.Domain
 open FootballEngine.Settings
 open FootballEngine.World
 open FootballEngine.Core.Match
+open FootballEngine.Data
+open FootballEngine.Generation
 
 let private tempRoot () =
     let path =
@@ -152,10 +154,10 @@ let backupTests =
         save root slot (state (DateTime(2027, 1, 1)) (dataLock None)) (clock 1UL 1)
         save root slot (state (DateTime(2027, 1, 2)) (dataLock None)) (clock 2UL 2)
         let path = Path.Combine(root, "career-backup.db3")
-        use db = SQLiteConnection(path)
-        db.CreateTable<SaveEnvelopeEntity>() |> ignore
-        let current = db.Find<SaveEnvelopeEntity>(slot)
-        db.InsertOrReplace({ current with EnvelopeJson = "broken" }) |> ignore
+        use db = new SQLiteConnection(path, true)
+
+        db.Execute("UPDATE CareerSnapshot SET Payload = ? WHERE Id = 1", [| 1uy; 2uy; 3uy |])
+        |> ignore
 
         match load root slot with
         | Ok recovered ->
@@ -296,11 +298,250 @@ let newCareerReplacementTests =
         |> Async.AwaitTask
         |> Async.RunSynchronously
 
+        use db = new SQLiteConnection(Path.Combine(root, "career-new-career.db3"), true)
+
+        db.Execute("UPDATE CareerSnapshot SET Payload = ? WHERE Id = 1", [| 1uy |])
+        |> ignore
+
         match load root slot with
         | Ok loaded ->
             Expect.equal loaded.Envelope.ConfirmedRevision 0UL "new career resets the slot revision"
             Expect.equal loaded.State.CurrentDate newState.CurrentDate "new career replaces the stored state"
         | Error error -> failtestf "new career replacement failed: %A" error
+
+let fullStateTests =
+    testCase "saving preserves pending negotiations, experience, history and same-clock changes"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "full-state"
+        let date = DateTime(2027, 1, 1)
+
+        let negotiation =
+            { Id = 9
+              BuyerClubId = 1
+              SellerClubId = 2
+              PlayerId = 3
+              Stage = CounterReceived(100m, 120m)
+              Deadline = date.AddDays 3.0 }
+
+        let experience =
+            { PlayerExperience.empty with
+                TotalMatchesPlayed = 37
+                RivalRecord = Map.ofList [ 2, {| Wins = 2; Losses = 1; Draws = 3 |} ] }
+
+        let first =
+            { state date (dataLock None) with
+                PendingNegotiations = Map.ofList [ negotiation.Id, negotiation ]
+                NextNegotiationId = 10
+                PlayerExperiences = Map.ofList [ 3, experience ]
+                CareerHistory = [ ManagerHired(date, 1) ] }
+
+        save root slot first (clock 1UL 1)
+
+        let second =
+            { first with
+                TeamEmphasis = EmHighPress }
+
+        save root slot second (clock 1UL 1)
+
+        match load root slot with
+        | Ok result ->
+            Expect.equal result.State second "the complete canonical state survives the round-trip"
+            Expect.equal result.WorldClock (clock 1UL 1) "the world revision is independent of saves"
+        | Error error -> failtestf "state round-trip failed: %A" error
+
+let metadataTests =
+    testCase "listing slots reads metadata without deserializing the world"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "metadata"
+        save root slot (state (DateTime(2027, 1, 1)) (dataLock None)) (clock 1UL 1)
+        use db = new SQLiteConnection(Path.Combine(root, "career-metadata.db3"), true)
+
+        db.Execute("UPDATE CareerSnapshot SET Payload = ? WHERE Id = 1", [| 1uy |])
+        |> ignore
+
+        let listed = Db.listSaveSlotsAsync () |> Async.AwaitTask |> Async.RunSynchronously
+
+        match listed with
+        | Ok [ info ] -> Expect.equal info.SlotId slot "slot metadata does not require payload decode"
+        | other -> failtestf "slot listing failed: %A" other
+
+        match load root slot with
+        | Error(Corrupt _) -> ()
+        | other -> failtestf "corrupt payload was accepted: %A" other
+
+let chunkTests =
+    testCase "changed chunks update, deleted chunks disappear and corrupt chunks recover"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "chunks"
+        let date = DateTime(2027, 1, 1)
+
+        let firstClub =
+            { Id = 1
+              Name = "First FC"
+              Nationality = "ARG"
+              Reputation = 50
+              PlayerIds = []
+              StaffIds = []
+              Finance = Finance.initial 100m
+              Morale = 60
+              BoardObjective = LeagueObjective MidTable
+              CoordinationMemory = CoordinationMemory.defaultMemory
+              ScoutingMemory = Map.empty }
+
+        let first =
+            { state date (dataLock None) with
+                Clubs = Map.ofList [ 1, firstClub ] }
+
+        save root slot first (clock 1UL 1)
+
+        let secondClub = { firstClub with Name = "Renamed FC" }
+
+        let second =
+            { first with
+                Clubs = Map.ofList [ 1, secondClub ] }
+
+        save root slot second (clock 1UL 1)
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State.Clubs second.Clubs "changed aggregate replaces prior row"
+        | Error error -> failtestf "updated aggregate could not load: %A" error
+
+        use db = new SQLiteConnection(Path.Combine(root, "career-chunks.db3"), true)
+
+        db.Execute("UPDATE CareerChunk SET Payload = ? WHERE Key = ?", [| 1uy |], "club:1")
+        |> ignore
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State.Clubs first.Clubs "corrupt chunk recovers last complete snapshot"
+        | Error error -> failtestf "corrupt chunk was not recovered: %A" error
+
+        // A new slot exercises deletion without carrying corrupt primary data forward.
+        save root "deleted" first (clock 1UL 1)
+        let removed = { first with Clubs = Map.empty }
+        save root "deleted" removed (clock 1UL 1)
+
+        match load root "deleted" with
+        | Ok loaded -> Expect.equal loaded.State.Clubs Map.empty "removed aggregates do not reappear"
+        | Error error -> failtestf "deleted aggregate could not load: %A" error
+
+let missingPrimaryTests =
+    testCase "a missing primary SQLite file can still be listed and loaded from its backup"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "recover-missing"
+        let first = state (DateTime(2027, 1, 1)) (dataLock None)
+        save root slot first (clock 1UL 1)
+        save root slot (state (DateTime(2027, 1, 2)) (dataLock None)) (clock 2UL 2)
+        let path = Path.Combine(root, "career-recover-missing.db3")
+        File.Move(path, path + ".lost")
+
+        match Db.listSaveSlotsAsync () |> Async.AwaitTask |> Async.RunSynchronously with
+        | Ok [ info ] -> Expect.equal info.SlotId slot "orphan backup remains visible"
+        | other -> failtestf "backup was not listed: %A" other
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State.CurrentDate first.CurrentDate "backup is loadable"
+        | Error error -> failtestf "backup was not loaded: %A" error
+
+let invalidSlotTests =
+    testCase "slot names cannot escape the career directory or alias another slot"
+    <| fun _ ->
+        let root = tempRoot ()
+        Db.configureStorageDirectoryForTests root
+
+        Expect.throws
+            (fun () -> Db.initTablesForSlot "../other" |> Async.AwaitTask |> Async.RunSynchronously)
+            "invalid slot names are rejected"
+
+let generatedCareerTests =
+    testCase "a generated career with players, fixtures and clubs survives a full round-trip"
+    <| fun _ ->
+        let country =
+            """{"id":"test.save:country/tst","kind":"country","schema":1,"code":"TST","confederation":"UEFA","nameKey":"test.save:country/tst.name","domain":{"Country":{"Code":"TST","Name":"Testland","Confederation":"UEFA"},"Names":{"FirstNames":["Alex","Sam"],"LastNames":["Stone","River"]},"LeagueNames":["Test League"],"LeagueRules":[{"PointsForWin":3,"PointsForDraw":1,"Tiebreakers":["GD","GS"],"Promotion":[],"Relegation":[]}],"Clubs":[{"Name":"North FC","LeagueLevel":0,"Reputation":7000},{"Name":"South FC","LeagueLevel":0,"Reputation":6500},{"Name":"East FC","LeagueLevel":0,"Reputation":6000},{"Name":"West FC","LeagueLevel":0,"Reputation":6000}],"Cups":[]}}"""
+
+        let package: ModPackage =
+            { Manifest =
+                { Id = ModId "test.save"
+                  Version = "1.0.0"
+                  Dependencies = []
+                  Priority = 0
+                  Before = []
+                  After = [] }
+              PackageSha256 = sha256 "test-save"
+              SportsContent = Map.ofList [ ContentId "test.save:country/tst", country ]
+              Translations = Map.empty
+              Assets = Map.empty
+              Patches = [] }
+
+        let resolved =
+            match
+                ModSystem.resolve
+                    [ { RelativePath = "test-save.femod"
+                        Package = package } ]
+            with
+            | Ok value -> value
+            | Error error -> failtestf "could not resolve test country: %A" error
+
+        let gs =
+            match WorldGen.generateNewGame resolved 0xC02UL (DateTime(2026, 7, 1)) "TST" "Test Manager" [] with
+            | Ok value -> value
+            | Error error -> failtestf "could not generate test world: %A" error
+
+        Expect.isGreaterThan gs.Players.Count 0 "the fixture is a populated world"
+        let root = tempRoot ()
+        let worldClock = WorldClockOps.init gs.Season
+        save root "generated" gs worldClock
+
+        match load root "generated" with
+        | Ok result ->
+            Expect.equal result.State gs "all generated world entities survive"
+            Expect.equal result.WorldClock worldClock "the full clock survives"
+            Expect.equal result.ResolvedData.DataLock gs.DataLock "resolved mod data is restored"
+
+            let direct =
+                WorldRunner.advanceDaysWithBalance BalanceConfig.defaultConfig 1 worldClock gs
+
+            let continued =
+                WorldRunner.advanceDaysWithBalance BalanceConfig.defaultConfig 1 result.WorldClock result.State
+
+            let differences =
+                Array.zip
+                    (Microsoft.FSharp.Reflection.FSharpType.GetRecordFields(typeof<GameState>))
+                    (Array.zip
+                        (Microsoft.FSharp.Reflection.FSharpValue.GetRecordFields(box continued.GameState))
+                        (Microsoft.FSharp.Reflection.FSharpValue.GetRecordFields(box direct.GameState)))
+                |> Array.choose (fun (field, (actual, expected)) -> if actual = expected then None else Some field.Name)
+
+            let playerDifferences =
+                direct.GameState.Players
+                |> Map.toSeq
+                |> Seq.choose (fun (id, expected) ->
+                    match continued.GameState.Players |> Map.tryFind id with
+                    | Some actual when actual <> expected ->
+                        let fields = Microsoft.FSharp.Reflection.FSharpType.GetRecordFields(typeof<Player>)
+                        let left = Microsoft.FSharp.Reflection.FSharpValue.GetRecordFields(box actual)
+                        let right = Microsoft.FSharp.Reflection.FSharpValue.GetRecordFields(box expected)
+
+                        Some(
+                            id,
+                            Array.zip3 fields left right
+                            |> Array.choose (fun (field, a, b) -> if a = b then None else Some field.Name)
+                            |> Array.toList
+                        )
+                    | _ -> None)
+                |> Seq.truncate 3
+                |> Seq.toList
+
+            Expect.equal
+                (differences, playerDifferences)
+                ([||], [])
+                "continuation preserves every generated world field"
+
+            Expect.equal continued.WorldClock direct.WorldClock "continuation preserves scheduler state"
+        | Error error -> failtestf "generated world round-trip failed: %A" error
 
 let tests =
     testList
@@ -311,4 +552,10 @@ let tests =
           manifestTests
           equivalenceTests
           discriminatedUnionRoundtripTests
-          newCareerReplacementTests ]
+          newCareerReplacementTests
+          fullStateTests
+          metadataTests
+          chunkTests
+          missingPrimaryTests
+          invalidSlotTests
+          generatedCareerTests ]

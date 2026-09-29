@@ -8,10 +8,8 @@
 
     <ItemGroup>
 
-        <Compile Include="Database\Entities.fs"/>
-        <Compile Include="Database\Serializers.fs"/>
-        <Compile Include="Database\Mappers.fs"/>
-        <Compile Include="Database\Repository.fs"/>
+        <Compile Include="Database\JsonCodec.fs"/>
+        <Compile Include="Database\SnapshotRepository.fs"/>
         <Compile Include="Settings\SettingsStorage.fs"/>
         <Compile Include="AppState\Icons.fs"/>
         <Compile Include="Routing\Route.fs"/>
