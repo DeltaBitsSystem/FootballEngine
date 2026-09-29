@@ -27,7 +27,11 @@
 !dotnet-tools.json
 !fantomas-config.json
 !global.json
+!opencode.json
 !FootballEngine.slnx
+!/Directory.Build.props
+!/Directory.Build.targets
+!/Directory.Packages.props
 
 # --- F# fuente (extensión whitelist — nunca es output generado) ---
 !**/*.fs
@@ -69,6 +73,13 @@
 # --- Packaging y screenshots (assets estáticos) ---
 !/packaging/**
 !/screenshots/**
+!/FootballEngine.Client/Assets/MatchViewer/*.py
+!/FootballEngine.Client/Assets/MatchViewer/player-*.png
+!/FootballEngine.Client/Assets/MatchViewer/players.blend
+!/FootballEngine.Client/Assets/MatchViewer/pitch-floodlit.blend
+!/FootballEngine.Client/Assets/MatchViewer/stadium.glb
+!/FootballEngine.Client/Assets/MatchViewer/manifest.json
+!/FootballEngine.Client/Assets/MatchViewer/LICENSES.md
 
 # --- Planes de agencia (opencode) ---
 !/.opencode/**

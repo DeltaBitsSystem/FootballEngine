@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "microsoft-learn": {
+      "type": "remote",
+      "url": "https://learn.microsoft.com/api/mcp"
+    },
+    "football-engine-db": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-server-sqlite",
+        "--db",
+        "/home/pablo/.local/share/football_engine.db3"
+      ]
+    },
+    "blender-mcp": {
+      "type": "local",
+      "command": ["/home/pablo/.local/bin/uvx", "mcp-for-blender"],
+      "enabled": true,
+      "environment": {
+        "BLENDER_HOST": "localhost",
+        "BLENDER_PORT": "9876"
+      }
+    }
+  }
+}

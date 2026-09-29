@@ -268,11 +268,16 @@ dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "
 
 ## Collaboration and UI Editing Rules
 
-- Be token-efficient: inspect only the files and ranges needed for the current slice, avoid duplicate audits, and keep progress/results concise.
+- Be token-efficient in the process, never by reducing the requested scope, quality, depth, or completeness of the result. Inspect only the files and ranges needed, avoid duplicate audits and repeated explanations, reuse established context, and keep progress/results concise while still delivering the full objective.
+- Do not interpret requests for token efficiency as permission to choose a smaller, merely cosmetic, or partial implementation. If the objective requires substantial architecture or validation, complete that work while minimizing conversational and exploratory overhead.
 - Treat the existing worktree as shared. Record `git status --short`, preserve unrelated changes, and never revert work you did not create.
 - Before editing F# UI, read the whole touched file when practical and inspect nearby established patterns. Match the local idiomatic style instead of inventing a new layout style.
 - Use four spaces per indentation level. In FuncUI attribute lists, align every attribute with the first attribute after `[`. Keep multiline expressions indented one level deeper and preserve the surrounding `match`, `if`, `for`, and `yield!` style.
 - A compiler error caused by indentation is fixed by adjusting whitespace only. Do not change logic, names, or structure while correcting formatting unless the error proves the code itself is wrong.
+- F# indentation is structural, so never guess or manually approximate whitespace from a rendered diff. Copy the exact indentation column from the adjacent existing expression.
+- A whitespace-only correction must use a one-line `apply_patch` anchored to the exact old and new lines. Do not rewrite a surrounding block or move unchanged `testCase` lines.
+- The `+` and `-` characters in an `apply_patch` diff are syntax, not file content. Count spaces only after the marker, then verify the resulting columns with `Read` before editing anything else.
+- After every indentation edit, run `git diff --check` and build the smallest affected project. Do not combine whitespace corrections with functional changes in the same patch.
 - Keep subagent scopes non-overlapping when they edit files. Do not dispatch parallel agents that can modify the same F# file, project file, or shared state contract.
 - Build the smallest affected project immediately after an edit. Run the relevant tests before moving to the next gate; do not stack unverified changes.
 - For UI work, use the real deterministic screenshot workflow and inspect the generated images. A successful build does not prove layout, state, language, or interaction quality.

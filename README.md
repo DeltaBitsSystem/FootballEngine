@@ -216,7 +216,7 @@ FootballEngine/
 │   └── Views/                    # Pages, components, shared controls
 │
 ├── FootballEngine.Core.Tests/    # Expecto test suite
-├── FootballEngine.Benchmarks/    # BenchmarkDotNet profiling
+├── FootballEngine.Benchmarks/    # Deterministic benchmark + CPU/GC profiling
 ├── Data/Builtins/                # Six bundled .femod packages
 └── Training/                     # Weight calibration pipeline (outside the solution)
 ```
@@ -226,7 +226,21 @@ FootballEngine/
 ```bash
 dotnet run --project FootballEngine.Core.Tests/FootballEngine.Core.Tests.fsproj
 dotnet run --project FootballEngine.Benchmarks/FootballEngine.Benchmarks.fsproj -c Release
+dotnet run --project FootballEngine.Benchmarks/FootballEngine.Benchmarks.fsproj -c Release -- --profile
 ```
+
+The benchmark runner reports median/p95 time, allocations, GC collections, event/tick counts, replay size and same-seed determinism. `--profile` additionally writes CPU/GC trace files and per-system timings under `artifacts/benchmarks/<run>/`.
+
+### Deterministic match video
+
+```bash
+dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release -- \
+  --match-video artifacts/match-motion.mp4 \
+  --video-fps 30 --video-step 4 --video-frames 3600 \
+  --shots-size 1600x900
+```
+
+`--video-step` controls how many replay snapshots advance per encoded frame. Lower values make movement easier to inspect; higher values cover more match time. Frames come from the fixed screenshot career and replay seed rather than wall-clock recording, so repeated runs remain comparable. The workflow requires `ffmpeg` on `PATH` and removes temporary PNGs after successful encoding.
 
 The test suite covers physics invariants (ball trajectory, restitution), offside detection, match determinism (same seed produces identical scoreline and events), and world state integrity (no orphaned player IDs, no budget underflow, valid standing computations).
 
