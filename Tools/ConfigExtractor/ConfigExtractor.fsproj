@@ -7,7 +7,6 @@
         <Compile Include="Program.fs"/>
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Update="FSharp.Core" Version="10.1.201"/>
         <ProjectReference Include="../../FootballEngine.Client/FootballEngine.Client.fsproj"/>
     </ItemGroup>
 </Project>

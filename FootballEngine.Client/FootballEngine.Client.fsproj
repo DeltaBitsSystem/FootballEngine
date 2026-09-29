@@ -18,6 +18,8 @@
         <Compile Include="AppState\ModEditorTypes.fs"/>
         <Compile Include="AppState\Types.fs"/>
         <Compile Include="AppState\Msg.fs"/>
+        <Compile Include="AppState\MatchPresentation.fs"/>
+        <Compile Include="AppState\MatchRuntime.fs"/>
         <Compile Include="AppState\ModEditorPackage.fs"/>
         <Compile Include="Shots\Shots.fs"/>
         <Compile Include="Views\Shared\Localization.fs"/>
@@ -45,7 +47,15 @@
         <Compile Include="Views\Components\Sidebar.fs"/>
         <Compile Include="Views\Components\Header.fs"/>
         <Compile Include="Views\Components\FootballPitch.fs"/>
+        <Compile Include="Views\Components\MatchVisualTypes.fs"/>
+        <Compile Include="Views\Components\MatchCamera.fs"/>
         <Compile Include="Views\Components\MatchProjection.fs"/>
+        <Compile Include="Match3D\StadiumAsset.fs"/>
+        <Compile Include="Match3D\WebGpuStadiumRenderer.fs"/>
+        <Compile Include="Views\MatchPitch\RenderResources.fs"/>
+        <Compile Include="Views\MatchPitch\PitchRenderer.fs"/>
+        <Compile Include="Views\MatchPitch\EntityRenderer.fs"/>
+        <Compile Include="Views\MatchPitch\MatchPitchControl.fs"/>
         <Compile Include="Views\Components\EventTimeline.fs"/>
         <Compile Include="Views\Components\StatsPanel.fs"/>
         <Compile Include="Views\Components\CommentaryOverlay.fs"/>
@@ -75,19 +85,25 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <Link>Data\%(RecursiveDir)%(Filename)%(Extension)</Link>
         </Content>
+        <Content Include="Assets\MatchViewer\stadium.glb">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Avalonia.Desktop" Version="11.3.12"/>
-        <PackageReference Include="Avalonia.FuncUI" Version="1.5.2"/>
-        <PackageReference Include="Avalonia.FuncUI.Elmish" Version="1.5.2"/>
-        <PackageReference Include="Avalonia.Skia" Version="11.3.12"/>
-        <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12"/>
-        <PackageReference Include="Elmish" Version="5.0.2"/>
-        <PackageReference Include="FsToolkit.ErrorHandling" Version="5.2.0"/>
-        <PackageReference Include="Material.Icons.Avalonia" Version="3.0.0"/>
-        <PackageReference Include="sqlite-net-pcl" Version="1.9.172"/>
-        <PackageReference Include="FSharp.SystemTextJson" Version="1.3.13"/>
+        <PackageReference Include="Avalonia.Desktop"/>
+        <PackageReference Include="Avalonia.FuncUI"/>
+        <PackageReference Include="Avalonia.FuncUI.Elmish"/>
+        <PackageReference Include="Avalonia.Skia"/>
+        <PackageReference Include="Avalonia.Themes.Fluent"/>
+        <PackageReference Include="Elmish"/>
+        <PackageReference Include="FsToolkit.ErrorHandling"/>
+        <PackageReference Include="Material.Icons.Avalonia"/>
+        <PackageReference Include="SharpGLTF.Core"/>
+        <PackageReference Include="Silk.NET.WebGPU"/>
+        <PackageReference Include="Silk.NET.WebGPU.Native.WGPU"/>
+        <PackageReference Include="sqlite-net-pcl"/>
+        <PackageReference Include="FSharp.SystemTextJson"/>
     </ItemGroup>
 
 </Project>

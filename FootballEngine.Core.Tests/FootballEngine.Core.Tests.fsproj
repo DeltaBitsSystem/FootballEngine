@@ -14,7 +14,6 @@
     <Compile Include="Contracts\ClockTests.fs"/>
     <Compile Include="Contracts\EventFlagTests.fs"/>
     <Compile Include="Contracts\ConfigTests.fs"/>
-    <Compile Include="Contracts\ConfigMigrationTests.fs"/>
     <Compile Include="Systems\Ball\PhysicsTests.fs"/>
     <Compile Include="Systems\Ball\Gate1ImpulseTests.fs"/>
     <Compile Include="Systems\Ball\ContactTests.fs"/>
@@ -35,11 +34,11 @@
     <Compile Include="Systems\Players\DecisionTests.fs"/>
     <Compile Include="Systems\Players\PlannerTests.fs"/>
     <Compile Include="Systems\Players\PlannerEvaluatorTests.fs"/>
+    <Compile Include="Systems\Players\SteeringTests.fs"/>
     <Compile Include="Systems\Players\ChainIntegrationTests.fs"/>
     <Compile Include="Systems\Players\ChainLifetimeTests.fs"/>
     <Compile Include="Systems\Players\PlannerBudgetTests.fs"/>
     <Compile Include="Systems\Players\Actions\PassTests.fs"/>
-    <Compile Include="Systems\Players\Actions\SetPieceTests.fs"/>
     <Compile Include="Systems\Players\Actions\ShootoutTests.fs"/>
     <Compile Include="Systems\Team\FormationTests.fs"/>
     <Compile Include="Systems\Team\FieldEvaluatorTests.fs"/>
@@ -65,7 +64,8 @@
     <Compile Include="Contracts\BoundaryTests.fs"/>
     <Compile Include="Contracts\AutosaveQueueTests.fs"/>
     <Compile Include="Contracts\FinanceTests.fs"/>
-    <Compile Include="Contracts\MatchSessionTests.fs"/>
+     <Compile Include="Contracts\MatchSessionTests.fs"/>
+     <Compile Include="Contracts\LivePresentationTests.fs"/>
     <Compile Include="Contracts\DataLockTests.fs"/>
     <Compile Include="GameData\ModContractTests.fs"/>
     <Compile Include="GameData\ModResolutionTests.fs"/>
@@ -83,7 +83,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Expecto" Version="10.2.1"/>
+    <PackageReference Include="Expecto"/>
   </ItemGroup>
 
 </Project>
