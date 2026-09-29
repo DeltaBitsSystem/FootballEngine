@@ -73,24 +73,6 @@ type SaveManifestEntry =
       Precedence: int
       ContentHash: string }
 
-type SaveIds =
-    { NextInboxId: int
-      NextNegotiationId: int
-      NextScheduledWorkId: uint64
-      NextCommandId: uint64
-      NextEventId: uint64 }
-
-type SaveRngState =
-    { Seed: uint64
-      S0: uint64
-      S1: uint64
-      S2: uint64
-      S3: uint64 }
-
-type SavePhase =
-    | BeforeMatch
-    | AfterMatch
-
 type LoadError =
     | Missing of slot: string
     | Incompatible of slot: string * expectedSchema: int * actualSchema: int
@@ -127,20 +109,10 @@ type SaveEnvelope =
       ConfirmedRevision: uint64
       ConfirmedState: WorldState
       ConfirmedDate: DateTime
-      Phase: SavePhase
       ClockDay: int
       ClockWeek: int
       ClockMonth: int
       ClockSeason: int
-      Rng: SaveRngState
-      NextIds: SaveIds
-      PendingCommands: WorldCommand list
-      PendingAgendaJson: string
-      EntitiesJson: string
-      ObligationsJson: string
-      RelationsJson: string
-      LearningJson: string
-      KnowledgeJson: string
       ConfigContent: string
       ConfigHash: uint64
       DataManifest: SaveManifestEntry list
