@@ -1,16 +1,9 @@
 namespace FootballEngine.Core.Match
 
-/// A 2D point as a VALUE type. Arrays of `(float * float)` boxes each element
-/// as a reference Tuple (one heap object per point); a struct array is a
-/// single object with inline fields, so the hot formation/evaluator paths stop
-/// allocating per-point.
-[<Struct>]
-type FPoint = { X: float; Y: float }
-
 module FPoint =
-    let inline ofXY (x: float) (y: float) : FPoint = { X = x; Y = y }
-    let inline ofTuple (x: float * float) : FPoint = { X = fst x; Y = snd x }
-    let inline toTuple (p: FPoint) : float * float = p.X, p.Y
+    let inline ofXY (x: float) (y: float) : PositionPoint = { X = x; Y = y }
+    let inline ofTuple (x: float * float) : PositionPoint = { X = fst x; Y = snd x }
+    let inline toTuple (p: PositionPoint) : float * float = p.X, p.Y
 
 /// Deterministic math shared by every system. Pure and global-free, so the
 /// same inputs always yield the same outputs — nothing here can break determinism.
@@ -31,6 +24,8 @@ module MatchMath =
     let inline pitchClamp (x: float) (y: float) : float * float =
         clamp (-(float Pitch.HalfLength)) (float Pitch.HalfLength) x,
         clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) y
+
+    let inline legalStandingClamp (x: float) (y: float) : float * float = pitchClamp x y
 
     let sigmoid (k: float) (x: float) : float = 1.0 / (1.0 + exp (-k * x))
 
@@ -78,6 +73,11 @@ module MatchMath =
 /// Every system reads positions/teams through here so derived concepts
 /// (nearest opponent, offside line, ball carrier) are computed identically everywhere.
 module MatchWorld =
+    let isActiveSlot occupancy =
+        match occupancy with
+        | OccupancyKind.Active _ -> true
+        | OccupancyKind.Sidelined _ -> false
+
 
     let team (world: World) (side: ClubSide) : TeamWorld =
         if side = ClubSide.Home then world.Home else world.Away
@@ -142,6 +142,44 @@ module MatchWorld =
         match world.State.Ball.Control with
         | BallControl.Controlled(side, pid) -> slotOf ctx side pid |> Option.map (fun slot -> side, slot, pid)
         | _ -> None
+
+    let looseBallChaser (world: World) (side: ClubSide) : int option =
+        let team = team world side
+        let frame = team.Frame
+        let ball = world.State.Ball.Position
+        let mutable bestStep = System.Int32.MaxValue
+        let mutable bestDistance = System.Double.MaxValue
+        let mutable bestSlot = -1
+        let mutable tiedForBest = false
+
+        for slot in activeSlots frame do
+            if frame.SlotRoles.[slot] <> SlotRole.Goalkeeper then
+                let step = team.Intercept.SlotSteps.[slot]
+                let distance = MatchMath.dist ball.X ball.Y (posX frame slot) (posY frame slot)
+
+                if step < bestStep then
+                    bestStep <- step
+                    bestDistance <- distance
+                    bestSlot <- slot
+                    tiedForBest <- false
+                elif step = bestStep then
+                    tiedForBest <- true
+
+                    if distance < bestDistance || (distance = bestDistance && slot < bestSlot) then
+                        bestDistance <- distance
+                        bestSlot <- slot
+
+        if bestSlot < 0 then
+            None
+        elif tiedForBest then
+            activeSlots frame
+            |> Array.filter (fun slot -> frame.SlotRoles.[slot] <> SlotRole.Goalkeeper)
+            |> Array.sortBy (fun slot ->
+                MatchMath.dist ball.X ball.Y (posX frame slot) (posY frame slot),
+                slot)
+            |> Array.tryHead
+        else
+            Some bestSlot
 
     let lastTouchSide (ctx: MatchContext) (world: World) : ClubSide option =
         match world.State.Ball.LastTouch with

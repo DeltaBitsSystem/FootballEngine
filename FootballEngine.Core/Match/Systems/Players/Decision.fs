@@ -193,7 +193,8 @@ module PlayerDecision =
         let crossing = float p.Crossing
         let bravery = (float p.Aggression * 0.5 + float p.Composure * 0.5) / 100.0
 
-        let mutable options: (float * int * float) list = []
+        let options = ResizeArray<float * int * float>()
+        let mutable shotOption: (float * int * float) option = None
 
         let xg = xGValue ctx world side slot
 
@@ -222,10 +223,14 @@ module PlayerDecision =
                 + shotMemoryBias ctx mem
 
             if uShot >= w.ShootMinThreshold - w.ShootDirectnessThresholdMod * 0.5 - riskShift then
-                options <- (uShot, 2, -1.0) :: options
+                shotOption <- Some(uShot, 2, -1.0)
 
         let passOpts = passOptionsFor ctx world side slot
-        options <- passOpts @ options
+
+        for passOpt in passOpts do
+            options.Add passOpt
+
+        shotOption |> Option.iter options.Add
 
         if attacking && abs (float y) > 20.0 then
             // R9 — adaptive channels: wing play bias boosts crosses, center play
@@ -243,7 +248,7 @@ module PlayerDecision =
                 + w.CrossWidthBonus * float team.Directive.Params.Width
 
             if uCross >= 0.25 then
-                options <- (uCross, 5, -1.0) :: options
+                options.Insert(0, (uCross, 5, -1.0))
 
         let uDribble =
             w.DribbleBaseUtility
@@ -266,13 +271,15 @@ module PlayerDecision =
 
         if inOwnThird && pressure > 0 then
             let uClear = 0.55 + 0.45 * MatchMath.clamp01 (float pressure / 3.0)
-            options <- (uClear, 4, -1.0) :: options
+            options.Insert(0, (uClear, 4, -1.0))
 
         if uDribble >= w.DribbleMinThreshold - riskShift && pressure <= 1 then
-            options <- (uDribble, 3, -1.0) :: options
+            options.Insert(0, (uDribble, 3, -1.0))
+
+        let options = options.ToArray()
 
         let chainState = Planner.project ctx world side slot
-        let plannerOpts = options |> List.map (fun (u, code, tgt) -> (code, int tgt, u))
+        let plannerOpts = options |> Array.map (fun (u, code, tgt) -> (code, int tgt, u))
 
         let pparams =
             PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball
@@ -282,46 +289,46 @@ module PlayerDecision =
 
         let d, rng' = Rng.double rng
 
-        let chosen, targetSlot =
+        let chosen, targetSlot, chosenEvaluationIndex =
             match options with
-            | [] -> 3, -1.0
+            | [||] -> 3, -1.0, -1
             | _ ->
                 // R5 — a cognitively tired carrier decides with a hotter (more
                 // random, less discerning) softmax.
                 let effTemp = effectiveTemperature ctx.Config cognitive
 
-                let exps =
-                    if chainEvals.Length > 0 then
-                        chainEvals |> List.map (fun e -> exp (e.Value / effTemp))
-                    else
-                        options |> List.map (fun (u, _, _) -> exp (u / effTemp))
+                let mutable sum = 0.0
 
-                let sum = List.sum exps
+                if chainEvals.Length > 0 then
+                    for index = 0 to chainEvals.Length - 1 do
+                        sum <- sum + exp (chainEvals.[index].Value / effTemp)
+                else
+                    for index = 0 to options.Length - 1 do
+                        let utility, _, _ = options.[index]
+                        sum <- sum + exp (utility / effTemp)
+
                 let mutable acc = 0.0
                 let mutable picked = 3
                 let mutable pickedTarget = -1.0
+                let mutable pickedEvaluationIndex = -1
                 let mutable found = false
                 let mutable idx = 0
 
                 if chainEvals.Length > 0 then
-                    let mutable remaining = chainEvals
-
-                    while not found && not remaining.IsEmpty do
-                        let e = remaining.Head
+                    while not found && idx < chainEvals.Length do
+                        let e = chainEvals[idx]
                         acc <- acc + exp (e.Value / effTemp) / sum
 
                         if d <= acc then
                             picked <- e.ActionCode
                             pickedTarget <- float e.TargetSlot
+                            pickedEvaluationIndex <- idx
                             found <- true
 
-                        remaining <- remaining.Tail
                         idx <- idx + 1
                 else
-                    let mutable remaining = options
-
-                    while not found && not remaining.IsEmpty do
-                        let (u, code, tgt) = remaining.Head
+                    while not found && idx < options.Length do
+                        let (u, code, tgt) = options[idx]
                         acc <- acc + exp (u / effTemp) / sum
 
                         if d <= acc then
@@ -329,51 +336,48 @@ module PlayerDecision =
                             pickedTarget <- tgt
                             found <- true
 
-                        remaining <- remaining.Tail
+                        idx <- idx + 1
 
                 if not found then
                     if chainEvals.Length > 0 then
-                        let last = chainEvals |> List.last
+                        let last = chainEvals[chainEvals.Length - 1]
                         picked <- last.ActionCode
                         pickedTarget <- float last.TargetSlot
+                        pickedEvaluationIndex <- chainEvals.Length - 1
                     else
-                        let (_, code, tgt) = options |> List.last
+                        let (_, code, tgt) = options[options.Length - 1]
                         picked <- code
                         pickedTarget <- tgt
 
-                picked, pickedTarget
+                picked, pickedTarget, pickedEvaluationIndex
 
         frame.RunLookup.[slot] <-
             { Slot = slot
               TargetX = float32 targetSlot
               TargetY = float32 chosen
               Phase = 200
-              ExpiresAt = tick + 160<subtick> }
-
-        frame.Intent.Kind.[slot] <- IntentCode.BallCarry
-        frame.Intent.TargetX.[slot] <- float32 (MatchMath.goalX side)
-        frame.Intent.Phase.[slot] <- IntentPhase.Committed
-        frame.Intent.CommittedUntil.[slot] <- tick + 480<subtick>
+              ExpiresAt = tick + ctx.Config.Movement.CommittedRunDuration }
 
         // The plan must support the action the softmax actually picked, or
         // receivers would run for a move the carrier never makes. The chain
         // that was chosen is the one whose first action matches the marker.
         let chosenEval =
-            chainEvals
-            |> List.tryFind (fun e -> e.ActionCode = chosen && float e.TargetSlot = targetSlot)
+            if chosenEvaluationIndex >= 0 then
+                ValueSome chainEvals.[chosenEvaluationIndex]
+            else
+                ValueNone
 
         match chosenEval with
-        | Some eval ->
+        | ValueSome eval ->
             let futureReceivers =
                 eval.Chain
-                |> List.choose (fun action ->
+                |> Array.choose (fun action ->
                     match action with
                     | Planner.Pass(slot, x, y) -> Some(slot, x, y)
                     | _ -> None)
-                |> List.toArray
                 // A plan never steers its own carrier: his movement is the
-                // shape system's job, and steering him would fight the
-                // receive logic when the ball comes back to him.
+                // shape system's job, and steering him would fight the receive
+                // logic when the ball comes back to him.
                 |> Array.filter (fun (s, _, _) -> s <> slot)
 
             if futureReceivers.Length > 0 then
@@ -381,7 +385,7 @@ module PlayerDecision =
                     Some
                         { FutureReceivers = futureReceivers
                           ExpiresAt = tick + ctx.Config.Planner.PlanTTL }
-        | None -> ()
+        | ValueNone -> ()
 
         rng'
 
@@ -406,7 +410,7 @@ module PlayerDecision =
             | Some(side, slot, _) ->
                 (MatchWorld.team world (MatchWorld.oppOf side)).ActivePlan <- None
 
-                if slot <> 0 then
+                if (MatchWorld.profileOf ctx.Ctx side slot).Role <> SlotRole.Goalkeeper then
                     let team = MatchWorld.team world side
 
                     if

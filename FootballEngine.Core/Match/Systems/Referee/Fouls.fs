@@ -144,11 +144,11 @@ module RefereeFouls =
             elif inBox then
                 buffer.Events.Add
                     { Tick = tick
-                      Data = EventData.SetPiece(SetPieceKind.Penalty, fouledSide) }
+                      Data = EventData.SetPieceAt(SetPieceKind.Penalty, fouledSide, fx, fy) }
             else
                 buffer.Events.Add
                     { Tick = tick
-                      Data = EventData.SetPiece(SetPieceKind.FreeKick, fouledSide) }
+                      Data = EventData.SetPieceAt(SetPieceKind.FreeKick, fouledSide, fx, fy) }
         | _ -> ()
 
     let step: SystemStep =

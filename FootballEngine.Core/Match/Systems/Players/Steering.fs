@@ -24,10 +24,14 @@ module PlayerSteering =
         let tx, ty, activeIntent =
             match frame.Intent.Kind.[slot] with
             | IntentCode.None -> float team.Shape.TargetsX.[slot], float team.Shape.TargetsY.[slot], false
+            | kind when IntentCode.isContinuous kind ->
+                float frame.Intent.TargetX.[slot], float frame.Intent.TargetY.[slot], true
             | _ ->
                 if tick <= frame.Intent.CommittedUntil.[slot] then
                     float frame.Intent.TargetX.[slot], float frame.Intent.TargetY.[slot], true
                 else
+                    frame.Intent.Phase.[slot] <- IntentPhase.Completed
+                    frame.Intent.ExitTrigger.[slot] <- ExitTrigger.Expired
                     float team.Shape.TargetsX.[slot], float team.Shape.TargetsY.[slot], false
 
         let px = float frame.PosX.[slot]
@@ -54,7 +58,8 @@ module PlayerSteering =
                 match frame.Intent.Kind.[slot] with
                 | IntentCode.ExecuteRun
                 | IntentCode.Press
-                | IntentCode.BallCarry -> 1.0
+                | IntentCode.BallCarry
+                | IntentCode.SetPieceRun -> 1.0
                 | _ -> phaseBoost
 
             let desiredSpeed =
@@ -72,8 +77,21 @@ module PlayerSteering =
             let mutX = float frame.VelX.[slot]
             let mutY = float frame.VelY.[slot]
 
-            let smoothX = mutX + (dx / dist * speed - mutX) * float cfg.Smoothing
-            let smoothY = mutY + (dy / dist * speed - mutY) * float cfg.Smoothing
+            let desiredX = dx / dist * speed
+            let desiredY = dy / dist * speed
+            let deltaX = desiredX - mutX
+            let deltaY = desiredY - mutY
+            let deltaLength = sqrt (deltaX * deltaX + deltaY * deltaY)
+            let maxDelta = float cfg.Acceleration * dt * max 0.1 (min 1.0 (float cfg.Smoothing))
+
+            let accelerationScale =
+                if deltaLength > maxDelta then
+                    maxDelta / deltaLength
+                else
+                    1.0
+
+            let smoothX = mutX + deltaX * accelerationScale
+            let smoothY = mutY + deltaY * accelerationScale
 
             let mutable vx = smoothX
             let mutable vy = smoothY
@@ -99,19 +117,72 @@ module PlayerSteering =
                         vy <- vy + sdy / sd * push
 
             frame.PosX.[slot] <-
-                float32 (
-                    MatchMath.clamp (-(float Pitch.HalfLength + 5.0)) (float Pitch.HalfLength + 5.0) (px + vx * dt)
-                )
+                float32 (MatchMath.clamp (-(float Pitch.HalfLength)) (float Pitch.HalfLength) (px + vx * dt))
 
             frame.PosY.[slot] <-
-                float32 (MatchMath.clamp (-(float Pitch.HalfWidth + 5.0)) (float Pitch.HalfWidth + 5.0) (py + vy * dt))
+                float32 (MatchMath.clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) (py + vy * dt))
 
             frame.VelX.[slot] <- float32 vx
             frame.VelY.[slot] <- float32 vy
 
-            if dist < 1.0 && activeIntent then
+            if
+                dist < 1.0
+                && activeIntent
+                && not (IntentCode.isContinuous frame.Intent.Kind.[slot])
+            then
                 frame.Intent.ExitTrigger.[slot] <- ExitTrigger.ReachedTarget
                 frame.Intent.Phase.[slot] <- IntentPhase.Completed
+        else
+            let separationRadius = float cfg.SeparationRadius
+            let mutable pushX = 0.0
+            let mutable pushY = 0.0
+
+            for teammate in MatchWorld.activeSlots frame do
+                if teammate <> slot then
+                    let dx = px - float frame.PosX.[teammate]
+                    let dy = py - float frame.PosY.[teammate]
+                    let distanceSquared = dx * dx + dy * dy
+
+                    if distanceSquared < separationRadius * separationRadius then
+                        if distanceSquared > 0.0001 then
+                            let distance = sqrt distanceSquared
+                            let strength = 1.0 - distance / separationRadius
+                            pushX <- pushX + dx / distance * strength
+                            pushY <- pushY + dy / distance * strength
+                        else
+                            // Slot identity provides a stable escape direction when two
+                            // players occupy exactly the same coordinate.
+                            pushY <- pushY + (if slot < teammate then -1.0 else 1.0)
+
+            if pushX <> 0.0 || pushY <> 0.0 then
+                let length = sqrt (pushX * pushX + pushY * pushY)
+                let speed = float cfg.SeparationStrength
+
+                frame.PosX.[slot] <-
+                    float32 (
+                        MatchMath.clamp
+                            (-(float Pitch.HalfLength))
+                            (float Pitch.HalfLength)
+                            (px + pushX / length * speed * dt)
+                    )
+
+                frame.PosY.[slot] <-
+                    float32 (
+                        MatchMath.clamp
+                            (-(float Pitch.HalfWidth))
+                            (float Pitch.HalfWidth)
+                            (py + pushY / length * speed * dt)
+                    )
+
+                frame.VelX.[slot] <- float32 (pushX / length * speed)
+                frame.VelY.[slot] <- float32 (pushY / length * speed)
+            else
+                frame.VelX.[slot] <- 0.0f
+                frame.VelY.[slot] <- 0.0f
+
+        let legalX, legalY = MatchMath.pitchClampF32 frame.PosX.[slot] frame.PosY.[slot]
+        frame.PosX.[slot] <- legalX
+        frame.PosY.[slot] <- legalY
 
     let private decayCondition (ctx: MatchContext) (clock: SimulationClock) (world: World) : unit =
         let dt = float (SimulationClock.dt clock)

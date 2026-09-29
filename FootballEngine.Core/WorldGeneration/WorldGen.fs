@@ -33,6 +33,7 @@ module WorldGen =
     let private emptyComp id name compType country season clubIds fixtures =
         { Id = id
           Name = name
+          BroadcastIdentity = BroadcastIdentity.generated ($"builtin/competition/{id}")
           Type = compType
           Country = country
           Season = season

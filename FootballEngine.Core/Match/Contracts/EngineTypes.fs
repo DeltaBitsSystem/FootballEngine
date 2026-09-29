@@ -16,6 +16,15 @@ module ActionId =
 
     let value (ActionId id) : uint64 = id
 
+[<Struct>]
+type RestartId = RestartId of uint64
+
+module RestartId =
+
+    let value (RestartId id) : uint64 = id
+
+    let isValid (RestartId id) = id <> 0UL
+
 type SetPieceKind =
     | KickOff
     | ThrowIn
@@ -34,6 +43,23 @@ type StrikeKind =
 type ExecutionContext =
     | OpenPlay
     | SetPiece of SetPieceKind
+
+type RestartRole =
+    | Executor
+    | Receiver
+    | Wall
+    | Goalkeeper
+    | Support
+
+type RestartAction =
+    | RestartPass of receiver: PlayerId
+    | RestartCross of target: float<meter> * float<meter>
+    | RestartShot of target: float<meter> * float<meter>
+    | RestartClearance of target: float<meter> * float<meter>
+
+type RestartPlanChangeReason =
+    | ExecutorInvalidated
+    | ParticipantInvalidated of PlayerId
 
 type FoulSeverity =
     | Minor
@@ -59,14 +85,25 @@ type VARIncident =
     | BallOutOfPlay
     | Handball
 
+type RestartCause =
+    | MatchStart
+    | PeriodStart
+    | GoalConceded of scoringSide: ClubSide
+    | BallCrossedTouchline of lastTouch: PlayerId option
+    | BallCrossedGoalLine of lastTouch: PlayerId option
+    | Foul of offender: PlayerId option * victim: PlayerId option
+    | Offside of player: PlayerId
+    | VAROverturn of VARIncident
+
+type RestartAward =
+    { Id: RestartId
+      Cause: RestartCause
+      Kind: SetPieceKind
+      Side: ClubSide
+      X: float<meter>
+      Y: float<meter> }
+
 [<Struct>]
 type VARResult =
     | GoalStands
     | GoalOverturned
-
-[<Struct>]
-type RestartPlan =
-    { Kind: SetPieceKind
-      Side: ClubSide
-      X: float<meter>
-      Y: float<meter> }

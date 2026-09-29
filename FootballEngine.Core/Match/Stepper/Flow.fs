@@ -24,12 +24,12 @@ module Flow =
         (flow: MatchFlow)
         : MatchFlow * MatchEvent list =
         match flow with
+        | MatchFlow.PreMatch ->
+            flow,
+            [ { Tick = tick
+                Data = EventData.SetPiece(SetPieceKind.KickOff, ClubSide.Home) } ]
         | MatchFlow.Live -> flow, []
-        | MatchFlow.RestartDelay(remaining, plan) ->
-            if remaining <= 1<tickDelta> then
-                MatchFlow.Live, []
-            else
-                MatchFlow.RestartDelay(remaining - 1<tickDelta>, plan), []
+        | MatchFlow.Restart _ -> flow, []
         | MatchFlow.GoalPause(remaining, side, scorer) ->
             if remaining <= 1<tickDelta> then
                 MatchFlow.GoalPause(0<tickDelta>, side, scorer),

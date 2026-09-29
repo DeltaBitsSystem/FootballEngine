@@ -11,19 +11,6 @@ namespace FootballEngine.Core.Match
 /// +HalfLength). Callers mirror world coordinates in/out via `dir`.
 module Formation =
 
-    /// A snapshot of the formation for one ball position: what each slot's ideal
-    /// target is when the ball sits at (BallX, BallY). Interpolation blends
-    /// between these snapshots as the ball moves.
-    type FormationSample =
-        { BallX: float<meter>
-          BallY: float<meter>
-          SlotX: float32[]
-          SlotY: float32[] }
-
-    type Formation =
-        { Samples: FormationSample[]
-          SlotCount: int }
-
     /// Per-role follow weights, kept in the module (like `phaseShift` in the
     /// old Shape) rather than in the samples: how far a role chases the ball
     /// is a stable property of the role, not of the ball zone. Larger = more
@@ -68,9 +55,8 @@ module Formation =
         for i in 0 .. n - 1 do
             let x = float baseX.[i] + float ballX * followX roles.[i]
             let y = float baseY.[i] + float ballY * followY roles.[i]
-            let cx, cy = MatchMath.pitchClamp x y
-            slotX.[i] <- float32 cx
-            slotY.[i] <- float32 cy
+            slotX.[i] <- float32 (MatchMath.clamp (-(float Pitch.HalfLength)) (float Pitch.HalfLength) x)
+            slotY.[i] <- float32 (MatchMath.clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) y)
 
         { BallX = ballX
           BallY = ballY
@@ -87,7 +73,7 @@ module Formation =
         (basePositions: Spatial[])
         (dir: float)
         (anchors: (float<meter> * float<meter>)[])
-        : Formation =
+        : FormationModel =
         let n = roles.Length
         let baseX = basePositions |> Array.map (fun p -> p.X * dir)
         let baseY = basePositions |> Array.map (fun p -> p.Y)
@@ -101,8 +87,99 @@ module Formation =
     /// weighting over the 3 nearest anchors, so the targets change
     /// continuously as the ball moves instead of snapping between zones (a
     /// practical equivalent of HELIOS's Delaunay/Gouraud interpolation,
-    /// always well-defined). Returns targets in the team's attacking frame.
-    let query (formation: Formation) (ballX: float<meter>) (ballY: float<meter>) : FPoint[] =
+    /// always well-defined). The caller owns `result`, allowing the live
+    /// positioning system to reuse this buffer on every tick.
+    let queryInto
+        (formation: FormationModel)
+        (ballX: float<meter>)
+        (ballY: float<meter>)
+        (result: PositionPoint[])
+        : unit =
+        let mutable firstIndex = -1
+        let mutable secondIndex = -1
+        let mutable thirdIndex = -1
+        let mutable firstDistance = System.Double.MaxValue
+        let mutable secondDistance = System.Double.MaxValue
+        let mutable thirdDistance = System.Double.MaxValue
+
+        // There are only five fixed anchors. Keeping the three best indices as
+        // scalars avoids allocating the sortable tuple/weight arrays per query.
+        for i in 0 .. formation.Samples.Length - 1 do
+            let sample = formation.Samples.[i]
+            let distance = MatchMath.dist ballX ballY sample.BallX sample.BallY
+
+            if distance < firstDistance then
+                thirdIndex <- secondIndex
+                thirdDistance <- secondDistance
+                secondIndex <- firstIndex
+                secondDistance <- firstDistance
+                firstIndex <- i
+                firstDistance <- distance
+            elif distance < secondDistance then
+                thirdIndex <- secondIndex
+                thirdDistance <- secondDistance
+                secondIndex <- i
+                secondDistance <- distance
+            elif distance < thirdDistance then
+                thirdIndex <- i
+                thirdDistance <- distance
+
+        let inverseDistance distance =
+            1.0 / (if distance < 1e-6 then 1e-6 else distance)
+
+        let firstWeight =
+            if firstIndex < 0 then
+                0.0
+            else
+                inverseDistance firstDistance
+
+        let secondWeight =
+            if secondIndex < 0 then
+                0.0
+            else
+                inverseDistance secondDistance
+
+        let thirdWeight =
+            if thirdIndex < 0 then
+                0.0
+            else
+                inverseDistance thirdDistance
+
+        let total = firstWeight + secondWeight + thirdWeight
+
+        if total = 0.0 then
+            Array.fill result 0 result.Length (FPoint.ofXY 0.0 0.0)
+        else
+            let firstWeight = firstWeight / total
+            let secondWeight = secondWeight / total
+            let thirdWeight = thirdWeight / total
+
+            for k in 0 .. formation.SlotCount - 1 do
+                let mutable sx = 0.0
+                let mutable sy = 0.0
+
+                if firstIndex >= 0 then
+                    let sample = formation.Samples.[firstIndex]
+                    sx <- sx + float sample.SlotX.[k] * firstWeight
+                    sy <- sy + float sample.SlotY.[k] * firstWeight
+
+                if secondIndex >= 0 then
+                    let sample = formation.Samples.[secondIndex]
+                    sx <- sx + float sample.SlotX.[k] * secondWeight
+                    sy <- sy + float sample.SlotY.[k] * secondWeight
+
+                if thirdIndex >= 0 then
+                    let sample = formation.Samples.[thirdIndex]
+                    sx <- sx + float sample.SlotX.[k] * thirdWeight
+                    sy <- sy + float sample.SlotY.[k] * thirdWeight
+
+                result.[k] <-
+                    FPoint.ofXY
+                        (MatchMath.clamp (-(float Pitch.HalfLength)) (float Pitch.HalfLength) sx)
+                        (MatchMath.clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) sy)
+
+    /// Compatibility wrapper for callers that need an owned result array.
+    let query (formation: FormationModel) (ballX: float<meter>) (ballY: float<meter>) : PositionPoint[] =
         let nearest: (FormationSample * float)[] =
             formation.Samples
             |> Array.map (fun s -> s, MatchMath.dist ballX ballY s.BallX s.BallY)
@@ -116,7 +193,6 @@ module Formation =
 
         let total = invDists |> Array.sum
         let weights = invDists |> Array.map (fun w -> w / total)
-
         let result = Array.zeroCreate formation.SlotCount
 
         for k in 0 .. formation.SlotCount - 1 do
@@ -125,10 +201,12 @@ module Formation =
 
             for j in 0 .. nearest.Length - 1 do
                 let s, _ = nearest.[j]
-                sx <- sx + float (s.SlotX.[k]) * weights.[j]
-                sy <- sy + float (s.SlotY.[k]) * weights.[j]
+                sx <- sx + float s.SlotX.[k] * weights.[j]
+                sy <- sy + float s.SlotY.[k] * weights.[j]
 
-            let cx, cy = MatchMath.pitchClamp sx sy
-            result.[k] <- FPoint.ofXY (float cx) (float cy)
+            result.[k] <-
+                FPoint.ofXY
+                    (MatchMath.clamp (-(float Pitch.HalfLength)) (float Pitch.HalfLength) sx)
+                    (MatchMath.clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) sy)
 
         result

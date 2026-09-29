@@ -75,6 +75,7 @@ module MatchFactory =
             ParticipationBook.start participation profile.Id profile.Role 0<subtick>
 
         { Frame = frame
+          RosterIds = lineup.Profiles |> Array.map _.Id
           Memory = memory
           Cards = { Yellows = 0; Reds = 0 }
           SubsUsed = 0
@@ -139,12 +140,17 @@ module MatchFactory =
               UsedIncoming = Set.empty }
           Participation = participation
           ActivePlan = None
-          LastCarrierSlot = -1 }
+          LastCarrierSlot = -1
+          LastRoleAssignmentTick = -1<subtick>
+          FormationCache = None
+          LateralPairs = None
+          GoalkeeperSlot = None
+          OwnPositions = Array.empty
+          MirroredPositions = Array.empty
+          FormationTargets = Array.empty
+          EvaluatorScratch = Array.empty }
 
     let create (ctx: MatchContext) : World =
-        let kickoffDelay =
-            Flow.delayFor ctx.Config SimulationClock.defaultClock SetPieceKind.KickOff
-
         let home = makeTeam ctx ClubSide.Home ctx.HomeLineup ctx.HomeParticipants
         let away = makeTeam ctx ClubSide.Away ctx.AwayLineup ctx.AwayParticipants
 
@@ -161,14 +167,7 @@ module MatchFactory =
               Clock =
                 { Tick = 0<subtick>
                   Phase = ClockPhase.FirstHalf }
-              Flow =
-                MatchFlow.RestartDelay(
-                    kickoffDelay,
-                    { Kind = SetPieceKind.KickOff
-                      Side = ClubSide.Home
-                      X = 0.0<meter>
-                      Y = 0.0<meter> }
-                )
+              Flow = MatchFlow.PreMatch
               HomeScore = 0
               AwayScore = 0
               Ball =
@@ -189,8 +188,7 @@ module MatchFactory =
                   GKHoldSince = None
                   ArrivalGate = None
                   PreviousPosition = None
-                  Impulse = None
-                  PendingRestart = None }
+                  Impulse = None }
               Momentum = 0.0
               LastAttackingClub = Some ClubSide.Home
               Possession =
@@ -207,6 +205,12 @@ module MatchFactory =
               Shootout = shootout }
 
         { State = state
+          Officials =
+            { Referee = { X = 0.0<meter>; Y = 0.0<meter> }
+              NearAssistant = { X = 0.0<meter>; Y = -Pitch.HalfWidth }
+              FarAssistant = { X = 0.0<meter>; Y = Pitch.HalfWidth }
+              Signal = RefereeSignal.NoSignal }
           Home = home
           Away = away
-          AppliedEventIds = System.Collections.Generic.HashSet<EventId>() }
+          AppliedEventIds = System.Collections.Generic.HashSet<EventId>()
+          NextRestartId = 1UL }

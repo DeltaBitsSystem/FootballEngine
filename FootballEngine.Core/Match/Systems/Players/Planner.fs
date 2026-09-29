@@ -7,8 +7,8 @@ type ChainState =
       BallY: float<meter>
       CarrierSlot: int
       Side: ClubSide
-      OurPos: (int * float<meter> * float<meter>)[]
-      OppPos: (int * float<meter> * float<meter>)[]
+      OurPos: struct (int * float<meter> * float<meter>)[]
+      OppPos: struct (int * float<meter> * float<meter>)[]
       OffsideLine: float<meter>
       Dir: float }
 
@@ -29,7 +29,7 @@ module Planner =
     type ChainEvaluation =
         { ActionCode: int
           TargetSlot: int
-          Chain: ChainAction list
+          Chain: ChainAction[]
           Value: float }
 
     /// Value a chain state: progression + shoot bonus + danger penalty +
@@ -53,7 +53,7 @@ module Planner =
 
         let mutable dangerPenalty = 0.0
 
-        for _, ox, oy in s.OppPos do
+        for struct (_, ox, oy) in s.OppPos do
             let distRival = MatchMath.dist s.BallX s.BallY ox oy
 
             if distRival < 30.0 then
@@ -69,7 +69,7 @@ module Planner =
 
         let mutable hasTeammateNear = false
 
-        for _, tx, ty in s.OurPos do
+        for struct (_, tx, ty) in s.OurPos do
             if not hasTeammateNear && MatchMath.dist s.BallX s.BallY tx ty < 10.0 then
                 hasTeammateNear <- true
 
@@ -94,10 +94,12 @@ module Planner =
             float rx < float s.OffsideLine
 
     /// Find the receiver slot and position from the current state.
-    let private findReceiver (s: ChainState) (slot: int) : (int * float<meter> * float<meter>) option =
+    let private findReceiver (s: ChainState) (slot: int) : struct (int * float<meter> * float<meter>) voption =
         s.OurPos
-        |> Array.tryFind (fun (s', _, _) -> s' = slot)
-        |> Option.map (fun (_, x, y) -> slot, x, y)
+        |> Array.tryFind (fun struct (s', _, _) -> s' = slot)
+        |> function
+            | Some(struct (_, x, y)) -> ValueSome(struct (slot, x, y))
+            | None -> ValueNone
 
     /// Check if a pass from the current carrier to (rx,ry) is feasible:
     /// the ball must arrive before any opponent. The opponent GK is not an
@@ -127,7 +129,7 @@ module Planner =
 
             let mutable bestOpponent = pparams.MaxSteps
 
-            for oslot, ox, oy in s.OppPos do
+            for struct (oslot, ox, oy) in s.OppPos do
                 if oslot <> 0 then
                     let steps = InterceptTable.stepsToReach pparams ball ox oy
 
@@ -147,8 +149,8 @@ module Planner =
         (w: WeightSectionsPlanner)
         (pparams: InterceptTable.InterceptParams)
         (s: ChainState)
-        (options: (int * int * float) list)
-        : ChainEvaluation list =
+        (options: (int * int * float)[])
+        : ChainEvaluation[] =
         let baseValue = value w s
         let evaluations = ResizeArray<ChainEvaluation>()
         let mutable budgetUsed = 0
@@ -165,7 +167,7 @@ module Planner =
                     match code with
                     | 1 when target >= 0 ->
                         match findReceiver currentState target with
-                        | Some(_, rx, ry) ->
+                        | ValueSome(struct (_, rx, ry)) ->
                             if isPassFeasible pparams currentState rx ry then
                                 chainActions.Add(Pass(target, rx, ry))
                                 currentState <- simulatePass currentState target rx ry
@@ -174,7 +176,7 @@ module Planner =
                                 depth <- depth + 1
                             else
                                 depth <- cfg.MaxChainLength
-                        | None -> depth <- cfg.MaxChainLength
+                        | ValueNone -> depth <- cfg.MaxChainLength
                     | 2 ->
                         chainActions.Add(Shoot)
                         finalValue <- utility + w.ShootValueWeight * 0.5
@@ -199,7 +201,7 @@ module Planner =
                         let mutable bestNext = None
                         let mutable bestVal = -1e9
 
-                        for slot, tx, ty in currentState.OurPos do
+                        for struct (slot, tx, ty) in currentState.OurPos do
                             if
                                 slot <> currentState.CarrierSlot
                                 && slot <> 0
@@ -246,11 +248,11 @@ module Planner =
             evaluations.Add(
                 { ActionCode = code
                   TargetSlot = target
-                  Chain = chainActions |> Seq.toList
+                  Chain = chainActions.ToArray()
                   Value = finalValue }
             )
 
-        evaluations |> Seq.toList
+        evaluations.ToArray()
 
     /// Build a ChainState from the live world.
     let project (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : ChainState =
@@ -267,11 +269,11 @@ module Planner =
 
         let ourPos =
             [| for s in MatchWorld.activeSlots frame do
-                   (s, MatchWorld.posX frame s, MatchWorld.posY frame s) |]
+                   struct (s, MatchWorld.posX frame s, MatchWorld.posY frame s) |]
 
         let oppPos =
             [| for s in MatchWorld.activeSlots oppFrame do
-                   (s, MatchWorld.posX oppFrame s, MatchWorld.posY oppFrame s) |]
+                   struct (s, MatchWorld.posX oppFrame s, MatchWorld.posY oppFrame s) |]
 
         { BallX = ballX
           BallY = ballY

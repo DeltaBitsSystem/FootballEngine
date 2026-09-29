@@ -1,5 +1,10 @@
 namespace FootballEngine.Core.Match
 
+/// Position buffers stay as inline values so geometry systems reuse arrays
+/// without allocating one object per point.
+[<Struct>]
+type PositionPoint = { X: float; Y: float }
+
 [<Struct>]
 type SlotRole =
     | Goalkeeper
@@ -55,6 +60,16 @@ module IntentCode =
 
     [<Literal>]
     let SetPieceRun = 9uy
+
+    let inline isContinuous kind =
+        kind = BallCarry
+        || kind = Support
+        || kind = Press
+        || kind = Mark
+        || kind = Recover
+        || kind = Cover
+        || kind = HoldPosition
+        || kind = SetPieceRun
 
 module IntentPhase =
     [<Literal>]
@@ -221,6 +236,16 @@ type CardsBook =
 type ShapeTargets =
     { mutable TargetsX: float32[]
       mutable TargetsY: float32[] }
+
+type FormationSample =
+    { BallX: float<meter>
+      BallY: float<meter>
+      SlotX: float32[]
+      SlotY: float32[] }
+
+type FormationModel =
+    { Samples: FormationSample[]
+      SlotCount: int }
 
 [<Struct>]
 type DirectiveKind =

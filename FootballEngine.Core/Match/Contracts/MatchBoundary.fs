@@ -48,6 +48,40 @@ type MatchResult =
       Metrics: TeamStats * TeamStats
       Trace: MatchTraceRef option }
 
+type MatchPlayerStats =
+    { PlayerId: FootballEngine.Domain.PlayerId
+      GoalsScored: int
+      AssistsGiven: int
+      MinutesPlayed: int
+      YellowCards: int
+      RedCards: int
+      FoulsCommitted: int }
+
+/// Immutable work handed from the world scheduler to the match runtime.
+type MatchJob =
+    { MatchId: int
+      Kickoff: DateTime
+      SourceRevision: uint64
+      InputHash: uint64
+      Input: MatchInput }
+
+/// The only match data that crosses the simulation/commit boundary. It contains
+/// no World reference, so a stale worker cannot overwrite the live world object.
+type MatchJobResult =
+    { MatchId: int
+      SourceRevision: uint64
+      InputHash: uint64
+      ResultHash: uint64
+      HomeScore: int
+      AwayScore: int
+      EventsHash: uint64
+      Events: MatchEvent list
+      InjuredPlayers: FootballEngine.Domain.PlayerId list
+      HomePlayerStats: MatchPlayerStats[]
+      AwayPlayerStats: MatchPlayerStats[]
+      Metrics: TeamStats * TeamStats
+      Replay: Replay.ReplayData option }
+
 type MatchContractError =
     | InvalidCommandOrder of string
     | InvalidCommandRevision of string
@@ -56,6 +90,7 @@ type MatchContractError =
     | InvalidCommandPlayers of string
     | InvalidCommandRules of string
     | InvalidAdvanceBoundary of string
+    | TickLimitExceeded of int<subtick>
     | SessionAlreadyFinished
     | InvalidRunMode of string
     | InvalidInputConfig of string list
@@ -75,7 +110,7 @@ type MatchCheckpoint =
       Seed: uint64
       EngineVersion: string
       Revision: uint64
-      Mode: Simulator.RunMode
+      Mode: MatchRunMode
       Frontier: int<subtick>
       Rng: Rng
       Commands: MatchCommand list
@@ -86,25 +121,124 @@ type MatchCheckpoint =
 type SessionAdvance =
     { ReachedTick: int<subtick>
       Flow: MatchFlow
-      Events: MatchEvent list }
+      Events: MatchEvent[]
+      Poses: Replay.ReplaySnapshot[] }
 
 type MatchSession =
-    { Systems: SystemSpec list
+    { Systems: CompiledSchedule
       Input: MatchInput
-      Mode: Simulator.RunMode
+      Mode: MatchRunMode
       World: World
       Buffer: EventBuffer
       mutable Rng: Rng
       mutable Pending: MatchCommand list
       mutable Commands: MatchCommand list
       Events: ResizeArray<MatchEvent>
-      Snapshots: ResizeArray<Replay.ReplaySnapshot>
-      Diagnostics: ResizeArray<DecisionTrace> }
+      ReplayWriter: Replay.ReplayWriter option
+      Diagnostics: ResizeArray<DecisionTrace>
+      AppliedOutput: MatchEvent[]
+      mutable Finished: MatchOutcome option }
+
+module MatchJob =
+    let private fnv (h: uint64) (v: uint64) : uint64 = (h ^^^ v) * 1099511628211UL
+
+    let private hashInput (input: MatchInput) (kickoff: DateTime) : uint64 =
+        let text =
+            sprintf
+                "%d|%d|%d|%d|%d|%d|%s|%d"
+                input.MatchId
+                input.Seed
+                input.EffectiveConfig.Revision
+                input.EffectiveConfig.Hash
+                input.Context.HomeClub.Id
+                input.Context.AwayClub.Id
+                input.EngineVersion
+                kickoff.Ticks
+
+        text
+        |> System.Text.Encoding.UTF8.GetBytes
+        |> Array.fold (fun hash byteValue -> fnv hash (uint64 byteValue)) 1469598103934665603UL
+
+    let create (matchId: int) (kickoff: DateTime) (sourceRevision: uint64) (input: MatchInput) : MatchJob =
+        { MatchId = matchId
+          Kickoff = kickoff
+          SourceRevision = sourceRevision
+          InputHash = hashInput input kickoff
+          Input = input }
+
+    let resultHash (job: MatchJob) (outcome: MatchOutcome) : uint64 =
+        let mutable hash = job.InputHash
+        hash <- fnv hash (uint64 outcome.Final.State.HomeScore)
+        hash <- fnv hash (uint64 outcome.Final.State.AwayScore)
+        fnv hash outcome.EventsHash
+
+    let resultHashFromFacts (job: MatchJob) (homeScore: int) (awayScore: int) (eventsHash: uint64) : uint64 =
+        let mutable hash = job.InputHash
+        hash <- fnv hash (uint64 homeScore)
+        hash <- fnv hash (uint64 awayScore)
+        fnv hash eventsHash
 
 module MatchSession =
 
-    let private checkpointVersion = 1
+    // Event identity hashing changed to a non-allocating structural form.
+    let private checkpointVersion = 2
     let private diagnosticLimit = 256
+    let maxTicks = 400000<subtick>
+
+    let private eventKindName kind =
+        match kind with
+        | EventKind.PossessionGained -> "PossessionGained"
+        | EventKind.PossessionLost -> "PossessionLost"
+        | EventKind.BallLoose -> "BallLoose"
+        | EventKind.PassLaunched -> "PassLaunched"
+        | EventKind.PassCompleted -> "PassCompleted"
+        | EventKind.ShotLaunched -> "ShotLaunched"
+        | EventKind.ShotResult -> "ShotResult"
+        | EventKind.Goal -> "Goal"
+        | EventKind.Foul -> "Foul"
+        | EventKind.Card -> "Card"
+        | EventKind.SetPieceAwarded -> "SetPieceAwarded"
+        | EventKind.ThrowIn -> "ThrowIn"
+        | EventKind.Corner -> "Corner"
+        | EventKind.GoalKick -> "GoalKick"
+        | EventKind.Tackle -> "Tackle"
+        | EventKind.Save -> "Save"
+        | EventKind.CrossAttempt -> "CrossAttempt"
+        | EventKind.Dribble -> "Dribble"
+        | EventKind.Interception -> "Interception"
+        | EventKind.Injury -> "Injury"
+        | EventKind.Substitution -> "Substitution"
+        | EventKind.VARDecision -> "VARDecision"
+        | EventKind.KickOff -> "KickOff"
+        | EventKind.HalfTime -> "HalfTime"
+        | EventKind.FullTime -> "FullTime"
+        | EventKind.MomentumShifted -> "MomentumShifted"
+        | EventKind.ConditionCritical -> "ConditionCritical"
+        | EventKind.RedCard -> "RedCard"
+        | EventKind.ShootoutGoal -> "ShootoutGoal"
+        | EventKind.Offside -> "Offside"
+        | EventKind.Advantage -> "Advantage"
+        | EventKind.SubstitutionRequested -> "SubstitutionRequested"
+        | EventKind.SubstitutionAccepted -> "SubstitutionAccepted"
+        | EventKind.SubstitutionRejected -> "SubstitutionRejected"
+        | EventKind.SubstitutionApplied -> "SubstitutionApplied"
+        | EventKind.ShootoutStarted -> "ShootoutStarted"
+        | EventKind.ShootoutKick -> "ShootoutKick"
+        | EventKind.ShootoutFinished -> "ShootoutFinished"
+
+    let private flowName flow =
+        match flow with
+        | MatchFlow.PreMatch -> "PreMatch"
+        | MatchFlow.Live -> "Live"
+        | MatchFlow.GoalPause _ -> "GoalPause"
+        | MatchFlow.VARReview _ -> "VARReview"
+        | MatchFlow.InjuryPause _ -> "InjuryPause"
+        | MatchFlow.Restart _ -> "Restart"
+        | MatchFlow.HalfTime _ -> "HalfTime"
+        | MatchFlow.ExtraTimeBreak _ -> "ExtraTimeBreak"
+        | MatchFlow.FullTimeReview _ -> "FullTimeReview"
+        | MatchFlow.Shootout -> "Shootout"
+        | MatchFlow.MatchEnded -> "MatchEnded"
 
     let private appendDiagnostic trace (session: MatchSession) =
         session.Diagnostics.Add trace
@@ -191,23 +325,43 @@ module MatchSession =
 
     let private writeMode (writer: BinaryWriter) mode =
         match mode with
-        | Simulator.RunMode.Fast -> writer.Write 0
-        | Simulator.RunMode.Replay interval ->
+        | MatchRunMode.Fast -> writer.Write 0
+        | MatchRunMode.Live policy ->
             writer.Write 1
+            writer.Write(int policy.WorkerSlice)
+            writer.Write(int policy.PoseEvery)
+            writer.Write(int policy.SemanticEvery)
+            writer.Write policy.BufferCapacity
+            writer.Write policy.PresentationDelay.Ticks
+        | MatchRunMode.Replay interval ->
+            writer.Write 2
             writer.Write(int interval)
-        | Simulator.RunMode.Full -> writer.Write 2
 
     let private readMode (reader: BinaryReader) =
         match reader.ReadInt32() with
-        | 0 -> Ok Simulator.RunMode.Fast
+        | 0 -> Ok MatchRunMode.Fast
         | 1 ->
+            let workerSlice = reader.ReadInt32() * 1<tickDelta>
+            let poseEvery = reader.ReadInt32() * 1<tickDelta>
+            let semanticEvery = reader.ReadInt32() * 1<tickDelta>
+            let bufferCapacity = reader.ReadInt32()
+            let presentationDelay = TimeSpan.FromTicks(reader.ReadInt64())
+
+            Ok(
+                MatchRunMode.Live
+                    { WorkerSlice = workerSlice
+                      PoseEvery = poseEvery
+                      SemanticEvery = semanticEvery
+                      BufferCapacity = bufferCapacity
+                      PresentationDelay = presentationDelay }
+            )
+        | 2 ->
             let interval = reader.ReadInt32() * 1<tickDelta>
 
             if interval <= 0<tickDelta> then
                 Error "checkpoint replay interval must be positive"
             else
-                Ok(Simulator.RunMode.Replay interval)
-        | 2 -> Ok Simulator.RunMode.Full
+                Ok(MatchRunMode.Replay interval)
         | _ -> Error "checkpoint contains an unknown run mode"
 
     let serializeCheckpoint (checkpoint: MatchCheckpoint) : byte[] =
@@ -286,7 +440,7 @@ module MatchSession =
           Rng = session.Rng
           Commands = session.Commands
           Pending = session.Pending
-          EventsHash = Simulator.eventsHash (List.ofSeq session.Events)
+          EventsHash = MatchOutcomeHash.eventsHash (List.ofSeq session.Events)
           TraceCount = session.Diagnostics.Count }
 
     let diagnostics (session: MatchSession) = List.ofSeq session.Diagnostics
@@ -402,7 +556,17 @@ module MatchSession =
 
     let private validateMode mode =
         match mode with
-        | Simulator.RunMode.Replay interval when interval <= 0<tickDelta> ->
+        | MatchRunMode.Live policy when policy.WorkerSlice <= 0<tickDelta> ->
+            Error(InvalidRunMode "Live worker slice must be positive")
+        | MatchRunMode.Live policy when policy.PoseEvery <= 0<tickDelta> ->
+            Error(InvalidRunMode "Live pose interval must be positive")
+        | MatchRunMode.Live policy when policy.SemanticEvery <= 0<tickDelta> ->
+            Error(InvalidRunMode "Live semantic interval must be positive")
+        | MatchRunMode.Live policy when policy.BufferCapacity < 2 ->
+            Error(InvalidRunMode "Live presentation capacity must be at least two")
+        | MatchRunMode.Live policy when policy.PresentationDelay < TimeSpan.Zero ->
+            Error(InvalidRunMode "Live presentation delay cannot be negative")
+        | MatchRunMode.Replay interval when interval <= 0<tickDelta> ->
             Error(InvalidRunMode "Replay snapshot interval must be positive")
         | _ -> Ok()
 
@@ -417,26 +581,39 @@ module MatchSession =
 
             let world = MatchFactory.create context
 
-            let session =
-                { Systems = systems
+            let replayWriter =
+                match mode with
+                | MatchRunMode.Live _
+                | MatchRunMode.Replay _ ->
+                    let writer =
+                        new Replay.ReplayWriter(
+                            context.HomeLineup.Profiles |> Array.map _.Id,
+                            context.AwayLineup.Profiles |> Array.map _.Id
+                        )
+
+                    writer.Append(Replay.capture world)
+                    Some writer
+                | MatchRunMode.Fast -> None
+
+            let buffer =
+                { Events = ResizeArray<MatchEvent>()
+                  Flags = { EventFlags.Bits = 0UL }
+                  Applied = ResizeArray<MatchEvent>() }
+
+            let session: MatchSession =
+                { Systems = ScheduleCompiler.compile systems
                   Input = { input with Context = context }
                   Mode = mode
                   World = world
-                  Buffer =
-                    { Events = ResizeArray<MatchEvent>()
-                      Flags = { EventFlags.Bits = 0UL }
-                      Applied = ResizeArray<MatchEvent>() }
+                  Buffer = buffer
                   Rng = Rng.ofSeed input.Seed
                   Pending = []
                   Commands = []
                   Events = ResizeArray<MatchEvent>()
-                  Snapshots = ResizeArray<Replay.ReplaySnapshot>()
-                  Diagnostics = ResizeArray<DecisionTrace>() }
-
-            match mode with
-            | Simulator.RunMode.Replay _ -> session.Snapshots.Add(Replay.capture world)
-            | Simulator.RunMode.Fast
-            | Simulator.RunMode.Full -> ()
+                  ReplayWriter = replayWriter
+                  Diagnostics = ResizeArray<DecisionTrace>()
+                  AppliedOutput = Array.zeroCreate<MatchEvent> 256
+                  Finished = None }
 
             Ok session
 
@@ -466,8 +643,11 @@ module MatchSession =
             Error SessionAlreadyFinished
         elif target < session.World.State.Tick then
             Error(InvalidAdvanceBoundary "target is earlier than the published frontier")
+        elif target > maxTicks then
+            Error(TickLimitExceeded maxTicks)
         else
             let produced = ResizeArray<MatchEvent>()
+            let producedFrames = ResizeArray<Replay.ReplaySnapshot>()
             let mutable failure = None
 
             while session.World.State.Tick < target
@@ -487,61 +667,87 @@ module MatchSession =
                 match failure with
                 | Some _ -> ()
                 | None ->
-                    let rng, _, applied =
-                        Stepper.step
+                    let rng, _, appliedCount =
+                        Stepper.stepInto
                             session.Systems
                             { Ctx = session.Input.Context
                               Clock = SimulationClock.defaultClock }
                             session.Rng
                             session.World
                             session.Buffer
+                            session.AppliedOutput
 
                     session.Rng <- rng
-                    session.Events.AddRange applied
-                    produced.AddRange applied
 
-                    appendDiagnostic
-                        { Tick = session.World.State.Tick
-                          Actor = "stepper"
-                          Options = applied |> List.map (fun event -> sprintf "%A" (MatchEvent.kind event))
-                          Chosen = None
-                          Constraints = [ sprintf "flow=%A" session.World.State.Flow ]
-                          Facts = [ sprintf "events=%d" applied.Length ] }
-                        session
+                    for index = 0 to appliedCount - 1 do
+                        let applied = session.AppliedOutput[index]
+                        session.Events.Add applied
+                        produced.Add applied
+
+                    // Eventful ticks carry the facts worth inspecting; recording every
+                    // tick made diagnostics dominate allocations in normal matches.
+                    if session.World.State.Tick = 0<subtick> || appliedCount > 0 then
+                        appendDiagnostic
+                            { Tick = session.World.State.Tick
+                              Actor = "stepper"
+                              Options =
+                                [ for index = 0 to appliedCount - 1 do
+                                      yield eventKindName (MatchEvent.kind session.AppliedOutput[index]) ]
+                              Chosen = None
+                              Constraints = [ sprintf "flow=%s" (flowName session.World.State.Flow) ]
+                              Facts = [ sprintf "events=%d" appliedCount ] }
+                            session
 
                     match session.Mode with
-                    | Simulator.RunMode.Replay interval when
+                    | MatchRunMode.Live policy when
+                        session.World.State.Tick % (int policy.PoseEvery * 1<subtick>) = 0<subtick>
+                        ->
+                        let frame = Replay.capture session.World
+                        producedFrames.Add frame
+                    | MatchRunMode.Replay interval when
                         session.World.State.Tick % (int interval * 1<subtick>) = 0<subtick>
                         ->
-                        session.Snapshots.Add(Replay.capture session.World)
-                    | Simulator.RunMode.Fast
-                    | Simulator.RunMode.Replay _
-                    | Simulator.RunMode.Full -> ()
+                        let frame = Replay.capture session.World
+                        session.ReplayWriter.Value.Append frame
+                        producedFrames.Add frame
+                    | MatchRunMode.Fast
+                    | MatchRunMode.Live _
+                    | MatchRunMode.Replay _ -> ()
 
             match failure with
             | Some error -> Error error
             | None ->
+                let toArray (items: ResizeArray<'T>) =
+                    if items.Count = 0 then [||] else items.ToArray()
+
                 Ok
                     { ReachedTick = session.World.State.Tick
                       Flow = session.World.State.Flow
-                      Events = List.ofSeq produced }
+                      Events = toArray produced
+                      Poses = toArray producedFrames }
 
-    let finish session : Result<Simulator.MatchOutcome, MatchContractError> =
-        let rec loop () =
+    let rec finish session : Result<MatchOutcome, MatchContractError> =
+        match session.Finished with
+        | Some outcome -> Ok outcome
+        | None ->
             if session.World.State.Flow = MatchFlow.MatchEnded then
                 let events = List.ofSeq session.Events
 
-                let outcome: Simulator.MatchOutcome =
+                let outcome: MatchOutcome =
                     { Events = events
                       Final = session.World
                       Replay =
                         match session.Mode with
-                        | Simulator.RunMode.Replay _ -> Some(Replay.write (List.ofSeq session.Snapshots))
-                        | Simulator.RunMode.Fast
-                        | Simulator.RunMode.Full -> None
+                        | MatchRunMode.Replay interval ->
+                            if session.World.State.Tick % (int interval * 1<subtick>) <> 0<subtick> then
+                                session.ReplayWriter.Value.Append(Replay.capture session.World)
+
+                            Some(session.ReplayWriter.Value.Complete())
+                        | MatchRunMode.Fast
+                        | MatchRunMode.Live _ -> None
                       DumpJson =
                         match session.Mode with
-                        | Simulator.RunMode.Full ->
+                        | MatchRunMode.Fast ->
                             Some(
                                 MatchDump.export
                                     session.Input.Context
@@ -549,17 +755,17 @@ module MatchSession =
                                     session.World.Home.Stats
                                     session.World.Away.Stats
                             )
-                        | Simulator.RunMode.Fast
-                        | Simulator.RunMode.Replay _ -> None
-                      EventsHash = Simulator.eventsHash events }
+                        | MatchRunMode.Live _
+                        | MatchRunMode.Replay _ -> None
+                      EventsHash = MatchOutcomeHash.eventsHash events }
 
+                session.Finished <- Some outcome
                 Ok outcome
             else
-                match advanceTo (session.World.State.Tick + 1<subtick>) session with
+                match advanceTo maxTicks session with
                 | Error error -> Error error
-                | Ok _ -> loop ()
-
-        loop ()
+                | Ok _ when session.World.State.Flow <> MatchFlow.MatchEnded -> Error(TickLimitExceeded maxTicks)
+                | Ok _ -> finish session
 
     let restore systems (input: MatchInput) (checkpoint: MatchCheckpoint) : Result<MatchSession, MatchContractError> =
         if checkpoint.Version <> checkpointVersion then
@@ -590,7 +796,7 @@ module MatchSession =
                     | Ok advance when advance.ReachedTick <> checkpoint.Frontier ->
                         Error(InvalidCheckpoint "checkpoint frontier could not be reached")
                     | Ok _ ->
-                        let actualHash = Simulator.eventsHash (List.ofSeq session.Events)
+                        let actualHash = MatchOutcomeHash.eventsHash (List.ofSeq session.Events)
 
                         if actualHash <> checkpoint.EventsHash then
                             Error(InvalidCheckpoint "checkpoint event hash differs after replay")
@@ -603,7 +809,7 @@ module MatchSession =
 
 module MatchAdapter =
 
-    let private resultOfOutcome (input: MatchInput) (outcome: Simulator.MatchOutcome) : MatchResult =
+    let private resultOfOutcome (input: MatchInput) (outcome: MatchOutcome) : MatchResult =
         let yellowCards, redCards, fouls =
             outcome.Events
             |> List.fold
@@ -649,8 +855,8 @@ module MatchAdapter =
           Metrics = outcome.Final.Home.Stats, outcome.Final.Away.Stats
           Trace = None }
 
-    let runOutcome systems input commands : Result<Simulator.MatchOutcome, MatchContractError> =
-        match MatchSession.create systems input Simulator.RunMode.Fast with
+    let runOutcome systems input commands : Result<MatchOutcome, MatchContractError> =
+        match MatchSession.create systems input MatchRunMode.Fast with
         | Error error -> Error error
         | Ok session ->
             let rec receiveAll rest =

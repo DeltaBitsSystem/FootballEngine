@@ -62,6 +62,66 @@ type CompetitionType =
         format: CupFormat *
         qualification: QualificationSlot list
 
+type ScoreboardComposition =
+    | Ribbon
+    | Split
+    | Capsule
+    | Continental
+
+type BroadcastPalette =
+    { Surface: string
+      Panel: string
+      Accent: string
+      Text: string
+      AccentText: string
+      Warning: string }
+
+type BroadcastIdentity =
+    { Key: string
+      Composition: ScoreboardComposition
+      Palette: BroadcastPalette
+      EnterDurationMs: int
+      ScorePulseDurationMs: int }
+
+module BroadcastIdentity =
+    let private palettes =
+        [| { Surface = "#081629"
+             Panel = "#12335A"
+             Accent = "#53C7E8"
+             Text = "#F2FAFF"
+             AccentText = "#081629"
+             Warning = "#F3C44F" }
+           { Surface = "#17142A"
+             Panel = "#302A55"
+             Accent = "#D8B65C"
+             Text = "#FFFCEF"
+             AccentText = "#17142A"
+             Warning = "#F08C5A" }
+           { Surface = "#10241F"
+             Panel = "#1F4A3B"
+             Accent = "#66D2A5"
+             Text = "#F1FBF6"
+             AccentText = "#10241F"
+             Warning = "#F0D05C" }
+           { Surface = "#24161C"
+             Panel = "#4C2834"
+             Accent = "#E87387"
+             Text = "#FFF5F7"
+             AccentText = "#24161C"
+             Warning = "#F1B452" } |]
+
+    let private stableIndex (key: string) =
+        key
+        |> Seq.fold (fun hash character -> (hash * 31 + int character) &&& Int32.MaxValue) 17
+        |> fun hash -> hash % palettes.Length
+
+    let generated key =
+        { Key = key
+          Composition = [| Ribbon; Split; Capsule; Continental |][stableIndex key]
+          Palette = palettes[stableIndex key]
+          EnterDurationMs = 180
+          ScorePulseDurationMs = 260 }
+
 type LeagueStanding =
     { ClubId: ClubId
       Played: int
@@ -85,6 +145,7 @@ type KnockoutTie =
 type Competition =
     { Id: CompetitionId
       Name: string
+      BroadcastIdentity: BroadcastIdentity
       Type: CompetitionType
       Country: CountryCode option
       Season: int

@@ -9,6 +9,7 @@ namespace FootballEngine.Core.Match
 /// (attack +X).
 module FieldEvaluator =
 
+    [<Struct>]
     type EvaluatorParams =
         { TeammateWeight: float
           OpponentWeight: float
@@ -23,7 +24,7 @@ module FieldEvaluator =
     /// the base point (reproducible every tick, unlike random sampling) plus,
     /// when an offside line is known, a legal option one metre behind it on
     /// the base Y — otherwise the refinement could pick an offside spot.
-    let candidates (p: EvaluatorParams) (cx: float) (cy: float) : FPoint[] =
+    let candidates (p: EvaluatorParams) (cx: float) (cy: float) : PositionPoint[] =
         let count = max 1 p.CandidateCount
         let extra = if p.OffsideX.IsSome then 1 else 0
         let pts = Array.zeroCreate (count + extra)
@@ -39,7 +40,7 @@ module FieldEvaluator =
 
         pts
 
-    let private nearestDist (pts: FPoint[]) (x: float) (y: float) : float =
+    let private nearestDist (pts: PositionPoint[]) (x: float) (y: float) : float =
         let mutable best = System.Double.MaxValue
 
         for pt in pts do
@@ -50,10 +51,67 @@ module FieldEvaluator =
 
         best
 
+    let private nearestDistAtSlots
+        (pts: PositionPoint[])
+        (slots: int[])
+        (excludedSlot: int)
+        (x: float)
+        (y: float)
+        : float =
+        let mutable best = System.Double.MaxValue
+
+        for slot in slots do
+            if slot <> excludedSlot then
+                let pt = pts.[slot]
+                let d = MatchMath.distF32 (float32 x) (float32 y) (float32 pt.X) (float32 pt.Y)
+
+                if d < best then
+                    best <- d
+
+        best
+
+    let inline private scoreAtSlots
+        (p: EvaluatorParams)
+        (teammates: PositionPoint[])
+        (teammateSlots: int[])
+        (excludedTeammate: int)
+        (opponents: PositionPoint[])
+        (opponentSlots: int[])
+        (pt: PositionPoint)
+        : float =
+        let dOur = nearestDistAtSlots teammates teammateSlots excludedTeammate pt.X pt.Y
+
+        let spread =
+            MatchMath.clamp01 ((dOur - p.MinTeammateDist) / (max 1.0 p.SearchRadius))
+
+        let dOpp = nearestDistAtSlots opponents opponentSlots -1 pt.X pt.Y
+
+        let avoid =
+            if opponentSlots.Length = 0 then
+                1.0
+            else
+                MatchMath.clamp01 (dOpp / (2.0 * p.SearchRadius))
+
+        let progress = MatchMath.clamp01 (0.5 + pt.X / (2.0 * float Pitch.HalfLength))
+
+        let openness =
+            MatchMath.clamp -1.0 1.0 ((dOpp - dOur) / (2.0 * max 1.0 p.SearchRadius))
+
+        p.TeammateWeight * spread
+        + p.OpponentWeight * avoid
+        + p.ProgressWeight * progress
+        + p.OppOurWeight * openness
+
     /// Quantify how good a candidate spot is (higher is better), so `refine`
     /// can compare every point on one scale. In the team's attacking frame
     /// where attack = +X.
-    let score (p: EvaluatorParams) (teammates: FPoint[]) (opponents: FPoint[]) (x: float) (y: float) : float =
+    let score
+        (p: EvaluatorParams)
+        (teammates: PositionPoint[])
+        (opponents: PositionPoint[])
+        (x: float)
+        (y: float)
+        : float =
         // spread: a candidate too close to a teammate is wasteful, so reward
         // standing at least MinTeammateDist away from the nearest one.
         let spread =
@@ -84,6 +142,52 @@ module FieldEvaluator =
     /// Adjust a coarse formation target using the current local spacing — the
     /// formation cannot see the opponents, so the best-scoring candidate of
     /// the surrounding cloud replaces it.
-    let refine (p: EvaluatorParams) (teammates: FPoint[]) (opponents: FPoint[]) (baseX: float) (baseY: float) : FPoint =
+    let refine
+        (p: EvaluatorParams)
+        (teammates: PositionPoint[])
+        (opponents: PositionPoint[])
+        (baseX: float)
+        (baseY: float)
+        : PositionPoint =
         candidates p baseX baseY
         |> Array.maxBy (fun pt -> score p teammates opponents pt.X pt.Y)
+
+    let refineInto
+        (p: EvaluatorParams)
+        (teammates: PositionPoint[])
+        (teammateSlots: int[])
+        (excludedTeammate: int)
+        (opponents: PositionPoint[])
+        (opponentSlots: int[])
+        (scratch: PositionPoint[])
+        (baseX: float)
+        (baseY: float)
+        : PositionPoint =
+        let count = max 1 p.CandidateCount
+        let extra = if p.OffsideX.IsSome then 1 else 0
+        scratch.[0] <- FPoint.ofXY baseX baseY
+
+        for k in 1 .. count - 1 do
+            let ang = 2.0 * System.Math.PI * float (k - 1) / float (count - 1)
+            scratch.[k] <- FPoint.ofXY (baseX + p.SearchRadius * cos ang) (baseY + p.SearchRadius * sin ang)
+
+        match p.OffsideX with
+        | Some lineX -> scratch.[count] <- FPoint.ofXY (lineX - 1.0) baseY
+        | None -> ()
+
+        let mutable best = scratch.[0]
+
+        let mutable bestScore =
+            scoreAtSlots p teammates teammateSlots excludedTeammate opponents opponentSlots best
+
+        for k in 1 .. count + extra - 1 do
+            let candidate = scratch.[k]
+
+            let candidateScore =
+                scoreAtSlots p teammates teammateSlots excludedTeammate opponents opponentSlots candidate
+
+            if candidateScore > bestScore then
+                best <- candidate
+                bestScore <- candidateScore
+
+        best

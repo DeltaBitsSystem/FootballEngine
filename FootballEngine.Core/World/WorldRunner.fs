@@ -311,166 +311,293 @@ module WorldRunner =
 
         advanceToNextSeasonWithBalance balance clock gs
 
-    let simulateUserMatchWithBalance
+    let prepareUserMatchJobWithBalance
         (balance: FootballEngine.Core.Match.BalanceConfig)
         (clock: WorldClock)
         (gs: GameState)
-        : Result<UserMatchResult, string> =
-
-        let userFixture =
+        (matchId: MatchId)
+        : Result<MatchJob, string> =
+        let fixtureOpt =
             gs.Competitions
             |> Map.toSeq
             |> Seq.collect (fun (_, comp) -> comp.Fixtures |> Map.toSeq)
-            |> Seq.tryFind (fun (_, f) ->
-                f.ScheduledDate.Date = gs.CurrentDate.Date
-                && MatchFixture.isPending f
-                && MatchFixture.involves gs.UserClubId f)
+            |> Seq.tryFind (fun (fixtureId, fixture) ->
+                fixtureId = matchId
+                && fixture.ScheduledDate.Date = gs.CurrentDate.Date
+                && MatchFixture.isPending fixture
+                && MatchFixture.involves gs.UserClubId fixture)
 
-        match userFixture with
-        | None -> Error "No user match today"
+        match fixtureOpt with
+        | None -> Error "No pending user match today"
         | Some(fixtureId, fixture) ->
             let gsReady =
                 gs
                 |> LineupOps.ensureForClub fixture.HomeClubId
                 |> LineupOps.ensureForClub fixture.AwayClubId
 
-            match MatchContextBuilder.build gsReady fixture balance with
-            | None -> Error "Match simulation failed: missing lineup"
-            | Some ctx ->
-                let result =
-                    Simulator.runMatch
-                        Scheduler.systems
-                        ctx
-                        (MatchContextBuilder.seedOf fixtureId)
-                        (Simulator.RunMode.Replay 20<tickDelta>)
-                        None
+            match EffectiveConfig.fromBalance balance, MatchContextBuilder.build gsReady fixture balance with
+            | Error error, _ -> Error(sprintf "Invalid match configuration: %A" error)
+            | _, None -> Error "Match simulation failed: missing lineup"
+            | Ok effective, Some context ->
+                let input =
+                    { MatchId = uint64 fixtureId
+                      Context = context
+                      Seed = MatchContextBuilder.seedOf fixtureId
+                      EffectiveConfig = effective
+                      EngineVersion = "football-engine-core-01" }
 
-                match result.Replay with
-                | None -> Error "Match simulation failed: replay unavailable"
-                | Some replay ->
-                    let h = result.Final.State.HomeScore
-                    let a = result.Final.State.AwayScore
+                Ok(MatchJob.create fixtureId fixture.ScheduledDate clock.Revision input)
 
-                    let homePlayerStats, awayPlayerStats =
-                        MatchOutcome.extractPlayerStatsFromWorld ctx result.Final result.Events
+    let prepareReplayJobWithBalance
+        (balance: FootballEngine.Core.Match.BalanceConfig)
+        (clock: WorldClock)
+        (gs: GameState)
+        (matchId: MatchId)
+        : Result<MatchJob, string> =
+        let fixtureOpt =
+            gs.Competitions
+            |> Map.toSeq
+            |> Seq.collect (fun (_, comp) -> comp.Fixtures |> Map.toSeq)
+            |> Seq.tryFind (fun (fixtureId, fixture) ->
+                fixtureId = matchId && MatchFixture.involves gs.UserClubId fixture)
 
-                    let playedFixture =
-                        { fixture with
-                            Played = true
-                            HomeScore = Some h
-                            AwayScore = Some a
-                            Events = result.Events }
+        match fixtureOpt with
+        | None -> Error "The requested replay fixture could not be found"
+        | Some(fixtureId, fixture) ->
+            let gsReady =
+                gs
+                |> LineupOps.ensureForClub fixture.HomeClubId
+                |> LineupOps.ensureForClub fixture.AwayClubId
 
-                    let outcome =
-                        { FixtureId = fixtureId
-                          Fixture = playedFixture
-                          HomeScore = h
-                          AwayScore = a
-                          InjuredPlayers = MatchContextBuilder.injuredOf result.Events
-                          HomePlayerStats = homePlayerStats
-                          AwayPlayerStats = awayPlayerStats }
+            match EffectiveConfig.fromBalance balance, MatchContextBuilder.build gsReady fixture balance with
+            | Error error, _ -> Error(sprintf "Invalid match configuration: %A" error)
+            | _, None -> Error "Replay preparation failed: missing lineup"
+            | Ok effective, Some context ->
+                let input =
+                    { MatchId = uint64 fixtureId
+                      Context = context
+                      Seed = MatchContextBuilder.seedOf fixtureId
+                      EffectiveConfig = effective
+                      EngineVersion = "football-engine-core-01" }
 
-                    let finalGs =
-                        applyPostMatchLoad balance.Training [| outcome |] gsReady
-                        |> applyOutcomes (fixtureToCompMap gsReady) [| outcome |]
+                Ok(MatchJob.create fixtureId fixture.ScheduledDate clock.Revision input)
 
-                    let clubOfPlayer =
-                        fun pid -> gsReady.Players |> Map.tryFind pid |> Option.bind Player.clubOf
+    let matchJobResult (job: MatchJob) (outcome: MatchOutcome) : MatchJobResult =
+        let homePlayerStats, awayPlayerStats =
+            MatchOutcome.extractPlayerStatsFromWorld job.Input.Context outcome.Final outcome.Events
 
-                    let metrics =
-                        MatchMetrics.extract result.Events fixture.HomeClubId fixture.AwayClubId clubOfPlayer
+        { MatchId = job.MatchId
+          SourceRevision = job.SourceRevision
+          InputHash = job.InputHash
+          ResultHash = MatchJob.resultHash job outcome
+          HomeScore = outcome.Final.State.HomeScore
+          AwayScore = outcome.Final.State.AwayScore
+          EventsHash = outcome.EventsHash
+          Events = outcome.Events
+          InjuredPlayers = MatchContextBuilder.injuredOf outcome.Events |> Set.toList
+          HomePlayerStats = homePlayerStats
+          AwayPlayerStats = awayPlayerStats
+          Metrics = outcome.Final.Home.Stats, outcome.Final.Away.Stats
+          Replay = outcome.Replay }
 
-                    let updateCoord (clubId: ClubId) (isHome: bool) (gs: GameState) : GameState =
-                        let passRate =
-                            if isHome then
-                                metrics.PassAccuracyHome
-                            else
-                                metrics.PassAccuracyAway
+    /// Applies a completed match job without re-running the match. The job
+    /// result is deliberately World-free; every world-side consequence is
+    /// committed once, after revision, fixture and input-hash validation.
+    let commitUserMatchJobWithBalance
+        (balance: FootballEngine.Core.Match.BalanceConfig)
+        (clock: WorldClock)
+        (gs: GameState)
+        (result: MatchJobResult)
+        : Result<UserMatchResult, string> =
+        if clock.Revision <> result.SourceRevision then
+            Error "Match result is stale for the current world revision"
+        else
+            let fixtureOpt =
+                gs.Competitions
+                |> Map.toSeq
+                |> Seq.collect (fun (_, comp) -> comp.Fixtures |> Map.toSeq)
+                |> Seq.tryFind (fun (fixtureId, fixture) -> fixtureId = result.MatchId)
 
-                        let club = gs.Clubs[clubId]
-                        let injuredCount = outcome.InjuredPlayers |> Set.count
-                        let decay = System.Math.Clamp(1.0 - 0.05 * float injuredCount, 0.5, 1.0)
+            match fixtureOpt with
+            | None -> Error "Match result references an unknown fixture"
+            | Some(fixtureId, fixture) when MatchFixture.isPlayed fixture -> Error "Match result was already committed"
+            | Some(fixtureId, fixture) ->
+                let gsReady =
+                    gs
+                    |> LineupOps.ensureForClub fixture.HomeClubId
+                    |> LineupOps.ensureForClub fixture.AwayClubId
 
-                        let updatedCoord =
-                            { club.CoordinationMemory with
-                                PressingCoordination =
-                                    System.Math.Clamp(
-                                        (club.CoordinationMemory.PressingCoordination + (passRate - 0.5) * 0.1) * decay,
-                                        0.5,
-                                        1.5
-                                    ) }
+                match EffectiveConfig.fromBalance balance, MatchContextBuilder.build gsReady fixture balance with
+                | Error error, _ -> Error(sprintf "Invalid match configuration: %A" error)
+                | _, None -> Error "Match result cannot be committed because the lineup is unavailable"
+                | Ok effective, Some ctx ->
+                    let input =
+                        { MatchId = uint64 fixtureId
+                          Context = ctx
+                          Seed = MatchContextBuilder.seedOf fixtureId
+                          EffectiveConfig = effective
+                          EngineVersion = "football-engine-core-01" }
 
-                        { gs with
-                            Clubs =
-                                gs.Clubs
-                                |> Map.add
-                                    clubId
-                                    { club with
-                                        CoordinationMemory = updatedCoord } }
+                    let job =
+                        MatchJob.create fixtureId fixture.ScheduledDate result.SourceRevision input
 
-                    let gsWithCoord =
-                        finalGs
-                        |> updateCoord fixture.HomeClubId true
-                        |> updateCoord fixture.AwayClubId false
+                    if job.InputHash <> result.InputHash then
+                        Error "Match result input hash does not match the current fixture input"
+                    elif
+                        MatchJob.resultHashFromFacts job result.HomeScore result.AwayScore result.EventsHash
+                        <> result.ResultHash
+                    then
+                        Error "Match result hash is invalid"
+                    elif MatchOutcomeHash.eventsHash result.Events <> result.EventsHash then
+                        Error "Match result event hash is invalid"
+                    else
+                        let playedFixture =
+                            { fixture with
+                                Played = true
+                                HomeScore = Some result.HomeScore
+                                AwayScore = Some result.AwayScore
+                                Events = result.Events }
 
-                    // Engine player ids are the domain ids (Projection.toProfile),
-                    // so the scouting path unwraps them to index the domain map.
-                    let clubOfEnginePlayer (PlayerId n) =
-                        gsReady.Players |> Map.tryFind n |> Option.bind Player.clubOf
+                        let outcome =
+                            { FixtureId = fixtureId
+                              Fixture = playedFixture
+                              HomeScore = result.HomeScore
+                              AwayScore = result.AwayScore
+                              InjuredPlayers = result.InjuredPlayers |> Set.ofList
+                              HomePlayerStats = result.HomePlayerStats
+                              AwayPlayerStats = result.AwayPlayerStats }
 
-                    let updateScouting (clubId: ClubId) (isHome: bool) (gs: GameState) : GameState =
-                        let rivalId = if isHome then fixture.AwayClubId else fixture.HomeClubId
+                        let finalGs =
+                            applyPostMatchLoad balance.Training [| outcome |] gsReady
+                            |> applyOutcomes (fixtureToCompMap gsReady) [| outcome |]
 
-                        let rivalSignature =
-                            match GameState.headCoach rivalId gsReady with
-                            | Some coach ->
-                                match coach.Attributes.Coaching.Lineup with
-                                | Some lu ->
-                                    (string lu.Formation,
-                                     lu.Instructions |> Option.defaultValue TacticalInstructions.defaultInstructions)
+                        let clubOfPlayer =
+                            fun pid -> gsReady.Players |> Map.tryFind pid |> Option.bind Player.clubOf
+
+                        let metrics =
+                            MatchMetrics.extract result.Events fixture.HomeClubId fixture.AwayClubId clubOfPlayer
+
+                        let updateCoord (clubId: ClubId) (isHome: bool) (state: GameState) : GameState =
+                            let passRate =
+                                if isHome then
+                                    metrics.PassAccuracyHome
+                                else
+                                    metrics.PassAccuracyAway
+
+                            let club = state.Clubs[clubId]
+                            let injuredCount = result.InjuredPlayers |> Set.ofList |> Set.count
+                            let decay = System.Math.Clamp(1.0 - 0.05 * float injuredCount, 0.5, 1.0)
+
+                            let updatedCoordination =
+                                { club.CoordinationMemory with
+                                    PressingCoordination =
+                                        System.Math.Clamp(
+                                            (club.CoordinationMemory.PressingCoordination + (passRate - 0.5) * 0.1)
+                                            * decay,
+                                            0.5,
+                                            1.5
+                                        ) }
+
+                            { state with
+                                Clubs =
+                                    state.Clubs
+                                    |> Map.add
+                                        clubId
+                                        { club with
+                                            CoordinationMemory = updatedCoordination } }
+
+                        let clubOfEnginePlayer (PlayerId n) =
+                            gsReady.Players |> Map.tryFind n |> Option.bind Player.clubOf
+
+                        let updateScouting (clubId: ClubId) (isHome: bool) (state: GameState) : GameState =
+                            let rivalId = if isHome then fixture.AwayClubId else fixture.HomeClubId
+
+                            let rivalSignature =
+                                match GameState.headCoach rivalId gsReady with
+                                | Some coach ->
+                                    match coach.Attributes.Coaching.Lineup with
+                                    | Some lu ->
+                                        (string lu.Formation,
+                                         lu.Instructions |> Option.defaultValue TacticalInstructions.defaultInstructions)
+                                    | None -> "", TacticalInstructions.defaultInstructions
                                 | None -> "", TacticalInstructions.defaultInstructions
-                            | None -> "", TacticalInstructions.defaultInstructions
 
-                        let club = gs.Clubs[clubId]
+                            let club = state.Clubs[clubId]
 
-                        let updatedMem =
-                            MatchPhase.recordPattern
-                                ctx.Config.Scout
-                                gsReady.CurrentDate
-                                fixture.HomeClubId
-                                fixture.AwayClubId
-                                rivalId
-                                rivalSignature
-                                clubOfEnginePlayer
-                                outcome.Fixture.Events
-                                club.ScoutingMemory
-                            // Rivals unseen for months stop costing save space.
-                            |> ScoutingMemory.prune ctx.Config.Scout gsReady.CurrentDate
+                            let updatedMemory =
+                                MatchPhase.recordPattern
+                                    ctx.Config.Scout
+                                    gsReady.CurrentDate
+                                    fixture.HomeClubId
+                                    fixture.AwayClubId
+                                    rivalId
+                                    rivalSignature
+                                    clubOfEnginePlayer
+                                    result.Events
+                                    club.ScoutingMemory
+                                |> ScoutingMemory.prune ctx.Config.Scout gsReady.CurrentDate
 
-                        { gs with
-                            Clubs =
-                                gs.Clubs
-                                |> Map.add
-                                    clubId
-                                    { club with
-                                        ScoutingMemory = updatedMem } }
+                            { state with
+                                Clubs =
+                                    state.Clubs
+                                    |> Map.add
+                                        clubId
+                                        { club with
+                                            ScoutingMemory = updatedMemory } }
 
-                    let gsWithScouting =
-                        gsWithCoord
-                        |> updateScouting fixture.HomeClubId true
-                        |> updateScouting fixture.AwayClubId false
+                        let committedGs =
+                            finalGs
+                            |> updateCoord fixture.HomeClubId true
+                            |> updateCoord fixture.AwayClubId false
+                            |> updateScouting fixture.HomeClubId true
+                            |> updateScouting fixture.AwayClubId false
 
-                    let clock1 = WorldClockOps.advance clock
+                        let clock1 = WorldClockOps.advance clock
 
-                    Ok
-                        { DayResult =
-                            { GameState = gsWithScouting
-                              WorldClock = clock1
-                              PlayedMatches = [ fixtureId, outcome.Fixture ]
-                              Logs =
-                                [ $"{gsReady.Clubs[fixture.HomeClubId].Name} {h}-{a} {gsReady.Clubs[fixture.AwayClubId].Name}" ]
-                              SeasonComplete = isSeasonComplete gsWithScouting }
-                          MatchReplay = Some replay }
+                        Ok
+                            { DayResult =
+                                { GameState = committedGs
+                                  WorldClock = clock1
+                                  PlayedMatches = [ fixtureId, playedFixture ]
+                                  Logs =
+                                    [ $"{gsReady.Clubs[fixture.HomeClubId].Name} {result.HomeScore}-{result.AwayScore} {gsReady.Clubs[fixture.AwayClubId].Name}" ]
+                                  SeasonComplete = isSeasonComplete committedGs }
+                              MatchReplay = result.Replay }
+
+    let simulateUserMatchWithBalance
+        (balance: FootballEngine.Core.Match.BalanceConfig)
+        (clock: WorldClock)
+        (gs: GameState)
+        : Result<UserMatchResult, string> =
+        let matchIdOpt =
+            gs.Competitions
+            |> Map.toSeq
+            |> Seq.collect (fun (_, comp) -> comp.Fixtures |> Map.toSeq)
+            |> Seq.tryPick (fun (fixtureId, fixture) ->
+                if
+                    fixture.ScheduledDate.Date = gs.CurrentDate.Date
+                    && MatchFixture.isPending fixture
+                    && MatchFixture.involves gs.UserClubId fixture
+                then
+                    Some fixtureId
+                else
+                    None)
+
+        match matchIdOpt with
+        | None -> Error "No user match today"
+        | Some matchId ->
+            match prepareUserMatchJobWithBalance balance clock gs matchId with
+            | Error error -> Error error
+            | Ok job ->
+                match MatchSession.create Scheduler.systems job.Input (MatchRunMode.Replay 20<tickDelta>) with
+                | Error error -> Error(sprintf "%A" error)
+                | Ok session ->
+                    match MatchSession.finish session with
+                    | Error error -> Error(sprintf "%A" error)
+                    | Ok outcome ->
+                        match commitUserMatchJobWithBalance balance clock gs (matchJobResult job outcome) with
+                        | Error error -> Error error
+                        | Ok result -> Ok result
 
     let simulateUserMatch (clock: WorldClock) (gs: GameState) : Result<UserMatchResult, string> =
         let balance =

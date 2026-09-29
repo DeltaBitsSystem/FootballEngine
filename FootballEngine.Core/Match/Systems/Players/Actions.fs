@@ -7,6 +7,59 @@ namespace FootballEngine.Core.Match
 /// stays decoupled from doing.
 module Actions =
 
+    let executeRestart (ctx: SystemContext) (world: World) (plan: RestartPlan) : unit =
+        let origin = world.State.Ball.Position
+        let target =
+            match plan.Action with
+            | RestartAction.RestartPass receiver ->
+                plan.Targets
+                |> Array.tryFind (fun item -> item.Player = receiver)
+                |> Option.map _.Position
+                |> Option.defaultValue { X = origin.X + 12.0<meter> * MatchMath.goalDirection plan.Side; Y = origin.Y }
+            | RestartAction.RestartCross(x, y)
+            | RestartAction.RestartShot(x, y)
+            | RestartAction.RestartClearance(x, y) -> { X = x; Y = y }
+
+        let dx = float target.X - float origin.X
+        let dy = float target.Y - float origin.Y
+        let distance = max 0.001 (sqrt (dx * dx + dy * dy))
+        let speed =
+            match plan.Action with
+            | RestartAction.RestartShot _ -> 24.0
+            | RestartAction.RestartCross _ -> 20.0
+            | RestartAction.RestartClearance _ -> 22.0
+            | RestartAction.RestartPass _ -> float ctx.Ctx.Config.Actions.PassLaunchSpeed
+        let trajectory =
+            match plan.Action with
+            | RestartAction.RestartPass receiver ->
+                TrajectoryIntent.Aimed(plan.Executor, receiver, 0.8)
+            | RestartAction.RestartCross _ -> TrajectoryIntent.Cleared
+            | RestartAction.RestartShot _ -> TrajectoryIntent.Struck(plan.Executor, speed * 1.0<meterPerSecond>, 0.0, 0.2)
+            | RestartAction.RestartClearance _ -> TrajectoryIntent.Cleared
+
+        let impulse =
+            BallPhysics.createImpulse
+                plan.Executor
+                { X = origin.X; Y = origin.Y; Z = origin.Z }
+                { X = dx / distance * speed * 1.0<meterPerSecond>
+                  Y = dy / distance * speed * 1.0<meterPerSecond>
+                  Z = 0.0<meterPerSecond> }
+                { Top = 0.0<radianPerSecond>
+                  Side = 0.0<radianPerSecond>
+                  Roll = 0.0<radianPerSecond> }
+                (Some target)
+                 (StrikeKind.Restart plan.Kind)
+                (SimTick.ofSubTicks world.State.Tick)
+                (ExecutionContext.SetPiece plan.Kind)
+            |> BallPhysics.withRestartId plan.Id
+
+        let arrival =
+            world.State.Tick
+            + int (round (distance / speed * float ctx.Clock.SubTicksPerSecond)) * 1<subtick>
+            + 1<subtick>
+
+        BallPhysics.applyImpulse world impulse trajectory (Some arrival)
+
     let private executeDecision
         (ctx: SystemContext)
         (rng: Rng)
@@ -79,50 +132,24 @@ module Actions =
                 let team = MatchWorld.team world side
                 let frame = team.Frame
 
-                let setPieceMarker =
-                    match frame.RunLookup.TryGetValue(slot + 2000) with
-                    | true, a when a.Phase = 201 && a.ExpiresAt <= tick -> Some a
-                    | _ -> None
-
-                match setPieceMarker with
-                | Some a ->
-                    let code = int a.TargetY
-                    let restart = world.State.Ball.PendingRestart
-
-                    if code = 1 && a.TargetX >= 0.0f then
-                        match restart with
-                        | Some kind -> SetPieceRoutines.launch ctx world side slot kind (int a.TargetX)
-                        | None -> r <- Pass.launch ctx r world buffer side slot (int a.TargetX) 0.25
-                    elif code = 1 && restart.IsSome then
-                        SetPieceRoutines.launch ctx world side slot restart.Value -1
-                    elif code = 5 && restart.IsSome then
-                        SetPieceRoutines.launch ctx world side slot restart.Value (int a.TargetX)
-                    elif code = 1 then
-                        // No safe target: hold the ball.
-                        ()
-                    elif code = 5 then
-                        r <- Cross.launch ctx r world buffer side slot
-
-                    frame.RunLookup.Remove(slot + 2000) |> ignore
-                | None ->
-                    if slot = 0 then
-                        r <- GK.distribute ctx r world buffer side
-                    else
-                        match frame.RunLookup.TryGetValue slot with
-                        | true, a when a.Phase = 200 && a.ExpiresAt >= tick ->
-                            r <- executeDecision ctx r world buffer side slot a.TargetY (int a.TargetX)
-                            frame.RunLookup.Remove slot |> ignore
-                        | _ ->
-                            match
-                                MatchWorld.nearestOpponent
-                                    ctx.Ctx
-                                    world
-                                    side
-                                    (MatchWorld.posX frame slot)
-                                    (MatchWorld.posY frame slot)
-                                    2.5
-                            with
-                            | Some _ -> r <- PlayerDecision.choose ctx.Ctx world side slot tick r
-                            | None -> ()
+                if slot = 0 then
+                    r <- GK.distribute ctx r world buffer side
+                else
+                    match frame.RunLookup.TryGetValue slot with
+                    | true, a when a.Phase = 200 && a.ExpiresAt >= tick ->
+                        r <- executeDecision ctx r world buffer side slot a.TargetY (int a.TargetX)
+                        frame.RunLookup.Remove slot |> ignore
+                    | _ ->
+                        match
+                            MatchWorld.nearestOpponent
+                                ctx.Ctx
+                                world
+                                side
+                                (MatchWorld.posX frame slot)
+                                (MatchWorld.posY frame slot)
+                                2.5
+                        with
+                        | Some _ -> r <- PlayerDecision.choose ctx.Ctx world side slot tick r
+                        | None -> ()
 
             r

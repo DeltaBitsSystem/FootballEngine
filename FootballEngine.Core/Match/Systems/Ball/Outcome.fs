@@ -83,7 +83,7 @@ module BallOutcome =
                 let outForCorner, rng'' = Rng.bernoulli 0.25 rng'
 
                 if outForCorner then
-                    emitSetPiece ctx world tick buffer SetPieceKind.Corner (MatchWorld.oppOf shooterSide)
+                    emitSetPiece ctx world tick buffer SetPieceKind.Corner shooterSide
                     rng''
                 else
                     MatchWorld.updateBall world (fun b ->
@@ -292,10 +292,12 @@ module BallOutcome =
 
             MatchWorld.updateBall world (fun b ->
                 { b with
+                    Control = BallControl.Free
                     Trajectory = None
                     ArrivalGate = None
                     LastTouch = None
-                    StationarySince = None })
+                    StationarySince = None
+                    Impulse = None })
 
             true
 

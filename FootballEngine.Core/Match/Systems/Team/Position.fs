@@ -51,11 +51,9 @@ module TeamPosition =
                if slots.Length = 2 then
                    yield slots.[0], slots.[1] |]
 
-    /// R7 — linear role assignment. The team needs exactly one designated
-    /// presser and one anchor on every ball, and position alone decides it:
-    /// the slot closest to the ball presses, the most retarded anchors, two
-    /// intermediates cover, everyone else supports. Reassigned only when the
-    /// directive changes so the roles do not thrash. Deterministic: no Rng.
+    /// The loose-ball response is a small team plan, not eleven independent
+    /// presses. It is recomputed with the intercept table because possession,
+    /// ball flight and player movement can all change the best chaser.
     let private assignRoles (ctx: MatchContext) (world: World) (side: ClubSide) : unit =
         let team = MatchWorld.team world side
         let frame = team.Frame
@@ -66,59 +64,63 @@ module TeamPosition =
         let active = MatchWorld.activeSlots frame
 
         if active.Length > 0 then
-            let nearest =
-                active
-                |> Array.minBy (fun slot ->
-                    if slot = 0 then
-                        System.Double.MaxValue
-                    else
-                        MatchMath.dist ball.X ball.Y (MatchWorld.posX frame slot) (MatchWorld.posY frame slot))
+            let nearest = MatchWorld.looseBallChaser world side |> Option.defaultValue -1
 
-            let anchor =
+            let rest =
                 active
-                |> Array.maxBy (fun slot ->
-                    if slot = 0 then
-                        -System.Double.MaxValue
-                    else
-                        -MatchMath.dist
-                            (MatchMath.ownGoalX side)
-                            0.0<meter>
-                            (MatchWorld.posX frame slot)
-                            (MatchWorld.posY frame slot))
-
-            let ranked =
-                active
-                |> Array.filter (fun slot -> slot <> nearest && slot <> anchor && slot <> 0)
+                |> Array.filter (fun slot -> frame.SlotRoles.[slot] <> SlotRole.Goalkeeper && slot <> nearest)
                 |> Array.sortBy (fun slot ->
-                    MatchMath.dist ball.X ball.Y (MatchWorld.posX frame slot) (MatchWorld.posY frame slot))
+                    MatchMath.dist
+                        (MatchMath.ownGoalX side)
+                        0.0<meter>
+                        (MatchWorld.posX frame slot)
+                        (MatchWorld.posY frame slot),
+                    slot)
+                |> Array.truncate 2
 
-            let covers = ranked |> Array.truncate 2 |> Set.ofArray
+            let cover =
+                active
+                |> Array.filter (fun slot -> frame.SlotRoles.[slot] <> SlotRole.Goalkeeper && slot <> nearest && not (Array.contains slot rest))
+                |> Array.sortBy (fun slot ->
+                    MatchMath.dist ball.X ball.Y (MatchWorld.posX frame slot) (MatchWorld.posY frame slot),
+                    slot)
+                |> Array.tryHead
 
             for slot in active do
+                frame.DefensiveRoles.[slot] <-
+                    if slot = nearest then DefensiveRole.FirstDefender
+                    elif Some slot = cover then DefensiveRole.Cover
+                    elif Array.contains slot rest then DefensiveRole.Marker
+                    else DefensiveRole.Unassigned
+
                 let bias =
-                    if slot = anchor then
-                        1.0 + cfg.RoleBiasStrength * 0.5
-                    elif covers.Contains slot then
-                        1.0 + cfg.RoleBiasStrength * 0.3
-                    elif slot = nearest then
+                    if slot = nearest then
                         1.0 + cfg.RoleBiasStrength
+                    elif Some slot = cover then
+                        1.0 + cfg.RoleBiasStrength * 0.3
+                    elif Array.contains slot rest then
+                        1.0 + cfg.RoleBiasStrength * 0.5
                     else
                         1.0
 
                 frame.RoleBias.[slot] <- float32 bias
 
-    /// Active positions of a team converted to the given team's attacking frame —
-    /// the evaluator needs every side in the same frame to compare distances.
-    let private activePositions (world: World) (side: ClubSide) (dir: float) : FPoint[] =
-        let frame = (MatchWorld.team world side).Frame
-        let active = MatchWorld.activeSlots frame
-        let pts = Array.zeroCreate active.Length
+    let private refreshPositionCaches (world: World) (side: ClubSide) : unit =
+        let team = MatchWorld.team world side
+        let frame = team.Frame
+        let dir = MatchMath.goalDirection side
 
-        for idx in 0 .. active.Length - 1 do
-            let i = active.[idx]
-            pts.[idx] <- FPoint.ofXY (float frame.PosX.[i] * dir) (float frame.PosY.[i])
+        if team.OwnPositions.Length <> frame.SlotCount then
+            team.OwnPositions <- Array.zeroCreate frame.SlotCount
 
-        pts
+        if team.MirroredPositions.Length <> frame.SlotCount then
+            team.MirroredPositions <- Array.zeroCreate frame.SlotCount
+
+        for i in 0 .. frame.SlotCount - 1 do
+            let x = float frame.PosX.[i]
+            let y = float frame.PosY.[i]
+            team.OwnPositions.[i] <- FPoint.ofXY (x * dir) y
+            team.MirroredPositions.[i] <- FPoint.ofXY (x * -dir) y
 
     let private positionTeam (ctx: MatchContext) (world: World) (side: ClubSide) : unit =
         let team = MatchWorld.team world side
@@ -129,15 +131,8 @@ module TeamPosition =
         let ball = world.State.Ball.Position
         let dt = 1.0 / 40.0
         let cfg = ctx.Config
-
-        let interceptParams: InterceptTable.InterceptParams =
-            { BallDecayPerTick = float cfg.Ball.AirDrag ** dt * float cfg.Ball.GroundFriction ** dt
-              PlayerSpeedPerSecond = cfg.Movement.SprintSpeed
-              ControlRadius = cfg.Intercept.ControlRadius
-              MaxSteps = cfg.Intercept.MaxSteps }
-
-        let intercept = InterceptTable.compute interceptParams world side
-        team.Intercept <- intercept
+        let interceptParams = InterceptTable.parameters cfg.Intercept cfg.Movement cfg.Ball
+        let intercept = team.Intercept
 
         team.Emergent.DefenseLine <- float32 (DefenseLine.secondDeepest ctx world side)
 
@@ -148,8 +143,14 @@ module TeamPosition =
         let ballFx = pred.X * dir
         let ballFy = pred.Y
 
-        let roles = lineup.Profiles |> Array.map (fun p -> p.Role)
-        let formation = Formation.fromLineup roles lineup.BasePositions dir anchors
+        let formation =
+            match team.FormationCache with
+            | Some value -> value
+            | None ->
+                let roles = lineup.Profiles |> Array.map (fun p -> p.Role)
+                let value = Formation.fromLineup roles lineup.BasePositions dir anchors
+                team.FormationCache <- Some value
+                value
 
         let offLine = MatchWorld.offsideLine ctx world side
 
@@ -177,78 +178,140 @@ module TeamPosition =
 
         // The directive intent must reach the shape before local refinements apply,
         // so the nudge happens on the raw formation targets (team frame).
-        let baseTargets =
-            Formation.query formation ballFx ballFy
-            |> Array.map (fun pt -> FPoint.ofXY (pt.X + crispNudge) pt.Y)
+        if team.FormationTargets.Length <> frame.SlotCount then
+            team.FormationTargets <- Array.zeroCreate frame.SlotCount
+
+        Formation.queryInto formation ballFx ballFy team.FormationTargets
+
+        for i in 0 .. frame.SlotCount - 1 do
+            let target = team.FormationTargets.[i]
+            team.FormationTargets.[i] <- FPoint.ofXY (target.X + crispNudge) target.Y
 
         // Pair swaps compare travel from where the slots are now, so the current
         // positions must be in the same frame as the targets.
-        let ownPositions =
-            let frame = (MatchWorld.team world side).Frame
-            Array.init frame.SlotCount (fun i -> FPoint.ofXY (float frame.PosX.[i] * dir) (float frame.PosY.[i]))
+        let ownPositions = team.OwnPositions
 
         // The evaluator must see the opponents where they really stand, so their
         // live positions (not the shape) feed the Voronoi term.
-        let oppPositions = activePositions world (MatchWorld.oppOf side) dir
+        let opponent = MatchWorld.team world (MatchWorld.oppOf side)
+        let oppPositions = opponent.MirroredPositions
 
-        let pairedTargets =
-            LateralPairs.solve pairParams ownPositions baseTargets (lateralPairs ctx side)
+        let pairs =
+            match team.LateralPairs with
+            | Some value -> value
+            | None ->
+                let value = lateralPairs ctx side
+                team.LateralPairs <- Some value
+                value
+
+        LateralPairs.solveInPlace pairParams ownPositions team.FormationTargets pairs
 
         // The formation cannot know the local spacing, so each slot's target is
         // refined against live positions before being written to world frame.
         let active = MatchWorld.activeSlots frame
 
         let gkSlot =
-            lineup.Profiles |> Array.findIndex (fun p -> p.Role = SlotRole.Goalkeeper)
+            match team.GoalkeeperSlot with
+            | Some value -> value
+            | None ->
+                let value =
+                    lineup.Profiles |> Array.findIndex (fun p -> p.Role = SlotRole.Goalkeeper)
+
+                team.GoalkeeperSlot <- Some value
+                value
 
         let defending =
             team.Blackboard.OurPhase = PhaseKind.Defending
             || team.Blackboard.OurPhase = PhaseKind.TransitionDefend
 
-        for i in active do
-            let tx = pairedTargets.[i].X
-            let ty = pairedTargets.[i].Y
+        if team.EvaluatorScratch.Length < posCfg.EvalCandidateCount + 1 then
+            team.EvaluatorScratch <- Array.zeroCreate (max 1 (posCfg.EvalCandidateCount + 1))
 
-            let fx, fy =
+        let opponentActive = MatchWorld.activeSlots opponent.Frame
+
+        for activeIndex in 0 .. active.Length - 1 do
+            let i = active.[activeIndex]
+            let tx = team.FormationTargets.[i].X
+            let ty = team.FormationTargets.[i].Y
+
+            let refinedTarget =
                 if i = gkSlot then
-                    tx, ty
+                    let ownGoalX = float (MatchMath.ownGoalX side)
+                    let ballDistance = abs (float ball.X - ownGoalX)
+                    let opponentDistance =
+                        opponentActive
+                        |> Array.map (fun opponentSlot ->
+                            MatchMath.dist
+                                (MatchMath.ownGoalX side)
+                                0.0<meter>
+                                (MatchWorld.posX opponent.Frame opponentSlot)
+                                (MatchWorld.posY opponent.Frame opponentSlot))
+                        |> fun distances ->
+                            if Array.isEmpty distances then
+                                System.Double.MaxValue
+                            else
+                                Array.min distances
+
+                    let threat =
+                        ballDistance < float posCfg.GkThreatDistance
+                        || opponentDistance < float posCfg.GkThreatDistance
+
+                    let targetX =
+                        if threat then
+                            ownGoalX * dir
+                        elif float ballFx > 0.0 then
+                            tx + float posCfg.GkMaxAdvance
+                        else
+                            tx
+
+                    FPoint.ofXY targetX 0.0
                 else
-                    // Exclude the slot's own current position from the spread term.
-                    let teamsArr = Array.zeroCreate (active.Length - 1)
-                    let mutable idx = 0
-
-                    for j in active do
-                        if j <> i then
-                            teamsArr.[idx] <- ownPositions.[j]
-                            idx <- idx + 1
-
-                    let refined = FieldEvaluator.refine evalParams teamsArr oppPositions tx ty
-                    refined.X, refined.Y
+                    FieldEvaluator.refineInto
+                        evalParams
+                        ownPositions
+                        active
+                        i
+                        oppPositions
+                        opponentActive
+                        team.EvaluatorScratch
+                        tx
+                        ty
 
             let fx' =
                 if defending && i <> gkSlot then
-                    min fx (float offLine * dir - 1.0)
+                    min refinedTarget.X (float offLine * dir - 1.0)
                 else
-                    fx
+                    refinedTarget.X
 
             let wx = fx' * dir
-            let wy = fy
-            let cx, cy = MatchMath.pitchClamp wx wy
-            team.Shape.TargetsX.[i] <- float32 cx
-            team.Shape.TargetsY.[i] <- float32 cy
+            let inset = float posCfg.TargetInset
+            let safeHalfLength = float Pitch.HalfLength - inset
+            let safeHalfWidth = float Pitch.HalfWidth - inset
+            team.Shape.TargetsX.[i] <- float32 (MatchMath.clamp (-safeHalfLength) safeHalfLength wx)
+
+            team.Shape.TargetsY.[i] <-
+                float32 (MatchMath.clamp (-safeHalfWidth) safeHalfWidth refinedTarget.Y)
 
     let step: SystemStep =
         fun ctx rng world _ ->
             let tick = world.State.Tick
 
-            for side in [ ClubSide.Home; ClubSide.Away ] do
+            refreshPositionCaches world ClubSide.Home
+            refreshPositionCaches world ClubSide.Away
+
+            let cfg = ctx.Ctx.Config
+            let interceptParams = InterceptTable.parameters cfg.Intercept cfg.Movement cfg.Ball
+            InterceptTable.computeBothInto interceptParams world
+
+            let position side =
                 let team = MatchWorld.team world side
 
-                // R7 — roles follow the directive; reassign only right after it changed,
-                // so the linear assignment does not fight the current plan.
-                if tick - team.Directive.SinceTick <= 240<subtick> then
-                    assignRoles ctx.Ctx world side
+                assignRoles ctx.Ctx world side
+                team.LastRoleAssignmentTick <- tick
 
                 positionTeam ctx.Ctx world side
+
+            position ClubSide.Home
+            position ClubSide.Away
 
             rng

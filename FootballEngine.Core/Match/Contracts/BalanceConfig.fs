@@ -48,7 +48,8 @@ type MovementConfig =
       ReactiveRadius: float<meter>
       ConditionImpactThreshold: float
       IntentFloor: float
-      IntentHysteresis: float }
+      IntentHysteresis: float
+      CommittedRunDuration: int<subtick> }
 
 /// Action outcomes — pass, shot, duel, cross, GK and dribble success curves,
 /// tunable without touching agent logic. (was PassConfig, ShotConfig, DuelConfig,
@@ -107,7 +108,10 @@ type SetPieceConfig =
       DirectFreeKickRange: float<meter>
       WallArcSpread: float<meter>
       CornerNearZoneDist: float<meter>
-      CornerFarZoneDist: float<meter> }
+      CornerFarZoneDist: float<meter>
+      ContactReadyRadius: float<meter>
+      TargetTolerance: float<meter>
+      MaxTargetDistance: float<meter> }
 
 /// The collective mind — utility weights, emergent loops, blackboard windows,
 /// shape. (was CollectiveWeights + UtilityWeights + MatchSituation + Influence +
@@ -144,7 +148,10 @@ type TeamConfig =
       PatternWindow: int<subtick>
       PatternCenterBias: float
       PatternWingBias: float
-      TacticalFamiliarityGain: float }
+      TacticalFamiliarityGain: float
+      LooseBallCoverDistance: float<meter>
+      RestDefenseDistance: float<meter>
+      WeakSideSeparation: float<meter> }
 
 /// Referee behaviour — foul severity, cards, VAR, advantage, home-card bias.
 /// (was FoulAnalysis consts + RefereeWeights + HomeAdvantage card parts)
@@ -230,7 +237,13 @@ type PositioningConfig =
       EvalCandidateCount: int
       EvalMinTeammateDist: float<meter>
       EvalOppOurWeight: float
-      LateralSwapThreshold: float<meter> }
+      LateralSwapThreshold: float<meter>
+      TargetInset: float<meter>
+      CarrySearchRadius: float<meter>
+      SupportForwardDistance: float<meter>
+      SupportLateralDistance: float<meter>
+      GkMaxAdvance: float<meter>
+      GkThreatDistance: float<meter> }
 
 /// RoboCup InterceptTable horizon: control radius and step budget.
 [<Struct>]
@@ -422,7 +435,8 @@ module BalanceConfig =
           ReactiveRadius = 3.0<meter>
           ConditionImpactThreshold = 0.1
           IntentFloor = 0.2
-          IntentHysteresis = 0.05 }
+          IntentHysteresis = 0.05
+          CommittedRunDuration = 240<subtick> }
 
     let defaultActions: ActionsConfig =
         { PassBaseQuality = 0.7
@@ -475,7 +489,10 @@ module BalanceConfig =
           DirectFreeKickRange = 32.0<meter>
           WallArcSpread = 1.5<meter>
           CornerNearZoneDist = 6.0<meter>
-          CornerFarZoneDist = 12.0<meter> }
+          CornerFarZoneDist = 12.0<meter>
+          ContactReadyRadius = 1.0<meter>
+          TargetTolerance = 1.0<meter>
+          MaxTargetDistance = 70.0<meter> }
 
     let defaultTeam: TeamConfig =
         { UtilityAttackingWeight = 1.0
@@ -508,7 +525,10 @@ module BalanceConfig =
           PatternWindow = 600<subtick>
           PatternCenterBias = 0.15
           PatternWingBias = 0.25
-          TacticalFamiliarityGain = 0.15 }
+          TacticalFamiliarityGain = 0.15
+          LooseBallCoverDistance = 7.0<meter>
+          RestDefenseDistance = 18.0<meter>
+          WeakSideSeparation = 10.0<meter> }
 
     let defaultPositioning: PositioningConfig =
         { EvalTeammateWeight = 0.3
@@ -518,7 +538,13 @@ module BalanceConfig =
           EvalCandidateCount = 5
           EvalMinTeammateDist = 5.0<meter>
           EvalOppOurWeight = 0.25
-          LateralSwapThreshold = 1.5<meter> }
+          LateralSwapThreshold = 1.5<meter>
+          TargetInset = 2.0<meter>
+          CarrySearchRadius = 7.0<meter>
+          SupportForwardDistance = 4.0<meter>
+          SupportLateralDistance = 8.0<meter>
+          GkMaxAdvance = 10.0<meter>
+          GkThreatDistance = 24.0<meter> }
 
     let defaultIntercept: InterceptConfig =
         { ControlRadius = 2.5<meter>

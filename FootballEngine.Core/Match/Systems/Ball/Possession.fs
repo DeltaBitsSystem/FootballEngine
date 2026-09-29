@@ -128,8 +128,7 @@ module BallPossession =
                     let dir = MatchMath.goalDirection side
                     let dt = float (SimulationClock.dt ctx.Clock)
 
-                    let targetX = float px + 0.4 * dir
-                    let targetY = float py
+                    let targetX, targetY = MatchMath.pitchClamp (float px + 0.4 * dir) (float py)
                     let currentX = float world.State.Ball.Position.X
                     let currentY = float world.State.Ball.Position.Y
                     let dx = targetX - currentX
@@ -159,11 +158,7 @@ module BallPossession =
                         else
                             currentY + dy / distance * step
 
-                    let nextX =
-                        MatchMath.clamp (-(float Pitch.HalfLength + 5.0)) (float Pitch.HalfLength + 5.0) nextX
-
-                    let nextY =
-                        MatchMath.clamp (-(float Pitch.HalfWidth + 5.0)) (float Pitch.HalfWidth + 5.0) nextY
+                    let nextX, nextY = MatchMath.pitchClamp nextX nextY
 
                     MatchWorld.updateBall world (fun b ->
                         { b with
@@ -176,7 +171,6 @@ module BallPossession =
                                   Vz = 0.0<meterPerSecond> }
                             PreviousPosition = None
                             Impulse = None
-                            PendingRestart = None
                             GKHoldSince = (if slot = 0 then Some tick else None) })
 
                     rng

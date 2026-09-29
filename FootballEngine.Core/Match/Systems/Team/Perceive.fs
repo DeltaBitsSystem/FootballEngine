@@ -33,9 +33,13 @@ module TeamPerceive =
             elif not ours && tick - lastTransition < 240<subtick> then
                 PhaseKind.TransitionDefend
             else
-                match situationPhase with
-                | Some p -> p
-                | None -> team.Blackboard.OurPhase
+                match MatchWorld.ballCarrier ctx world with
+                | Some(carrierSide, _, _) ->
+                    if carrierSide = side then PhaseKind.Attacking else PhaseKind.Defending
+                | None ->
+                    match situationPhase with
+                    | Some p -> p
+                    | None -> team.Blackboard.OurPhase
 
         let dir = MatchMath.goalDirection side
 

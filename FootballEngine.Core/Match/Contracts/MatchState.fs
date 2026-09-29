@@ -3,6 +3,10 @@ namespace FootballEngine.Core.Match
 [<Struct>]
 type Vec2 = { X: float<meter>; Y: float<meter> }
 
+module Vec2 =
+
+    let create (x: float<meter>) (y: float<meter>) : Vec2 = { X = x; Y = y }
+
 [<Struct>]
 type Vec3 =
     { X: float<meter>
@@ -39,6 +43,7 @@ type Spatial =
 [<Struct>]
 type BallImpulse =
     { ActionId: ActionId
+      RestartId: RestartId option
       ActorId: PlayerId
       Origin: Vec3
       LinearVelocity: LinearVelocity
@@ -77,8 +82,45 @@ type BallState =
       GKHoldSince: int<subtick> option
       ArrivalGate: int<subtick> option
       PreviousPosition: Spatial option
-      Impulse: BallImpulse option
-      PendingRestart: SetPieceKind option }
+      Impulse: BallImpulse option }
+
+[<Struct>]
+type RestartTarget =
+    { Side: ClubSide
+      Player: PlayerId
+      Role: RestartRole
+      Position: Vec2 }
+
+type RestartPlan =
+    { Id: RestartId
+      Cause: RestartCause
+      Kind: SetPieceKind
+      Side: ClubSide
+      Spot: Vec2
+      Executor: PlayerId
+      Targets: RestartTarget array
+      Action: RestartAction
+      AwardTick: int<subtick> }
+
+type RestartPhase =
+    | Awarded
+    | Positioning
+    | Authorized
+    | AwaitingContact
+    | Completed
+
+type RestartState =
+    { Id: RestartId
+      Cause: RestartCause
+      Kind: SetPieceKind
+      Side: ClubSide
+      Spot: Vec2
+      AwardTick: int<subtick>
+      Plan: RestartPlan option
+      Phase: RestartPhase
+      CommandIssued: bool
+      ContactObserved: bool
+      Replanned: bool }
 
 /// O(1) counters only — the pressure window lives in TeamWorld.EventWindow, so
 /// one fact is never stored in two places.
@@ -128,11 +170,12 @@ type ShootoutBook =
 
 /// Countdown states. Exactly ONE path can start a goal flow: the Goal event apply.
 type MatchFlow =
+    | PreMatch
     | Live
     | GoalPause of remaining: int<tickDelta> * side: ClubSide * scorer: PlayerId option
     | VARReview of remaining: int<tickDelta> * incident: VARIncident
     | InjuryPause of remaining: int<tickDelta>
-    | RestartDelay of remaining: int<tickDelta> * plan: RestartPlan
+    | Restart of RestartState
     | HalfTime of remaining: int<tickDelta>
     | ExtraTimeBreak of remaining: int<tickDelta>
     | FullTimeReview of remaining: int<tickDelta>

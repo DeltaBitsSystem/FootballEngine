@@ -5,13 +5,9 @@ namespace FootballEngine.Core.Match
 /// discipline, active slots, restarts and match statistics.
 module EventApply =
 
-    let private planFor (kind: SetPieceKind) (side: ClubSide) (ball: BallState) : RestartPlan =
+    let private restartSpot (kind: SetPieceKind) (side: ClubSide) (ball: BallState) : float<meter> * float<meter> =
         match kind with
-        | SetPieceKind.KickOff ->
-            { Kind = kind
-              Side = side
-              X = 0.0<meter>
-              Y = 0.0<meter> }
+        | SetPieceKind.KickOff -> 0.0<meter>, 0.0<meter>
         | SetPieceKind.Corner ->
             let y =
                 if ball.Position.Y >= 0.0<meter> then
@@ -19,10 +15,7 @@ module EventApply =
                 else
                     -Pitch.HalfWidth
 
-            { Kind = kind
-              Side = side
-              X = MatchMath.goalX side
-              Y = y }
+            MatchMath.goalX side, y
         | SetPieceKind.ThrowIn ->
             let y =
                 if ball.Position.Y >= 0.0<meter> then
@@ -33,45 +26,30 @@ module EventApply =
             let x =
                 MatchMath.clamp (-(float Pitch.HalfLength - 0.5)) (float Pitch.HalfLength - 0.5) (float ball.Position.X)
 
-            { Kind = kind
-              Side = side
-              X = x * 1.0<meter>
-              Y = y }
+            x * 1.0<meter>, y
         | SetPieceKind.GoalKick ->
             let dir = MatchMath.goalDirection side
 
-            { Kind = kind
-              Side = side
-              X = MatchMath.ownGoalX side + 6.5<meter> * dir
-              Y = 0.0<meter> }
+            MatchMath.ownGoalX side + 6.5<meter> * dir, 0.0<meter>
         | SetPieceKind.FreeKick ->
             let x =
                 MatchMath.clamp (-(float Pitch.HalfLength - 0.5)) (float Pitch.HalfLength - 0.5) (float ball.Position.X)
 
-            { Kind = kind
-              Side = side
-              X = x * 1.0<meter>
-              Y = ball.Position.Y }
+            let y =
+                MatchMath.clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) (float ball.Position.Y)
+
+            x * 1.0<meter>, y * 1.0<meter>
         | SetPieceKind.Penalty ->
             let dir = MatchMath.goalDirection side
 
-            { Kind = kind
-              Side = side
-              X = MatchMath.goalX side - 11.0<meter> * dir
-              Y = 0.0<meter> }
+            MatchMath.goalX side - 11.0<meter> * dir, 0.0<meter>
 
-    let private planAt kind side x y : RestartPlan =
-        { Kind = kind
-          Side = side
-          X = x
-          Y = y }
-
-    let private placeBall (world: World) (plan: RestartPlan) : unit =
+    let private placeBall (world: World) (spot: Vec2) : unit =
         MatchWorld.updateBall world (fun b ->
             { b with
                 Position =
-                    { X = plan.X
-                      Y = plan.Y
+                    { X = spot.X
+                      Y = spot.Y
                       Z = 0.0<meter>
                       Vx = 0.0<meterPerSecond>
                       Vy = 0.0<meterPerSecond>
@@ -83,11 +61,11 @@ module EventApply =
                 StationarySince = None
                 GKHoldSince = None
                 PreviousPosition = None
-                Impulse = None
-                PendingRestart = Some plan.Kind })
+                Impulse = None })
 
     let private isStoppage flow =
         match flow with
+        | MatchFlow.PreMatch
         | MatchFlow.Live
         | MatchFlow.VARReview _
         | MatchFlow.Shootout
@@ -200,14 +178,44 @@ module EventApply =
                 | _ -> ()
         | Some _ -> ()
 
-    let private applyRestart (ctx: MatchContext) (world: World) kind side x y =
-        let plan = planAt kind side x y
-        let delay = Flow.delayFor ctx.Config SimulationClock.defaultClock kind
-        placeBall world plan
+    let private applyRestart (ctx: MatchContext) (world: World) tick cause kind side x y =
+        let x, y =
+            match kind with
+            | SetPieceKind.FreeKick ->
+                MatchMath.clamp (-(float Pitch.HalfLength - 0.5)) (float Pitch.HalfLength - 0.5) (float x) * 1.0<meter>,
+                MatchMath.clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) (float y) * 1.0<meter>
+            | SetPieceKind.Penalty ->
+                let dir = MatchMath.goalDirection side
+                MatchMath.goalX side - 11.0<meter> * dir, 0.0<meter>
+            | _ -> x, y
 
+        let id = RestartId world.NextRestartId
+        world.NextRestartId <- world.NextRestartId + 1UL
+        let award =
+            { Id = id
+              Cause = cause
+              Kind = kind
+              Side = side
+              X = x
+              Y = y }
+
+        placeBall world { X = x; Y = y }
         world.State <-
             { world.State with
-                Flow = MatchFlow.RestartDelay(delay, plan) }
+                Flow =
+                    MatchFlow.Restart
+                        { Plan = None
+                          Id = id
+                          Cause = cause
+                          Kind = kind
+                          Side = side
+                          Spot = { X = x; Y = y }
+                          AwardTick = tick
+                          Phase = RestartPhase.Awarded
+                          CommandIssued = false
+                          ContactObserved = false
+                          Replanned = false } }
+        award
 
     let private applyPossession (ctx: MatchContext) (world: World) side pid tick =
         let pendingAdvantage =
@@ -217,10 +225,9 @@ module EventApply =
 
         MatchWorld.updateBall world (fun b ->
             { b with
-                Control = BallControl.Controlled(side, pid)
-                LastTouch = Some pid
-                StationarySince = None
-                PendingRestart = None })
+                 Control = BallControl.Controlled(side, pid)
+                 LastTouch = Some pid
+                 StationarySince = None })
 
         let book = world.State.Possession
 
@@ -259,7 +266,7 @@ module EventApply =
                 else
                     SetPieceKind.FreeKick
 
-            applyRestart ctx world kind fouledSide x y
+            applyRestart ctx world tick (RestartCause.Foul(None, None)) kind fouledSide x y |> ignore
         | None -> ()
 
     let private applyGoal (ctx: MatchContext) (world: World) side scorer xG tick buffer =
@@ -362,34 +369,39 @@ module EventApply =
                     else
                         world.State.AwayScore
 
-                let plan =
-                    planAt SetPieceKind.FreeKick defending world.State.Ball.Position.X world.State.Ball.Position.Y
-
-                let delay =
-                    Flow.delayFor ctx.Config SimulationClock.defaultClock SetPieceKind.FreeKick
-
-                placeBall world plan
-
                 world.State <-
                     { world.State with
                         HomeScore = home
                         AwayScore = away
                         LastAttackingClub = None
-                        VARReview = None
-                        Flow = MatchFlow.RestartDelay(delay, plan) }
+                        VARReview = None }
+
+                applyRestart
+                    ctx
+                    world
+                    world.State.Tick
+                    (RestartCause.VAROverturn VARIncident.Offside)
+                    SetPieceKind.FreeKick
+                    defending
+                    world.State.Ball.Position.X
+                    world.State.Ball.Position.Y
+                |> ignore
             | VARResult.GoalStands ->
-                let plan = planAt SetPieceKind.KickOff defending (0.0<meter>) (0.0<meter>)
-
-                let delay =
-                    Flow.delayFor ctx.Config SimulationClock.defaultClock SetPieceKind.KickOff
-
-                placeBall world plan
-
                 world.State <-
                     { world.State with
                         LastAttackingClub = None
-                        VARReview = None
-                        Flow = MatchFlow.RestartDelay(delay, plan) }
+                        VARReview = None }
+
+                applyRestart
+                    ctx
+                    world
+                    world.State.Tick
+                    (RestartCause.PeriodStart)
+                    SetPieceKind.KickOff
+                    defending
+                    0.0<meter>
+                    0.0<meter>
+                |> ignore
 
             RefereeVAR.clearMarkers world scoring
 
@@ -461,7 +473,6 @@ module EventApply =
                         ArrivalGate = None
                         StationarySince = Some tick
                         Impulse = None
-                        PendingRestart = None
                         Position = { b.Position with X = x; Y = y } })
             | EventData.Pass(passer, _, _, _, completed, _, _, _, _) ->
                 match MatchWorld.teamOfPlayer ctx passer with
@@ -535,21 +546,11 @@ module EventApply =
                     let team = MatchWorld.team world side
                     team.Stats.Offsides <- team.Stats.Offsides + 1
                     let defending = MatchWorld.oppOf side
-                    let plan = planFor SetPieceKind.FreeKick defending world.State.Ball
-
-                    let delay =
-                        Flow.delayFor ctx.Config SimulationClock.defaultClock SetPieceKind.FreeKick
-
-                    placeBall world plan
-
-                    world.State <-
-                        { world.State with
-                            Flow = MatchFlow.RestartDelay(delay, plan) }
+                    let x, y = restartSpot SetPieceKind.FreeKick defending world.State.Ball
+                    applyRestart ctx world tick (RestartCause.Offside player) SetPieceKind.FreeKick defending x y |> ignore
                 | None -> ()
             | EventData.SetPiece(kind, side) ->
-                let plan = planFor kind side world.State.Ball
-                let delay = Flow.delayFor ctx.Config SimulationClock.defaultClock kind
-                placeBall world plan
+                let x, y = restartSpot kind side world.State.Ball
 
                 let clock =
                     match kind, world.State.Clock.Phase with
@@ -558,16 +559,24 @@ module EventApply =
                             Phase = ClockPhase.SecondHalf }
                     | _ -> world.State.Clock
 
-                world.State <-
-                    { world.State with
-                        Flow = MatchFlow.RestartDelay(delay, plan)
-                        Clock = clock }
+                world.State <- { world.State with Clock = clock }
+                applyRestart ctx world tick (RestartCause.BallCrossedGoalLine None) kind side x y |> ignore
 
                 if kind = SetPieceKind.Corner then
                     let team = MatchWorld.team world side
                     team.Stats.Corners <- team.Stats.Corners + 1
 
                 queuePending world buffer tick
+            | EventData.SetPieceAt(kind, side, x, y) ->
+                applyRestart ctx world tick (RestartCause.BallCrossedTouchline None) kind side x y |> ignore
+                queuePending world buffer tick
+            | EventData.RestartAwarded _
+            | EventData.RestartPlanned _
+            | EventData.RestartAuthorized _
+            | EventData.RestartCommandIssued _
+            | EventData.RestartContact _
+            | EventData.RestartCompleted _
+            | EventData.RestartPlanChanged _ -> ()
             | EventData.Interception _ -> ()
             | EventData.Tackle _ -> ()
             | EventData.Save _ -> ()
@@ -826,7 +835,7 @@ module EventApply =
                         else
                             SetPieceKind.FreeKick
 
-                    applyRestart ctx world kind side x y
+                    applyRestart ctx world tick (RestartCause.Foul(None, None)) kind side x y |> ignore
                 | _ -> ()
             | EventData.AdvantageExpired side ->
                 match world.State.Advantage with
@@ -841,7 +850,7 @@ module EventApply =
                         else
                             SetPieceKind.FreeKick
 
-                    applyRestart ctx world kind side x y
+                    applyRestart ctx world tick (RestartCause.Foul(None, None)) kind side x y |> ignore
                 | _ -> ()
             | EventData.ShootoutStarted ->
                 world.State <-

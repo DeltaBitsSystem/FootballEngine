@@ -57,6 +57,7 @@ module ParticipationBook =
 /// One team's live match state. All books are owned by this match (no globals).
 type TeamWorld =
     { mutable Frame: TeamFrame
+      RosterIds: PlayerId[]
       mutable Memory: PlayerMemory[]
       mutable Cards: CardsBook
       mutable SubsUsed: int
@@ -71,11 +72,39 @@ type TeamWorld =
       mutable Substitution: SubstitutionState
       Participation: ParticipationBook
       mutable ActivePlan: ChainPlan option
-      mutable LastCarrierSlot: int }
+      mutable LastCarrierSlot: int
+      mutable LastRoleAssignmentTick: int<subtick>
+      mutable FormationCache: FormationModel option
+      mutable LateralPairs: (int * int)[] option
+      mutable GoalkeeperSlot: int option
+      mutable OwnPositions: PositionPoint[]
+      mutable MirroredPositions: PositionPoint[]
+      mutable FormationTargets: PositionPoint[]
+      mutable EvaluatorScratch: PositionPoint[] }
+
+[<Struct>]
+type RefereeSignal =
+    | NoSignal
+    | Whistle
+    | RestartDirection of SetPieceKind * ClubSide
+
+[<Struct>]
+type MatchOfficial =
+    { X: float<meter>
+      Y: float<meter> }
+
+[<Struct>]
+type OfficialsState =
+    { Referee: MatchOfficial
+      NearAssistant: MatchOfficial
+      FarAssistant: MatchOfficial
+      Signal: RefereeSignal }
 
 /// The single object systems see. All arrays/books owned by this match.
 type World =
     { mutable State: MatchState
+      mutable Officials: OfficialsState
       Home: TeamWorld
       Away: TeamWorld
-      AppliedEventIds: System.Collections.Generic.HashSet<EventId> }
+      AppliedEventIds: System.Collections.Generic.HashSet<EventId>
+      mutable NextRestartId: uint64 }

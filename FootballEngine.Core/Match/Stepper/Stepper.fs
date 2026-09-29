@@ -5,32 +5,67 @@ namespace FootballEngine.Core.Match
 /// would change every match produced from the same seed.
 module Stepper =
 
+    let private updateOfficials (world: World) =
+        let ball = world.State.Ball.Position
+
+        let refereeX, refereeY, signal =
+            match world.State.Flow with
+            | MatchFlow.Restart restart ->
+                match restart.Plan with
+                | Some plan ->
+                    let lateral = if plan.Spot.Y >= 0.0<meter> then -4.0 else 4.0
+                    let x, y = MatchMath.pitchClamp (float plan.Spot.X - 5.0) (float plan.Spot.Y + lateral)
+                    x, y, RefereeSignal.RestartDirection(plan.Kind, plan.Side)
+                | None -> float ball.X, float ball.Y, RefereeSignal.Whistle
+            | _ ->
+                let x, y = MatchMath.pitchClamp (float ball.X - 7.0) (float ball.Y + 5.0)
+                x, y, RefereeSignal.NoSignal
+
+        let assistantX = MatchMath.clamp (-(float Pitch.HalfLength)) (float Pitch.HalfLength) (float ball.X)
+
+        world.Officials <-
+            { Referee =
+                { X = refereeX * 1.0<meter>
+                  Y = refereeY * 1.0<meter> }
+              NearAssistant =
+                { X = assistantX * 1.0<meter>
+                  Y = -Pitch.HalfWidth }
+              FarAssistant =
+                { X = assistantX * 1.0<meter>
+                  Y = Pitch.HalfWidth }
+              Signal = signal }
+
     let rec private evalTrigger
         (simTick: SimTick)
         (playClock: PlayClock)
         (flow: MatchFlow)
         (flags: EventFlags)
-        (t: Trigger)
+        (t: CompiledTrigger)
         : bool =
         let tick = SimTick.value simTick
 
         match t with
-        | Trigger.EveryTick -> true
-        | Trigger.EveryN d ->
+        | CompiledTrigger.EveryTick -> true
+        | CompiledTrigger.EveryN d ->
             let dT = int d * 1<subtick>
             tick % dT = 0<subtick>
-        | Trigger.EveryMinute(period, offset) ->
+        | CompiledTrigger.EveryMinute(period, offset) ->
             let playTick = PlayClock.value playClock
 
             playTick % SimulationClock.minuteSubticks = 0<subtick>
             && PlayClock.toMatchMinute playClock % period = offset
-        | Trigger.OnEvent f -> EventFlags.intersects flags f
-        | Trigger.OnEventOrEveryN(f, d) ->
+        | CompiledTrigger.OnEvent f -> EventFlags.intersects flags f
+        | CompiledTrigger.OnEventOrEveryN(f, d) ->
             let dT = int d * 1<subtick>
             EventFlags.intersects flags f || tick % dT = 0<subtick>
-        | Trigger.WhenLive inner ->
+        | CompiledTrigger.WhenLive inner ->
             match flow with
             | MatchFlow.Live -> evalTrigger simTick playClock flow flags inner
+            | _ -> false
+        | CompiledTrigger.WhenMovementAllowed inner ->
+            match flow with
+            | MatchFlow.Live
+            | MatchFlow.Restart _ -> evalTrigger simTick playClock flow flags inner
             | _ -> false
 
     let private fire
@@ -38,9 +73,16 @@ module Stepper =
         (playClock: PlayClock)
         (flow: MatchFlow)
         (flags: EventFlags)
-        (triggers: Trigger list)
+        (triggers: CompiledTrigger[])
         : bool =
-        triggers |> List.exists (evalTrigger simTick playClock flow flags)
+        let mutable index = 0
+        let mutable matched = false
+
+        while index < triggers.Length && not matched do
+            matched <- evalTrigger simTick playClock flow flags triggers[index]
+            index <- index + 1
+
+        matched
 
     let private stoppageFingerprint (world: World) : int =
         let g = world.State.HomeScore + world.State.AwayScore
@@ -109,86 +151,65 @@ module Stepper =
                             SecondHalfAdded = addedTimeFor ctx world g2 f2 c2 s2
                             Decided = true } }
 
-    let step
-        (systems: SystemSpec list)
+    let stepInto
+        (schedule: CompiledSchedule)
         (ctx: SystemContext)
         (rng: Rng)
         (world: World)
         (buffer: EventBuffer)
-        : Rng * World * MatchEvent list =
+        (output: MatchEvent[])
+        : Rng * World * int =
         let tick = world.State.Tick
         let simTick = SimTick.ofSubTicks tick
         let playClock = MatchClock.playClock world.State.Clock
         let mutable flags = { EventFlags.Bits = 0UL }
-        let applied = ResizeArray<MatchEvent>()
+        let applied = buffer.Applied
         buffer.Applied.Clear()
+        let mutable appliedCount = 0
 
-        let toApply = List.ofSeq buffer.Events
-        buffer.Events.Clear()
+        let recordApplied (ev: MatchEvent) =
+            if appliedCount >= output.Length then
+                invalidOp "the per-tick applied event buffer is too small"
 
-        for ev in toApply do
+            applied.Add ev
+            output[appliedCount] <- ev
+            appliedCount <- appliedCount + 1
+
+        let pendingCount = buffer.Events.Count
+
+        // Event reducers only write Applied/world state; removing the processed
+        // prefix afterward preserves newly queued events without copying it.
+        for index = 0 to pendingCount - 1 do
+            let ev = buffer.Events[index]
+
             if EventApply.applyBuffered ctx.Ctx world buffer ev then
                 let k = MatchEvent.kind ev
-                buffer.Applied.Add ev
-                applied.Add ev
+                recordApplied ev
                 flags <- EventFlags.union flags (EventFlags.ofKind k)
                 EventWindow.push world.Home.EventWindow ev.Tick k
                 EventWindow.push world.Away.EventWindow ev.Tick k
+
+        if pendingCount > 0 then
+            buffer.Events.RemoveRange(0, pendingCount)
 
         buffer.Flags <- flags
 
         let applyImmediately (ev: MatchEvent) : unit =
             if EventApply.applyBuffered ctx.Ctx world buffer ev then
                 let k = MatchEvent.kind ev
-                buffer.Applied.Add ev
-                applied.Add ev
+                recordApplied ev
                 flags <- EventFlags.union flags (EventFlags.ofKind k)
                 buffer.Flags <- flags
                 EventWindow.push world.Home.EventWindow ev.Tick k
                 EventWindow.push world.Away.EventWindow ev.Tick k
 
-        let prevFlow = world.State.Flow
-        let flow', flowEvents = Flow.tick ctx.Clock ctx.Ctx.Config world tick prevFlow
+        let flow', flowEvents =
+            Flow.tick ctx.Clock ctx.Ctx.Config world tick world.State.Flow
 
         for ev in flowEvents do
             buffer.Events.Add ev
 
         world.State <- { world.State with Flow = flow' }
-
-        // Restart expiry: the ball must have a controller when play resumes. Hand
-        // over to the side's set-piece executor (Phase 201 routine marker) so
-        // the planned routine is actually taken; nearest active is the fallback.
-        match prevFlow, flow' with
-        | MatchFlow.RestartDelay(_, plan), MatchFlow.Live ->
-            let executor =
-                let team = MatchWorld.team world plan.Side
-
-                team.Frame.RunLookup.Values
-                |> Seq.tryFind (fun a -> a.Phase = 201)
-                |> Option.map (fun a -> a.Slot)
-
-            let slot =
-                match executor with
-                | Some slot when MatchWorld.isActive (MatchWorld.team world plan.Side).Frame slot -> Some slot
-                | _ ->
-                    MatchWorld.nearestActive
-                        ctx.Ctx
-                        world
-                        plan.Side
-                        world.State.Ball.Position.X
-                        world.State.Ball.Position.Y
-                        9999.0
-                    |> Option.map fst
-
-            match slot with
-            | Some slot ->
-                let pid = (MatchWorld.lineup ctx.Ctx plan.Side).Profiles.[slot].Id
-
-                applyImmediately
-                    { Tick = tick
-                      Data = EventData.Possession(plan.Side, pid) }
-            | None -> ()
-        | _ -> ()
 
         // VAR verdict is decided only at review expiry, from the snapshot taken at
         // goal time — never re-simulated, so the outcome is deterministic.
@@ -247,7 +268,7 @@ module Stepper =
 
         // Systems run strictly in scheduler order: each may read what earlier systems
         // wrote this same tick — order is part of determinism.
-        for spec in systems do
+        for spec in schedule.Systems do
             if fire simTick playClock world.State.Flow flags spec.Triggers then
                 rng <- spec.Step ctx rng world buffer
 
@@ -256,21 +277,21 @@ module Stepper =
         decideStoppage ctx world playClock
 
         match world.State.Flow, world.State.Clock.Phase with
-        | (MatchFlow.Live | MatchFlow.RestartDelay _), ClockPhase.FirstHalf ->
+        | (MatchFlow.Live | MatchFlow.Restart _), ClockPhase.FirstHalf ->
             let added = world.State.Stoppage.FirstHalfAdded
 
             if PlayClock.value playClock >= 108000<subtick> + added then
                 buffer.Events.Add
                     { Tick = tick
                       Data = EventData.HalfTime }
-        | (MatchFlow.Live | MatchFlow.RestartDelay _), ClockPhase.SecondHalf ->
+        | (MatchFlow.Live | MatchFlow.Restart _), ClockPhase.SecondHalf ->
             let added = world.State.Stoppage.SecondHalfAdded
 
             if PlayClock.value playClock >= 216000<subtick> + added then
                 buffer.Events.Add
                     { Tick = tick
                       Data = EventData.FullTime }
-        | (MatchFlow.Live | MatchFlow.RestartDelay _), ClockPhase.ExtraTimeFirstHalf ->
+        | (MatchFlow.Live | MatchFlow.Restart _), ClockPhase.ExtraTimeFirstHalf ->
             let period =
                 SimulationClock.secondsToSubTicks ctx.Clock ctx.Ctx.Config.Match.ExtraTimePeriodDuration
 
@@ -278,7 +299,7 @@ module Stepper =
                 buffer.Events.Add
                     { Tick = tick
                       Data = EventData.HalfTime }
-        | (MatchFlow.Live | MatchFlow.RestartDelay _), ClockPhase.ExtraTimeSecondHalf ->
+        | (MatchFlow.Live | MatchFlow.Restart _), ClockPhase.ExtraTimeSecondHalf ->
             let period =
                 SimulationClock.secondsToSubTicks ctx.Clock ctx.Ctx.Config.Match.ExtraTimePeriodDuration
 
@@ -291,7 +312,7 @@ module Stepper =
         // Clock advances only during play and restarts.
         match world.State.Flow with
         | MatchFlow.Live
-        | MatchFlow.RestartDelay _ ->
+        | MatchFlow.Restart _ ->
             let c = world.State.Clock
 
             world.State <-
@@ -306,8 +327,31 @@ module Stepper =
                 { world.State with
                     Momentum = world.State.Momentum * 0.9995 }
 
+        updateOfficials world
+
         world.State <-
             { world.State with
                 Tick = tick + 1<subtick> }
 
-        rng, world, List.ofSeq applied
+        rng, world, appliedCount
+
+    /// Test and tooling adapter. Runtime sessions use stepInto so no mutable
+    /// collection escapes the tick owner.
+    let step
+        (systems: SystemSpec list)
+        (ctx: SystemContext)
+        (rng: Rng)
+        (world: World)
+        (buffer: EventBuffer)
+        : Rng * World * ResizeArray<MatchEvent> =
+        let output = Array.zeroCreate<MatchEvent> 256
+
+        let rng', world', count =
+            stepInto (ScheduleCompiler.compile systems) ctx rng world buffer output
+
+        let applied = ResizeArray<MatchEvent>(count)
+
+        for i = 0 to count - 1 do
+            applied.Add output[i]
+
+        rng', world', applied

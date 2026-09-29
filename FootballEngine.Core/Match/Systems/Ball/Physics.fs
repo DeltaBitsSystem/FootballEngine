@@ -38,6 +38,7 @@ module BallPhysics =
         (executionContext: ExecutionContext)
         : BallImpulse =
         { ActionId = actionId contactTick actor strikeKind
+          RestartId = None
           ActorId = actor
           Origin = origin
           LinearVelocity = linearVelocity
@@ -46,6 +47,9 @@ module BallPhysics =
           StrikeKind = strikeKind
           ContactTick = contactTick
           ExecutionContext = executionContext }
+
+    let withRestartId (restartId: RestartId) (impulse: BallImpulse) : BallImpulse =
+        { impulse with RestartId = Some restartId }
 
     /// Every kick enters the ball state through this function. ArrivalGate is
     /// only a candidate-search hint; the contact system still observes the
@@ -79,8 +83,7 @@ module BallPhysics =
                 GKHoldSince = None
                 ArrivalGate = arrivalGate
                 PreviousPosition = None
-                Impulse = Some impulse
-                PendingRestart = None })
+                Impulse = Some impulse })
 
     let goalCrossing (previous: Spatial) (current: Spatial) : GoalCrossing option =
         let crossingFor side goalX crossed =

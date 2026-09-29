@@ -151,8 +151,17 @@ module BallContact =
         | Some gate, Some(TrajectoryIntent.Cleared) when gate <= tick ->
             let contact =
                 bestContactCandidate ctx.Ctx world x y (ball.Impulse |> Option.map (fun impulse -> impulse.ActorId))
+            let restartContact =
+                match ball.Impulse with
+                | Some
+                    { RestartId = Some restartId
+                      ActorId = actor
+                      StrikeKind = StrikeKind.Restart kind
+                      ExecutionContext = ExecutionContext.SetPiece _ } ->
+                    Some(restartId, actor, kind)
+                | _ -> None
 
-            if contact.IsSome then
+            if contact.IsSome || restartContact.IsSome then
                 MatchWorld.updateBall world (fun b ->
                     { b with
                         Trajectory = None
@@ -160,9 +169,34 @@ module BallContact =
                         Impulse = None
                         StationarySince = None })
 
+                match restartContact with
+                | Some(restartId, actor, kind) ->
+                    buffer.Events.Add
+                        { Tick = tick
+                          Data = EventData.RestartContact(restartId, actor, kind) }
+                | None ->
+                    buffer.Events.Add
+                        { Tick = tick
+                          Data = EventData.BallLoose(x, y) }
+
+            rng
+        | Some gate, Some(TrajectoryIntent.Struck _) when gate <= tick ->
+            match ball.Impulse with
+            | Some
+                { RestartId = Some restartId
+                  ActorId = actor
+                  StrikeKind = StrikeKind.Restart kind
+                  ExecutionContext = ExecutionContext.SetPiece _ } ->
+                MatchWorld.updateBall world (fun b ->
+                    { b with
+                        Trajectory = None
+                        ArrivalGate = None
+                        Impulse = None })
+
                 buffer.Events.Add
                     { Tick = tick
-                      Data = EventData.BallLoose(x, y) }
+                      Data = EventData.RestartContact(restartId, actor, kind) }
+            | _ -> ()
 
             rng
         | Some gate, Some(TrajectoryIntent.Aimed(passer, receiver, quality)) when gate <= tick ->
@@ -208,7 +242,18 @@ module BallContact =
                     | Some _ when receiverWins -> Arrival.CleanReception(receiverSide, rSlot, receiver)
                     | Some _ -> Arrival.NoContact
 
-                let resolved = arrival <> Arrival.NoContact
+                let restartImpulse = ball.Impulse
+                let restartContact =
+                    match restartImpulse with
+                    | Some
+                        { RestartId = Some restartId
+                          ActorId = actor
+                          StrikeKind = StrikeKind.Restart kind
+                          ExecutionContext = ExecutionContext.SetPiece _ } ->
+                        Some(restartId, actor, kind)
+                    | _ -> None
+
+                let resolved = arrival <> Arrival.NoContact || restartContact.IsSome
 
                 if resolved then
                     MatchWorld.updateBall world (fun b ->
@@ -216,6 +261,26 @@ module BallContact =
                             Trajectory = None
                             ArrivalGate = None
                             Impulse = None })
+
+                    match restartContact with
+                    | Some(restartId, actor, kind) ->
+                        buffer.Events.Add
+                            { Tick = tick
+                              Data = EventData.RestartContact(restartId, actor, kind) }
+                    | _ ->
+                        match restartImpulse with
+                        | Some impulse ->
+                            match impulse.RestartId, impulse.StrikeKind, impulse.ExecutionContext with
+                            | Some restartId, StrikeKind.Pass, ExecutionContext.SetPiece kind
+                            | Some restartId, StrikeKind.Cross, ExecutionContext.SetPiece kind
+                            | Some restartId, StrikeKind.Shot, ExecutionContext.SetPiece kind
+                            | Some restartId, StrikeKind.Clearance, ExecutionContext.SetPiece kind
+                            | Some restartId, StrikeKind.Restart kind, ExecutionContext.SetPiece _ ->
+                                buffer.Events.Add
+                                    { Tick = tick
+                                      Data = EventData.RestartContact(restartId, impulse.ActorId, kind) }
+                            | _ -> ()
+                        | None -> ()
 
                 match arrival with
                 | Arrival.CleanReception(side, slot, pid) ->
@@ -322,7 +387,20 @@ module BallContact =
                           Data = EventData.Possession(winSide, winPid) }
 
                     rng'
-                | Arrival.NoContact -> rng
+                | Arrival.NoContact ->
+                    if ball.StationarySince.IsSome then
+                        MatchWorld.updateBall world (fun b ->
+                            { b with
+                                Control = BallControl.Free
+                                Trajectory = None
+                                ArrivalGate = None
+                                Impulse = None })
+
+                        buffer.Events.Add
+                            { Tick = tick
+                              Data = EventData.BallLoose(ball.Position.X, ball.Position.Y) }
+
+                    rng
         | _ -> rng
 
     let step: SystemStep =

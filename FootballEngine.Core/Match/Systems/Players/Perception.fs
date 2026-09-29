@@ -18,7 +18,7 @@ module PlayerPerception =
         : unit =
         let decay = float ctx.Config.Actions.MemoryMentalDecay
 
-        for side in [ ClubSide.Home; ClubSide.Away ] do
+        let decayTeam side =
             let team = MatchWorld.team world side
 
             for slot in MatchWorld.activeSlots team.Frame do
@@ -38,30 +38,33 @@ module PlayerPerception =
                             StreakMod = mem.StreakMod * factor
                             LastMemoryDecayTick = tick }
 
+        decayTeam ClubSide.Home
+        decayTeam ClubSide.Away
+
     /// Geometry behind lane-clear: distance from a point to the segment a→b
     /// and whether the projection lies inside it. An opponent only blocks a
     /// pass when he is near the segment itself — someone beyond its ends is
     /// irrelevant.
-    let private offsetFromSegment
+    let private offsetSquaredFromSegment
         (ax: float)
         (ay: float)
         (bx: float)
         (by: float)
         (px: float)
         (py: float)
-        : float * bool =
+        : struct (float * bool) =
         let dx = bx - ax
         let dy = by - ay
         let len2 = dx * dx + dy * dy
 
         if len2 < 1.0e-9 then
-            sqrt ((px - ax) * (px - ax) + (py - ay) * (py - ay)), true
+            struct ((px - ax) * (px - ax) + (py - ay) * (py - ay), true)
         else
             let t = ((px - ax) * dx + (py - ay) * dy) / len2
             let clamped = MatchMath.clamp 0.0 1.0 t
             let cx = ax + clamped * dx
             let cy = ay + clamped * dy
-            sqrt ((px - cx) * (px - cx) + (py - cy) * (py - cy)), t > 0.1 && t < 0.9
+            struct ((px - cx) * (px - cx) + (py - cy) * (py - cy), t > 0.1 && t < 0.9)
 
     /// R3 — build the physical and cognitive perception frame for one team.
     let private perceiveTeam (ctx: MatchContext) (world: World) (side: ClubSide) (tick: int<subtick>) : unit =
@@ -73,30 +76,43 @@ module PlayerPerception =
 
         let carrier =
             match MatchWorld.ballCarrier ctx world with
-            | Some(s, _, _) when s = side -> MatchWorld.ballCarrier ctx world |> Option.map (fun (_, slot, _) -> slot)
+            | Some(carrierSide, slot, _) when carrierSide = side -> Some slot
             | _ -> None
+
+        let oppFrame = (MatchWorld.team world (MatchWorld.oppOf side)).Frame
+        let opponents = MatchWorld.activeSlots oppFrame
+        let pressRadiusSquared = pressRadius * pressRadius
+        let nearRadiusSquared = 7.0 * 7.0
 
         for slot in MatchWorld.activeSlots frame do
             let p = MatchWorld.profileOf ctx side slot
             let r = radius + float (p.Anticipation - 60.0f) * 0.2
 
-            frame.VisibilityOpp.[slot] <-
-                MatchWorld.nearestOpponent ctx world side (MatchWorld.posX frame slot) (MatchWorld.posY frame slot) r
-                |> Option.isSome
+            let x = float frame.PosX.[slot]
+            let y = float frame.PosY.[slot]
+            let visionRadiusSquared = r * r
+            let mutable visible = false
+            let mutable near = 0
+            let mutable pressing = 0
 
+            for opponentSlot in opponents do
+                let dx = x - float oppFrame.PosX.[opponentSlot]
+                let dy = y - float oppFrame.PosY.[opponentSlot]
+                let distanceSquared = dx * dx + dy * dy
+
+                if distanceSquared <= visionRadiusSquared then
+                    visible <- true
+
+                if distanceSquared <= nearRadiusSquared then
+                    near <- near + 1
+
+                if distanceSquared <= pressRadiusSquared then
+                    pressing <- pressing + 1
+
+            frame.VisibilityOpp.[slot] <- visible
             frame.VisibilityTm.[slot] <- true
-
-            frame.OppsNear.[slot] <-
-                MatchWorld.opponentsNear ctx world side (MatchWorld.posX frame slot) (MatchWorld.posY frame slot) 7.0
-
-            frame.PressCount.[slot] <-
-                MatchWorld.opponentsNear
-                    ctx
-                    world
-                    side
-                    (MatchWorld.posX frame slot)
-                    (MatchWorld.posY frame slot)
-                    pressRadius
+            frame.OppsNear.[slot] <- near
+            frame.PressCount.[slot] <- pressing
 
             let cond = float frame.Condition.[slot]
 
@@ -122,14 +138,19 @@ module PlayerPerception =
                     // the pass can still beat him — but two bodies make a wall.
                     let mutable blockers = 0
 
-                    for opp in MatchWorld.activeSlots (MatchWorld.team world (MatchWorld.oppOf side)).Frame do
-                        let oframe = (MatchWorld.team world (MatchWorld.oppOf side)).Frame
-                        let ox = float oframe.PosX.[opp]
-                        let oy = float oframe.PosY.[opp]
-                        let off, inside = offsetFromSegment cx cy tx ty ox oy
+                    let mutable opponentIndex = 0
+                    let blockRadiusSquared = float aCfg.LaneClearBlockRadius ** 2.0
 
-                        if inside && off < float aCfg.LaneClearBlockRadius then
+                    while opponentIndex < opponents.Length && blockers < 2 do
+                        let opp = opponents.[opponentIndex]
+                        let ox = float oppFrame.PosX.[opp]
+                        let oy = float oppFrame.PosY.[opp]
+                        let struct (offsetSquared, inside) = offsetSquaredFromSegment cx cy tx ty ox oy
+
+                        if inside && offsetSquared < blockRadiusSquared then
                             blockers <- blockers + 1
+
+                        opponentIndex <- opponentIndex + 1
 
                     frame.LaneClear.[slot] <- blockers < 2
 
@@ -138,22 +159,17 @@ module PlayerPerception =
                     if slot = 0 then
                         frame.FaceCone.[slot] <- true
                     else
-                        let dirX =
-                            let vx = float frame.VelX.[slot]
-                            let vy = float frame.VelY.[slot]
-                            let sp = sqrt (vx * vx + vy * vy)
+                        let vx = float frame.VelX.[slot]
+                        let vy = float frame.VelY.[slot]
+                        let speed = sqrt (vx * vx + vy * vy)
 
-                            if sp > 0.5 then
-                                vx / sp
+                        let dirX =
+                            if speed > 0.5 then
+                                vx / speed
                             else
                                 float (MatchMath.goalDirection side)
 
-                        let dirY =
-                            let vx = float frame.VelX.[slot]
-                            let vy = float frame.VelY.[slot]
-                            let sp = sqrt (vx * vx + vy * vy)
-
-                            if sp > 0.5 then vy / sp else 0.0
+                        let dirY = if speed > 0.5 then vy / speed else 0.0
 
                         let dx = cx - tx
                         let dy = cy - ty

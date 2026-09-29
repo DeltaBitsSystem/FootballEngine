@@ -9,14 +9,7 @@ open FootballEngine.Domain
 
 module MatchOutcome =
 
-    type PlayerMatchStats =
-        { PlayerId: PlayerId
-          GoalsScored: int
-          AssistsGiven: int
-          MinutesPlayed: int
-          YellowCards: int
-          RedCards: int
-          FoulsCommitted: int }
+    type PlayerMatchStats = MatchPlayerStats
 
     type FixtureOutcome =
         { FixtureId: MatchId

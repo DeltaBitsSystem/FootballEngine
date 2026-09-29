@@ -265,7 +265,9 @@ module ConfigValidation =
               yield "Movement.IntentHysteresis must be in [0, 0.5]"
           // Floor + hysteresis >1 would push intent above 1 and break clamp
           if m.IntentFloor + m.IntentHysteresis > 1.0 then
-              yield "Movement.IntentFloor + IntentHysteresis must be <= 1" ]
+              yield "Movement.IntentFloor + IntentHysteresis must be <= 1"
+          if m.CommittedRunDuration < 1<subtick> || m.CommittedRunDuration > 2000<subtick> then
+              yield "Movement.CommittedRunDuration must be in [1, 2000] subticks" ]
 
     let validateActions (a: ActionsConfig) : string list =
         [ if a.PassBaseQuality < 0.0 || a.PassBaseQuality > 1.0 then
@@ -352,41 +354,25 @@ module ConfigValidation =
               yield "Actions.MemoryMentalDecay must be in [0, 1]" ]
 
     let validateSetPiece (s: SetPieceConfig) : string list =
-        [ if s.KickoffDelay < 0.0<second> || s.KickoffDelay > 10.0<second> then
-              yield "SetPiece.KickoffDelay must be in [0, 10] s"
-          if s.ThrowInDelay < 0.0<second> || s.ThrowInDelay > 10.0<second> then
-              yield "SetPiece.ThrowInDelay must be in [0, 10] s"
-          if s.CornerDelay < 0.0<second> || s.CornerDelay > 10.0<second> then
-              yield "SetPiece.CornerDelay must be in [0, 10] s"
-          if s.GoalKickDelay < 0.0<second> || s.GoalKickDelay > 10.0<second> then
-              yield "SetPiece.GoalKickDelay must be in [0, 10] s"
-          if s.FreeKickDelay < 0.0<second> || s.FreeKickDelay > 10.0<second> then
-              yield "SetPiece.FreeKickDelay must be in [0, 10] s"
-          if s.PenaltyDelay < 0.0<second> || s.PenaltyDelay > 15.0<second> then
-              yield "SetPiece.PenaltyDelay must be in [0, 15] s"
-          // Wall 9.15m is FIFA law — allow 5-15 for variants, <5 would be inside attacker
-          if s.WallDistance < 5.0<meter> || s.WallDistance > 15.0<meter> then
-              yield "SetPiece.WallDistance must be in [5, 15] m"
-          // 0 is no wall, >10 would crowd the box
-          if s.WallPlayers < 0 || s.WallPlayers > 10 then
-              yield "SetPiece.WallPlayers must be in [0, 10]"
-          if s.PenaltyQualityBonus < 0.0 || s.PenaltyQualityBonus > 1.0 then
-              yield "SetPiece.PenaltyQualityBonus must be in [0, 1]"
-          if s.FreeKickShotChance < 0.0 || s.FreeKickShotChance > 1.0 then
-              yield "SetPiece.FreeKickShotChance must be in [0, 1]"
-          if s.CornerTargetRadius < 1.0<meter> || s.CornerTargetRadius > 30.0<meter> then
-              yield "SetPiece.CornerTargetRadius must be in [1, 30] m"
-          if s.DirectFreeKickRange < 10.0<meter> || s.DirectFreeKickRange > 50.0<meter> then
-              yield "SetPiece.DirectFreeKickRange must be in [10, 50] m"
-          if s.WallArcSpread < 0.0<meter> || s.WallArcSpread > 5.0<meter> then
-              yield "SetPiece.WallArcSpread must be in [0, 5] m"
-          if s.CornerNearZoneDist < 1.0<meter> || s.CornerNearZoneDist > 20.0<meter> then
-              yield "SetPiece.CornerNearZoneDist must be in [1, 20] m"
-          if s.CornerFarZoneDist < 5.0<meter> || s.CornerFarZoneDist > 30.0<meter> then
-              yield "SetPiece.CornerFarZoneDist must be in [5, 30] m"
-          // Near must be closer than far — otherwise zones invert
-          if s.CornerNearZoneDist >= s.CornerFarZoneDist then
-              yield "SetPiece.CornerNearZoneDist must be < CornerFarZoneDist" ]
+        [ if s.KickoffDelay < 0.0<second> || s.KickoffDelay > 10.0<second> then yield "SetPiece.KickoffDelay must be in [0, 10] s"
+          if s.ThrowInDelay < 0.0<second> || s.ThrowInDelay > 10.0<second> then yield "SetPiece.ThrowInDelay must be in [0, 10] s"
+          if s.CornerDelay < 0.0<second> || s.CornerDelay > 10.0<second> then yield "SetPiece.CornerDelay must be in [0, 10] s"
+          if s.GoalKickDelay < 0.0<second> || s.GoalKickDelay > 10.0<second> then yield "SetPiece.GoalKickDelay must be in [0, 10] s"
+          if s.FreeKickDelay < 0.0<second> || s.FreeKickDelay > 10.0<second> then yield "SetPiece.FreeKickDelay must be in [0, 10] s"
+          if s.PenaltyDelay < 0.0<second> || s.PenaltyDelay > 15.0<second> then yield "SetPiece.PenaltyDelay must be in [0, 15] s"
+          if s.WallDistance < 5.0<meter> || s.WallDistance > 15.0<meter> then yield "SetPiece.WallDistance must be in [5, 15] m"
+          if s.WallPlayers < 0 || s.WallPlayers > 10 then yield "SetPiece.WallPlayers must be in [0, 10]"
+          if s.PenaltyQualityBonus < 0.0 || s.PenaltyQualityBonus > 1.0 then yield "SetPiece.PenaltyQualityBonus must be in [0, 1]"
+          if s.FreeKickShotChance < 0.0 || s.FreeKickShotChance > 1.0 then yield "SetPiece.FreeKickShotChance must be in [0, 1]"
+          if s.CornerTargetRadius < 1.0<meter> || s.CornerTargetRadius > 30.0<meter> then yield "SetPiece.CornerTargetRadius must be in [1, 30] m"
+          if s.DirectFreeKickRange < 10.0<meter> || s.DirectFreeKickRange > 50.0<meter> then yield "SetPiece.DirectFreeKickRange must be in [10, 50] m"
+          if s.WallArcSpread < 0.0<meter> || s.WallArcSpread > 5.0<meter> then yield "SetPiece.WallArcSpread must be in [0, 5] m"
+          if s.CornerNearZoneDist < 1.0<meter> || s.CornerNearZoneDist > 20.0<meter> then yield "SetPiece.CornerNearZoneDist must be in [1, 20] m"
+          if s.CornerFarZoneDist < 5.0<meter> || s.CornerFarZoneDist > 30.0<meter> then yield "SetPiece.CornerFarZoneDist must be in [5, 30] m"
+          if s.CornerNearZoneDist >= s.CornerFarZoneDist then yield "SetPiece.CornerNearZoneDist must be < CornerFarZoneDist"
+          if s.ContactReadyRadius <= 0.0<meter> then yield "SetPiece.ContactReadyRadius must be positive"
+          if s.TargetTolerance <= 0.0<meter> then yield "SetPiece.TargetTolerance must be positive"
+          if s.MaxTargetDistance <= 0.0<meter> then yield "SetPiece.MaxTargetDistance must be positive" ]
 
     let validateTeam (t: TeamConfig) : string list =
         [ if t.UtilityAttackingWeight < 0.0 || t.UtilityAttackingWeight > 5.0 then
@@ -457,7 +443,13 @@ module ConfigValidation =
           if t.PatternWingBias < 0.0 || t.PatternWingBias > 1.0 then
               yield "Team.PatternWingBias must be in [0, 1]"
           if t.TacticalFamiliarityGain < 0.0 || t.TacticalFamiliarityGain > 1.0 then
-              yield "Team.TacticalFamiliarityGain must be in [0, 1]" ]
+              yield "Team.TacticalFamiliarityGain must be in [0, 1]"
+          if t.LooseBallCoverDistance < 2.0<meter> || t.LooseBallCoverDistance > 20.0<meter> then
+              yield "Team.LooseBallCoverDistance must be in [2, 20] m"
+          if t.RestDefenseDistance < 5.0<meter> || t.RestDefenseDistance > 40.0<meter> then
+              yield "Team.RestDefenseDistance must be in [5, 40] m"
+          if t.WeakSideSeparation < 2.0<meter> || t.WeakSideSeparation > 30.0<meter> then
+              yield "Team.WeakSideSeparation must be in [2, 30] m" ]
 
     let validatePositioning (p: PositioningConfig) : string list =
         [ if p.EvalTeammateWeight < 0.0 || p.EvalTeammateWeight > 1.0 then
@@ -476,7 +468,17 @@ module ConfigValidation =
           if p.EvalOppOurWeight < 0.0 || p.EvalOppOurWeight > 1.0 then
               yield "Positioning.EvalOppOurWeight must be in [0, 1]"
           if p.LateralSwapThreshold < 0.1<meter> || p.LateralSwapThreshold > 10.0<meter> then
-              yield "Positioning.LateralSwapThreshold must be in [0.1, 10] m" ]
+              yield "Positioning.LateralSwapThreshold must be in [0.1, 10] m"
+          if p.TargetInset < 0.5<meter> || p.TargetInset > 8.0<meter> then
+              yield "Positioning.TargetInset must be in [0.5, 8] m"
+          if p.CarrySearchRadius < 1.0<meter> || p.CarrySearchRadius > 15.0<meter> then
+              yield "Positioning.CarrySearchRadius must be in [1, 15] m"
+          if p.SupportForwardDistance < 1.0<meter> || p.SupportForwardDistance > 12.0<meter> then
+              yield "Positioning.SupportForwardDistance must be in [1, 12] m"
+          if p.SupportLateralDistance < 2.0<meter> || p.SupportLateralDistance > 20.0<meter> then
+              yield "Positioning.SupportLateralDistance must be in [2, 20] m"
+          if p.GkMaxAdvance < 0.0<meter> || p.GkMaxAdvance > 20.0<meter> then
+              yield "Positioning.GkMaxAdvance must be in [0, 20] m" ]
 
     let validateIntercept (c: InterceptConfig) : string list =
         [ // Control radius <0.5 would be feet only, >10 would be telekinesis

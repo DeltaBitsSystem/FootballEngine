@@ -8,9 +8,16 @@ namespace FootballEngine.Core.Match
 /// the team never flips every tick).
 module LateralPairs =
 
+    [<Struct>]
     type PairParams = { SwapThreshold: float }
 
-    let private optionCost (current: FPoint[]) (l: int) (r: int) (tl: FPoint) (tr: FPoint) : float =
+    let private optionCost
+        (current: PositionPoint[])
+        (l: int)
+        (r: int)
+        (tl: PositionPoint)
+        (tr: PositionPoint)
+        : float =
         MatchMath.distF32 (float32 current.[l].X) (float32 current.[l].Y) (float32 tl.X) (float32 tl.Y)
         + MatchMath.distF32 (float32 current.[r].X) (float32 current.[r].Y) (float32 tr.X) (float32 tr.Y)
 
@@ -20,7 +27,12 @@ module LateralPairs =
     /// slotR) where slotL sits on the left (negative Y) and slotR on the
     /// right (positive Y) in the team's resting shape. Returns a fresh array;
     /// the caller's `targets` is left untouched so the function stays pure.
-    let solve (params: PairParams) (current: FPoint[]) (targets: FPoint[]) (pairs: (int * int)[]) : FPoint[] =
+    let solve
+        (params: PairParams)
+        (current: PositionPoint[])
+        (targets: PositionPoint[])
+        (pairs: (int * int)[])
+        : PositionPoint[] =
         let result = Array.copy targets
 
         for (l, r) in pairs do
@@ -32,3 +44,18 @@ module LateralPairs =
                 result.[r] <- targets.[l]
 
         result
+
+    let solveInPlace
+        (params: PairParams)
+        (current: PositionPoint[])
+        (targets: PositionPoint[])
+        (pairs: (int * int)[])
+        : unit =
+        for (l, r) in pairs do
+            let noSwap = optionCost current l r targets.[l] targets.[r]
+            let swap = optionCost current l r targets.[r] targets.[l]
+
+            if swap < noSwap - params.SwapThreshold then
+                let left = targets.[l]
+                targets.[l] <- targets.[r]
+                targets.[r] <- left
