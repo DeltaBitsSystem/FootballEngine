@@ -111,7 +111,7 @@ module SimHangDiag =
                         Data = EventData.SetPiece(SetPieceKind.ThrowIn, ClubSide.Home) }
 
                   match world.State.Flow with
-                  | MatchFlow.RestartDelay(_, plan) ->
+                  | MatchFlow.Restart plan ->
                       Expect.isLessThan
                           (abs (float plan.Y))
                           (float Pitch.HalfWidth - 0.1)

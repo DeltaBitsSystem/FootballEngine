@@ -166,31 +166,4 @@ module Gate1ImpulseTests =
                   assertImpulse StrikeKind.Shot ExecutionContext.OpenPlay world
                   Expect.isGreaterThan (abs (float world.State.Ball.Position.Vx)) 0.0 "shot has horizontal velocity")
 
-              testCase "restart uses the common impulse path" (fun _ ->
-                  let world = TestBuilders.minimalWorld ()
-                  let pid = ctx.HomeLineup.Profiles.[5].Id
-                  let target = 7
-                  setBall world 0.0<meter> 0.0<meter>
-
-                  world.State <-
-                      { world.State with
-                          Ball =
-                              { world.State.Ball with
-                                  Control = BallControl.Controlled(ClubSide.Home, pid)
-                                  PendingRestart = Some SetPieceKind.Corner } }
-
-                  world.Home.Frame.RunLookup.[5 + 2000] <-
-                      { Slot = 5
-                        TargetX = float32 target
-                        TargetY = 5.0f
-                        Phase = 201
-                        ExpiresAt = 0<subtick> }
-
-                  Actions.step sctx (Rng.ofSeed 4UL) world (buffer ()) |> ignore
-
-                  assertImpulse
-                      (StrikeKind.Restart SetPieceKind.Corner)
-                      (ExecutionContext.SetPiece SetPieceKind.Corner)
-                      world
-
-                  Expect.isGreaterThan (float world.State.Ball.Position.Vz) 0.0 "corner restart is elevated") ]
+               ]

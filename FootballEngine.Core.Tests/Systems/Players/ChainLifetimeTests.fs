@@ -88,6 +88,30 @@ module ChainLifetimeTests =
                       (byte IntentCode.ExecuteRun)
                       "slot 6 no longer follows old plan")
 
+              testCase "replaced receive target cancels the old run" (fun _ ->
+                  let world = TestBuilders.formationWorld ()
+                  let passer = ctx.HomeLineup.Profiles.[5].Id
+                  let newReceiver = ctx.HomeLineup.Profiles.[7].Id
+                  let frame = world.Home.Frame
+                  world.State <- { world.State with Tick = 100<subtick> }
+                  frame.Intent.Kind.[6] <- IntentCode.ExecuteRun
+                  frame.Intent.Phase.[6] <- IntentPhase.Committed
+                  frame.Intent.CommittedUntil.[6] <- 200<subtick>
+
+                  world.State <-
+                      { world.State with
+                          Ball =
+                              { world.State.Ball with
+                                  Control = BallControl.Free
+                                  Trajectory = Some(TrajectoryIntent.Aimed(passer, newReceiver, 1.0))
+                                  ArrivalGate = Some 140<subtick> } }
+
+                  stepIntent world
+
+                  Expect.equal frame.Intent.Phase.[6] IntentPhase.Completed "old receiver run is completed"
+                  Expect.equal frame.Intent.ExitTrigger.[6] ExitTrigger.BallNearby "replacement is observable"
+                  Expect.equal frame.Intent.Kind.[7] IntentCode.ExecuteRun "new receiver keeps the run")
+
               testCase "expired plan does not generate intent" (fun _ ->
                   let world = TestBuilders.formationWorld ()
                   world.State <- { world.State with Tick = 100<subtick> }

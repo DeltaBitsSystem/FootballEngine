@@ -40,11 +40,11 @@ module PlannerTests =
           OurPos =
             ours
             |> List.toArray
-            |> Array.map (fun (s, x, y) -> s, x * 1.0<meter>, y * 1.0<meter>)
+            |> Array.map (fun (s, x, y) -> struct (s, x * 1.0<meter>, y * 1.0<meter>))
           OppPos =
             opps
             |> List.toArray
-            |> Array.map (fun (s, x, y) -> s, x * 1.0<meter>, y * 1.0<meter>)
+            |> Array.map (fun (s, x, y) -> struct (s, x * 1.0<meter>, y * 1.0<meter>))
           OffsideLine = 45.0<meter>
           Dir = 1.0 }
 
@@ -64,7 +64,15 @@ module PlannerTests =
 
     let private s = state 5 [ 5, 0.0, 0.0; 6, 12.0, 8.0; 9, 26.0, 0.0 ] farOpps
 
-    let private search = Planner.search cfg weights pparams
+    let private search state options =
+        Planner.search cfg weights pparams state (List.toArray options)
+
+    let private containsTarget slot (chain: Planner.ChainAction[]) =
+        chain
+        |> Array.exists (fun action ->
+            match action with
+            | Planner.Pass(s, _, _) -> s = slot
+            | _ -> false)
 
     let plannerTests =
         testList
@@ -96,12 +104,6 @@ module PlannerTests =
                   let r = search s' [ (1, 6, 0.6) ]
                   Expect.isGreaterThan r.Length 0 "at least one eval"
 
-                  let rec containsTarget slot =
-                      function
-                      | [] -> false
-                      | Planner.Pass(s, _, _) :: rest when s = slot -> true
-                      | _ :: rest -> containsTarget slot rest
-
                   for ev in r do
                       Expect.isFalse (containsTarget 9 ev.Chain) "offside slot 9 must never be planned")
 
@@ -113,7 +115,7 @@ module PlannerTests =
 
                   for ev in r do
                       match ev.Chain with
-                      | Planner.Pass(6, _, _) :: Planner.Pass(9, _, _) :: _ ->
+                      | [| Planner.Pass(6, _, _); Planner.Pass(9, _, _); _ |] ->
                           failtest "must not plan an infeasible 6->9 pass"
                       | _ -> ())
 
@@ -125,8 +127,8 @@ module PlannerTests =
 
                   Expect.isGreaterThan r.Length 1 "two options returned"
 
-                  let via6 = r |> List.find (fun e -> e.TargetSlot = 6)
-                  let via8 = r |> List.find (fun e -> e.TargetSlot = 8)
+                  let via6 = r |> Array.find (fun e -> e.TargetSlot = 6)
+                  let via8 = r |> Array.find (fun e -> e.TargetSlot = 8)
                   Expect.isGreaterThan via6.Value via8.Value "shot-opening pass wins")
 
               testCase "identical geometry with a higher utility wins" (fun _ ->
@@ -143,14 +145,14 @@ module PlannerTests =
                   let cfgTiny = { cfg with MaxEvaluateLimit = 1 }
 
                   let passOpts = [ (1, 6, 0.6); (1, 9, 0.5) ]
-                  let rTiny = Planner.search cfgTiny weights pparams s passOpts
+                  let rTiny = Planner.search cfgTiny weights pparams s (List.toArray passOpts)
                   Expect.isGreaterThanOrEqual rTiny.Length 1 "at least one"
 
                   match rTiny with
-                  | [ first; second ] ->
+                  | [| first; second |] ->
                       Expect.equal first.Chain.Length 1 "top option gets one expansion"
                       Expect.equal second.Chain.Length 0 "lower option gets nothing"
-                  | [ first ] -> Expect.equal first.Chain.Length 1 "sole option gets one expansion"
+                  | [| first |] -> Expect.equal first.Chain.Length 1 "sole option gets one expansion"
                   | _ -> failtest "unexpected result count")
 
               testCase "options absent from level-1 list never appear as first actions" (fun _ ->
@@ -159,15 +161,15 @@ module PlannerTests =
 
                   Expect.equal r.[0].ActionCode 1 "pass code"
                   Expect.equal r.[0].TargetSlot 6 "pass target"
-                  Expect.isFalse (r |> List.exists (fun e -> e.ActionCode = 2)) "no shot first action"
-                  Expect.isFalse (r |> List.exists (fun e -> e.ActionCode = 3)) "no dribble first action")
+                  Expect.isFalse (r |> Array.exists (fun e -> e.ActionCode = 2)) "no shot first action"
+                  Expect.isFalse (r |> Array.exists (fun e -> e.ActionCode = 3)) "no dribble first action")
 
               testCase "a cross option is planned as a cross, valued at its own utility" (fun _ ->
                   let r = search s [ (5, -1, 0.5) ]
                   Expect.hasLength r 1 "one cross option"
 
                   match r.[0].Chain with
-                  | [ Planner.Cross _ ] -> ()
+                  | [| Planner.Cross _ |] -> ()
                   | other -> failtestf "cross must stay a cross, got %A" other
 
                   Expect.equal r.[0].Value 0.5 "a terminal cross keeps its calibrated utility")

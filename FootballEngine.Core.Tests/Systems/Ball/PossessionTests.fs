@@ -53,6 +53,26 @@ module PossessionTests =
 
                   Expect.isGreaterThan (float world.State.Ball.Position.X) (float before) "ball carried forward")
 
+              testCase "Controlled ball remains inside when its carrier reaches a pitch boundary" (fun _ ->
+                  let world = TestBuilders.minimalWorld ()
+                  let pid = ctx.HomeLineup.Profiles.[5].Id
+
+                  world.State <-
+                      { world.State with
+                          Ball =
+                              { world.State.Ball with
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          X = Pitch.HalfLength - 0.1<meter>
+                                          Y = Pitch.HalfWidth }
+                                  Control = BallControl.Controlled(ClubSide.Home, pid) } }
+
+                  place world ClubSide.Home 5 Pitch.HalfLength Pitch.HalfWidth
+                  BallPossession.step sctx (Rng.ofSeed 3UL) world (buffer ()) |> ignore
+
+                  Expect.isLessThanOrEqual world.State.Ball.Position.X Pitch.HalfLength "ball x remains legal"
+                  Expect.isLessThanOrEqual world.State.Ball.Position.Y Pitch.HalfWidth "ball y remains legal")
+
               testCase "Receiving grace ends after the grace period" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
                   let pid = ctx.HomeLineup.Profiles.[5].Id

@@ -6,6 +6,7 @@ open FootballEngine.Data
 open FootballEngine.Domain
 open FootballEngine.Generation
 open FootballEngine.Core.Match
+open FootballEngine.World
 open FootballEngine.World.Phases
 
 module WorldGenerationTests =
@@ -47,6 +48,38 @@ module WorldGenerationTests =
         match WorldGen.generateNewGame resolved seed startDate "TST" "Test Manager" secondary with
         | Ok value -> value
         | Error error -> failtestf "generation failed: %A" error
+
+    let private completedUserJob () =
+        let generated = generate 0xC02UL []
+
+        let matchId, fixture =
+            generated.Competitions
+            |> Map.toSeq
+            |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
+            |> Seq.find (fun (_, fixture) ->
+                MatchFixture.isPending fixture
+                && MatchFixture.involves generated.UserClubId fixture)
+
+        let state =
+            { generated with
+                CurrentDate = fixture.ScheduledDate.Date }
+
+        let clock = WorldClockOps.init state.Season
+
+        let job =
+            match WorldRunner.prepareUserMatchJobWithBalance BalanceConfig.defaultConfig clock state matchId with
+            | Ok value -> value
+            | Error error -> failtestf "user match preparation failed: %s" error
+
+        let outcome =
+            match MatchSession.create Scheduler.systems job.Input MatchRunMode.Fast with
+            | Error error -> failtestf "user match session creation failed: %A" error
+            | Ok session ->
+                match MatchSession.finish session with
+                | Ok value -> value
+                | Error error -> failtestf "user match did not finish: %A" error
+
+        state, clock, WorldRunner.matchJobResult job outcome
 
     let worldGenerationTests =
         testList
@@ -147,4 +180,65 @@ module WorldGenerationTests =
                   let once = MatchOutcome.applyOutcomes fixtureToComp [| outcome |] state
                   let twice = MatchOutcome.applyOutcomes fixtureToComp [| outcome |] once
 
-                  Expect.equal twice once "standings, morale and fixture state are not applied twice" ]
+                  Expect.equal twice once "standings, morale and fixture state are not applied twice"
+
+              testCase "a completed user job commits exactly once"
+              <| fun _ ->
+                  let state, clock, result = completedUserJob ()
+
+                  match WorldRunner.commitUserMatchJobWithBalance BalanceConfig.defaultConfig clock state result with
+                  | Error error -> failtestf "valid result was rejected: %s" error
+                  | Ok committed ->
+                      Expect.hasLength committed.DayResult.PlayedMatches 1 "one fixture is committed"
+
+                      match
+                          WorldRunner.commitUserMatchJobWithBalance
+                              BalanceConfig.defaultConfig
+                              committed.DayResult.WorldClock
+                              committed.DayResult.GameState
+                              result
+                      with
+                      | Error error -> Expect.equal error "Match result was already committed" "replay is rejected"
+                      | Ok _ -> failtest "the same result was committed twice"
+
+              testCase "a user job rejects stale revisions, unknown fixtures and invalid hashes"
+              <| fun _ ->
+                  let state, clock, result = completedUserJob ()
+
+                  let staleClock =
+                      { clock with
+                          Revision = clock.Revision + 1UL }
+
+                  Expect.equal
+                      (WorldRunner.commitUserMatchJobWithBalance BalanceConfig.defaultConfig staleClock state result)
+                      (Error "Match result is stale for the current world revision")
+                      "stale revision is rejected"
+
+                  Expect.equal
+                      (WorldRunner.commitUserMatchJobWithBalance
+                          BalanceConfig.defaultConfig
+                          clock
+                          state
+                          { result with MatchId = 999999 })
+                      (Error "Match result references an unknown fixture")
+                      "unknown fixture is rejected"
+
+                  Expect.equal
+                      (WorldRunner.commitUserMatchJobWithBalance
+                          BalanceConfig.defaultConfig
+                          clock
+                          state
+                          { result with
+                              InputHash = result.InputHash + 1UL })
+                      (Error "Match result input hash does not match the current fixture input")
+                      "input hash is validated"
+
+                  Expect.equal
+                      (WorldRunner.commitUserMatchJobWithBalance
+                          BalanceConfig.defaultConfig
+                          clock
+                          state
+                          { result with
+                              HomeScore = result.HomeScore + 1 })
+                      (Error "Match result hash is invalid")
+                      "result facts are validated" ]

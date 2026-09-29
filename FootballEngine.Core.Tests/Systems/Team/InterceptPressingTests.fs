@@ -118,6 +118,40 @@ module InterceptPressingTests =
                               IntentCode.Press
                               (sprintf "slot %d must not press" slot))
 
+              testCase "first defender presses an opponent ball carrier" (fun _ ->
+                  let world, ctx = pressWorld ()
+                  let carrier = ctx.AwayLineup.Profiles.[9].Id
+
+                  world.State <-
+                      { world.State with
+                          Tick = 400<subtick>
+                          Ball =
+                              { world.State.Ball with
+                                  Control = BallControl.Controlled(ClubSide.Away, carrier) } }
+
+                  TeamPerceive.step (sctx ctx) (Rng.ofSeed 11UL) world (buffer ()) |> ignore
+                  runIntents ctx world
+
+                  let pressers =
+                      MatchWorld.activeSlots world.Home.Frame
+                      |> Array.filter (fun slot -> world.Home.Frame.Intent.Kind.[slot] = IntentCode.Press)
+
+                  Expect.equal world.Home.Blackboard.OurPhase PhaseKind.Defending "rival control sets the defensive phase"
+                  Expect.equal pressers.Length 1 "one coordinated first defender presses"
+                  Expect.equal
+                      world.Home.Frame.DefensiveRoles.[pressers.[0]]
+                      DefensiveRole.FirstDefender
+                      "the assigned first defender owns the press"
+                  Expect.equal world.Home.Frame.Intent.TargetX.[pressers.[0]] 0.0f "the press targets the carrier position"
+                  Expect.equal world.Home.Frame.Intent.TargetY.[pressers.[0]] 0.0f "the press targets the carrier position"
+
+                  let before = abs world.Home.Frame.PosX.[pressers.[0]]
+                  PlayerSteering.step (sctx ctx) (Rng.ofSeed 11UL) world (buffer ()) |> ignore
+                  Expect.isLessThan
+                      (abs world.Home.Frame.PosX.[pressers.[0]])
+                      before
+                      "the first defender physically closes down the carrier")
+
               testCase "high pressing allowance chases even if rival arrives earlier" (fun _ ->
                   let intercept = interceptWith 18 10
 

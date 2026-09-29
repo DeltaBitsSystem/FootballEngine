@@ -144,6 +144,35 @@ module ContactTests =
                   | BallControl.Controlled(ClubSide.Away, pid) -> Expect.equal pid defender "defender got the ball"
                   | other -> failtestf "expected Controlled Away, got %A" other)
 
+              testCase "stationary aimed ball with no contact becomes loose" (fun _ ->
+                  let world = TestBuilders.minimalWorld ()
+                  placeAllFar world
+                  let passer = ctx.HomeLineup.Profiles.[4].Id
+                  let receiver = ctx.HomeLineup.Profiles.[5].Id
+                  setBall world 48.0<meter> 0.0<meter>
+
+                  world.State <-
+                      { world.State with
+                          Ball =
+                              { world.State.Ball with
+                                  Control = BallControl.Airborne
+                                  StationarySince = Some 0<subtick>
+                                  ArrivalGate = Some 0<subtick>
+                                  Trajectory = Some(TrajectoryIntent.Aimed(passer, receiver, 1.0)) } }
+
+                  let buf = buffer ()
+                  BallContact.step sctx (Rng.ofSeed 3UL) world buf |> ignore
+
+                  Expect.isTrue
+                      (hasEvent buf (fun ev ->
+                          match ev with
+                          | EventData.BallLoose _ -> true
+                          | _ -> false))
+                      "a missed stationary arrival is visible as a loose ball"
+
+                  Expect.equal world.State.Ball.Control BallControl.Free "the ball can be claimed"
+                  Expect.isNone world.State.Ball.Trajectory "the expired arrival no longer owns the ball")
+
               testCase "No arrival gate means nothing happens" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
                   placeAllFar world

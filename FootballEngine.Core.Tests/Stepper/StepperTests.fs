@@ -31,7 +31,7 @@ module StepperTests =
 
                   let _, _, applied = Stepper.step [] sctx (Rng.ofSeed 3UL) world buf
 
-                  Expect.equal applied.Length 1 "applied"
+                  Expect.equal applied.Count 1 "applied"
                   Expect.equal world.Home.Stats.Touches 1 "touch counted"
 
                   match world.State.Ball.Control with
@@ -222,24 +222,18 @@ module StepperTests =
                           | _ -> false)
                       "goal stands")
 
-              testCase "Restart expiry hands the ball to the kicking side" (fun _ ->
-                  let world = TestBuilders.minimalWorld ()
-
-                  let plan =
-                      { Kind = SetPieceKind.KickOff
-                        Side = ClubSide.Home
-                        X = 0.0<meter>
-                        Y = 0.0<meter> }
+              testCase "Restart expiry remains dead until a real impulse" (fun _ ->
+                  let world, restart = TestBuilders.minimalWorld (), TestBuilders.restartState SetPieceKind.KickOff ClubSide.Home (Vec2.create 0.0<meter> 0.0<meter>) RestartPhase.Positioning
 
                   world.State <-
-                      { world.State with
-                          Flow = MatchFlow.RestartDelay(1<tickDelta>, plan) }
+                       { world.State with
+                           Flow = MatchFlow.Restart restart }
 
                   let _, _, _ = Stepper.step [] sctx (Rng.ofSeed 3UL) world (buffer ())
 
-                  match world.State.Ball.Control with
-                  | BallControl.Controlled(ClubSide.Home, _) -> ()
-                  | other -> failtestf "expected Controlled Home, got %A" other)
+                  match world.State.Flow with
+                  | MatchFlow.Restart { Phase = RestartPhase.Positioning } -> ()
+                  | other -> failtestf "expected dead preparation without an impulse, got %A" other)
 
               testCase "Momentum decays toward zero" (fun _ ->
                   let world = TestBuilders.minimalWorld ()

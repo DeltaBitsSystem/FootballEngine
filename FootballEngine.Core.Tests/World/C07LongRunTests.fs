@@ -35,6 +35,7 @@ module C07LongRunTests =
 
         { Id = id
           Name = name
+          BroadcastIdentity = BroadcastIdentity.generated ($"competition:{id}")
           Type = NationalLeague(LeagueLevel level, leagueRules)
           Country = Some "TST"
           Season = 2026

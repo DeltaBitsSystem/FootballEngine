@@ -183,7 +183,7 @@ module Gate0Tests =
                       { Tick = 0<subtick>
                         Data = EventData.Card(pid, CardColor.Yellow) }
 
-                  let cardSystem =
+                  let cardSystem: SystemSpec =
                       { Name = "Gate0.RefereeCards"
                         Triggers = [ Trigger.OnEvent(EventFlags.ofKind EventKind.Card) ]
                         Step = RefereeCards.step }
@@ -223,7 +223,7 @@ module Gate0Tests =
                       Simulator.runMatch Scheduler.systems ctx 0xD00DFEEDUL Simulator.RunMode.Fast None
 
                   let full =
-                      Simulator.runMatch Scheduler.systems ctx 0xD00DFEEDUL Simulator.RunMode.Full None
+                      Simulator.runMatch Scheduler.systems ctx 0xD00DFEEDUL (Simulator.RunMode.Replay 20<tickDelta>) None
 
                   Expect.equal (canonicalHash fast.Final) (canonicalHash full.Final) "full state hash identical"
                   Expect.equal fast.EventsHash full.EventsHash "event hash identical"

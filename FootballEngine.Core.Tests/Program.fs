@@ -6,7 +6,6 @@ open FootballEngine.Core.Tests.Contracts.RngTests
 open FootballEngine.Core.Tests.Contracts.ClockTests
 open FootballEngine.Core.Tests.Contracts.EventFlagTests
 open FootballEngine.Core.Tests.Contracts.ConfigTests
-open FootballEngine.Core.Tests.Contracts.ConfigMigrationTests
 open FootballEngine.Core.Tests.Systems.Ball.PhysicsTests
 open FootballEngine.Core.Tests.Systems.Ball.Gate1ImpulseTests
 open FootballEngine.Core.Tests.Systems.Ball.ContactTests
@@ -27,11 +26,11 @@ open FootballEngine.Core.Tests.Systems.Players.PerceptionTests
 open FootballEngine.Core.Tests.Systems.Players.DecisionTests
 open FootballEngine.Core.Tests.Systems.Players.PlannerTests
 open FootballEngine.Core.Tests.Systems.Players.PlannerEvaluatorTests
+open FootballEngine.Core.Tests.Systems.Players.SteeringTests
 open FootballEngine.Core.Tests.Systems.Players.ChainIntegrationTests
 open FootballEngine.Core.Tests.Systems.Players.ChainLifetimeTests
 open FootballEngine.Core.Tests.Systems.Players.PlannerBudgetTests
 open FootballEngine.Core.Tests.Systems.Players.Actions.PassTests
-open FootballEngine.Core.Tests.Systems.Players.Actions.SetPieceTests
 open FootballEngine.Core.Tests.Systems.Players.Actions.ShootoutTests
 open FootballEngine.Core.Tests.Systems.Team.FormationTests
 open FootballEngine.Core.Tests.Systems.Team.FieldEvaluatorTests
@@ -57,6 +56,7 @@ open FootballEngine.Core.Tests.Contracts.BoundaryTests
 open FootballEngine.Core.Tests.Contracts.AutosaveQueueTests
 open FootballEngine.Core.Tests.Contracts.FinanceTests
 open FootballEngine.Core.Tests.Contracts.MatchSessionTests
+open FootballEngine.Core.Tests.Contracts.LivePresentationTests
 open FootballEngine.Core.Tests.Contracts.DataLockTests
 open FootballEngine.Core.Tests.GameData.ModContractTests
 open FootballEngine.Core.Tests.GameData.ModResolutionTests
@@ -77,7 +77,6 @@ let main argv =
               FootballEngine.Core.Tests.Contracts.ClockTests.clockTests
               eventFlagTests
               configTests
-              configMigrationTests
               physicsTests
               gate1ImpulseTests
               contactTests
@@ -98,11 +97,11 @@ let main argv =
               decisionTests
               plannerTests
               plannerEvaluatorTests
+              steeringTests
               chainIntegrationTests
               chainLifetimeTests
               plannerBudgetTests
               passTests
-              setPieceTests
               shootoutTests
               formationTests
               fieldEvaluatorTests
@@ -130,6 +129,7 @@ let main argv =
               FootballEngine.Core.Tests.Contracts.AutosaveQueueTests.tests
               FootballEngine.Core.Tests.Contracts.FinanceTests.tests
               FootballEngine.Core.Tests.Contracts.MatchSessionTests.tests
+              FootballEngine.Core.Tests.Contracts.LivePresentationTests.tests
               dataLockTests
               FootballEngine.Core.Tests.GameData.ModContractTests.tests
               FootballEngine.Core.Tests.GameData.ModResolutionTests.modResolutionTests

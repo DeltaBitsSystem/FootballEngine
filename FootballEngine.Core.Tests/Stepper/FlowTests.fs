@@ -9,12 +9,6 @@ module FlowTests =
     let private ctx = TestBuilders.defaultCtx ()
     let private clock = SimulationClock.defaultClock
 
-    let private kickoffPlan =
-        { Kind = SetPieceKind.KickOff
-          Side = ClubSide.Home
-          X = 0.0<meter>
-          Y = 0.0<meter> }
-
     let flowTests =
         testList
             "FootballEngine.Core.Stepper.FlowTests"
@@ -24,25 +18,6 @@ module FlowTests =
 
                   Expect.equal flow' MatchFlow.Live "still live"
                   Expect.isEmpty events "no events")
-
-              testCase "RestartDelay counts down to Live" (fun _ ->
-                  let world = TestBuilders.minimalWorld ()
-
-                  let flow', events =
-                      Flow.tick clock ctx.Config world 0<subtick> (MatchFlow.RestartDelay(2<tickDelta>, kickoffPlan))
-
-                  match flow' with
-                  | MatchFlow.RestartDelay(1<tickDelta>, plan) ->
-                      Expect.equal plan.Kind SetPieceKind.KickOff "same plan"
-                  | other -> failtestf "expected RestartDelay(1), got %A" other
-
-                  Expect.isEmpty events "no events yet"
-
-                  let flow'', events2 =
-                      Flow.tick clock ctx.Config world 1<subtick> (MatchFlow.RestartDelay(1<tickDelta>, kickoffPlan))
-
-                  Expect.equal flow'' MatchFlow.Live "live after countdown"
-                  Expect.isEmpty events2 "no events at expiry")
 
               testCase "GoalPause expiry awards kickoff to the conceding side" (fun _ ->
                   let world = TestBuilders.minimalWorld ()

@@ -12,17 +12,9 @@ module MatchFactoryTests =
     let matchFactoryTests =
         testList
             "FootballEngine.Core.Stepper.MatchFactoryTests"
-            [ testCase "Fresh match starts with the kickoff delay" (fun _ ->
+            [ testCase "Fresh match enters kickoff through the event pipeline" (fun _ ->
                   let world = MatchFactory.create ctx
-                  let expected = Flow.delayFor ctx.Config clock SetPieceKind.KickOff
-
-                  match world.State.Flow with
-                  | MatchFlow.RestartDelay(d, plan) ->
-                      Expect.equal d expected "kickoff delay"
-                      Expect.equal plan.Kind SetPieceKind.KickOff "kickoff plan"
-                      Expect.equal plan.Side ClubSide.Home "home kicks off"
-                      Expect.equal (float plan.X) 0.0 "ball at centre"
-                  | other -> failtestf "expected RestartDelay, got %A" other)
+                  Expect.equal world.State.Flow MatchFlow.PreMatch "kickoff has not bypassed event application")
 
               testCase "Scoreboard and clock start at zero" (fun _ ->
                   let world = MatchFactory.create ctx

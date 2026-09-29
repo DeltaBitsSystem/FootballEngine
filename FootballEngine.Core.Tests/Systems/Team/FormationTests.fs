@@ -22,7 +22,7 @@ module FormationTests =
         let roles = lineup.Profiles |> Array.map (fun p -> p.Role)
         Formation.fromLineup roles lineup.BasePositions 1.0 anchors
 
-    let private strikerAndDefenders (slots: FPoint[]) (roles: SlotRole[]) =
+    let private strikerAndDefenders (slots: PositionPoint[]) (roles: SlotRole[]) =
         let striker = roles |> Array.findIndex (fun r -> r = SlotRole.Striker)
 
         let defenders =
@@ -51,6 +51,18 @@ module FormationTests =
                   let a = Formation.query f 12.0<meter> -7.0<meter>
                   let b = Formation.query f 12.0<meter> -7.0<meter>
                   Expect.sequenceEqual a b "same ball position yields identical targets")
+
+              testCase "queryInto matches the owned query" (fun _ ->
+                  let f = homeFormation ()
+
+                  for bx, by in
+                      [| -40.0<meter>, -20.0<meter>
+                         0.0<meter>, 0.0<meter>
+                         35.0<meter>, 22.0<meter> |] do
+                      let expected = Formation.query f bx by
+                      let actual = Array.zeroCreate f.SlotCount
+                      Formation.queryInto f bx by actual
+                      Expect.sequenceEqual actual expected "reused query preserves the target geometry")
 
               testCase "targets stay inside the pitch for any ball position" (fun _ ->
                   let f = homeFormation ()

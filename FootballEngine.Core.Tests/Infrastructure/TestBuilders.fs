@@ -177,8 +177,25 @@ module TestBuilders =
           GKHoldSince = None
           ArrivalGate = None
           PreviousPosition = None
-          Impulse = None
-          PendingRestart = None }
+          Impulse = None }
+
+    let restartState
+        (kind: SetPieceKind)
+        (side: ClubSide)
+        (spot: Vec2)
+        (phase: RestartPhase)
+        : RestartState =
+        { Id = RestartId 1UL
+          Cause = MatchStart
+          Kind = kind
+          Side = side
+          Spot = spot
+          AwardTick = 0<subtick>
+          Plan = None
+          Phase = phase
+          CommandIssued = false
+          ContactObserved = false
+          Replanned = false }
 
     let makeTeamWorld (lineup: Lineup) : TeamWorld =
         let n = lineup.SlotCount
@@ -229,6 +246,7 @@ module TestBuilders =
               ActiveCache = ActiveSlotsCache() }
 
         { Frame = frame
+          RosterIds = lineup.Profiles |> Array.map _.Id
           Memory =
             Array.init n (fun _ ->
                 { LastTouchTick = 0<subtick>
@@ -311,7 +329,15 @@ module TestBuilders =
               UsedIncoming = Set.empty }
           Participation = ParticipationBook.create ()
           ActivePlan = None
-          LastCarrierSlot = -1 }
+          LastCarrierSlot = -1
+          LastRoleAssignmentTick = -1<subtick>
+          FormationCache = None
+          LateralPairs = None
+          GoalkeeperSlot = None
+          OwnPositions = Array.empty
+          MirroredPositions = Array.empty
+          FormationTargets = Array.empty
+          EvaluatorScratch = Array.empty }
 
     let minimalWorld () : World =
         let ctx = defaultCtx ()
@@ -345,9 +371,15 @@ module TestBuilders =
                   AwayKicks = 0
                   Scheduled = false
                   Complete = false } }
+          Officials =
+            { Referee = { X = 0.0<meter>; Y = 0.0<meter> }
+              NearAssistant = { X = 0.0<meter>; Y = -Pitch.HalfWidth }
+              FarAssistant = { X = 0.0<meter>; Y = Pitch.HalfWidth }
+              Signal = RefereeSignal.NoSignal }
           Home = makeTeamWorld ctx.HomeLineup
           Away = makeTeamWorld ctx.AwayLineup
-          AppliedEventIds = System.Collections.Generic.HashSet<EventId>() }
+          AppliedEventIds = System.Collections.Generic.HashSet<EventId>()
+          NextRestartId = 1UL }
 
     let worldWithBallAt (x: float<meter>) (y: float<meter>) (world: World) : World =
         world.State <-

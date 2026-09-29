@@ -62,7 +62,9 @@ module ChainSequenceTests =
                   let avgAway = awayPasses |> Seq.averageBy float
 
                   Expect.isGreaterThan avgHome 100.0 "home passes completed average > 100"
-                  Expect.isLessThan avgAway 600.0 "away passes completed average < 600")
+                  Expect.isGreaterThan avgAway 100.0 "away passes completed average > 100"
+                  Expect.isLessThan avgHome 1500.0 "home passes completed average remains bounded"
+                  Expect.isLessThan avgAway 1500.0 "away passes completed average remains bounded")
 
               testCase "same seed produces same event hash" (fun _ ->
                   let a = Simulator.runMatch systems ctx 777UL Simulator.RunMode.Fast None

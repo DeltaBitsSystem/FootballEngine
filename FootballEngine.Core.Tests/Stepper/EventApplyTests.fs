@@ -49,10 +49,10 @@ module EventApplyTests =
                         Data = EventData.SetPiece(SetPieceKind.FreeKick, ClubSide.Away) }
 
                   match world.State.Flow with
-                  | MatchFlow.RestartDelay(_, plan) ->
-                      Expect.equal plan.Kind SetPieceKind.FreeKick "restart is a free kick"
-                      Expect.equal plan.Side ClubSide.Away "free kick for the fouled side"
-                      Expect.isGreaterThan (float plan.Y) 0.0 "ball placed at the foul spot"
+                  | MatchFlow.Restart restart ->
+                      Expect.equal restart.Kind SetPieceKind.FreeKick "restart is a free kick"
+                      Expect.equal restart.Side ClubSide.Away "free kick for the fouled side"
+                      Expect.isGreaterThan (float restart.Spot.Y) 0.0 "ball placed at the foul spot"
                   | other -> failtestf "expected a restart delay, got %A" other)
 
               testCase "penalty restart places the ball on the spot" (fun _ ->
@@ -78,9 +78,9 @@ module EventApplyTests =
                         Data = EventData.SetPiece(SetPieceKind.Penalty, ClubSide.Away) }
 
                   match world.State.Flow with
-                  | MatchFlow.RestartDelay(_, plan) ->
-                      Expect.equal plan.Kind SetPieceKind.Penalty "restart is a penalty"
-                      Expect.equal plan.Side ClubSide.Away "penalty for the fouled side"
+                  | MatchFlow.Restart restart ->
+                      Expect.equal restart.Kind SetPieceKind.Penalty "restart is a penalty"
+                      Expect.equal restart.Side ClubSide.Away "penalty for the fouled side"
                   | other -> failtestf "expected a restart delay, got %A" other)
 
               testCase "goal flip updates the scoreboard only once" (fun _ ->

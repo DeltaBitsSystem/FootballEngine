@@ -43,4 +43,51 @@ module DeterminismTests =
                   | None -> failtest "replay data expected"
                   | Some replay ->
                       Expect.isNonEmpty replay.Snapshots "snapshots present"
-                      Expect.equal ((Replay.read replay |> Seq.head).Tick) 0<subtick> "first snapshot at kickoff") ]
+                      let first = Replay.read replay |> Seq.head
+                      Expect.equal first.Tick 0<subtick> "first snapshot at kickoff"
+
+                      let firstId =
+                          match first.HomePlayerIds[0] with
+                          | FootballEngine.Core.Match.PlayerId id -> id
+
+                      let secondId =
+                          match first.HomePlayerIds[1] with
+                          | FootballEngine.Core.Match.PlayerId id -> id
+
+                      let duplicateIds = Array.copy first.HomePlayerIds
+                      duplicateIds[1] <- duplicateIds[0]
+
+                      let duplicateRoster =
+                          { first with
+                              HomePlayerIds = duplicateIds }
+
+                      let duplicateRosterRejected =
+                          try
+                              Replay.write [ duplicateRoster ] |> ignore
+                              false
+                          with :? System.ArgumentException ->
+                              true
+
+                      Expect.isTrue duplicateRosterRejected "duplicate stable player IDs are rejected at write time"
+
+                      let duplicateHeader = Array.copy replay.Snapshots
+
+                      System.BitConverter.GetBytes(firstId)
+                      |> fun value -> Array.blit value 0 duplicateHeader 32 4
+
+                      let duplicateHeaderRejected =
+                          try
+                              Replay.readFrame
+                                  { replay with
+                                      Snapshots = duplicateHeader
+                                      HomePlayerIds = duplicateIds }
+                                  0
+                              |> ignore
+
+                              false
+                          with :? System.ArgumentException ->
+                              true
+
+                      Expect.isTrue duplicateHeaderRejected "duplicate roster IDs are rejected at read time"
+
+                      Expect.notEqual firstId secondId "the source fixture contains distinct player IDs") ]

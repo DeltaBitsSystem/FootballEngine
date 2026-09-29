@@ -41,14 +41,57 @@ module MatchSessionTests =
     let private create mode lineupSize =
         MatchSession.create Scheduler.systems (input lineupSize) mode |> unwrap
 
+    let private terminalSystems: SystemSpec list =
+        [ { Name = "TerminalTest"
+            Triggers = [ Trigger.EveryTick ]
+            Step =
+              fun _ rng world _ ->
+                  if world.State.Tick >= 96<subtick> then
+                      world.State <-
+                          { world.State with
+                              Flow = MatchFlow.MatchEnded }
+
+                  rng } ]
+
+    let private createTerminalSession () =
+        MatchSession.create terminalSystems (input 11) MatchRunMode.Fast |> unwrap
+
+    let private runInChunks (chunk: int<subtick>) =
+        let session = createTerminalSession ()
+
+        while session.World.State.Flow <> MatchFlow.MatchEnded do
+            MatchSession.advanceTo (session.World.State.Tick + chunk) session
+            |> unwrap
+            |> ignore
+
+        MatchSession.finish session |> unwrap
+
+    let private outcomeFingerprint (outcome: MatchOutcome) =
+        outcome.EventsHash,
+        outcome.Events,
+        outcome.Final.State,
+        outcome.Final.Home.Frame.PosX,
+        outcome.Final.Home.Frame.PosY,
+        outcome.Final.Away.Frame.PosX,
+        outcome.Final.Away.Frame.PosY,
+        outcome.Final.Home.Stats,
+        outcome.Final.Away.Stats
+
     let tests =
         testList
             "FootballEngine.Core.Contracts.MatchSession"
-            [ testCase "Full finish produces a deterministic dump" (fun _ ->
-                  let outcome = create Simulator.RunMode.Full 11 |> MatchSession.finish |> unwrap
-                  Expect.isSome outcome.DumpJson "Full mode keeps the match dump"
-                  Expect.equal outcome.Final.State.Flow MatchFlow.MatchEnded "Full mode reaches the end"
+            [ testCase "Replay finish produces deterministic terminal state" (fun _ ->
+                  let outcome = create (Simulator.RunMode.Replay 11<tickDelta>) 11 |> MatchSession.finish |> unwrap
+                  Expect.isNone outcome.DumpJson "Replay mode does not retain a full dump"
+                  Expect.equal outcome.Final.State.Flow MatchFlow.MatchEnded "Replay reaches the end"
                   Expect.notEqual outcome.EventsHash 0UL "event hash is present")
+              testCase "finish is idempotent and completes replay once" (fun _ ->
+                  let session = create (Simulator.RunMode.Replay(5 * 1<tickDelta>)) 11
+                  let first = MatchSession.finish session |> unwrap
+                  let second = MatchSession.finish session |> unwrap
+
+                  Expect.isTrue (obj.ReferenceEquals(first, second)) "cached outcome is returned"
+                  Expect.equal first.Replay second.Replay "replay data is stable")
               testCase "revision mismatch is rejected before queueing" (fun _ ->
                   let session = create Simulator.RunMode.Fast 11
 
@@ -171,4 +214,12 @@ module MatchSessionTests =
 
                   Expect.isTrue (List.length firstTrace <= 256) "diagnostic capture is bounded"
                   Expect.isNonEmpty firstTrace "diagnostic capture contains useful facts"
-                  Expect.equal firstTrace secondTrace "diagnostic capture is deterministic") ]
+                  Expect.equal firstTrace secondTrace "diagnostic capture is deterministic")
+              testCase "terminal output is independent of advance chunk size" (fun _ ->
+                  let expected = runInChunks 1<subtick> |> outcomeFingerprint
+
+                  for chunk in [ 2<subtick>; 20<subtick>; 200<subtick>; 2000<subtick> ] do
+                      Expect.equal
+                          (runInChunks chunk |> outcomeFingerprint)
+                          expected
+                          (sprintf "chunk size %d must preserve the terminal output" (int chunk))) ]

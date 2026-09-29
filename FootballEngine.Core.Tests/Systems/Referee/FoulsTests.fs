@@ -44,7 +44,8 @@ module FoulsTests =
                       buf.Events
                       (fun ev ->
                           match ev.Data with
-                          | EventData.SetPiece(SetPieceKind.Penalty, ClubSide.Away) -> true
+                          | EventData.SetPieceAt(SetPieceKind.Penalty, ClubSide.Away, x, y) ->
+                              x = foulX && y = 0.0<meter>
                           | _ -> false)
                       "a box foul on the away side is a penalty for away")
 
@@ -61,7 +62,7 @@ module FoulsTests =
                       buf.Events
                       (fun ev ->
                           match ev.Data with
-                          | EventData.SetPiece(SetPieceKind.FreeKick, _) -> true
+                          | EventData.SetPieceAt(SetPieceKind.FreeKick, ClubSide.Away, x, y) -> x = fx && y = fy
                           | _ -> false)
                       "a midfield foul is a free kick")
 

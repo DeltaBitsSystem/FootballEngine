@@ -50,9 +50,9 @@ module SchedulerTests =
 
                   let rng, _, applied = Stepper.step [] sctx (Rng.ofSeed 3UL) world buf
 
-                  Expect.equal applied.Length 1 "one event applied"
+                  Expect.equal applied.Count 1 "one event applied"
 
-                  match applied.Head.Data with
+                  match applied[0].Data with
                   | EventData.Possession(ClubSide.Home, pid') -> Expect.equal pid' pid "same event"
                   | other -> failtestf "expected Possession, got %A" other
 
@@ -88,17 +88,11 @@ module SchedulerTests =
                   Expect.equal total 3 "fires at ticks 0, 5, 10")
 
               testCase "WhenLive fires only while the flow is Live" (fun _ ->
-                  let world = TestBuilders.minimalWorld ()
-
-                  let plan =
-                      { Kind = SetPieceKind.KickOff
-                        Side = ClubSide.Home
-                        X = 0.0<meter>
-                        Y = 0.0<meter> }
+                  let world, restart = TestBuilders.minimalWorld (), TestBuilders.restartState SetPieceKind.KickOff ClubSide.Home (Vec2.create 0.0<meter> 0.0<meter>) RestartPhase.Positioning
 
                   world.State <-
                       { world.State with
-                          Flow = MatchFlow.RestartDelay(3<tickDelta>, plan) }
+                          Flow = MatchFlow.Restart restart }
 
                   let system =
                       { markerSystem with
@@ -115,7 +109,33 @@ module SchedulerTests =
                       let _, _, _ = Stepper.step [ system ] sctx (Rng.ofSeed 3UL) world buf
                       total <- total + countMarks buf
 
-                  Expect.equal total 4 "fires from the first Live tick onward")
+                  Expect.equal total 0 "setup and ready phases never become Live without an impulse")
+
+              testCase "WhenMovementAllowed fires only for Live and Restart" (fun _ ->
+                  let restart = TestBuilders.restartState SetPieceKind.KickOff ClubSide.Home (Vec2.create 0.0<meter> 0.0<meter>) RestartPhase.Positioning
+
+                  let system =
+                      { markerSystem with
+                          Triggers = [ Trigger.WhenMovementAllowed Trigger.EveryTick ] }
+
+                  let run flow =
+                      let world = TestBuilders.minimalWorld ()
+                      world.State <- { world.State with Flow = flow }
+                      let buf = buffer ()
+                      let _, _, _ = Stepper.step [ system ] sctx (Rng.ofSeed 3UL) world buf
+                      countMarks buf
+
+                  Expect.equal (run MatchFlow.Live) 1 "movement is allowed in Live"
+                  Expect.equal (run (MatchFlow.Restart restart)) 1 "movement is allowed in Restart"
+
+                  Expect.equal
+                      (run (MatchFlow.GoalPause(3<tickDelta>, ClubSide.Home, Some ctx.HomeLineup.Profiles.[1].Id)))
+                      0
+                      "goal pause blocks movement"
+
+                  Expect.equal (run (MatchFlow.VARReview(3<tickDelta>, VARIncident.Offside))) 0 "VAR blocks movement"
+                  Expect.equal (run (MatchFlow.HalfTime(3<tickDelta>))) 0 "halftime blocks movement"
+                  Expect.equal (run MatchFlow.MatchEnded) 0 "ended match blocks movement")
 
               testCase "OnEvent fires only when a matching event is drained" (fun _ ->
                   let world = TestBuilders.minimalWorld ()

@@ -10,6 +10,7 @@ module CompetitionTests =
     let private league =
         { Id = 1
           Name = "Test League"
+          BroadcastIdentity = BroadcastIdentity.generated "competition:test-league"
           Type =
             NationalLeague(
                 LeagueLevel 0,

@@ -22,11 +22,11 @@ module PlannerEvaluatorTests =
           OurPos =
             ours
             |> List.toArray
-            |> Array.map (fun (s, x, y) -> s, x * 1.0<meter>, y * 1.0<meter>)
+            |> Array.map (fun (s, x, y) -> struct (s, x * 1.0<meter>, y * 1.0<meter>))
           OppPos =
             opps
             |> List.toArray
-            |> Array.map (fun (s, x, y) -> s, x * 1.0<meter>, y * 1.0<meter>)
+            |> Array.map (fun (s, x, y) -> struct (s, x * 1.0<meter>, y * 1.0<meter>))
           OffsideLine = 45.0<meter>
           Dir = 1.0 }
 

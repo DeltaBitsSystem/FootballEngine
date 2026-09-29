@@ -17,6 +17,13 @@ module PositionTests =
           Flags = { EventFlags.Bits = 0UL }
           Applied = ResizeArray() }
 
+    let private stepPositionAndIntent (world: World) : unit =
+        TeamPosition.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
+        PlayerIntent.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
+
+    let private stepSteering (world: World) : unit =
+        PlayerSteering.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
+
     /// Places a team's frame so slot order is predictable; then forces a fresh
     /// directive so assignRoles runs.
     let private freshDirective (world: World) (side: ClubSide) (tick: int<subtick>) : unit =
@@ -73,6 +80,172 @@ module PositionTests =
                       |> List.max
 
                   Expect.isLessThan gkBias maxOutfield "the keeper keeps a neutral role")
+
+              testCase "loose ball assigns one chaser and defensive roles" (fun _ ->
+                  let world = TestBuilders.minimalWorld ()
+                  world.State <-
+                      { world.State with
+                          Ball =
+                              { world.State.Ball with
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          X = 10.0<meter>
+                                          Y = 0.0<meter> } } }
+
+                  world.Home.Frame.PosX.[5] <- 9.0f
+                  world.Home.Frame.PosY.[5] <- 0.0f
+                  world.Home.Frame.PosX.[6] <- -10.0f
+                  world.Home.Frame.PosY.[6] <- 0.0f
+                  stepPositionAndIntent world
+
+                  let frame = world.Home.Frame
+
+                  let pressers =
+                      MatchWorld.activeSlots frame
+                      |> Array.filter (fun slot -> frame.Intent.Kind.[slot] = IntentCode.Press)
+
+                  Expect.equal pressers.Length 1 "exactly one player presses a loose ball"
+                  Expect.notEqual pressers.[0] 0 "the goalkeeper is never the chaser"
+                  Expect.equal frame.Intent.TargetX.[pressers.[0]] 10.0f "the chaser targets the ball"
+                  Expect.equal frame.DefensiveRoles.[pressers.[0]] DefensiveRole.FirstDefender "chaser role"
+                  Expect.equal
+                      (MatchWorld.activeSlots frame
+                       |> Array.filter (fun slot -> frame.DefensiveRoles.[slot] = DefensiveRole.Cover)
+                       |> Array.length)
+                      1
+                      "one player covers"
+                  Expect.equal
+                      (MatchWorld.activeSlots frame
+                       |> Array.filter (fun slot -> frame.DefensiveRoles.[slot] = DefensiveRole.Marker)
+                       |> Array.length)
+                      2
+                      "two players protect rest defense")
+
+              testCase "carrier gets two diagonal supports and a local carry target" (fun _ ->
+                  let world = TestBuilders.formationWorld ()
+                  let carrier = 5
+                  let carrierId = ctx.HomeLineup.Profiles.[carrier].Id
+
+                  for slot in MatchWorld.activeSlots world.Away.Frame do
+                      world.Away.Frame.PosX.[slot] <- 0.0f
+                      world.Away.Frame.PosY.[slot] <- 0.0f
+
+                  world.State <-
+                      { world.State with
+                          Ball =
+                              { world.State.Ball with
+                                  Control = BallControl.Controlled(ClubSide.Home, carrierId)
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          X = -15.0<meter>
+                                          Y = 0.0<meter> } } }
+
+                  stepPositionAndIntent world
+
+                  let frame = world.Home.Frame
+
+                  let supportSlots =
+                      MatchWorld.activeSlots frame
+                      |> Array.filter (fun slot -> frame.Intent.Kind.[slot] = IntentCode.Support)
+
+                  Expect.equal supportSlots.Length 2 "carrier selects at most two support runners"
+                  Expect.equal frame.Intent.Kind.[carrier] IntentCode.BallCarry "carrier keeps the ball"
+                  Expect.isGreaterThan frame.Intent.TargetX.[carrier] frame.PosX.[carrier] "carry target advances"
+                  Expect.isLessThanOrEqual (abs (float frame.Intent.TargetY.[carrier])) (float Pitch.HalfWidth - 2.0) "carry stays inside inset"
+
+                  for slot in MatchWorld.activeSlots frame do
+                      if slot <> carrier && not (Array.contains slot supportSlots) then
+                          Expect.notEqual
+                              frame.Intent.Kind.[slot]
+                              IntentCode.Support
+                              (sprintf "slot %d preserves shape" slot))
+
+              testCase "carrier keeps an inward escape target near the touchline" (fun _ ->
+                  let world = TestBuilders.formationWorld ()
+                  let carrier = 5
+                  let frame = world.Home.Frame
+                  let carrierId = ctx.HomeLineup.Profiles.[carrier].Id
+                  frame.PosX.[carrier] <- 50.0f
+                  frame.PosY.[carrier] <- 25.0f
+                  frame.Intent.Kind.[carrier] <- IntentCode.BallCarry
+                  frame.Intent.TargetX.[carrier] <- 50.5f
+                  frame.Intent.TargetY.[carrier] <- 18.0f
+                  frame.Intent.Phase.[carrier] <- IntentPhase.Executing
+
+                  world.State <-
+                      { world.State with
+                          Ball =
+                              { world.State.Ball with
+                                  Control = BallControl.Controlled(ClubSide.Home, carrierId)
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          X = 50.0<meter>
+                                          Y = 25.0<meter> } } }
+
+                  PlayerIntent.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
+
+                  Expect.isLessThan
+                      frame.Intent.TargetY.[carrier]
+                      frame.PosY.[carrier]
+                      "an inward run is retained until the carrier clears the boundary zone"
+                  Expect.isLessThan
+                      frame.Intent.TargetX.[carrier]
+                      frame.PosX.[carrier]
+                      "a carrier at the goal line retreats to create a new action angle")
+
+              testCase "goalkeeper depth is central and threat-sensitive" (fun _ ->
+                  let world = TestBuilders.formationWorld ()
+
+                  for slot in MatchWorld.activeSlots world.Away.Frame do
+                      world.Away.Frame.PosX.[slot] <- 0.0f
+                      world.Away.Frame.PosY.[slot] <- 0.0f
+
+                  world.State <-
+                      { world.State with
+                          Ball =
+                              { world.State.Ball with
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          X = 35.0<meter>
+                                          Y = 18.0<meter> } } }
+
+                  TeamPosition.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
+                  let farX = world.Home.Shape.TargetsX.[0]
+                  let farY = world.Home.Shape.TargetsY.[0]
+
+                  world.State <-
+                      { world.State with
+                          Ball =
+                              { world.State.Ball with
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          X = -45.0<meter>
+                                          Y = 18.0<meter> } } }
+
+                  TeamPosition.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
+                  let threatenedX = world.Home.Shape.TargetsX.[0]
+                  let threatenedY = world.Home.Shape.TargetsY.[0]
+
+                  Expect.isGreaterThan farX threatenedX "keeper advances only when the ball is not a goal threat"
+                  Expect.isLessThan (abs (float farY)) 0.1 "keeper target stays central when advancing"
+                  Expect.isLessThan (abs (float threatenedY)) 0.1 "keeper target stays central under threat"
+                  Expect.isLessThanOrEqual (abs (float farX)) (float Pitch.HalfLength - 2.0) "far target respects inset"
+                  Expect.isLessThanOrEqual (abs (float threatenedX)) (float Pitch.HalfLength - 2.0) "threat target respects inset")
+
+              testCase "expired committed run completes with an exit trigger" (fun _ ->
+                  let world = TestBuilders.minimalWorld ()
+                  let frame = world.Home.Frame
+                  world.State <- { world.State with Tick = 20<subtick> }
+                  frame.Intent.Kind.[5] <- IntentCode.ExecuteRun
+                  frame.Intent.TargetX.[5] <- 20.0f
+                  frame.Intent.TargetY.[5] <- 0.0f
+                  frame.Intent.Phase.[5] <- IntentPhase.Committed
+                  frame.Intent.CommittedUntil.[5] <- 10<subtick>
+
+                  stepSteering world
+
+                  Expect.equal frame.Intent.Phase.[5] IntentPhase.Completed "expired run completes"
+                  Expect.equal frame.Intent.ExitTrigger.[5] ExitTrigger.Expired "expiry is observable")
 
               testCase "reassigns only after a directive change" (fun _ ->
                   let world = TestBuilders.minimalWorld ()

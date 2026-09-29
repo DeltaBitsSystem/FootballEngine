@@ -97,6 +97,22 @@ module ChainIntegrationTests =
                   Expect.equal mA mB "markers identical"
                   Expect.equal pA pB "plans identical")
 
+              testCase "choosing an action does not overwrite the carrier movement intent" (fun _ ->
+                  let world = chainWorld ()
+                  let frame = world.Home.Frame
+                  let slot = 5
+                  frame.Intent.Kind.[slot] <- IntentCode.BallCarry
+                  frame.Intent.TargetX.[slot] <- 24.0f
+                  frame.Intent.TargetY.[slot] <- -8.0f
+                  frame.Intent.Phase.[slot] <- IntentPhase.Executing
+
+                  let _ = PlayerDecision.choose ctx world ClubSide.Home slot 100<subtick> (Rng.ofSeed 42UL)
+
+                  Expect.equal frame.Intent.Kind.[slot] IntentCode.BallCarry "intent kind remains owned by Intent"
+                  Expect.equal frame.Intent.TargetX.[slot] 24.0f "decision does not pin the carrier x target"
+                  Expect.equal frame.Intent.TargetY.[slot] -8.0f "decision does not pin the carrier y target"
+                  Expect.equal frame.Intent.Phase.[slot] IntentPhase.Executing "decision does not alter intent lifetime")
+
               testCase "the deciding carrier is never planned as a future receiver" (fun _ ->
                   let world = chainWorld ()
 

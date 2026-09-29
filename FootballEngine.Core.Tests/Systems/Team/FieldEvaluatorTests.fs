@@ -29,10 +29,10 @@ module FieldEvaluatorTests =
           MinTeammateDist = 4.0
           OffsideX = None }
 
-    let private noTeams: FPoint[] = [||]
-    let private noOpps: FPoint[] = [||]
+    let private noTeams: PositionPoint[] = [||]
+    let private noOpps: PositionPoint[] = [||]
 
-    let private pts (arr: (float * float)[]) : FPoint[] = arr |> Array.map FPoint.ofTuple
+    let private pts (arr: (float * float)[]) : PositionPoint[] = arr |> Array.map FPoint.ofTuple
 
     let fieldEvaluatorTests =
         testList
