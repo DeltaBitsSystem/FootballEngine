@@ -99,9 +99,17 @@ module YouthGen =
                     |> List.map fst
                     |> fun ids -> if ids.IsEmpty then 1 else List.max ids + 1
 
-                let roll = uniformSample 0.0 (float youthPositions.Length)
-                let pos = youthPositions[int roll]
-                let raw = PlayerGen.createYouthProspect nextId pos clubId countryData state.Season
+                // A youth cohort must not depend on a process-global RNG after loading a career.
+                let seed =
+                    (uint64 (uint32 state.Season) <<< 32)
+                    ^^^ (uint64 (uint32 clubId) <<< 16)
+                    ^^^ uint64 (uint32 nextId)
+
+                let raw =
+                    FootballEngine.RNG.withSeed seed (fun () ->
+                        let roll = uniformSample 0.0 (float youthPositions.Length)
+                        let pos = youthPositions[int roll]
+                        PlayerGen.createYouthProspect nextId pos clubId countryData state.Season)
 
                 let youth =
                     { raw with
