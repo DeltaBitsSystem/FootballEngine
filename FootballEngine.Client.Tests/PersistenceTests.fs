@@ -785,6 +785,30 @@ let generatedCareerTests =
                 "continuation preserves every generated world field"
 
             Expect.equal continued.WorldClock direct.WorldClock "continuation preserves scheduler state"
+
+            let advanced =
+                WorldRunner.advanceDaysWithBalance BalanceConfig.defaultConfig 8 worldClock gs
+
+            save root "after-days" advanced.GameState advanced.WorldClock
+
+            match load root "after-days" with
+            | Ok reloaded ->
+                Expect.equal reloaded.State advanced.GameState "career after several days round-trips"
+                Expect.equal reloaded.WorldClock advanced.WorldClock "one-based week and month remain loadable"
+
+                let uninterrupted =
+                    WorldRunner.advanceDaysWithBalance
+                        BalanceConfig.defaultConfig
+                        1
+                        advanced.WorldClock
+                        advanced.GameState
+
+                let resumed =
+                    WorldRunner.advanceDaysWithBalance BalanceConfig.defaultConfig 1 reloaded.WorldClock reloaded.State
+
+                Expect.equal resumed.GameState uninterrupted.GameState "continued career is identical after load"
+                Expect.equal resumed.WorldClock uninterrupted.WorldClock "continued clock is identical after load"
+            | Error error -> failtestf "career after several days could not be loaded: %A" error
         | Error error -> failtestf "generated world round-trip failed: %A" error
 
 let tests =

@@ -23,8 +23,8 @@ module WorldClockOps =
             Current =
                 { clock.Current with
                     Day = d
-                    Week = d / 7
-                    Month = d / 30 }
+                    Week = (d - 1) / 7 + 1
+                    Month = (d - 1) / 30 + 1 }
             PendingEvents = clock.PendingEvents |> List.filter (fun e -> e.At.Day > clock.Current.Day)
             PhaseHistory = [] }
 

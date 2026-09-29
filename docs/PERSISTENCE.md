@@ -59,6 +59,11 @@ save, ~98 ms unchanged save, ~102 ms one-player change, ~783 ms load, and a
 50.1 MiB. Measure Release builds across representative worlds and multi-season
 careers before setting budgets or changing format/compression.
 
+Integration tests also save a generated world after multiple simulated days,
+load it, and compare both the next world state and clock against uninterrupted
+simulation. The scheduler's week/month counters are one-based; zero values
+would make early-career saves invalid at the load boundary.
+
 ## Evolution rules
 
 - Keep persistence codecs and state reconstruction behind `Db`; update the
