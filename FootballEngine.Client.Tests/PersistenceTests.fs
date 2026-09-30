@@ -465,6 +465,77 @@ let activeMarketTests =
         | Ok loaded -> Expect.equal loaded.State game "the complete market graph survives"
         | Error error -> failtestf "active market could not be loaded: %A" error
 
+let playedMatchHistoryTests =
+    testCase "played fixture retains scored goals and typed pass events"
+    <| fun _ ->
+        let root = tempRoot ()
+        let date = DateTime(2027, 1, 1)
+
+        let events: FootballEngine.Core.Match.MatchEvent list =
+            [ { Tick = 100<subtick>
+                Data =
+                  FootballEngine.Core.Match.EventData.Pass(
+                      FootballEngine.Core.Match.PlayerId 7,
+                      Some(FootballEngine.Core.Match.PlayerId 8),
+                      15.0<meter>,
+                      0.92,
+                      true,
+                      1.0<meter>,
+                      2.0<meter>,
+                      15.0<meter>,
+                      4.0<meter>
+                  ) }
+              { Tick = 200<subtick>
+                Data =
+                  FootballEngine.Core.Match.EventData.Goal(
+                      FootballEngine.Core.Match.ClubSide.Home,
+                      Some(FootballEngine.Core.Match.PlayerId 8),
+                      Some(FootballEngine.Core.Match.PlayerId 7),
+                      0.47
+                  ) } ]
+
+        let fixture: MatchFixture =
+            { Id = 10
+              CompetitionId = 1
+              Round = None
+              HomeClubId = 1
+              AwayClubId = 2
+              ScheduledDate = date
+              Played = true
+              HomeScore = Some 1
+              AwayScore = Some 0
+              Events = events }
+
+        let competition: Competition =
+            { Id = 1
+              Name = "Historic League"
+              BroadcastIdentity = BroadcastIdentity.generated "competition:1"
+              Type =
+                NationalLeague(
+                    LeagueLevel 0,
+                    { PointsForWin = 3
+                      PointsForDraw = 1
+                      Tiebreakers = [ GoalDifference ]
+                      Promotion = []
+                      Relegation = [] }
+                )
+              Country = None
+              Season = 1
+              ClubIds = [ 1; 2 ]
+              Fixtures = Map.ofList [ fixture.Id, fixture ]
+              Standings = Map.empty
+              KnockoutTies = Map.empty }
+
+        let game =
+            { state date (dataLock None) with
+                Competitions = Map.ofList [ competition.Id, competition ] }
+
+        save root "played" game (clock 1UL 1)
+
+        match load root "played" with
+        | Ok loaded -> Expect.equal loaded.State.Competitions game.Competitions "match history is preserved"
+        | Error error -> failtestf "played match could not be loaded: %A" error
+
 let outOfOrderWriteTests =
     testCase "older commands cannot overwrite a later same-revision edit or new career"
     <| fun _ ->
@@ -909,6 +980,7 @@ let tests =
           newCareerReplacementTests
           fullStateTests
           activeMarketTests
+          playedMatchHistoryTests
           outOfOrderWriteTests
           longCareerTests
           metadataTests
