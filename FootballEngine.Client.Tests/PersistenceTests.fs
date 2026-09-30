@@ -149,6 +149,110 @@ let isolationTests =
             Expect.equal b.ResolvedData.DataLock second.DataLock "slot B resolved snapshot"
         | left, right -> failtestf "slot load failed: %A / %A" left right
 
+let foreignSlotWriteTests =
+    testCase "a copied save from another slot cannot be overwritten under a new filename"
+    <| fun _ ->
+        let root = tempRoot ()
+        let game = state (DateTime(2027, 1, 1)) (dataLock None)
+        save root "origin" game (clock 1UL 1)
+        let copied = Path.Combine(root, "career-copied.db3")
+        File.Copy(Path.Combine(root, "career-origin.db3"), copied)
+        let original = File.ReadAllBytes copied
+
+        let rejects replace =
+            try
+                let action =
+                    if replace then
+                        Db.replaceGameInSlotAsync "copied" game (clock 1UL 1) saveSettings
+                    else
+                        Db.saveGameInSlotAsync "copied" game (clock 1UL 1) saveSettings
+
+                action |> Async.AwaitTask |> Async.RunSynchronously
+                false
+            with _ ->
+                true
+
+        Expect.isTrue (rejects false) "ordinary saves reject another slot's identity"
+        Expect.isTrue (rejects true) "even explicit replacement does not destroy a foreign save"
+        Expect.equal (File.ReadAllBytes copied) original "copied file is unchanged"
+        Expect.isFalse (File.Exists(copied + ".bak")) "no backup was created over the foreign file"
+
+let unknownSchemaWriteTests =
+    testCase "an unrecognized SQLite file is never initialized or overwritten by an ordinary save"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "foreign-schema"
+        let path = Path.Combine(root, "career-foreign-schema.db3")
+        Db.configureStorageDirectoryForTests root
+
+        do
+            use db = new SQLiteConnection(path, true)
+            db.Execute("CREATE TABLE ForeignCareer (Data TEXT)") |> ignore
+            db.Execute("INSERT INTO ForeignCareer (Data) VALUES (?)", "important") |> ignore
+
+        Db.initTablesForSlot slot |> Async.AwaitTask |> Async.RunSynchronously
+
+        let game = state (DateTime(2027, 1, 1)) (dataLock None)
+
+        Expect.throws
+            (fun () ->
+                Db.saveGameInSlotAsync slot game (clock 1UL 1) saveSettings
+                |> Async.AwaitTask
+                |> Async.RunSynchronously)
+            "regular save refuses an unknown format"
+
+        do
+            use db = new SQLiteConnection(path, true)
+            Expect.equal (db.ExecuteScalar<string>("SELECT Data FROM ForeignCareer")) "important" "foreign data remains"
+
+            Expect.equal
+                (db.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE name='CareerSnapshot'"))
+                0
+                "foreign file was not modified even by table initialization"
+
+        Db.replaceGameInSlotAsync slot game (clock 0UL 1) saveSettings
+        |> Async.AwaitTask
+        |> Async.RunSynchronously
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State game "explicit replacement creates a new career"
+        | Error error -> failtestf "unrecognized file could not be replaced: %A" error
+
+        let archived =
+            Directory.EnumerateFiles(root, "career-foreign-schema.db3.legacy-*")
+            |> Seq.exactlyOne
+
+        use previous = new SQLiteConnection(archived, true)
+
+        Expect.equal
+            (previous.ExecuteScalar<string>("SELECT Data FROM ForeignCareer"))
+            "important"
+            "old file is archived"
+
+let incompleteSchemaWriteTests =
+    testCase "a damaged database missing its chunk table is not silently repaired by saving"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "incomplete-schema"
+        let game = state (DateTime(2027, 1, 1)) (dataLock None)
+        save root slot game (clock 1UL 1)
+        let path = Path.Combine(root, "career-incomplete-schema.db3")
+
+        do
+            use db = new SQLiteConnection(path, true)
+            db.Execute("DROP TABLE CareerChunk") |> ignore
+
+        Expect.throws
+            (fun () -> save root slot game (clock 2UL 2))
+            "a regular save must not re-create a missing aggregate table"
+
+        use db = new SQLiteConnection(path, true)
+
+        Expect.equal
+            (db.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE name='CareerChunk'"))
+            0
+            "the damaged primary remains untouched for diagnosis"
+
 let backupTests =
     testCase "corrupt primary recovers the previous complete SQLite revision"
     <| fun _ ->
@@ -1061,6 +1165,10 @@ let invalidSlotTests =
             (fun () -> Db.initTablesForSlot "../other" |> Async.AwaitTask |> Async.RunSynchronously)
             "invalid slot names are rejected"
 
+        Expect.throws
+            (fun () -> Db.initTablesForSlot "Career-1" |> Async.AwaitTask |> Async.RunSynchronously)
+            "case-variant slot IDs cannot alias the same file on a case-insensitive filesystem"
+
 let incompatibleSchemaTests =
     testCase "old formats are identified without changing their SQLite files"
     <| fun _ ->
@@ -1328,6 +1436,9 @@ let tests =
     testList
         "Persistence"
         [ isolationTests
+          foreignSlotWriteTests
+          unknownSchemaWriteTests
+          incompleteSchemaWriteTests
           backupTests
           unrecoverableFilesTests
           walRecoveryTests

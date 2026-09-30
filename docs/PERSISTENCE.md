@@ -43,6 +43,14 @@ not modify existing files. Explicitly replacing an incompatible or unreadable
 slot archives its previous database as `*.db3.legacy-<id>` before creating the
 new career; failed replacements attempt to restore the original path and never
 delete the archived file.
+Ordinary saves also reject a SQLite file lacking either required table, a
+snapshot row in the wrong position, or a snapshot that identifies another
+slot. Opening a damaged or foreign file for saving must not create missing
+tables or overwrite its contents; only an explicit replacement may archive an
+unrecognized format.
+Slot IDs use lowercase ASCII letters, digits, `-` and `_` only. Rejecting
+uppercase variants prevents two per-slot writer gates from addressing the
+same file on case-insensitive filesystems.
 When replacing a compatible career, an existing `.bak` is first preserved as
 `.bak.previous-<id>`; a failed transaction restores it. If the primary commits
 but making the new backup fails, the new primary remains loadable and the old

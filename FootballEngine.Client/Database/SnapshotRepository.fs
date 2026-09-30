@@ -103,11 +103,12 @@ module Db =
 
     let private validSlot (slot: string) =
         not (String.IsNullOrWhiteSpace slot)
-        && slot |> Seq.forall (fun c -> Char.IsAsciiLetterOrDigit c || c = '-' || c = '_')
+        && slot
+           |> Seq.forall (fun c -> (c >= 'a' && c <= 'z') || Char.IsAsciiDigit c || c = '-' || c = '_')
 
     let private slotPath slot =
         if not (validSlot slot) then
-            invalidArg (nameof slot) "Save slot IDs may contain only ASCII letters, numbers, '-' and '_'."
+            invalidArg (nameof slot) "Save slot IDs may contain only lowercase ASCII letters, numbers, '-' and '_'."
 
         Path.Combine(storageDirectory (), $"career-{slot}.db3")
 
@@ -174,9 +175,19 @@ module Db =
             if
                 db.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='CareerSnapshot'") = 0
             then
-                None
+                Some 0
+            elif
+                db.ExecuteScalar<int>("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='CareerChunk'") = 0
+            then
+                Some 0
             elif db.ExecuteScalar<int>("SELECT COUNT(*) FROM CareerSnapshot WHERE Id = 1") = 0 then
-                None
+                if
+                    db.ExecuteScalar<int>("SELECT COUNT(*) FROM CareerSnapshot") > 0
+                    || db.ExecuteScalar<int>("SELECT COUNT(*) FROM CareerChunk") > 0
+                then
+                    Some 0
+                else
+                    None
             else
                 let version =
                     db.ExecuteScalar<int>("SELECT SchemaVersion FROM CareerSnapshot WHERE Id = 1")
@@ -365,6 +376,9 @@ module Db =
         use db = openDb path
         let previous = db.Find<CareerSnapshot>(1)
         let previousChunks = db.Table<CareerChunk>().ToList() |> List.ofSeq
+
+        if not (isNull (box previous)) && previous.SlotId <> slot then
+            invalidOp $"Snapshot belongs to slot '{previous.SlotId}', not '{slot}'."
 
         if
             not (isNull (box previous))
