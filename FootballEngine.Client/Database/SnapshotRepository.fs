@@ -86,9 +86,14 @@ module Db =
 
     let private databaseDirectory = new AsyncLocal<string>()
     let private commitFailure = new AsyncLocal<bool>()
+    let private replacementBackupFailure = new AsyncLocal<bool>()
+    exception private CommittedBackupFailure of exn
 
     let configureStorageDirectoryForTests directory = databaseDirectory.Value <- directory
     let injectCommitFailureForTests enabled = commitFailure.Value <- enabled
+
+    let injectReplacementBackupFailureForTests enabled =
+        replacementBackupFailure.Value <- enabled
 
     let private storageDirectory () =
         if String.IsNullOrWhiteSpace databaseDirectory.Value then
@@ -377,7 +382,7 @@ module Db =
         then
             invalidOp $"Save revision {clock.Revision} is older than stored revision {previous.WorldRevision}"
 
-        if not (isNull (box previous)) then
+        if not replace && not (isNull (box previous)) then
             // SQLite's backup API captures a consistent database, including committed WAL pages.
             db.Backup(path + ".bak", "main")
 
@@ -392,40 +397,64 @@ module Db =
 
         let nextKeys = chunks |> List.map _.Key |> Set.ofList
 
-        db.RunInTransaction(fun () ->
-            for old in previousChunks do
-                if not (nextKeys.Contains old.Key) then
-                    db.Delete<CareerChunk>(old.Key) |> ignore
+        let backup = path + ".bak"
 
-            for chunk in chunks do
-                if oldHashes |> Map.tryFind chunk.Key <> Some chunk.Hash then
-                    db.InsertOrReplace chunk |> ignore
+        let archivedBackup =
+            if replace && File.Exists backup then
+                let archived = backup + ".previous-" + Guid.NewGuid().ToString("N")
+                // A post-commit backup failure must never leave an older career at the active recovery path.
+                File.Move(backup, archived)
+                Some archived
+            else
+                None
 
-            db.InsertOrReplace(
-                { Id = 1
-                  SchemaVersion = CurrentSchema
-                  SlotId = slot
-                  SaveSequence = sequence
-                  WorldRevision = int64 clock.Revision
-                  GameDate = state.CurrentDate
-                  ClubName =
-                    state.Clubs
-                    |> Map.tryFind state.UserClubId
-                    |> Option.map _.Name
-                    |> Option.defaultValue ""
-                  ManagerName = GameState.userManagerName state
-                  UpdatedAtUtc = DateTime.UtcNow
-                  Hash = checksum
-                  Payload = bytes }
-            )
-            |> ignore
+        try
+            db.RunInTransaction(fun () ->
+                for old in previousChunks do
+                    if not (nextKeys.Contains old.Key) then
+                        db.Delete<CareerChunk>(old.Key) |> ignore
 
-            if commitFailure.Value then
-                invalidOp "Injected commit failure")
+                for chunk in chunks do
+                    if oldHashes |> Map.tryFind chunk.Key <> Some chunk.Hash then
+                        db.InsertOrReplace chunk |> ignore
+
+                db.InsertOrReplace(
+                    { Id = 1
+                      SchemaVersion = CurrentSchema
+                      SlotId = slot
+                      SaveSequence = sequence
+                      WorldRevision = int64 clock.Revision
+                      GameDate = state.CurrentDate
+                      ClubName =
+                        state.Clubs
+                        |> Map.tryFind state.UserClubId
+                        |> Option.map _.Name
+                        |> Option.defaultValue ""
+                      ManagerName = GameState.userManagerName state
+                      UpdatedAtUtc = DateTime.UtcNow
+                      Hash = checksum
+                      Payload = bytes }
+                )
+                |> ignore
+
+                if commitFailure.Value then
+                    invalidOp "Injected commit failure")
+        with _ ->
+            match archivedBackup with
+            | Some archived -> File.Move(archived, backup)
+            | None -> ()
+
+            reraise ()
 
         if replace then
             // A replaced slot belongs to a different career; recovery must never revive the old one.
-            db.Backup(path + ".bak", "main")
+            try
+                if replacementBackupFailure.Value then
+                    invalidOp "Injected replacement backup failure"
+
+                db.Backup(backup, "main")
+            with error ->
+                raise (CommittedBackupFailure error)
 
     let private replaceLegacy slot state clock settings =
         let path = slotPath slot
@@ -471,7 +500,9 @@ module Db =
                     if File.Exists archivedBackup then
                         File.Move(archivedBackup, backup)
 
-                raise error
+                match error with
+                | CommittedBackupFailure cause -> raise cause
+                | _ -> raise error
 
     let prepareSaveInSlot (slot: string) (state: GameState) (clock: WorldClock) (settings: SaveSettings) replace =
         let writer = gateFor slot
@@ -486,14 +517,18 @@ module Db =
                         // Later changes to a new career may run before its initial replacement command.
                         let effectiveReplace = replace || writer.NeedsReplacement sequence
 
-                        do!
-                            Task.Run(fun () ->
-                                if effectiveReplace then
-                                    replaceLegacy slot state clock settings
-                                else
-                                    saveCore slot state clock settings false)
+                        try
+                            do!
+                                Task.Run(fun () ->
+                                    if effectiveReplace then
+                                        replaceLegacy slot state clock settings
+                                    else
+                                        saveCore slot state clock settings false)
 
-                        writer.Commit sequence
+                            writer.Commit sequence
+                        with CommittedBackupFailure cause ->
+                            writer.Commit sequence
+                            raise cause
                 finally
                     writer.Semaphore.Release() |> ignore
             }

@@ -40,6 +40,19 @@ not modify existing files. Explicitly replacing an incompatible or unreadable
 slot archives its previous database as `*.db3.legacy-<id>` before creating the
 new career; failed replacements attempt to restore the original path and never
 delete the archived file.
+When replacing a compatible career, an existing `.bak` is first preserved as
+`.bak.previous-<id>`; a failed transaction restores it. If the primary commits
+but making the new backup fails, the new primary remains loadable and the old
+backup stays archived, not at the active recovery path. The save call reports
+the backup failure; save again to establish a backup before relying on recovery.
+The per-slot write sequence still records a committed primary in this case, so
+an older queued save cannot overwrite it despite the reported backup failure.
+Recovery is also exercised with an active SQLite WAL sidecar. If both the
+primary and backup are unreadable, loading reports corruption and leaves both
+files untouched rather than inventing a career. A sudden process or disk failure
+in the narrow interval between moving the old backup aside and creating the new
+one can leave no *active* backup; the archived old copy is kept for manual
+inspection but is never loaded as the replacement career.
 
 After recovery, the damaged primary is kept as `*.db3.corrupt-<id>` and a
 consistent SQLite copy of the backup becomes the active primary. Subsequent

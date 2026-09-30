@@ -197,6 +197,61 @@ let backupTests =
             | Error error -> failtestf "recovered career could not save again: %A" error
         | Error error -> failtestf "backup was not recovered: %A" error
 
+let unrecoverableFilesTests =
+    testCase "two unreadable copies return an error without touching either file"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "double-corrupt"
+        let game = state (DateTime(2027, 1, 1)) (dataLock None)
+        save root slot game (clock 1UL 1)
+        save root slot game (clock 2UL 2)
+        let path = Path.Combine(root, "career-double-corrupt.db3")
+        let damaged = [| 1uy; 2uy; 3uy; 4uy |]
+        File.WriteAllBytes(path, damaged)
+        File.WriteAllBytes(path + ".bak", damaged)
+
+        match load root slot with
+        | Error(Corrupt _) -> ()
+        | other -> failtestf "two damaged files were treated as a saved career: %A" other
+
+        Expect.equal (File.ReadAllBytes path) damaged "the primary is preserved"
+        Expect.equal (File.ReadAllBytes(path + ".bak")) damaged "the backup is preserved"
+
+let walRecoveryTests =
+    testCase "a damaged primary in WAL mode does not contaminate its restored backup"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "wal-recovery"
+        let first = state (DateTime(2027, 1, 1)) (dataLock None)
+        save root slot first (clock 1UL 1)
+
+        save
+            root
+            slot
+            { first with
+                CurrentDate = first.CurrentDate.AddDays 1.0 }
+            (clock 2UL 2)
+
+        let path = Path.Combine(root, "career-wal-recovery.db3")
+
+        do
+            use db = new SQLiteConnection(path, true)
+            db.ExecuteScalar<string>("PRAGMA journal_mode=WAL") |> ignore
+            db.ExecuteScalar<int>("PRAGMA wal_autocheckpoint=0") |> ignore
+
+            db.Execute("UPDATE CareerSnapshot SET Payload = ? WHERE Id = 1", [| 1uy |])
+            |> ignore
+
+            Expect.isTrue (File.Exists(path + "-wal")) "corrupt revision is stored in a WAL sidecar"
+
+            match load root slot with
+            | Ok recovered -> Expect.equal recovered.State first "backup is recovered while WAL exists"
+            | Error error -> failtestf "WAL recovery failed: %A" error
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State first "recovered primary stays loadable after the WAL closes"
+        | Error error -> failtestf "stale WAL corrupted the recovered primary: %A" error
+
 let commitFailureTests =
     testCase "a failed commit preserves the last revision"
     <| fun _ ->
@@ -218,6 +273,89 @@ let commitFailureTests =
         match load root slot with
         | Ok loaded -> Expect.equal loaded.Envelope.ConfirmedRevision 1UL "failed commit rolled back"
         | Error error -> failtestf "last revision was lost: %A" error
+
+let replacementBackupFailureTests =
+    testCase "a failed post-commit backup cannot revive the career that was replaced"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "post-commit-backup"
+        let old = state (DateTime(2028, 1, 1)) (dataLock None)
+        let fresh = state (DateTime(2026, 7, 1)) (dataLock None)
+        save root slot old (clock 1UL 1)
+        save root slot old (clock 2UL 2)
+        let path = Path.Combine(root, "career-post-commit-backup.db3")
+
+        let staleOldCareerSave =
+            Db.prepareSaveInSlot slot old (clock 3UL 3) saveSettings false
+
+        Db.injectReplacementBackupFailureForTests true
+
+        let failed =
+            try
+                Db.replaceGameInSlotAsync slot fresh (clock 0UL 1) saveSettings
+                |> Async.AwaitTask
+                |> Async.RunSynchronously
+
+                false
+            with _ ->
+                true
+
+        Db.injectReplacementBackupFailureForTests false
+        Expect.isTrue failed "backup failure is reported"
+        staleOldCareerSave () |> Async.AwaitTask |> Async.RunSynchronously
+
+        match load root slot with
+        | Ok loaded ->
+            Expect.equal loaded.State fresh "the committed new career remains intact"
+            Expect.equal loaded.Envelope.ConfirmedRevision 0UL "an older pending command cannot overwrite it"
+        | Error error -> failtestf "the committed career was lost: %A" error
+
+        Expect.isFalse (File.Exists(path + ".bak")) "the old career is not in the active backup"
+
+        Expect.equal
+            (Directory.EnumerateFiles(root, "career-post-commit-backup.db3.bak.previous-*")
+             |> Seq.length)
+            1
+            "the displaced backup is preserved for diagnosis"
+
+        do
+            use db = new SQLiteConnection(path, true)
+
+            db.Execute("UPDATE CareerSnapshot SET Payload = ? WHERE Id = 1", [| 1uy |])
+            |> ignore
+
+        match load root slot with
+        | Error(Corrupt _) -> ()
+        | other -> failtestf "the replaced career was recovered from a stale backup: %A" other
+
+let replacementCommitRollbackTests =
+    testCase "a failed replacement transaction restores the prior active backup"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "rollback-backup"
+        let old = state (DateTime(2028, 1, 1)) (dataLock None)
+        save root slot old (clock 1UL 1)
+        save root slot old (clock 2UL 2)
+        let path = Path.Combine(root, "career-rollback-backup.db3")
+        Db.injectCommitFailureForTests true
+
+        let failed =
+            try
+                Db.replaceGameInSlotAsync slot (state (DateTime(2026, 7, 1)) (dataLock None)) (clock 0UL 1) saveSettings
+                |> Async.AwaitTask
+                |> Async.RunSynchronously
+
+                false
+            with _ ->
+                true
+
+        Db.injectCommitFailureForTests false
+        Expect.isTrue failed "transaction failure is reported"
+        Expect.isTrue (File.Exists(path + ".bak")) "the previous backup is restored"
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State old "the old career remains active"
+        | Error error -> failtestf "failed replacement lost the old career: %A" error
 
 let manifestTests =
     testCase "an edited manifest is rejected by the load boundary"
@@ -984,6 +1122,25 @@ let legacyReplacementTests =
         | Error(Incompatible _) -> ()
         | other -> failtestf "failed replacement removed the previous save: %A" other
 
+        Db.injectReplacementBackupFailureForTests true
+
+        let failedBackup =
+            try
+                Db.replaceGameInSlotAsync slot replacement (clock 0UL 1) saveSettings
+                |> Async.AwaitTask
+                |> Async.RunSynchronously
+
+                false
+            with _ ->
+                true
+
+        Db.injectReplacementBackupFailureForTests false
+        Expect.isTrue failedBackup "failed backup is reported after an incompatible replacement"
+
+        match load root slot with
+        | Error(Incompatible _) -> ()
+        | other -> failtestf "failed backup removed the old incompatible save: %A" other
+
         Db.replaceGameInSlotAsync slot replacement (clock 0UL 1) saveSettings
         |> Async.AwaitTask
         |> Async.RunSynchronously
@@ -1164,7 +1321,11 @@ let tests =
         "Persistence"
         [ isolationTests
           backupTests
+          unrecoverableFilesTests
+          walRecoveryTests
           commitFailureTests
+          replacementBackupFailureTests
+          replacementCommitRollbackTests
           manifestTests
           effectiveConfigTests
           equivalenceTests
