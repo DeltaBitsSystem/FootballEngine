@@ -379,6 +379,92 @@ let fullStateTests =
             Expect.equal result.WorldClock (clock 1UL 1) "the world revision is independent of saves"
         | Error error -> failtestf "state round-trip failed: %A" error
 
+let activeMarketTests =
+    testCase "active offers, clauses, loans, scouting and registrations round-trip without defaults"
+    <| fun _ ->
+        let root = tempRoot ()
+        let date = DateTime(2027, 1, 1)
+        let operationId = TransferOperationId 3
+        let contractId = ContractId 4
+        let assignmentId = ScoutingAssignmentId 5
+
+        let operation =
+            { Id = operationId
+              Player = 7
+              Buyer = 1
+              Seller = Some 2
+              Fee = 12500000m
+              Salary = 130000m
+              ContractYears = 4
+              Role = Starter
+              MinutesPromised = 2500
+              Status = TransferOperationStatus.Rejected "board veto"
+              Reason = Some(TransferReason.RegistrationInvalid "quota")
+              Created = date
+              Updated = date.AddDays 1.0 }
+
+        let contract =
+            { Id = contractId
+              Employer = 1
+              Player = 7
+              Starts = date
+              Ends = date.AddYears 4
+              Salary = 130000m
+              Bonuses = 20000m
+              Role = Rotation
+              MinutesPromised = 1600
+              Options = [ ClubOption(date.AddYears 3, 500000m); PlayerOption(date.AddYears 2, 250000m) ]
+              Clauses = [ ReleaseClause 30000000m; SellOnPercentage 15m ] }
+
+        let loan =
+            { Player = 7
+              Origin = 2
+              Destination = 1
+              Starts = date
+              Ends = date.AddYears 1
+              WageShareOrigin = 30m
+              WageShareDestination = 70m
+              BuyOption = Some 8000000m
+              RecallDate = Some(date.AddMonths 6) }
+
+        let assignment =
+            ScoutingAssignment.assign assignmentId (PlayerTarget 7) 8 500m date (date.AddDays 14.0)
+
+        let knowledge =
+            { Player = 7
+              CurrentSkillRange = 90, 115
+              PotentialRange = 140, 175
+              WageRange = 80000m, 130000m
+              Confidence = 0.75
+              ObservedOn = date
+              Sources = [ 8 ]
+              ReportKey = "report:5" }
+
+        let market =
+            { MarketState.empty with
+                Operations = Map.ofList [ operationId, operation ]
+                Contracts = Map.ofList [ contractId, contract ]
+                Loans = Map.ofList [ 7, loan ]
+                Assignments = Map.ofList [ assignmentId, assignment ]
+                Knowledge = Map.ofList [ 7, knowledge ]
+                Shortlists = Map.ofList [ 1, [ 7; 12 ] ]
+                Registrations = Map.ofList [ 7, RegistrationBlocked "work permit" ]
+                Events =
+                    [ OfferCountered(operationId, "counter")
+                      ContractRenewed(contractId, "renewed") ]
+                NextOperationId = 6
+                NextContractId = 7 }
+
+        let game =
+            { state date (dataLock None) with
+                Market = market }
+
+        save root "active-market" game (clock 2UL 2)
+
+        match load root "active-market" with
+        | Ok loaded -> Expect.equal loaded.State game "the complete market graph survives"
+        | Error error -> failtestf "active market could not be loaded: %A" error
+
 let outOfOrderWriteTests =
     testCase "older commands cannot overwrite a later same-revision edit or new career"
     <| fun _ ->
@@ -822,6 +908,7 @@ let tests =
           discriminatedUnionRoundtripTests
           newCareerReplacementTests
           fullStateTests
+          activeMarketTests
           outOfOrderWriteTests
           longCareerTests
           metadataTests
