@@ -446,10 +446,10 @@ module Db =
 
             reraise ()
 
-        if replace then
-            // A replaced slot belongs to a different career; recovery must never revive the old one.
+        if replace || isNull (box previous) then
+            // An initial save also needs a recovery copy before it can be reported as fully protected.
             try
-                if replacementBackupFailure.Value then
+                if replace && replacementBackupFailure.Value then
                     invalidOp "Injected replacement backup failure"
 
                 db.Backup(backup, "main")

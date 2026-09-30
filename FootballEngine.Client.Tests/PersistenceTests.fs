@@ -386,7 +386,8 @@ let effectiveConfigTests =
         let root = tempRoot ()
         let slot = "balance"
         save root slot (state (DateTime(2027, 1, 1)) (dataLock None)) (clock 1UL 1)
-        use db = new SQLiteConnection(Path.Combine(root, "career-balance.db3"), true)
+        let path = Path.Combine(root, "career-balance.db3")
+        use db = new SQLiteConnection(path, true)
         let entry = db.Find<CareerSnapshot>(1)
 
         use input = new MemoryStream(entry.Payload)
@@ -413,6 +414,11 @@ let effectiveConfigTests =
             |> sha256
 
         db.Execute("UPDATE CareerSnapshot SET Payload = ?, Hash = ? WHERE Id = 1", payload, digest)
+        |> ignore
+
+        use backupDb = new SQLiteConnection(path + ".bak", true)
+
+        backupDb.Execute("UPDATE CareerSnapshot SET Payload = ?, Hash = ? WHERE Id = 1", payload, digest)
         |> ignore
 
         match load root slot with
@@ -887,8 +893,10 @@ let metadataTests =
         | other -> failtestf "slot listing failed: %A" other
 
         match load root slot with
-        | Error(Corrupt _) -> ()
-        | other -> failtestf "corrupt payload was accepted: %A" other
+        | Ok recovered ->
+            Expect.isTrue recovered.RecoveredFromBackup "the listing did not need to decode the corrupt primary"
+            Expect.equal recovered.State.CurrentDate (DateTime(2027, 1, 1)) "the first backup is complete"
+        | other -> failtestf "first backup did not recover a corrupt payload: %A" other
 
 let chunkTests =
     testCase "changed chunks update, deleted chunks disappear and corrupt chunks recover"

@@ -32,6 +32,9 @@ is unchanged (e.g. tactics or settings). Reference-identity caching avoids
 re-encoding immutable entity records shared between successive `GameState`s;
 all hashes are still validated against disk before overwriting a save. The
 backup is made with SQLite's backup API rather than copying an open `.db3` file.
+The first save of a slot makes a matching backup after committing, so even a
+career saved only once has a recovery copy. On later ordinary saves the backup
+contains the prior confirmed revision; replacements back up the new career.
 A failed transaction leaves the previous confirmed snapshot intact. A corrupted
 primary can be loaded from its previous full backup; replacing a slot also
 replaces its backup, so an old career cannot reappear as a new career. No
@@ -89,6 +92,9 @@ change and ~793 ms load (10.1 MiB). This synthetic world does not contain a
 large mod snapshot, so it cannot quantify that optimization. Measure Release
 builds across representative worlds and multi-season
 careers before setting budgets or changing format/compression.
+With a backup on the very first save, a further local Release run with 10,000
+players measured ~827 ms initial, ~101 ms unchanged and ~785 ms load; these
+single-run differences are not statistically significant.
 
 Integration tests also save a generated world after multiple simulated days,
 load it, and compare both the next world state and clock against uninterrupted
