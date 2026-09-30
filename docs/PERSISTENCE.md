@@ -10,13 +10,19 @@ resolved mod `DataLock.Snapshot` as `datalock:snapshot`. The
 snapshot's SHA-256 covers its compressed payload **and** the sorted keys/hashes
 of every chunk. Every chunk's SHA-256 is checked before deserialization. These
 checks detect accidental corruption; they are not an authentication scheme.
+At load, the stored effective config content/hash must match the balance derived
+from saved `SaveSettings` under the running engine. Changed engine defaults that
+alter this balance cannot silently change an existing career: loading fails
+until an explicit schema/config migration is provided. The saved config is not
+currently an independent runtime override.
 
 The other `GameState` fields, including market, negotiations, histories,
 experiences, inbox and cached profiles, remain in the snapshot payload. The
 `DataLock` identity and package metadata stay there, while its immutable resolved
 content is a separate chunk. The complete clock includes scheduled and consumed work,
 pending events, phase history and world revision. No field is reconstructed with
-the legacy mapper defaults. `SaveEnvelope` exposes only state backed by the
+the legacy mapper defaults. The exposed engine version comes from the saved
+`DataLock`, not a hard-coded placeholder. `SaveEnvelope` exposes only state backed by the
 snapshot; it does not claim that a world RNG or pending commands exist. The
 canonical continuation state is `LoadedCareer.State` plus `LoadedCareer.WorldClock`.
 

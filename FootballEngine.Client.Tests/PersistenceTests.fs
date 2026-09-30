@@ -5,6 +5,7 @@ open System.IO
 open System.IO.Compression
 open System.Security.Cryptography
 open System.Text
+open System.Text.Json.Nodes
 open System.Threading.Tasks
 open Expecto
 open SQLite
@@ -143,6 +144,7 @@ let isolationTests =
             Expect.equal b.Envelope.CareerId "slot-b" "slot B identity"
             Expect.equal a.State.CurrentDate first.CurrentDate "slot A state"
             Expect.equal b.State.DataLock second.DataLock "slot B data lock"
+            Expect.equal b.Envelope.EngineVersion second.DataLock.EngineVersion "engine version comes from saved lock"
             Expect.equal a.ResolvedData.DataLock first.DataLock "slot A resolved snapshot"
             Expect.equal b.ResolvedData.DataLock second.DataLock "slot B resolved snapshot"
         | left, right -> failtestf "slot load failed: %A / %A" left right
@@ -239,6 +241,45 @@ let manifestTests =
         with
         | Error(Corrupt(_, message)) -> Expect.stringContains message "manifest" "edited mod is reported"
         | result -> failtestf "edited manifest was accepted: %A" result
+
+let effectiveConfigTests =
+    testCase "a checksummed snapshot cannot silently resume with different effective settings"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "balance"
+        save root slot (state (DateTime(2027, 1, 1)) (dataLock None)) (clock 1UL 1)
+        use db = new SQLiteConnection(Path.Combine(root, "career-balance.db3"), true)
+        let entry = db.Find<CareerSnapshot>(1)
+
+        use input = new MemoryStream(entry.Payload)
+        use unzip = new GZipStream(input, CompressionMode.Decompress)
+        use text = new StreamReader(unzip)
+        let json = JsonNode.Parse(text.ReadToEnd())
+        json["ConfigHash"] <- JsonValue.Create(1UL)
+
+        use output = new MemoryStream()
+
+        do
+            use zip = new GZipStream(output, CompressionLevel.Fastest, true)
+            let bytes = Encoding.UTF8.GetBytes(json.ToJsonString())
+            zip.Write(bytes, 0, bytes.Length)
+
+        let payload = output.ToArray()
+
+        let digest =
+            db.Table<CareerChunk>().ToList()
+            |> Seq.sortBy _.Key
+            |> Seq.fold
+                (fun current chunk -> current + "|" + chunk.Key + ":" + chunk.Hash)
+                (Convert.ToHexString(SHA256.HashData payload).ToLowerInvariant())
+            |> sha256
+
+        db.Execute("UPDATE CareerSnapshot SET Payload = ?, Hash = ? WHERE Id = 1", payload, digest)
+        |> ignore
+
+        match load root slot with
+        | Error(Corrupt(_, message)) -> Expect.stringContains message "effective configuration" "drift is visible"
+        | other -> failtestf "mismatched configuration was accepted: %A" other
 
 let equivalenceTests =
     testCase "direct continuation equals save-load continuation"
@@ -1125,6 +1166,7 @@ let tests =
           backupTests
           commitFailureTests
           manifestTests
+          effectiveConfigTests
           equivalenceTests
           discriminatedUnionRoundtripTests
           newCareerReplacementTests

@@ -668,7 +668,7 @@ module Db =
 
                     let envelope: SaveEnvelope =
                         { SchemaVersion = entry.SchemaVersion
-                          EngineVersion = "1.0.0"
+                          EngineVersion = dataLock.EngineVersion
                           CareerId = slot
                           ConfirmedRevision = payload.Clock.Revision
                           ConfirmedState = state
@@ -684,10 +684,19 @@ module Db =
                           ResolvedDataHash = hash (Encoding.UTF8.GetBytes(JsonCodec.serialize dataLock.Snapshot))
                           ResolvedDataContent = JsonCodec.serialize dataLock.Snapshot }
 
-                    match SaveEnvelope.validate envelope, SaveSettings.validate payload.Settings with
-                    | Error error, _ -> Error(Corrupt(slot, error))
-                    | _, Error errors -> Error(Corrupt(slot, String.concat "; " errors))
-                    | Ok(), Ok settings ->
+                    let configCheck =
+                        match
+                            EffectiveConfig.fromBalance (BalanceResolver.effectiveBalance (Some payload.Settings))
+                        with
+                        | Ok config when config.Content = payload.ConfigContent && config.Hash = payload.ConfigHash ->
+                            Ok()
+                        | _ -> Error "Saved effective configuration does not match the career settings"
+
+                    match SaveEnvelope.validate envelope, SaveSettings.validate payload.Settings, configCheck with
+                    | Error error, _, _ -> Error(Corrupt(slot, error))
+                    | _, Error errors, _ -> Error(Corrupt(slot, String.concat "; " errors))
+                    | _, _, Error error -> Error(Corrupt(slot, error))
+                    | Ok(), Ok settings, Ok() ->
                         match ModSystem.restoreDataSet dataLock with
                         | Error error ->
                             Error(Corrupt(slot, error.Diagnostics |> List.map _.Message |> String.concat "; "))
