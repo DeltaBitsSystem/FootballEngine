@@ -2,6 +2,7 @@ module FootballEngine.Client.Tests.PersistenceTests
 
 open System
 open System.IO
+open System.IO.Compression
 open System.Security.Cryptography
 open System.Text
 open System.Threading.Tasks
@@ -693,6 +694,50 @@ let chunkTests =
         | Ok loaded -> Expect.equal loaded.State.Clubs Map.empty "removed aggregates do not reappear"
         | Error error -> failtestf "deleted aggregate could not load: %A" error
 
+let dataSnapshotChunkTests =
+    testCase "resolved mod snapshot is stored once, verified, and restored with the career"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "resolved-chunk"
+        let first = state (DateTime(2027, 1, 1)) (dataLock (Some("mod-a", "1")))
+        save root slot first (clock 1UL 1)
+        let path = Path.Combine(root, "career-resolved-chunk.db3")
+
+        use db = new SQLiteConnection(path, true)
+
+        let rowId () =
+            db.ExecuteScalar<int64>("SELECT rowid FROM CareerChunk WHERE Key = 'datalock:snapshot'")
+
+        let originalRowId = rowId ()
+        Expect.isGreaterThan originalRowId 0L "the data snapshot has its own chunk"
+
+        let payload = db.Find<CareerSnapshot>(1).Payload
+        use input = new MemoryStream(payload)
+        use zip = new GZipStream(input, CompressionMode.Decompress)
+        use text = new StreamReader(zip)
+        let json = text.ReadToEnd()
+        Expect.isFalse (json.Contains("sports\\n0\\n", StringComparison.Ordinal)) "main payload omits snapshot content"
+
+        let second =
+            { first with
+                CurrentDate = first.CurrentDate.AddDays 1.0 }
+
+        save root slot second (clock 2UL 2)
+        Expect.equal (rowId ()) originalRowId "unchanged snapshot is not rewritten"
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State second "load restores the locked resolved data"
+        | Error error -> failtestf "resolved snapshot did not round-trip: %A" error
+
+        db.Execute("UPDATE CareerChunk SET Payload = ? WHERE Key = 'datalock:snapshot'", [| 1uy |])
+        |> ignore
+
+        match load root slot with
+        | Ok recovered ->
+            Expect.isTrue recovered.RecoveredFromBackup "corrupted resolved data requires recovery"
+            Expect.equal recovered.State first "the previous confirmed save is recovered intact"
+        | Error error -> failtestf "corrupted resolved snapshot did not recover: %A" error
+
 let missingPrimaryTests =
     testCase "a missing primary SQLite file can still be listed and loaded from its backup"
     <| fun _ ->
@@ -985,6 +1030,7 @@ let tests =
           longCareerTests
           metadataTests
           chunkTests
+          dataSnapshotChunkTests
           missingPrimaryTests
           invalidSlotTests
           incompatibleSchemaTests

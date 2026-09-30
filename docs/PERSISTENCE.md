@@ -5,14 +5,16 @@
 One SQLite database per slot. `GameState`, `WorldClock`, effective configuration,
 and per-career `SaveSettings` are the canonical saved state. `CareerSnapshot` stores
 the single confirmed metadata/payload row; `CareerChunk` stores players, clubs,
-staff, competitions (including fixtures and match events), and countries. The
+staff, competitions (including fixtures and match events), countries, and the
+resolved mod `DataLock.Snapshot` as `datalock:snapshot`. The
 snapshot's SHA-256 covers its compressed payload **and** the sorted keys/hashes
 of every chunk. Every chunk's SHA-256 is checked before deserialization. These
 checks detect accidental corruption; they are not an authentication scheme.
 
 The other `GameState` fields, including market, negotiations, histories,
-experiences, inbox, cached profiles, and the locked resolved mod snapshot, remain
-in the snapshot payload. The complete clock includes scheduled and consumed work,
+experiences, inbox and cached profiles, remain in the snapshot payload. The
+`DataLock` identity and package metadata stay there, while its immutable resolved
+content is a separate chunk. The complete clock includes scheduled and consumed work,
 pending events, phase history and world revision. No field is reconstructed with
 the legacy mapper defaults. `SaveEnvelope` exposes only state backed by the
 snapshot; it does not claim that a world RNG or pending commands exist. The
@@ -56,7 +58,11 @@ as a local baseline, not as evidence of superiority over any other game. On the
 development machine with 10,000 players, a debug run measured ~827 ms first
 save, ~98 ms unchanged save, ~102 ms one-player change, ~783 ms load, and a
 10.1 MiB database. With 50,000 players: ~2.0 s, ~421 ms, ~455 ms, ~1.5 s,
-50.1 MiB. Measure Release builds across representative worlds and multi-season
+50.1 MiB. After splitting out the resolved snapshot chunk, a Release run with
+10,000 players measured ~814 ms initial, ~93 ms unchanged, ~94 ms one-player
+change and ~793 ms load (10.1 MiB). This synthetic world does not contain a
+large mod snapshot, so it cannot quantify that optimization. Measure Release
+builds across representative worlds and multi-season
 careers before setting budgets or changing format/compression.
 
 Integration tests also save a generated world after multiple simulated days,

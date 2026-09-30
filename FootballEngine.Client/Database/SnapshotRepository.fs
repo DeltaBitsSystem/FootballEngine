@@ -71,7 +71,7 @@ type private CareerPayload =
 
 module Db =
     [<Literal>]
-    let CurrentSchema = 6
+    let CurrentSchema = 7
 
     [<Literal>]
     let DefaultSlot = "career-1"
@@ -237,9 +237,17 @@ module Db =
               if country.Country.Code <> code then
                   invalidOp "Country map key does not match its code."
 
-              chunk "country" code country ]
+              chunk "country" code country
+          chunk "datalock" "snapshot" state.DataLock.Snapshot ]
 
     let private restoreChunks (state: GameState) (chunks: CareerChunk list) =
+        let snapshot =
+            chunks
+            |> List.filter (fun entry -> entry.Key = "datalock:snapshot")
+            |> function
+                | [ entry ] -> decodeValue<DataSnapshot> entry.Payload
+                | _ -> invalidOp "Expected exactly one resolved data snapshot chunk."
+
         let restore prefix decodeValue =
             chunks
             |> List.choose (fun entry ->
@@ -255,6 +263,9 @@ module Db =
             |> Map.ofList
 
         { state with
+            DataLock =
+                { state.DataLock with
+                    Snapshot = snapshot }
             Players =
                 restore "player" (fun payload ->
                     let player = decodeValue<Player> payload
@@ -320,7 +331,13 @@ module Db =
                     Clubs = Map.empty
                     Staff = Map.empty
                     Competitions = Map.empty
-                    Countries = Map.empty }
+                    Countries = Map.empty
+                    DataLock =
+                        { state.DataLock with
+                            Snapshot =
+                                { SportsContent = ""
+                                  Translations = ""
+                                  Assets = "" } } }
               Clock = clock
               Settings = settings
               ConfigContent = config.Content
@@ -615,6 +632,7 @@ module Db =
                            || not (
                                [ "player:"; "club:"; "staff:"; "competition:"; "country:" ]
                                |> List.exists (fun prefix -> chunk.Key.StartsWith(prefix, StringComparison.Ordinal))
+                               || chunk.Key = "datalock:snapshot"
                            ))
                     || snapshotHash entry.Payload chunks <> entry.Hash
                 then
