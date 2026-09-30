@@ -111,12 +111,17 @@ module Db =
         let sync = obj ()
         let mutable issued = 0L
         let mutable committed = 0L
+        let mutable replacementIssued = 0L
 
         member _.Semaphore = semaphore
 
-        member _.Issue() =
+        member _.Issue(replace) =
             lock sync (fun () ->
                 issued <- issued + 1L
+
+                if replace then
+                    replacementIssued <- issued
+
                 issued)
 
         member _.Superseded sequence =
@@ -124,6 +129,9 @@ module Db =
 
         member _.Commit sequence =
             lock sync (fun () -> committed <- max committed sequence)
+
+        member _.NeedsReplacement sequence =
+            lock sync (fun () -> replacementIssued > committed && replacementIssued <= sequence)
 
     let private gates = ConcurrentDictionary<string, SlotWriteGate>()
 
@@ -297,6 +305,9 @@ module Db =
         let path = slotPath slot
         Directory.CreateDirectory(storageDirectory ()) |> ignore
 
+        if not replace && not (File.Exists path) && File.Exists(path + ".bak") then
+            invalidOp "Cannot save over an orphaned backup; load the slot to recover it first."
+
         if File.Exists path then
             match incompatibleSchema path with
             | Some version -> invalidOp $"Save schema {version} is incompatible with schema {CurrentSchema}."
@@ -464,7 +475,7 @@ module Db =
 
     let prepareSaveInSlot (slot: string) (state: GameState) (clock: WorldClock) (settings: SaveSettings) replace =
         let writer = gateFor slot
-        let sequence = writer.Issue()
+        let sequence = writer.Issue(replace)
 
         fun () ->
             task {
@@ -472,9 +483,12 @@ module Db =
 
                 try
                     if not (writer.Superseded sequence) then
+                        // Later changes to a new career may run before its initial replacement command.
+                        let effectiveReplace = replace || writer.NeedsReplacement sequence
+
                         do!
                             Task.Run(fun () ->
-                                if replace then
+                                if effectiveReplace then
                                     replaceLegacy slot state clock settings
                                 else
                                     saveCore slot state clock settings false)

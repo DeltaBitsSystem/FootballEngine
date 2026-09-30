@@ -41,6 +41,12 @@ saves work normally and the client notifies the player about the recovery.
 Save commands receive an in-process per-slot sequence when they are created:
 an older command that runs after a newer confirmed command cannot overwrite it,
 even if both represent the same world-clock revision or a slot replacement.
+If an edit to a newly created career executes before its initial replacement
+save, the edit carries the pending replacement intent; the older initial save
+then becomes a no-op. A failed edit leaves the original replacement eligible.
+Ordinary saves refuse to create a new primary when only an older `.bak` remains;
+loading first restores that backup, while an explicit career replacement may
+create a fresh primary and matching backup.
 
 ## Verification
 

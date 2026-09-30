@@ -570,6 +570,79 @@ let outOfOrderWriteTests =
         | Ok loaded -> Expect.equal loaded.State newCareer "old career writes cannot revive a replaced slot"
         | Error error -> failtestf "replacement was overwritten: %A" error
 
+let replacementWriteOrderTests =
+    testCase "an immediate new-career edit can commit before its initial slot replacement"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "replacement-order"
+        let previous = state (DateTime(2028, 1, 1)) (dataLock None)
+        save root slot previous (clock 365UL 365)
+
+        let fresh = state (DateTime(2026, 7, 1)) (dataLock None)
+
+        let edited =
+            { fresh with
+                TeamEmphasis = EmHighPress }
+
+        let replace = Db.prepareSaveInSlot slot fresh (clock 0UL 1) saveSettings true
+        let edit = Db.prepareSaveInSlot slot edited (clock 0UL 1) saveSettings false
+
+        // Elmish commands are asynchronous; creation order need not equal execution order.
+        edit () |> Async.AwaitTask |> Async.RunSynchronously
+        replace () |> Async.AwaitTask |> Async.RunSynchronously
+
+        match load root slot with
+        | Ok loaded ->
+            Expect.equal loaded.State edited "the edit survives despite the old slot's higher revision"
+            Expect.equal loaded.Envelope.ConfirmedRevision 0UL "the new career revision is reset"
+        | Error error -> failtestf "new-career edit was lost: %A" error
+
+        use db =
+            new SQLiteConnection(Path.Combine(root, "career-replacement-order.db3"), true)
+
+        db.Execute("UPDATE CareerSnapshot SET Payload = ? WHERE Id = 1", [| 1uy |])
+        |> ignore
+
+        match load root slot with
+        | Ok recovered -> Expect.equal recovered.State edited "backup also belongs to the edited new career"
+        | Error error -> failtestf "the old career reappeared after recovery: %A" error
+
+let failedReplacementEditTests =
+    testCase "a failed early new-career edit does not suppress the original replacement"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "replacement-failure"
+        save root slot (state (DateTime(2028, 1, 1)) (dataLock None)) (clock 365UL 365)
+
+        let fresh = state (DateTime(2026, 7, 1)) (dataLock None)
+        let replace = Db.prepareSaveInSlot slot fresh (clock 0UL 1) saveSettings true
+
+        let edit =
+            Db.prepareSaveInSlot
+                slot
+                { fresh with
+                    TeamEmphasis = EmHighPress }
+                (clock 0UL 1)
+                saveSettings
+                false
+
+        Db.injectCommitFailureForTests true
+
+        let failed =
+            try
+                edit () |> Async.AwaitTask |> Async.RunSynchronously
+                false
+            with _ ->
+                true
+
+        Db.injectCommitFailureForTests false
+        Expect.isTrue failed "the injected edit failure is reported"
+        replace () |> Async.AwaitTask |> Async.RunSynchronously
+
+        match load root slot with
+        | Ok loaded -> Expect.equal loaded.State fresh "the initial replacement remains eligible after a failed edit"
+        | Error error -> failtestf "failed edit prevented the new career: %A" error
+
 let longCareerTests =
     testCase "decades of season results and inbox messages survive repeated saves"
     <| fun _ ->
@@ -758,6 +831,38 @@ let missingPrimaryTests =
             Expect.equal loaded.State.CurrentDate first.CurrentDate "backup is loadable"
             Expect.isTrue (File.Exists path) "loading the backup restores an active primary"
         | Error error -> failtestf "backup was not loaded: %A" error
+
+let orphanBackupWriteTests =
+    testCase "ordinary saves cannot create a fresh primary over an orphaned older backup"
+    <| fun _ ->
+        let root = tempRoot ()
+        let slot = "orphan-write"
+        let first = state (DateTime(2027, 1, 1)) (dataLock None)
+        let later = state (DateTime(2027, 1, 2)) (dataLock None)
+        save root slot first (clock 1UL 1)
+        save root slot later (clock 2UL 2)
+        let path = Path.Combine(root, "career-orphan-write.db3")
+        File.Move(path, path + ".lost")
+
+        let blocked =
+            try
+                save root slot later (clock 3UL 3)
+                false
+            with _ ->
+                true
+
+        Expect.isTrue blocked "a missing primary requires recovery before a regular save"
+        Expect.isFalse (File.Exists path) "failed save does not create an unprotected primary"
+
+        match load root slot with
+        | Ok recovered -> Expect.equal recovered.State first "the backup can still be recovered"
+        | Error error -> failtestf "orphan backup was lost: %A" error
+
+        save root slot later (clock 3UL 3)
+
+        match load root slot with
+        | Ok resumed -> Expect.equal resumed.State later "saving works after recovery"
+        | Error error -> failtestf "the restored career could not be saved: %A" error
 
 let invalidSlotTests =
     testCase "slot names cannot escape the career directory or alias another slot"
@@ -1027,11 +1132,14 @@ let tests =
           activeMarketTests
           playedMatchHistoryTests
           outOfOrderWriteTests
+          replacementWriteOrderTests
+          failedReplacementEditTests
           longCareerTests
           metadataTests
           chunkTests
           dataSnapshotChunkTests
           missingPrimaryTests
+          orphanBackupWriteTests
           invalidSlotTests
           incompatibleSchemaTests
           legacyReplacementTests
