@@ -65,6 +65,7 @@
     <Compile Include="Match\Contracts\Clock.fs"/>
     <Compile Include="Match\Contracts\MatchState.fs"/>
     <Compile Include="Match\Contracts\Frames.fs"/>
+    <Compile Include="Match\Contracts\Observation.fs"/>
     <Compile Include="Match\Contracts\World.fs"/>
     <Compile Include="Match\Contracts\PlayerProfile.fs"/>
     <Compile Include="Match\Contracts\WeightSections.generated.fs"/>
@@ -90,8 +91,14 @@
       <Compile Include="Match\Simulator\MatchDump.fs"/>
      <Compile Include="Match\Contracts\MatchSimulationTypes.fs"/>
      <Compile Include="Match\Contracts\MatchBoundary.fs"/>
+     <Compile Include="Match\Simulator\MatchJob.fs"/>
+     <Compile Include="Match\Simulator\MatchSession.fs"/>
+     <Compile Include="Match\Simulator\MatchAdapter.fs"/>
      <Compile Include="Match\Simulator\Simulator.fs"/>
+    <Compile Include="Match\Systems\Ball\Dynamics.fs"/>
     <Compile Include="Match\Systems\Ball\Physics.fs"/>
+    <Compile Include="Match\Systems\Ball\FootContact.fs"/>
+    <Compile Include="Match\Systems\Players\BodyPhysics.fs"/>
     <Compile Include="Match\Systems\Ball\Contact.fs"/>
     <Compile Include="Match\Systems\Ball\Outcome.fs"/>
     <Compile Include="Match\Systems\Ball\Possession.fs"/>

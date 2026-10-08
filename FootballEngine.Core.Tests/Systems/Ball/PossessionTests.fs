@@ -34,7 +34,7 @@ module PossessionTests =
     let possessionTests =
         testList
             "FootballEngine.Core.Systems.Ball.PossessionTests"
-            [ testCase "Carrier drags the ball toward the goal" (fun _ ->
+            [ testCase "Carrier touches momentum without dragging ball position" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
                   let pid = ctx.HomeLineup.Profiles.[5].Id
 
@@ -44,14 +44,15 @@ module PossessionTests =
                               { world.State.Ball with
                                   Control = BallControl.Controlled(ClubSide.Home, pid) } }
 
-                  place world ClubSide.Home 5 10.0<meter> 0.0<meter>
+                  place world ClubSide.Home 5 0.0<meter> 0.0<meter>
                   let before = world.State.Ball.Position.X
 
                   let buf = buffer ()
                   BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
                   applyEvents world buf
 
-                  Expect.isGreaterThan (float world.State.Ball.Position.X) (float before) "ball carried forward")
+                  Expect.equal world.State.Ball.Position.X before "touch cannot teleport the ball"
+                  Expect.isGreaterThan (float world.State.Ball.Position.Vx) 0.0 "touch drives the next physical step")
 
               testCase "Controlled ball remains inside when its carrier reaches a pitch boundary" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
@@ -183,7 +184,7 @@ module PossessionTests =
                   | BallControl.Controlled(ClubSide.Home, pid') -> Expect.equal pid' pid "picked up"
                   | other -> failtestf "expected Controlled, got %A" other)
 
-              testCase "Not stationary long enough: no pickup" (fun _ ->
+              testCase "A reachable loose ball does not wait for an idle timer" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
 
                   world.State <-
@@ -203,7 +204,13 @@ module PossessionTests =
                   let buf = buffer ()
                   BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
 
-                  Expect.isEmpty buf.Events "no pickup yet")
+                  Expect.exists
+                      buf.Events
+                      (fun event ->
+                          match event.Data with
+                          | EventData.Possession _ -> true
+                          | _ -> false)
+                      "physical reach is enough to trap the ball")
 
               testCase "press intent wins a loose ball over a faster idle player" (fun _ ->
                   let c = TestBuilders.defaultCtx ()
@@ -233,8 +240,8 @@ module PossessionTests =
                                           Y = 0.0<meter> }
                                   Control = BallControl.Contesting ClubSide.Home } }
 
-                  place world ClubSide.Home 5 6.0<meter> 0.0<meter>
-                  place world ClubSide.Away 5 7.0<meter> 0.0<meter>
+                  place world ClubSide.Home 5 0.6<meter> 0.0<meter>
+                  place world ClubSide.Away 5 0.7<meter> 0.0<meter>
 
                   (MatchWorld.team world ClubSide.Away).Frame.Intent.Kind.[5] <- IntentCode.Press
 

@@ -11,7 +11,7 @@ module Replay =
     let private magic = 0x33525046
 
     [<Literal>]
-    let private formatVersion = 6
+    let private formatVersion = 10
 
     [<Literal>]
     let blockSize = 32
@@ -28,11 +28,15 @@ module Replay =
           BallX: float32
           BallY: float32
           BallZ: float32
+          BallRadius: float32
           BallVx: float32
           BallVy: float32
           BallVz: float32
-          BallSpinTop: float32
-          BallSpinSide: float32
+          BallSpinX: float32
+          BallSpinY: float32
+          BallSpinZ: float32
+          BallOrientation: System.Numerics.Quaternion
+          FootMotion: FootMotion option
           BallControlSide: sbyte
           BallController: int
           RefereeX: float32
@@ -44,15 +48,27 @@ module Replay =
           RefereeSignal: byte
           HomeX: float32[]
           HomeY: float32[]
+          HomeZ: float32[]
+          HomeVz: float32[]
           HomeVx: float32[]
           HomeVy: float32[]
+          HomeFacing: float32[]
+          HomeAngularVelocity: float32[]
+          HomeAngularAcceleration: float32[]
+          HomeTravelDistance: float32[]
           HomeCondition: float32[]
           HomeIntent: byte[]
           HomeActive: bool[]
           AwayX: float32[]
           AwayY: float32[]
+          AwayZ: float32[]
+          AwayVz: float32[]
           AwayVx: float32[]
           AwayVy: float32[]
+          AwayFacing: float32[]
+          AwayAngularVelocity: float32[]
+          AwayAngularAcceleration: float32[]
+          AwayTravelDistance: float32[]
           AwayCondition: float32[]
           AwayIntent: byte[]
           AwayActive: bool[] }
@@ -141,11 +157,15 @@ module Replay =
           BallX = float32 world.State.Ball.Position.X
           BallY = float32 world.State.Ball.Position.Y
           BallZ = float32 world.State.Ball.Position.Z
+          BallRadius = float32 world.State.Ball.Radius
           BallVx = float32 world.State.Ball.Position.Vx
           BallVy = float32 world.State.Ball.Position.Vy
           BallVz = float32 world.State.Ball.Position.Vz
-          BallSpinTop = float32 world.State.Ball.Spin.Top
-          BallSpinSide = float32 world.State.Ball.Spin.Side
+          BallSpinX = float32 world.State.Ball.Spin.X
+          BallSpinY = float32 world.State.Ball.Spin.Y
+          BallSpinZ = float32 world.State.Ball.Spin.Z
+          BallOrientation = world.State.Ball.Orientation
+          FootMotion = world.State.Ball.FootMotion
           BallControlSide = controlSide
           BallController = controller
           RefereeX = float32 world.Officials.Referee.X
@@ -157,15 +177,27 @@ module Replay =
           RefereeSignal = signal
           HomeX = Array.copy world.Home.Frame.PosX
           HomeY = Array.copy world.Home.Frame.PosY
+          HomeZ = Array.copy world.Home.Frame.PosZ
+          HomeVz = Array.copy world.Home.Frame.VelZ
           HomeVx = Array.copy world.Home.Frame.VelX
           HomeVy = Array.copy world.Home.Frame.VelY
+          HomeFacing = Array.copy world.Home.Frame.BodyFacing
+          HomeAngularVelocity = Array.copy world.Home.Frame.BodyAngularVelocity
+          HomeAngularAcceleration = Array.copy world.Home.Frame.BodyAngularAcceleration
+          HomeTravelDistance = Array.copy world.Home.Frame.BodyTravelDistance
           HomeCondition = Array.copy world.Home.Frame.Condition
           HomeIntent = world.Home.Frame.Intent.Kind |> Array.map byte
           HomeActive = world.Home.Frame.Occupancy |> Array.map MatchWorld.isActiveSlot
           AwayX = Array.copy world.Away.Frame.PosX
           AwayY = Array.copy world.Away.Frame.PosY
+          AwayZ = Array.copy world.Away.Frame.PosZ
+          AwayVz = Array.copy world.Away.Frame.VelZ
           AwayVx = Array.copy world.Away.Frame.VelX
           AwayVy = Array.copy world.Away.Frame.VelY
+          AwayFacing = Array.copy world.Away.Frame.BodyFacing
+          AwayAngularVelocity = Array.copy world.Away.Frame.BodyAngularVelocity
+          AwayAngularAcceleration = Array.copy world.Away.Frame.BodyAngularAcceleration
+          AwayTravelDistance = Array.copy world.Away.Frame.BodyTravelDistance
           AwayCondition = Array.copy world.Away.Frame.Condition
           AwayIntent = world.Away.Frame.Intent.Kind |> Array.map byte
           AwayActive = world.Away.Frame.Occupancy |> Array.map MatchWorld.isActiveSlot }
@@ -210,6 +242,100 @@ module Replay =
 
     let private readVelocity (reader: BinaryReader) = float32 (reader.ReadInt16()) / 100.0f
 
+    let private writeFootMotion (writer: BinaryWriter) (motion: FootMotion option) =
+        writer.Write motion.IsSome
+
+        match motion with
+        | None -> ()
+        | Some motion ->
+            let (PlayerId actor) = motion.Actor
+            writer.Write actor
+            writer.Write(if motion.Foot = ContactFoot.Left then 0uy else 1uy)
+
+            let kind, restart =
+                match motion.Kind with
+                | FootTouchKind.Carry -> 0uy, 0uy
+                | FootTouchKind.Receive -> 1uy, 0uy
+                | FootTouchKind.Kick StrikeKind.Pass -> 2uy, 0uy
+                | FootTouchKind.Kick StrikeKind.Shot -> 3uy, 0uy
+                | FootTouchKind.Kick StrikeKind.Cross -> 4uy, 0uy
+                | FootTouchKind.Kick StrikeKind.Clearance -> 5uy, 0uy
+                | FootTouchKind.Kick(StrikeKind.Restart kind) ->
+                    let tag =
+                        match kind with
+                        | SetPieceKind.KickOff -> 0uy
+                        | SetPieceKind.ThrowIn -> 1uy
+                        | SetPieceKind.Corner -> 2uy
+                        | SetPieceKind.GoalKick -> 3uy
+                        | SetPieceKind.FreeKick -> 4uy
+                        | SetPieceKind.Penalty -> 5uy
+
+                    6uy, tag
+
+            writer.Write kind
+            writer.Write restart
+            writer.Write(int motion.StartedAt)
+            writer.Write(int motion.ContactAt)
+            writer.Write(int motion.EndsAt)
+            writer.Write(float32 motion.Point.X)
+            writer.Write(float32 motion.Point.Y)
+            writer.Write(float32 motion.Point.Z)
+            writer.Write(float32 motion.BallCenter.X)
+            writer.Write(float32 motion.BallCenter.Y)
+            writer.Write(float32 motion.BallCenter.Z)
+
+    let private readFootMotion (reader: BinaryReader) : FootMotion option =
+        if not (reader.ReadBoolean()) then
+            None
+        else
+            let actor = PlayerId(reader.ReadInt32())
+
+            let foot =
+                match reader.ReadByte() with
+                | 0uy -> ContactFoot.Left
+                | 1uy -> ContactFoot.Right
+                | _ -> raise (InvalidDataException "Invalid contact foot in replay.")
+
+            let kind, restart = reader.ReadByte(), reader.ReadByte()
+
+            let kind =
+                match kind with
+                | 0uy -> FootTouchKind.Carry
+                | 1uy -> FootTouchKind.Receive
+                | 2uy -> FootTouchKind.Kick StrikeKind.Pass
+                | 3uy -> FootTouchKind.Kick StrikeKind.Shot
+                | 4uy -> FootTouchKind.Kick StrikeKind.Cross
+                | 5uy -> FootTouchKind.Kick StrikeKind.Clearance
+                | 6uy ->
+                    let restart =
+                        match restart with
+                        | 0uy -> SetPieceKind.KickOff
+                        | 1uy -> SetPieceKind.ThrowIn
+                        | 2uy -> SetPieceKind.Corner
+                        | 3uy -> SetPieceKind.GoalKick
+                        | 4uy -> SetPieceKind.FreeKick
+                        | 5uy -> SetPieceKind.Penalty
+                        | _ -> raise (InvalidDataException "Invalid strike restart in replay.")
+
+                    FootTouchKind.Kick(StrikeKind.Restart restart)
+                | _ -> raise (InvalidDataException "Invalid contact kind in replay.")
+
+            Some
+                { Actor = actor
+                  Foot = foot
+                  Kind = kind
+                  StartedAt = reader.ReadInt32() * 1<subtick>
+                  ContactAt = reader.ReadInt32() * 1<subtick>
+                  EndsAt = reader.ReadInt32() * 1<subtick>
+                  Point =
+                    { X = float (reader.ReadSingle()) * 1.0<meter>
+                      Y = float (reader.ReadSingle()) * 1.0<meter>
+                      Z = float (reader.ReadSingle()) * 1.0<meter> }
+                  BallCenter =
+                    { X = float (reader.ReadSingle()) * 1.0<meter>
+                      Y = float (reader.ReadSingle()) * 1.0<meter>
+                      Z = float (reader.ReadSingle()) * 1.0<meter> } }
+
     let private writeSnapshot
         (writer: BinaryWriter)
         (homeSlotCount: int)
@@ -220,16 +346,28 @@ module Replay =
             snapshot.HomeX.Length <> homeSlotCount
             || snapshot.HomePlayerIds.Length <> homeSlotCount
             || snapshot.HomeY.Length <> homeSlotCount
+            || snapshot.HomeZ.Length <> homeSlotCount
+            || snapshot.HomeVz.Length <> homeSlotCount
             || snapshot.HomeVx.Length <> homeSlotCount
             || snapshot.HomeVy.Length <> homeSlotCount
+            || snapshot.HomeFacing.Length <> homeSlotCount
+            || snapshot.HomeAngularVelocity.Length <> homeSlotCount
+            || snapshot.HomeAngularAcceleration.Length <> homeSlotCount
+            || snapshot.HomeTravelDistance.Length <> homeSlotCount
             || snapshot.HomeCondition.Length <> homeSlotCount
             || snapshot.HomeIntent.Length <> homeSlotCount
             || snapshot.HomeActive.Length <> homeSlotCount
             || snapshot.AwayX.Length <> awaySlotCount
             || snapshot.AwayPlayerIds.Length <> awaySlotCount
             || snapshot.AwayY.Length <> awaySlotCount
+            || snapshot.AwayZ.Length <> awaySlotCount
+            || snapshot.AwayVz.Length <> awaySlotCount
             || snapshot.AwayVx.Length <> awaySlotCount
             || snapshot.AwayVy.Length <> awaySlotCount
+            || snapshot.AwayFacing.Length <> awaySlotCount
+            || snapshot.AwayAngularVelocity.Length <> awaySlotCount
+            || snapshot.AwayAngularAcceleration.Length <> awaySlotCount
+            || snapshot.AwayTravelDistance.Length <> awaySlotCount
             || snapshot.AwayCondition.Length <> awaySlotCount
             || snapshot.AwayIntent.Length <> awaySlotCount
             || snapshot.AwayActive.Length <> awaySlotCount
@@ -243,11 +381,18 @@ module Replay =
         writer.Write(Quantization.quantizeCentimeters snapshot.BallX)
         writer.Write(Quantization.quantizeCentimeters snapshot.BallY)
         writer.Write(Quantization.quantizeCentimeters snapshot.BallZ)
+        writer.Write snapshot.BallRadius
         writeVelocity writer snapshot.BallVx
         writeVelocity writer snapshot.BallVy
         writeVelocity writer snapshot.BallVz
-        writeVelocity writer snapshot.BallSpinTop
-        writeVelocity writer snapshot.BallSpinSide
+        writer.Write snapshot.BallSpinX
+        writer.Write snapshot.BallSpinY
+        writer.Write snapshot.BallSpinZ
+        writer.Write snapshot.BallOrientation.X
+        writer.Write snapshot.BallOrientation.Y
+        writer.Write snapshot.BallOrientation.Z
+        writer.Write snapshot.BallOrientation.W
+        writeFootMotion writer snapshot.FootMotion
         writer.Write snapshot.BallControlSide
         writer.Write snapshot.BallController
         writePosition writer snapshot.RefereeX snapshot.RefereeY
@@ -257,15 +402,27 @@ module Replay =
 
         for i in 0 .. homeSlotCount - 1 do
             writePosition writer snapshot.HomeX[i] snapshot.HomeY[i]
+            writer.Write(Quantization.quantizeCentimeters snapshot.HomeZ[i])
+            writeVelocity writer snapshot.HomeVz[i]
             writeVelocity writer snapshot.HomeVx[i]
             writeVelocity writer snapshot.HomeVy[i]
+            writer.Write snapshot.HomeFacing[i]
+            writer.Write snapshot.HomeAngularVelocity[i]
+            writer.Write snapshot.HomeAngularAcceleration[i]
+            writer.Write snapshot.HomeTravelDistance[i]
             writer.Write snapshot.HomeCondition[i]
             writer.Write snapshot.HomeIntent[i]
 
         for i in 0 .. awaySlotCount - 1 do
             writePosition writer snapshot.AwayX[i] snapshot.AwayY[i]
+            writer.Write(Quantization.quantizeCentimeters snapshot.AwayZ[i])
+            writeVelocity writer snapshot.AwayVz[i]
             writeVelocity writer snapshot.AwayVx[i]
             writeVelocity writer snapshot.AwayVy[i]
+            writer.Write snapshot.AwayFacing[i]
+            writer.Write snapshot.AwayAngularVelocity[i]
+            writer.Write snapshot.AwayAngularAcceleration[i]
+            writer.Write snapshot.AwayTravelDistance[i]
             writer.Write snapshot.AwayCondition[i]
             writer.Write snapshot.AwayIntent[i]
 
@@ -464,11 +621,23 @@ module Replay =
         let ballX = Quantization.dequantizeCentimeters (reader.ReadInt16())
         let ballY = Quantization.dequantizeCentimeters (reader.ReadInt16())
         let ballZ = Quantization.dequantizeCentimeters (reader.ReadInt16())
+        let ballRadius = reader.ReadSingle()
         let ballVx = readVelocity reader
         let ballVy = readVelocity reader
         let ballVz = readVelocity reader
-        let ballSpinTop = readVelocity reader
-        let ballSpinSide = readVelocity reader
+        let ballSpinX = reader.ReadSingle()
+        let ballSpinY = reader.ReadSingle()
+        let ballSpinZ = reader.ReadSingle()
+
+        let ballOrientation =
+            System.Numerics.Quaternion(
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle(),
+                reader.ReadSingle()
+            )
+
+        let footMotion = readFootMotion reader
         let ballControlSide = reader.ReadSByte()
         let ballController = reader.ReadInt32()
         let refereeX, refereeY = readPosition reader
@@ -479,14 +648,26 @@ module Replay =
         let awayCount = awayPlayerIds.Length
         let homeX = Array.zeroCreate<float32> homeCount
         let homeY = Array.zeroCreate<float32> homeCount
+        let homeZ = Array.zeroCreate<float32> homeCount
+        let homeVz = Array.zeroCreate<float32> homeCount
         let homeVx = Array.zeroCreate<float32> homeCount
         let homeVy = Array.zeroCreate<float32> homeCount
+        let homeFacing = Array.zeroCreate<float32> homeCount
+        let homeAngularVelocity = Array.zeroCreate<float32> homeCount
+        let homeAngularAcceleration = Array.zeroCreate<float32> homeCount
+        let homeTravelDistance = Array.zeroCreate<float32> homeCount
         let homeCondition = Array.zeroCreate<float32> homeCount
         let homeIntent = Array.zeroCreate<byte> homeCount
         let awayX = Array.zeroCreate<float32> awayCount
         let awayY = Array.zeroCreate<float32> awayCount
+        let awayZ = Array.zeroCreate<float32> awayCount
+        let awayVz = Array.zeroCreate<float32> awayCount
         let awayVx = Array.zeroCreate<float32> awayCount
         let awayVy = Array.zeroCreate<float32> awayCount
+        let awayFacing = Array.zeroCreate<float32> awayCount
+        let awayAngularVelocity = Array.zeroCreate<float32> awayCount
+        let awayAngularAcceleration = Array.zeroCreate<float32> awayCount
+        let awayTravelDistance = Array.zeroCreate<float32> awayCount
         let awayCondition = Array.zeroCreate<float32> awayCount
         let awayIntent = Array.zeroCreate<byte> awayCount
 
@@ -494,8 +675,14 @@ module Replay =
             let x, y = readPosition reader
             homeX[i] <- x
             homeY[i] <- y
+            homeZ[i] <- Quantization.dequantizeCentimeters (reader.ReadInt16())
+            homeVz[i] <- readVelocity reader
             homeVx[i] <- readVelocity reader
             homeVy[i] <- readVelocity reader
+            homeFacing[i] <- reader.ReadSingle()
+            homeAngularVelocity[i] <- reader.ReadSingle()
+            homeAngularAcceleration[i] <- reader.ReadSingle()
+            homeTravelDistance[i] <- reader.ReadSingle()
             homeCondition[i] <- reader.ReadSingle()
             homeIntent[i] <- reader.ReadByte()
 
@@ -503,8 +690,14 @@ module Replay =
             let x, y = readPosition reader
             awayX[i] <- x
             awayY[i] <- y
+            awayZ[i] <- Quantization.dequantizeCentimeters (reader.ReadInt16())
+            awayVz[i] <- readVelocity reader
             awayVx[i] <- readVelocity reader
             awayVy[i] <- readVelocity reader
+            awayFacing[i] <- reader.ReadSingle()
+            awayAngularVelocity[i] <- reader.ReadSingle()
+            awayAngularAcceleration[i] <- reader.ReadSingle()
+            awayTravelDistance[i] <- reader.ReadSingle()
             awayCondition[i] <- reader.ReadSingle()
             awayIntent[i] <- reader.ReadByte()
 
@@ -520,11 +713,15 @@ module Replay =
           BallX = ballX
           BallY = ballY
           BallZ = ballZ
+          BallRadius = ballRadius
           BallVx = ballVx
           BallVy = ballVy
           BallVz = ballVz
-          BallSpinTop = ballSpinTop
-          BallSpinSide = ballSpinSide
+          BallSpinX = ballSpinX
+          BallSpinY = ballSpinY
+          BallSpinZ = ballSpinZ
+          BallOrientation = ballOrientation
+          FootMotion = footMotion
           BallControlSide = ballControlSide
           BallController = ballController
           RefereeX = refereeX
@@ -536,15 +733,27 @@ module Replay =
           RefereeSignal = refereeSignal
           HomeX = homeX
           HomeY = homeY
+          HomeZ = homeZ
+          HomeVz = homeVz
           HomeVx = homeVx
           HomeVy = homeVy
+          HomeFacing = homeFacing
+          HomeAngularVelocity = homeAngularVelocity
+          HomeAngularAcceleration = homeAngularAcceleration
+          HomeTravelDistance = homeTravelDistance
           HomeCondition = homeCondition
           HomeIntent = homeIntent
           HomeActive = homeActive
           AwayX = awayX
           AwayY = awayY
+          AwayZ = awayZ
+          AwayVz = awayVz
           AwayVx = awayVx
           AwayVy = awayVy
+          AwayFacing = awayFacing
+          AwayAngularVelocity = awayAngularVelocity
+          AwayAngularAcceleration = awayAngularAcceleration
+          AwayTravelDistance = awayTravelDistance
           AwayCondition = awayCondition
           AwayIntent = awayIntent
           AwayActive = awayActive }

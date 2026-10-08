@@ -59,6 +59,11 @@ type CompetitionSubstitutionRules =
       WindowStarts: int<matchMin>[]
       AllowExtraTime: bool }
 
+type MatchTieResolution =
+    | AllowDraw
+    | ExtraTimeThenPenalties
+    | PenaltiesAfterRegulation
+
 /// Everything fixed before kickoff — clubs, lineups, config, stage. With the
 /// match seed, it fully determines the simulation.
 type MatchContext =
@@ -70,4 +75,4 @@ type MatchContext =
       AwayParticipants: MatchLineupBoundary
       SubstitutionRules: CompetitionSubstitutionRules
       Config: BalanceConfig
-      IsKnockout: bool }
+      TieResolution: MatchTieResolution }

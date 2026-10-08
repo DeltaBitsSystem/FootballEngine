@@ -13,7 +13,7 @@ module MatchDump =
           AwayFormation: string
           HomeChemistry: float
           AwayChemistry: float
-          IsKnockout: bool }
+          TieResolution: string }
 
     type private FinalScore = { Home: int; Away: int }
 
@@ -58,7 +58,7 @@ module MatchDump =
               AwayFormation = ctx.AwayClub.BaseTactics.Formation
               HomeChemistry = ctx.HomeClub.Chemistry
               AwayChemistry = ctx.AwayClub.Chemistry
-              IsKnockout = ctx.IsKnockout }
+              TieResolution = sprintf "%A" ctx.TieResolution }
 
         let summaries =
             events

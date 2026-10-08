@@ -60,8 +60,17 @@ module EventApply =
                 LastTouch = None
                 StationarySince = None
                 GKHoldSince = None
-                PreviousPosition = None
+                PreviousPosition = ValueNone
                 Impulse = None })
+
+        MatchWorld.updateBall world (fun b ->
+            { b with
+                Spin =
+                    { X = 0.0<radianPerSecond>
+                      Y = 0.0<radianPerSecond>
+                      Z = 0.0<radianPerSecond> }
+                PendingStrike = None
+                FootMotion = None })
 
     let private isStoppage flow =
         match flow with
@@ -140,6 +149,14 @@ module EventApply =
             team.Frame.PosY.[inSlot] <- outY
             team.Frame.VelX.[inSlot] <- 0.0f
             team.Frame.VelY.[inSlot] <- 0.0f
+            team.Frame.PosZ.[inSlot] <- 0.0f
+            team.Frame.VelZ.[inSlot] <- 0.0f
+            team.Frame.JumpRequested.[inSlot] <- false
+            team.Frame.JumpSequence.[inSlot] <- 0UL
+            team.Frame.BodyFacing.[inSlot] <- if side = ClubSide.Home then 0.0f else System.MathF.PI
+            team.Frame.BodyAngularVelocity.[inSlot] <- 0.0f
+            team.Frame.BodyAngularAcceleration.[inSlot] <- 0.0f
+            team.Frame.BodyTravelDistance.[inSlot] <- 0.0f
             team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
             team.SubsUsed <- team.SubsUsed + 1
             ParticipationBook.stop team.Participation outgoing tick
@@ -178,12 +195,27 @@ module EventApply =
                 | _ -> ()
         | Some _ -> ()
 
+    let private restartCause (world: World) kind =
+        match kind with
+        | SetPieceKind.KickOff ->
+            match world.State.Flow with
+            | MatchFlow.PreMatch -> RestartCause.MatchStart
+            | MatchFlow.GoalPause(_, scoringSide, _) -> RestartCause.GoalConceded scoringSide
+            | _ -> RestartCause.PeriodStart
+        | SetPieceKind.ThrowIn -> RestartCause.BallCrossedTouchline world.State.Ball.LastTouch
+        | SetPieceKind.Corner
+        | SetPieceKind.GoalKick -> RestartCause.BallCrossedGoalLine world.State.Ball.LastTouch
+        | SetPieceKind.FreeKick
+        | SetPieceKind.Penalty -> RestartCause.Foul(None, None)
+
     let private applyRestart (ctx: MatchContext) (world: World) tick cause kind side x y =
         let x, y =
             match kind with
             | SetPieceKind.FreeKick ->
-                MatchMath.clamp (-(float Pitch.HalfLength - 0.5)) (float Pitch.HalfLength - 0.5) (float x) * 1.0<meter>,
-                MatchMath.clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) (float y) * 1.0<meter>
+                MatchMath.clamp (-(float Pitch.HalfLength - 0.5)) (float Pitch.HalfLength - 0.5) (float x)
+                * 1.0<meter>,
+                MatchMath.clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) (float y)
+                * 1.0<meter>
             | SetPieceKind.Penalty ->
                 let dir = MatchMath.goalDirection side
                 MatchMath.goalX side - 11.0<meter> * dir, 0.0<meter>
@@ -191,6 +223,7 @@ module EventApply =
 
         let id = RestartId world.NextRestartId
         world.NextRestartId <- world.NextRestartId + 1UL
+
         let award =
             { Id = id
               Cause = cause
@@ -199,7 +232,20 @@ module EventApply =
               X = x
               Y = y }
 
+        if world.Observation.Enabled then
+            let evidenceCause =
+                match world.State.Advantage, cause, world.Observation.CurrentEvent with
+                | AdvantageState.AdvantageRecalled(incident, at), RestartCause.Foul _, ValueSome(EventCause trigger)
+                | AdvantageState.AdvantageExpired(incident, at), RestartCause.Foul _, ValueSome(EventCause trigger) when
+                    at = tick
+                    ->
+                    ValueSome(PairedEvents(incident.Source, trigger))
+                | _ -> world.Observation.CurrentEvent
+
+            world.Observation.Record(tick, evidenceCause, RestartCreated award) |> ignore
+
         placeBall world { X = x; Y = y }
+
         world.State <-
             { world.State with
                 Flow =
@@ -215,19 +261,20 @@ module EventApply =
                           CommandIssued = false
                           ContactObserved = false
                           Replanned = false } }
+
         award
 
     let private applyPossession (ctx: MatchContext) (world: World) side pid tick =
         let pendingAdvantage =
             match world.State.Advantage with
-            | AdvantageState.AdvantagePending(fouledSide, _, _, x, y, _) -> Some(fouledSide, x, y)
+            | AdvantageState.AdvantagePending(incident, _) -> Some incident
             | _ -> None
 
         MatchWorld.updateBall world (fun b ->
             { b with
-                 Control = BallControl.Controlled(side, pid)
-                 LastTouch = Some pid
-                 StationarySince = None })
+                Control = BallControl.Controlled(side, pid)
+                LastTouch = Some pid
+                StationarySince = None })
 
         let book = world.State.Possession
 
@@ -251,14 +298,16 @@ module EventApply =
         team.Stats.Touches <- team.Stats.Touches + 1
 
         match pendingAdvantage with
-        | Some(fouledSide, _, _) when side = fouledSide ->
+        | Some incident when side = incident.Side ->
             world.State <-
                 { world.State with
-                    Advantage = AdvantageState.AdvantageRealized(side, tick) }
-        | Some(fouledSide, x, y) ->
+                    Advantage = AdvantageState.AdvantageRealized(incident, tick) }
+        | Some incident ->
+            let fouledSide, x, y = incident.Side, incident.X, incident.Y
+
             world.State <-
                 { world.State with
-                    Advantage = AdvantageState.AdvantageRecalled(fouledSide, tick) }
+                    Advantage = AdvantageState.AdvantageRecalled(incident, tick) }
 
             let kind =
                 if Pitch.isInPenaltyArea fouledSide x y then
@@ -266,7 +315,16 @@ module EventApply =
                 else
                     SetPieceKind.FreeKick
 
-            applyRestart ctx world tick (RestartCause.Foul(None, None)) kind fouledSide x y |> ignore
+            applyRestart
+                ctx
+                world
+                tick
+                (RestartCause.Foul(Some incident.Fouler, Some incident.Fouled))
+                kind
+                fouledSide
+                x
+                y
+            |> ignore
         | None -> ()
 
     let private applyGoal (ctx: MatchContext) (world: World) side scorer xG tick buffer =
@@ -322,7 +380,7 @@ module EventApply =
                 { world.State with
                     Flow = MatchFlow.VARReview(reviewDuration, VARIncident.Offside) }
         else
-            RefereeVAR.clearMarkers world side
+            RefereeVAR.clearSnapshots world side
 
             let pause =
                 int (
@@ -403,13 +461,13 @@ module EventApply =
                     0.0<meter>
                 |> ignore
 
-            RefereeVAR.clearMarkers world scoring
+            RefereeVAR.clearSnapshots world scoring
 
     let private applyFullTime (ctx: MatchContext) (world: World) =
         let tied = world.State.HomeScore = world.State.AwayScore
 
-        match ctx.IsKnockout, world.State.Clock.Phase, tied with
-        | true, ClockPhase.SecondHalf, true ->
+        match ctx.TieResolution, world.State.Clock.Phase, tied with
+        | MatchTieResolution.ExtraTimeThenPenalties, ClockPhase.SecondHalf, true ->
             world.State <-
                 { world.State with
                     Flow =
@@ -419,7 +477,8 @@ module EventApply =
                     Clock =
                         { world.State.Clock with
                             Phase = ClockPhase.ExtraTimeFirstHalf } }
-        | true, ClockPhase.ExtraTimeSecondHalf, true ->
+        | MatchTieResolution.ExtraTimeThenPenalties, ClockPhase.ExtraTimeSecondHalf, true
+        | MatchTieResolution.PenaltiesAfterRegulation, ClockPhase.SecondHalf, true ->
             world.State <-
                 { world.State with
                     Flow = MatchFlow.Shootout
@@ -547,7 +606,9 @@ module EventApply =
                     team.Stats.Offsides <- team.Stats.Offsides + 1
                     let defending = MatchWorld.oppOf side
                     let x, y = restartSpot SetPieceKind.FreeKick defending world.State.Ball
-                    applyRestart ctx world tick (RestartCause.Offside player) SetPieceKind.FreeKick defending x y |> ignore
+
+                    applyRestart ctx world tick (RestartCause.Offside player) SetPieceKind.FreeKick defending x y
+                    |> ignore
                 | None -> ()
             | EventData.SetPiece(kind, side) ->
                 let x, y = restartSpot kind side world.State.Ball
@@ -560,7 +621,7 @@ module EventApply =
                     | _ -> world.State.Clock
 
                 world.State <- { world.State with Clock = clock }
-                applyRestart ctx world tick (RestartCause.BallCrossedGoalLine None) kind side x y |> ignore
+                applyRestart ctx world tick (restartCause world kind) kind side x y |> ignore
 
                 if kind = SetPieceKind.Corner then
                     let team = MatchWorld.team world side
@@ -568,7 +629,7 @@ module EventApply =
 
                 queuePending world buffer tick
             | EventData.SetPieceAt(kind, side, x, y) ->
-                applyRestart ctx world tick (RestartCause.BallCrossedTouchline None) kind side x y |> ignore
+                applyRestart ctx world tick (restartCause world kind) kind side x y |> ignore
                 queuePending world buffer tick
             | EventData.RestartAwarded _
             | EventData.RestartPlanned _
@@ -578,6 +639,8 @@ module EventApply =
             | EventData.RestartCompleted _
             | EventData.RestartPlanChanged _ -> ()
             | EventData.Interception _ -> ()
+            // Body physics already committed the motion; applying its notification must not integrate it twice.
+            | EventData.PlayerBodyFlight _ -> ()
             | EventData.Tackle _ -> ()
             | EventData.Save _ -> ()
             | EventData.CrossAttempt(crosser, _, _) ->
@@ -814,20 +877,25 @@ module EventApply =
                                             shootout.AwayGoals + 1
                                         else
                                             shootout.AwayGoals } }
-            | EventData.AdvantageStarted(side, fouler, fouled, x, y, expiresAt) ->
+            | EventData.AdvantageStarted(incident, expiresAt) ->
                 world.State <-
                     { world.State with
-                        Advantage = AdvantageState.AdvantagePending(side, fouler, fouled, x, y, expiresAt) }
+                        Advantage = AdvantageState.AdvantagePending(incident, expiresAt) }
             | EventData.AdvantageRealized side ->
-                world.State <-
-                    { world.State with
-                        Advantage = AdvantageState.AdvantageRealized(side, tick) }
-            | EventData.AdvantageRecalled side ->
                 match world.State.Advantage with
-                | AdvantageState.AdvantagePending(_, _, _, x, y, _) ->
+                | AdvantageState.AdvantagePending(incident, _) when incident.Side = side ->
                     world.State <-
                         { world.State with
-                            Advantage = AdvantageState.AdvantageRecalled(side, tick) }
+                            Advantage = AdvantageState.AdvantageRealized(incident, tick) }
+                | _ -> ()
+            | EventData.AdvantageRecalled side ->
+                match world.State.Advantage with
+                | AdvantageState.AdvantagePending(incident, _) when incident.Side = side ->
+                    let x, y = incident.X, incident.Y
+
+                    world.State <-
+                        { world.State with
+                            Advantage = AdvantageState.AdvantageRecalled(incident, tick) }
 
                     let kind =
                         if Pitch.isInPenaltyArea side x y then
@@ -835,14 +903,25 @@ module EventApply =
                         else
                             SetPieceKind.FreeKick
 
-                    applyRestart ctx world tick (RestartCause.Foul(None, None)) kind side x y |> ignore
+                    applyRestart
+                        ctx
+                        world
+                        tick
+                        (RestartCause.Foul(Some incident.Fouler, Some incident.Fouled))
+                        kind
+                        side
+                        x
+                        y
+                    |> ignore
                 | _ -> ()
             | EventData.AdvantageExpired side ->
                 match world.State.Advantage with
-                | AdvantageState.AdvantagePending(_, _, _, x, y, _) ->
+                | AdvantageState.AdvantagePending(incident, _) when incident.Side = side ->
+                    let x, y = incident.X, incident.Y
+
                     world.State <-
                         { world.State with
-                            Advantage = AdvantageState.AdvantageExpired(side, tick) }
+                            Advantage = AdvantageState.AdvantageExpired(incident, tick) }
 
                     let kind =
                         if Pitch.isInPenaltyArea side x y then
@@ -850,7 +929,16 @@ module EventApply =
                         else
                             SetPieceKind.FreeKick
 
-                    applyRestart ctx world tick (RestartCause.Foul(None, None)) kind side x y |> ignore
+                    applyRestart
+                        ctx
+                        world
+                        tick
+                        (RestartCause.Foul(Some incident.Fouler, Some incident.Fouled))
+                        kind
+                        side
+                        x
+                        y
+                    |> ignore
                 | _ -> ()
             | EventData.ShootoutStarted ->
                 world.State <-
@@ -899,9 +987,22 @@ module EventApply =
                             { world.State.Shootout with
                                 Complete = true } }
 
+            // Contact systems own momentum; the reducer must not apply the same impulse twice.
+            | EventData.FootContact _
+            | EventData.FootStrikeCancelled _ -> ()
+
             true
 
-    let apply (ctx: MatchContext) (world: World) (ev: MatchEvent) : unit = applyEvent ctx world None ev |> ignore
+    let private applyObserved ctx world buffer ev =
+        world.Observation.BeginEvent ev
+
+        try
+            applyEvent ctx world buffer ev
+        finally
+            world.Observation.EndEvent()
+
+    let apply (ctx: MatchContext) (world: World) (ev: MatchEvent) : unit =
+        applyObserved ctx world None ev |> ignore
 
     let applyBuffered (ctx: MatchContext) (world: World) (buffer: EventBuffer) (ev: MatchEvent) : bool =
-        applyEvent ctx world (Some buffer) ev
+        applyObserved ctx world (Some buffer) ev

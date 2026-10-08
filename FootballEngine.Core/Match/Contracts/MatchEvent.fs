@@ -11,9 +11,17 @@ module EventId =
 
     let value (EventId id) = id
 
-/// The flag table is a uint64, so this DU is capped at 64 cases and its tag
-/// order is frozen (P1): each case's index IS its flag bit — inserting or
-/// reordering a case silently corrupts flag matching.
+[<Struct>]
+type AdvantageIncident =
+    { Source: EventId
+      Tick: int<subtick>
+      Side: ClubSide
+      Fouler: PlayerId
+      Fouled: PlayerId
+      X: float<meter>
+      Y: float<meter> }
+
+/// Scheduler bits are assigned explicitly in EventFlags, independently of DU declaration order.
 type EventKind =
     | PossessionGained
     | PossessionLost
@@ -53,6 +61,9 @@ type EventKind =
     | ShootoutStarted
     | ShootoutKick
     | ShootoutFinished
+    | PlayerBodyFlight
+    | FootContact
+    | FootStrikeCancelled
 
 module EventFlags =
 
@@ -99,6 +110,9 @@ module EventFlags =
             | EventKind.ShootoutStarted -> 35
             | EventKind.ShootoutKick -> 36
             | EventKind.ShootoutFinished -> 37
+            | EventKind.PlayerBodyFlight -> 38
+            | EventKind.FootContact -> 39
+            | EventKind.FootStrikeCancelled -> 40
 
         { Bits = 1UL <<< bit }
 
@@ -106,8 +120,11 @@ module EventFlags =
 
     let intersects (a: EventFlags) (b: EventFlags) : bool = (a.Bits &&& b.Bits) <> 0UL
 
-    /// Union of every kind bit.
-    let all: EventFlags = { Bits = (1UL <<< 38) - 1UL }
+    // Build once from the actual DU so additions cannot leave an incomplete aggregate mask.
+    let all: EventFlags =
+        Microsoft.FSharp.Reflection.FSharpType.GetUnionCases typeof<EventKind>
+        |> Array.map (fun case -> Microsoft.FSharp.Reflection.FSharpValue.MakeUnion(case, [||]) :?> EventKind)
+        |> Array.fold (fun flags kind -> union flags (ofKind kind)) { Bits = 0UL }
 
 [<Struct>]
 type ShotResult =
@@ -118,6 +135,14 @@ type ShotResult =
 
 type EventData =
     | Possession of side: ClubSide * player: PlayerId
+    | FootContact of
+        player: PlayerId *
+        foot: ContactFoot *
+        kind: FootTouchKind *
+        x: float<meter> *
+        y: float<meter> *
+        z: float<meter>
+    | FootStrikeCancelled of player: PlayerId
     | Pass of
         passer: PlayerId *
         receiver: PlayerId option *
@@ -169,13 +194,7 @@ type EventData =
     | RedCardIssued of player: PlayerId
     | ShootoutGoal of side: ClubSide
     | Offside of player: PlayerId
-    | AdvantageStarted of
-        side: ClubSide *
-        fouler: PlayerId *
-        fouled: PlayerId *
-        x: float<meter> *
-        y: float<meter> *
-        expiresAt: int<subtick>
+    | AdvantageStarted of incident: AdvantageIncident * expiresAt: int<subtick>
     | AdvantageRealized of side: ClubSide
     | AdvantageRecalled of side: ClubSide
     | AdvantageExpired of side: ClubSide
@@ -186,6 +205,8 @@ type EventData =
     | ShootoutStarted
     | ShootoutKick of side: ClubSide * taker: PlayerId * scored: bool
     | ShootoutFinished
+
+    | PlayerBodyFlight of player: PlayerId * sequence: uint64 * airborne: bool
 
 type MatchEvent = { Tick: int<subtick>; Data: EventData }
 
@@ -295,15 +316,40 @@ module MatchEvent =
         | EventData.RestartPlanned(id, executor) -> hashPlayer (fnv (fnv h 37UL) (RestartId.value id)) executor
         | EventData.RestartAuthorized id -> fnv (fnv h 38UL) (RestartId.value id)
         | EventData.RestartCommandIssued(id, actor) -> hashPlayer (fnv (fnv h 39UL) (RestartId.value id)) actor
-        | EventData.RestartContact(id, actor, kind) -> hashPlayer (hashSetPiece (fnv (fnv h 40UL) (RestartId.value id)) kind) actor
+        | EventData.RestartContact(id, actor, kind) ->
+            hashPlayer (hashSetPiece (fnv (fnv h 40UL) (RestartId.value id)) kind) actor
         | EventData.RestartCompleted id -> fnv (fnv h 41UL) (RestartId.value id)
         | EventData.RestartPlanChanged(id, reason) ->
             let reasonTag =
                 match reason with
                 | RestartPlanChangeReason.ExecutorInvalidated -> 0UL
                 | RestartPlanChangeReason.ParticipantInvalidated _ -> 1UL
+
             fnv (fnv (fnv h 42UL) (RestartId.value id)) reasonTag
         | EventData.BallLoose(x, y) -> hashFloat (hashFloat (fnv h 7UL) x) y
+        | EventData.FootStrikeCancelled player -> hashPlayer (fnv h 45UL) player
+        | EventData.FootContact(player, foot, kind, x, y, z) ->
+            let tag =
+                match kind with
+                | FootTouchKind.Carry -> 0UL
+                | FootTouchKind.Receive -> 1UL
+                | FootTouchKind.Kick StrikeKind.Pass -> 2UL
+                | FootTouchKind.Kick StrikeKind.Shot -> 3UL
+                | FootTouchKind.Kick StrikeKind.Cross -> 4UL
+                | FootTouchKind.Kick StrikeKind.Clearance -> 5UL
+                | FootTouchKind.Kick(StrikeKind.Restart kind) ->
+                    match kind with
+                    | SetPieceKind.KickOff -> 6UL
+                    | SetPieceKind.ThrowIn -> 7UL
+                    | SetPieceKind.Corner -> 8UL
+                    | SetPieceKind.GoalKick -> 9UL
+                    | SetPieceKind.FreeKick -> 10UL
+                    | SetPieceKind.Penalty -> 11UL
+
+            let h =
+                fnv (fnv (hashPlayer (fnv h 44UL) player) tag) (if foot = ContactFoot.Left then 0UL else 1UL)
+
+            hashFloat (hashFloat (hashFloat h x) y) z
         | EventData.Interception(interceptor, passer) -> hashPlayer (hashPlayer (fnv h 8UL) interceptor) passer
         | EventData.Tackle(winner, loser) -> hashPlayer (hashPlayer (fnv h 9UL) winner) loser
         | EventData.Save(gk, shooter) -> hashPlayer (hashPlayer (fnv h 10UL) gk) shooter
@@ -325,12 +371,14 @@ module MatchEvent =
         | EventData.RedCardIssued player -> hashPlayer (fnv h 21UL) player
         | EventData.ShootoutGoal side -> hashSide (fnv h 22UL) side
         | EventData.Offside player -> hashPlayer (fnv h 23UL) player
-        | EventData.AdvantageStarted(side, fouler, fouled, x, y, expiresAt) ->
-            let h = hashSide (fnv h 24UL) side
-            let h = hashPlayer h fouler
-            let h = hashPlayer h fouled
-            let h = hashFloat h x
-            let h = hashFloat h y
+        | EventData.AdvantageStarted(incident, expiresAt) ->
+            let h = fnv (fnv h 24UL) (EventId.value incident.Source)
+            let h = fnv h (uint64 (uint32 (int incident.Tick)))
+            let h = hashSide h incident.Side
+            let h = hashPlayer h incident.Fouler
+            let h = hashPlayer h incident.Fouled
+            let h = hashFloat h incident.X
+            let h = hashFloat h incident.Y
             fnv h (uint64 (uint32 (int expiresAt)))
         | EventData.AdvantageRealized side -> hashSide (fnv h 25UL) side
         | EventData.AdvantageRecalled side -> hashSide (fnv h 26UL) side
@@ -346,6 +394,8 @@ module MatchEvent =
             let h = hashPlayer h taker
             hashBool h scored
         | EventData.ShootoutFinished -> fnv h 34UL
+        | EventData.PlayerBodyFlight(player, sequence, airborne) ->
+            hashBool (fnv (hashPlayer (fnv h 43UL) player) sequence) airborne
 
     let private structuralHash (ev: MatchEvent) : uint64 =
         // Hash fields directly so event identity never pays for formatted strings or reflection.
@@ -406,6 +456,9 @@ module MatchEvent =
         | EventData.ShootoutStarted -> EventKind.ShootoutStarted
         | EventData.ShootoutKick _ -> EventKind.ShootoutKick
         | EventData.ShootoutFinished -> EventKind.ShootoutFinished
+        | EventData.PlayerBodyFlight _ -> EventKind.PlayerBodyFlight
+        | EventData.FootContact _ -> EventKind.FootContact
+        | EventData.FootStrikeCancelled _ -> EventKind.FootStrikeCancelled
 
     /// EventData has no mutable identity. This deterministic key gives the
     /// structural reducer a stable idempotence boundary until the causal ledger
@@ -429,6 +482,8 @@ module MatchEvent =
         | EventData.RestartAuthorized _ -> "Restart authorized"
         | EventData.RestartCommandIssued _ -> "Restart command issued"
         | EventData.RestartContact _ -> "Restart contact"
+        | EventData.FootContact(player, foot, kind, _, _, _) -> $"{player} {foot} foot contact ({kind})"
+        | EventData.FootStrikeCancelled player -> $"{player} foot strike cancelled"
         | EventData.RestartCompleted _ -> "Restart completed"
         | EventData.RestartPlanChanged _ -> "Restart plan changed"
         | EventData.BallLoose(_, _) -> "Ball loose"
@@ -448,7 +503,8 @@ module MatchEvent =
         | EventData.RedCardIssued _ -> "Red card issued"
         | EventData.ShootoutGoal side -> sprintf "Shootout goal: %A" side
         | EventData.Offside _ -> "Offside"
-        | EventData.AdvantageStarted(side, _, _, _, _, _) -> sprintf "Advantage: %A" side
+        | EventData.AdvantageStarted(incident, _) ->
+            sprintf "Advantage: %A, incident %A at tick %d" incident.Side incident.Source (int incident.Tick)
         | EventData.AdvantageRealized side -> sprintf "Advantage realized: %A" side
         | EventData.AdvantageRecalled side -> sprintf "Advantage recalled: %A" side
         | EventData.AdvantageExpired side -> sprintf "Advantage expired: %A" side
@@ -459,3 +515,5 @@ module MatchEvent =
         | EventData.ShootoutStarted -> "Shootout started"
         | EventData.ShootoutKick(side, taker, scored) -> sprintf "Shootout kick: %A %A scored=%b" side taker scored
         | EventData.ShootoutFinished -> "Shootout finished"
+        | EventData.PlayerBodyFlight(player, sequence, airborne) ->
+            sprintf "Body flight %A #%d airborne=%b" player sequence airborne

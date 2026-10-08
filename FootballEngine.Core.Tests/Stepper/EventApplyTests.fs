@@ -55,6 +55,48 @@ module EventApplyTests =
                       Expect.isGreaterThan (float restart.Spot.Y) 0.0 "ball placed at the foul spot"
                   | other -> failtestf "expected a restart delay, got %A" other)
 
+              testCase "competition tie resolution controls regulation and extra-time boundaries" (fun _ ->
+                  for resolution in
+                      [ MatchTieResolution.AllowDraw
+                        MatchTieResolution.ExtraTimeThenPenalties
+                        MatchTieResolution.PenaltiesAfterRegulation ] do
+                      for phase in [ ClockPhase.SecondHalf; ClockPhase.ExtraTimeSecondHalf ] do
+                          for tied in [ true; false ] do
+                              let world = TestBuilders.minimalWorld ()
+
+                              world.State <-
+                                  { world.State with
+                                      HomeScore = if tied then 0 else 1
+                                      Clock = { world.State.Clock with Phase = phase } }
+
+                              EventApply.apply
+                                  { ctx with TieResolution = resolution }
+                                  world
+                                  { Tick = 0<subtick>
+                                    Data = EventData.FullTime }
+
+                              match resolution, phase, tied, world.State.Flow with
+                              | MatchTieResolution.ExtraTimeThenPenalties,
+                                ClockPhase.SecondHalf,
+                                true,
+                                MatchFlow.ExtraTimeBreak _ -> ()
+                              | MatchTieResolution.ExtraTimeThenPenalties,
+                                ClockPhase.ExtraTimeSecondHalf,
+                                true,
+                                MatchFlow.Shootout -> ()
+                              | MatchTieResolution.PenaltiesAfterRegulation,
+                                ClockPhase.SecondHalf,
+                                true,
+                                MatchFlow.Shootout -> ()
+                              | _, _, _, MatchFlow.FullTimeReview _ when
+                                  not tied
+                                  || resolution = MatchTieResolution.AllowDraw
+                                  || phase = ClockPhase.ExtraTimeSecondHalf
+                                     && resolution = MatchTieResolution.PenaltiesAfterRegulation
+                                  ->
+                                  ()
+                              | result -> failtestf "invalid competition transition: %A" result)
+
               testCase "penalty restart places the ball on the spot" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
                   let fouler = ctx.HomeLineup.Profiles.[5].Id

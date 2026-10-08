@@ -5,7 +5,10 @@ namespace FootballEngine.Core.Match
 /// contact observation and the single return to live play.
 module RestartController =
 
-    let private setRestart world state = world.State <- { world.State with Flow = MatchFlow.Restart state }
+    let private setRestart world state =
+        world.State <-
+            { world.State with
+                Flow = MatchFlow.Restart state }
 
     let private projectTargets (ctx: MatchContext) (world: World) (plan: RestartPlan) =
         for target in plan.Targets do
@@ -20,29 +23,70 @@ module RestartController =
             | None -> ()
 
     let private planOnce (ctx: SystemContext) (world: World) (restart: RestartState) (buffer: EventBuffer) =
-        match RestartPlanner.plan ctx.Ctx world restart.Id restart.Cause restart.Kind restart.Side restart.Spot.X restart.Spot.Y restart.AwardTick with
+        match
+            RestartPlanner.plan
+                ctx.Ctx
+                world
+                restart.Id
+                restart.Cause
+                restart.Kind
+                restart.Side
+                restart.Spot.X
+                restart.Spot.Y
+                restart.AwardTick
+        with
         | Error _ ->
-            setRestart world { restart with Phase = RestartPhase.Completed }
+            setRestart
+                world
+                { restart with
+                    Phase = RestartPhase.Completed }
         | Ok plan ->
-            setRestart world { restart with Plan = Some plan; Phase = RestartPhase.Positioning }
+            setRestart
+                world
+                { restart with
+                    Plan = Some plan
+                    Phase = RestartPhase.Positioning }
+
             buffer.Events.Add
                 { Tick = world.State.Tick
                   Data = EventData.RestartPlanned(plan.Id, plan.Executor) }
 
-    let private authorize (ctx: SystemContext) (world: World) (restart: RestartState) (plan: RestartPlan) (buffer: EventBuffer) =
+    let private authorize
+        (ctx: SystemContext)
+        (world: World)
+        (restart: RestartState)
+        (plan: RestartPlan)
+        (buffer: EventBuffer)
+        =
         let validation = RestartRules.validate ctx.Ctx world plan
 
         if validation.Valid then
-            setRestart world { restart with Phase = RestartPhase.Authorized }
+            setRestart
+                world
+                { restart with
+                    Phase = RestartPhase.Authorized }
+
             buffer.Events.Add
                 { Tick = world.State.Tick
                   Data = EventData.RestartAuthorized plan.Id }
         else
             projectTargets ctx.Ctx world plan
 
-    let private issue (ctx: SystemContext) (world: World) (restart: RestartState) (plan: RestartPlan) (buffer: EventBuffer) =
-        Actions.executeRestart ctx world plan
-        setRestart world { restart with Phase = RestartPhase.AwaitingContact; CommandIssued = true }
+    let private issue
+        (ctx: SystemContext)
+        (world: World)
+        (restart: RestartState)
+        (plan: RestartPlan)
+        (buffer: EventBuffer)
+        =
+        Actions.executeRestart ctx world buffer plan
+
+        setRestart
+            world
+            { restart with
+                Phase = RestartPhase.AwaitingContact
+                CommandIssued = true }
+
         buffer.Events.Add
             { Tick = world.State.Tick
               Data = EventData.RestartCommandIssued(plan.Id, plan.Executor) }
@@ -60,14 +104,29 @@ module RestartController =
                 | RestartPhase.AwaitingContact, Some plan ->
                     for ev in buffer.Applied do
                         match ev.Data with
-                        | EventData.RestartContact(id, actor, kind)
-                            when id = plan.Id && actor = plan.Executor && kind = plan.Kind ->
-                            setRestart world { restart with Phase = RestartPhase.Completed; ContactObserved = true }
+                        | EventData.RestartContact(id, actor, kind) when
+                            id = plan.Id && actor = plan.Executor && kind = plan.Kind
+                            ->
+                            setRestart
+                                world
+                                { restart with
+                                    Phase = RestartPhase.Completed
+                                    ContactObserved = true }
+
                             buffer.Events.Add
                                 { Tick = world.State.Tick
                                   Data = EventData.RestartCompleted plan.Id }
+                        | EventData.FootStrikeCancelled actor when actor = plan.Executor ->
+                            setRestart
+                                world
+                                { restart with
+                                    Phase = RestartPhase.Positioning
+                                    CommandIssued = false }
                         | _ -> ()
-                | RestartPhase.Completed, _ -> world.State <- { world.State with Flow = MatchFlow.Live }
+                | RestartPhase.Completed, _ ->
+                    world.State <-
+                        { world.State with
+                            Flow = MatchFlow.Live }
                 | _, None -> ()
             | _ -> ()
 

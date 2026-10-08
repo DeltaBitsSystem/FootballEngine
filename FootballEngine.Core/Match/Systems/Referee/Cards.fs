@@ -55,6 +55,11 @@ module RefereeCards =
 
             for ev in buffer.Applied do
                 if MatchEvent.kind ev = EventKind.Card then
+                    let firstEvent = buffer.Events.Count
                     decideDismissal ctx world buffer tick ev
+
+                    if world.Observation.Enabled then
+                        for index = firstEvent to buffer.Events.Count - 1 do
+                            world.Observation.Associate(buffer.Events[index], EventCause(MatchEvent.id ev))
 
             rng

@@ -25,6 +25,9 @@ type radian
 type radianPerSecond = radian / second
 
 [<Measure>]
+type radianPerSecondSquared = radian / second^2
+
+[<Measure>]
 type meterPerSecond = meter / second
 
 [<Measure>]

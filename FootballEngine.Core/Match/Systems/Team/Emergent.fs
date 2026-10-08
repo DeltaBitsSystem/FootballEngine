@@ -45,13 +45,7 @@ module TeamEmergent =
             EventWindow.countInWindow team.EventWindow tick 6000<subtick> EventKind.Tackle
 
         let pressing =
-            let pressBase =
-                float (
-                    if side = ClubSide.Home then
-                        ctx.HomeClub.BaseTactics.PressIntensity
-                    else
-                        ctx.AwayClub.BaseTactics.PressIntensity
-                )
+            let pressBase = float (team.Tactics.PressIntensity)
 
             MatchMath.clamp01 (pressBase + float (foulsWindow + tacklesWindow) * 0.08)
 
@@ -59,16 +53,7 @@ module TeamEmergent =
             EventWindow.countInWindow team.EventWindow tick 6000<subtick> EventKind.CrossAttempt
 
         let wingplay =
-            MatchMath.clamp01 (
-                float crossesWindow * 0.15
-                + float (
-                    if side = ClubSide.Home then
-                        ctx.HomeClub.BaseTactics.Width
-                    else
-                        ctx.AwayClub.BaseTactics.Width
-                  )
-                  * 0.4
-            )
+            MatchMath.clamp01 (float crossesWindow * 0.15 + float (team.Tactics.Width) * 0.4)
 
         // R9 — adaptive channels: an EMA of the ball's corridor lets the team
         // bias its play toward the corridor that is actually producing attacks.

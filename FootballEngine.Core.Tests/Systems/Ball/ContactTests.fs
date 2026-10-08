@@ -83,6 +83,30 @@ module ContactTests =
 
                   let passer = ctx.HomeLineup.Profiles.[4].Id
                   let receiver = ctx.HomeLineup.Profiles.[5].Id
+
+                  let impulse =
+                      BallPhysics.createImpulse
+                          passer
+                          { X = 5.0<meter>
+                            Y = 0.0<meter>
+                            Z = 0.0<meter> }
+                          { X = 0.0<meterPerSecond>
+                            Y = 0.0<meterPerSecond>
+                            Z = 0.0<meterPerSecond> }
+                          { Top = 0.0<radianPerSecond>
+                            Side = 0.0<radianPerSecond>
+                            Roll = 0.0<radianPerSecond> }
+                          None
+                          StrikeKind.Pass
+                          (SimTick.ofSubTicks 0<subtick>)
+                          ExecutionContext.OpenPlay
+
+                  BallPhysics.applyImpulse
+                      world
+                      impulse
+                      (TrajectoryIntent.Aimed(passer, receiver, 1.0))
+                      (Some 0<subtick>)
+
                   place world ClubSide.Home 5 5.0<meter> 0.0<meter>
                   setBall world 5.0<meter> 0.0<meter>
 
@@ -96,6 +120,26 @@ module ContactTests =
                   let buf = buffer ()
                   BallContact.step sctx (Rng.ofSeed 3UL) world buf |> ignore
                   applyEvents ctx world buf
+
+                  let completed =
+                      buf.Events
+                      |> Seq.find (fun event ->
+                          match event.Data with
+                          | EventData.Pass _ -> true
+                          | _ -> false)
+
+                  match world.Observation.ConsumeCause completed with
+                  | ValueSome(ResolutionCause id) ->
+                      let snapshot = world.Observation.Snapshot()
+                      let resolution = snapshot.Entries |> Array.find (fun entry -> entry.Id = id)
+
+                      Expect.equal
+                          resolution.Cause
+                          (ValueSome(ActionCause impulse.ActionId))
+                          "reception resolution points at the executed pass"
+
+                      Expect.hasLength (Observation.causes snapshot resolution) 1 "pass execution is queryable"
+                  | other -> failtestf "pass must reference its actual reception resolution, got %A" other
 
                   Expect.exists
                       buf.Events
@@ -277,6 +321,9 @@ module ContactTests =
 
                   let buf = buffer ()
                   BallContact.step sctx' (Rng.ofSeed 3UL) world buf |> ignore
+                  Expect.isEmpty buf.Events "arrival prediction cannot grant remote contact"
+                  place world ClubSide.Home 5 0.7<meter> 0.0<meter> |> ignore
+                  BallContact.step sctx' (Rng.ofSeed 3UL) world buf |> ignore
                   applyEvents c world buf
 
                   Expect.isFalse
@@ -328,6 +375,9 @@ module ContactTests =
                                   Trajectory = Some(TrajectoryIntent.Aimed(passer, receiver, 1.0)) } }
 
                   let buf = buffer ()
+                  BallContact.step sctx' (Rng.ofSeed 3UL) world buf |> ignore
+                  Expect.isEmpty buf.Events "a free lane is not a physical contact"
+                  place world ClubSide.Home 5 0.7<meter> 0.0<meter> |> ignore
                   BallContact.step sctx' (Rng.ofSeed 3UL) world buf |> ignore
                   applyEvents c world buf
 

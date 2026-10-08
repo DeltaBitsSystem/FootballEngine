@@ -258,7 +258,11 @@ module MatchContextBuilder =
                   AwayParticipants = ap
                   SubstitutionRules = substitutionRules
                   Config = config
-                  IsKnockout = MatchFixture.isKnockout fixture }
+                  TieResolution =
+                    if MatchFixture.isKnockout fixture then
+                        MatchTieResolution.ExtraTimeThenPenalties
+                    else
+                        MatchTieResolution.AllowDraw }
         }
 
     /// Save-aware helper: derives effective BalanceConfig from SaveSettings (Save > default).

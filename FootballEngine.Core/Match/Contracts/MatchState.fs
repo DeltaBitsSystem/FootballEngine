@@ -55,8 +55,9 @@ type BallImpulse =
 
 [<Struct>]
 type Spin =
-    { Top: float<radianPerSecond>
-      Side: float<radianPerSecond> }
+    { X: float<radianPerSecond>
+      Y: float<radianPerSecond>
+      Z: float<radianPerSecond> }
 
 type BallControl =
     | Free
@@ -72,16 +73,39 @@ type TrajectoryIntent =
     | Uncontrolled
 
 [<Struct>]
+type FootMotion =
+    // Replay poses describe the end-of-step boundary, while event ticks identify the producing step.
+    { Actor: PlayerId
+      Foot: ContactFoot
+      Kind: FootTouchKind
+      StartedAt: int<subtick>
+      ContactAt: int<subtick>
+      EndsAt: int<subtick>
+      Point: Vec3
+      BallCenter: Vec3 }
+
+type PendingFootStrike =
+    { Impulse: BallImpulse
+      Trajectory: TrajectoryIntent
+      ArrivalGate: int<subtick> option
+      Side: ClubSide
+      Slot: int }
+
+[<Struct>]
 type BallState =
     { Position: Spatial
+      Radius: float<meter>
       Spin: Spin
+      Orientation: System.Numerics.Quaternion
+      FootMotion: FootMotion option
+      PendingStrike: PendingFootStrike option
       Control: BallControl
       Trajectory: TrajectoryIntent option
       LastTouch: PlayerId option
       StationarySince: int<subtick> option
       GKHoldSince: int<subtick> option
       ArrivalGate: int<subtick> option
-      PreviousPosition: Spatial option
+      PreviousPosition: Spatial voption
       Impulse: BallImpulse option }
 
 [<Struct>]
@@ -142,16 +166,10 @@ type StoppageBook =
 
 type AdvantageState =
     | NoAdvantage
-    | AdvantagePending of
-        side: ClubSide *
-        fouler: PlayerId *
-        fouled: PlayerId *
-        x: float<meter> *
-        y: float<meter> *
-        expiresAt: int<subtick>
-    | AdvantageRealized of side: ClubSide * at: int<subtick>
-    | AdvantageRecalled of side: ClubSide * at: int<subtick>
-    | AdvantageExpired of side: ClubSide * at: int<subtick>
+    | AdvantagePending of incident: AdvantageIncident * expiresAt: int<subtick>
+    | AdvantageRealized of incident: AdvantageIncident * at: int<subtick>
+    | AdvantageRecalled of incident: AdvantageIncident * at: int<subtick>
+    | AdvantageExpired of incident: AdvantageIncident * at: int<subtick>
 
 [<Struct>]
 type VARReviewState =

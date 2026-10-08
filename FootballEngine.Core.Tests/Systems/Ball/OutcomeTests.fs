@@ -49,11 +49,79 @@ module OutcomeTests =
             "FootballEngine.Core.Systems.Ball.OutcomeTests"
             [ testCase "Shot inside the frame always ends in save or goal" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
+
+                  let impulse =
+                      BallPhysics.createImpulse
+                          shooter
+                          { X = Pitch.awayGoalX - 0.5<meter>
+                            Y = 0.5<meter>
+                            Z = 0.0<meter> }
+                          { X = 20.0<meterPerSecond>
+                            Y = 0.0<meterPerSecond>
+                            Z = 0.0<meterPerSecond> }
+                          { Top = 0.0<radianPerSecond>
+                            Side = 0.0<radianPerSecond>
+                            Roll = 0.0<radianPerSecond> }
+                          None
+                          StrikeKind.Shot
+                          (SimTick.ofSubTicks 0<subtick>)
+                          ExecutionContext.OpenPlay
+
+                  BallPhysics.applyImpulse
+                      world
+                      impulse
+                      (TrajectoryIntent.Struck(shooter, 20.0<meterPerSecond>, 0.0, 0.5))
+                      (Some 0<subtick>)
+
                   setShotBall world Pitch.awayGoalX 0.5<meter>
                   lastTouch world homeOutfield
 
                   let buf = buffer ()
                   BallOutcome.step sctx (Rng.ofSeed 5UL) world buf |> ignore
+
+                  let consequence =
+                      buf.Events
+                      |> Seq.find (fun event ->
+                          match event.Data with
+                          | EventData.Goal _
+                          | EventData.Save _ -> true
+                          | _ -> false)
+
+                  let snapshot = world.Observation.Snapshot()
+                  let source = world.Observation.ConsumeCause consequence
+
+                  match source with
+                  | ValueSome(ResolutionCause id) ->
+                      let resolution = snapshot.Entries |> Array.find (fun entry -> entry.Id = id)
+
+                      Expect.equal
+                          resolution.Cause
+                          (ValueSome(ActionCause impulse.ActionId))
+                          "resolution is tied to the actual impulse"
+
+                      Expect.isTrue
+                          ((Observation.explain resolution).Contains("not measured physical contact"))
+                          "current stochastic save is not explained as physical contact"
+
+                      Expect.hasLength (Observation.causes snapshot resolution) 1 "the execution is retained"
+
+                      world.Observation.Record(consequence.Tick, source, EventCommitted consequence)
+                      |> ignore
+
+                      let filter =
+                          { Actor = Some shooter
+                            Action = Some impulse.ActionId
+                            Event = None
+                            FromTick = 0<subtick>
+                            UntilTick = world.State.Tick }
+
+                      match Observation.query filter (world.Observation.Snapshot()) with
+                      | Ok rows ->
+                          Expect.isTrue
+                              (rows |> Array.exists (fun entry -> entry.Data = EventCommitted consequence))
+                              "actor/action query follows explicit resolution ancestry to the consequence"
+                      | Error error -> failtest error
+                  | other -> failtestf "outcome must reference its specific resolution, got %A" other
 
                   Expect.exists
                       buf.Events

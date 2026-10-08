@@ -37,7 +37,7 @@ module PassTests =
         Pass.launch sctx (Rng.ofSeed seed) world (buffer ()) ClubSide.Home slot target 0.0
         |> ignore
 
-        match world.State.Ball.Trajectory with
+        match world.State.Ball.PendingStrike |> Option.map _.Trajectory with
         | Some(TrajectoryIntent.Aimed(_, _, quality)) -> quality
         | _ -> -1.0
 
@@ -94,6 +94,44 @@ module PassTests =
                   let qTired = passQuality tired 5 7 5UL
 
                   Expect.isGreaterThan qFresh qTired "a fresh receiver is easier to feed")
+
+              testCase "refused pass records the actual limit without applying an impulse or consuming RNG" (fun _ ->
+                  let world = TestBuilders.minimalWorld ()
+                  standardLayout world
+                  let actor = ctx.HomeLineup.Profiles[5].Id
+
+                  let limited =
+                      { sctx with
+                          Ctx =
+                              { ctx with
+                                  Config =
+                                      { ctx.Config with
+                                          Actions =
+                                              { ctx.Config.Actions with
+                                                  MaxPassExecutionDistance = 10.0<meter> } } } }
+
+                  let rng = Rng.ofSeed 19UL
+                  let before = world.State.Ball
+                  let after = Pass.launch limited rng world (buffer ()) ClubSide.Home 5 7 0.0
+                  Expect.equal after rng "execution refusal has no random draw"
+                  Expect.equal world.State.Ball before "execution refusal leaves the ball untouched"
+                  let rows = world.Observation.Snapshot().Entries
+                  Expect.hasLength rows 1 "one actual refusal captured"
+
+                  Expect.equal
+                      rows[0].Data
+                      (ActionRejected(actor, PassDistanceLimit(12.0<meter>, 10.0<meter>)))
+                      "measure and configured execution limit are retained"
+
+                  Expect.isTrue
+                      ((Observation.explain rows[0]).Contains("No impulse was applied"))
+                      "explanation distinguishes refusal from physical failed contact"
+
+                  Expect.isNonEmpty
+                      (ConfigValidation.validateActions
+                          { ctx.Config.Actions with
+                              MaxPassExecutionDistance = System.Double.NaN * 1.0<meter> })
+                      "nonfinite execution limit is rejected")
 
               testCase "quality stays within bounds" (fun _ ->
                   let world = TestBuilders.minimalWorld ()

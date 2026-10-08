@@ -7,9 +7,7 @@ module TeamDecide =
 
     let private decideTeam (ctx: MatchContext) (world: World) (side: ClubSide) (tick: int<subtick>) : unit =
         let team = MatchWorld.team world side
-        let baseCfg = ctx.HomeClub.BaseTactics
-        let baseCfg2 = ctx.AwayClub.BaseTactics
-        let tactics = if side = ClubSide.Home then baseCfg else baseCfg2
+        let tactics = team.Tactics
 
         let minute = int (PlayClock.toMatchMinute (MatchClock.playClock world.State.Clock))
         let diff = world.State.HomeScore - world.State.AwayScore

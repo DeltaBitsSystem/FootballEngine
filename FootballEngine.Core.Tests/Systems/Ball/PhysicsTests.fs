@@ -25,7 +25,7 @@ module PhysicsTests =
     let physicsTests =
         testList
             "FootballEngine.Core.Systems.Ball.PhysicsTests"
-            [ testCase "Controlled ball is not integrated" (fun _ ->
+            [ testCase "Controlled outfield ball keeps physical momentum" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
                   let pid = ctx.HomeLineup.Profiles.[5].Id
 
@@ -33,9 +33,14 @@ module PhysicsTests =
                       { world.State with
                           Ball =
                               { world.State.Ball with
-                                  Control = BallControl.Controlled(ClubSide.Home, pid) } }
+                                  Control = BallControl.Controlled(ClubSide.Home, pid)
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          Vx = 2.0<meterPerSecond> } } }
 
                   let world = stepBall world 0<subtick>
+
+                  Expect.isGreaterThan (float world.State.Ball.Position.X) 0.0 "ownership is not a position tether"
 
                   match world.State.Ball.Control with
                   | BallControl.Controlled(_, pid') -> Expect.equal pid' pid "carrier unchanged"
@@ -69,7 +74,7 @@ module PhysicsTests =
                               { world.State.Ball with
                                   Position =
                                       { world.State.Ball.Position with
-                                          Vx = 0.1<meterPerSecond> } } }
+                                          Vx = 0.01<meterPerSecond> } } }
 
                   let world = stepBall world 0<subtick>
 
@@ -95,7 +100,7 @@ module PhysicsTests =
                   Expect.isGreaterThan (float world.State.Ball.Position.Vz) 0.0 "bounced upward"
                   Expect.isGreaterThan (float world.State.Ball.Position.Z) 0.0 "left the ground")
 
-              testCase "Position is clamped to pitch margins" (fun _ ->
+              testCase "Physics cannot teleport an out-of-bounds ball back onto the pitch" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
 
                   world.State <-
@@ -112,7 +117,11 @@ module PhysicsTests =
 
                   let world = stepBall world 0<subtick>
 
-                  Expect.equal (float world.State.Ball.Position.X) (float Pitch.HalfLength + 5.0) "x clamped"
+                  Expect.isGreaterThan
+                      (float world.State.Ball.Position.X)
+                      1000.0
+                      "boundary adjudication belongs to BallOutcome"
+
                   Expect.equal (float world.State.Ball.Position.Y) 0.0 "y unchanged")
 
               testCase "Air drag reduces speed over ticks" (fun _ ->
@@ -141,13 +150,14 @@ module PhysicsTests =
                           Ball =
                               { world.State.Ball with
                                   Spin =
-                                      { Top = 5.0<radianPerSecond>
-                                        Side = -3.0<radianPerSecond> } } }
+                                      { X = 5.0<radianPerSecond>
+                                        Y = 0.0<radianPerSecond>
+                                        Z = -3.0<radianPerSecond> } } }
 
                   let world = stepBall world 0<subtick>
 
-                  Expect.isLessThan (abs (float world.State.Ball.Spin.Top)) 5.0 "topspin decayed"
-                  Expect.isLessThan (abs (float world.State.Ball.Spin.Side)) 3.0 "sidespin decayed")
+                  Expect.isLessThan (abs (float world.State.Ball.Spin.X)) 5.0 "horizontal spin decayed"
+                  Expect.isLessThan (abs (float world.State.Ball.Spin.Z)) 3.0 "vertical spin decayed")
 
               testCase "Impulse integration keeps the previous position" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
@@ -178,5 +188,5 @@ module PhysicsTests =
                   Expect.isGreaterThan (float world.State.Ball.Position.X) 0.0 "impulse moved the ball"
 
                   match world.State.Ball.PreviousPosition with
-                  | Some previous -> Expect.equal previous.X origin.X "integration retained the prior position"
-                  | None -> failtest "expected a previous position after integration") ]
+                  | ValueSome previous -> Expect.equal previous.X origin.X "integration retained the prior position"
+                  | ValueNone -> failtest "expected a previous position after integration") ]

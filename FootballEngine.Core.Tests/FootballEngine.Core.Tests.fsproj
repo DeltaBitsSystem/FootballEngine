@@ -16,6 +16,7 @@
     <Compile Include="Contracts\ConfigTests.fs"/>
     <Compile Include="Systems\Ball\PhysicsTests.fs"/>
     <Compile Include="Systems\Ball\Gate1ImpulseTests.fs"/>
+    <Compile Include="Systems\Ball\FootMotionTests.fs"/>
     <Compile Include="Systems\Ball\ContactTests.fs"/>
     <Compile Include="Systems\Ball\OutcomeTests.fs"/>
     <Compile Include="Systems\Ball\PossessionTests.fs"/>
@@ -65,6 +66,7 @@
     <Compile Include="Contracts\AutosaveQueueTests.fs"/>
     <Compile Include="Contracts\FinanceTests.fs"/>
      <Compile Include="Contracts\MatchSessionTests.fs"/>
+     <Compile Include="Contracts\ObservationTests.fs"/>
      <Compile Include="Contracts\LivePresentationTests.fs"/>
     <Compile Include="Contracts\DataLockTests.fs"/>
     <Compile Include="GameData\ModContractTests.fs"/>

@@ -74,10 +74,12 @@ let main argv =
             "FootballEngine.Core"
             [ FootballEngine.Core.Tests.Diagnostics.Gate0Tests.tests
               rngTests
+              FootballEngine.Core.Tests.Contracts.ObservationTests.tests
               FootballEngine.Core.Tests.Contracts.ClockTests.clockTests
               eventFlagTests
               configTests
               physicsTests
+              FootballEngine.Core.Tests.Systems.Ball.FootMotionTests.tests
               gate1ImpulseTests
               contactTests
               outcomeTests

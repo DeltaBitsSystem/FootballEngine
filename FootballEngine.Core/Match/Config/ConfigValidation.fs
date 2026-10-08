@@ -142,6 +142,19 @@ module ConfigValidation =
 
     let validateBall (b: BallConfig) : string list =
         [ // Gravity 9.81 is earth g — 0 would float forever, >20 is 2g and drops like stone
+          for name, value in
+              [ "Gravity", float b.Gravity
+                "AirDrag", b.AirDrag
+                "BounceRestitution", b.BounceRestitution
+                "BounceFriction", b.BounceFriction
+                "StopSpeedCutoff", float b.StopSpeedCutoff
+                "MaxShotSpeed", float b.MaxShotSpeed
+                "MagnusFactor", b.MagnusFactor
+                "SpinDecay", b.SpinDecay ] do
+              if not (System.Double.IsFinite value) then
+                  yield $"Ball.{name} must be finite"
+          if b.InertiaRatio > 1.0 then
+              yield "Ball.InertiaRatio must be <= 1"
           if
               b.Gravity < 0.0<meterPerSecondSquared>
               || b.Gravity > 20.0<meterPerSecondSquared>
@@ -150,9 +163,32 @@ module ConfigValidation =
           // AirDrag is per-tick retention — >1 would accelerate, <0 would invert
           if b.AirDrag < 0.0 || b.AirDrag > 1.0 then
               yield "Ball.AirDrag must be in [0, 1]"
-          // GroundFriction same retention logic — outside [0,1] creates or reverses energy
-          if b.GroundFriction < 0.0 || b.GroundFriction > 1.0 then
-              yield "Ball.GroundFriction must be in [0, 1]"
+          for name, value in
+              [ "Radius", float b.Radius
+                "InertiaRatio", b.InertiaRatio
+                "FootReach", float b.FootReach
+                "FootContactHeight", float b.FootContactHeight
+                "CarryLeadTime", float b.CarryLeadTime
+                "CarryOffset", float b.CarryOffset
+                "CarryMaxSpeed", float b.CarryMaxSpeed ] do
+              if not (System.Double.IsFinite value) || value <= 0.0 then
+                  yield $"Ball.{name} must be finite and > 0"
+          for name, value in
+              [ "SlipFriction", b.SlipFriction
+                "RollingResistance", b.RollingResistance
+                "CarryTechniqueError", b.CarryTechniqueError
+                "PassRollingSpinRatio", b.PassRollingSpinRatio
+                "ReceptionVelocityRetention", b.ReceptionVelocityRetention ] do
+              if not (System.Double.IsFinite value) || value < 0.0 || value > 1.0 then
+                  yield $"Ball.{name} must be finite and in [0, 1]"
+          if
+              b.KickWindup <= 0<subtick>
+              || b.KickRecovery <= 0<subtick>
+              || b.CarryTouchInterval <= 0<subtick>
+          then
+              yield "Ball contact durations must be > 0"
+          if b.FootReach <= b.Radius || b.CarryOffset >= b.FootReach then
+              yield "Ball contact geometry must keep the carry offset inside foot reach"
           // BounceRestitution >1 would create energy on bounce, <0 would invert
           if b.BounceRestitution < 0.0 || b.BounceRestitution > 1.0 then
               yield "Ball.BounceRestitution must be in [0, 1]"
@@ -172,18 +208,9 @@ module ConfigValidation =
               yield "Ball.MagnusFactor must be in [0, 1]"
           if b.SpinDecay < 0.0 || b.SpinDecay > 1.0 then
               yield "Ball.SpinDecay must be in [0, 1]"
-          // ArrivalGateFactor scales the reception window — >5 would make gate huge
-          if b.ArrivalGateFactor < 0.0 || b.ArrivalGateFactor > 5.0 then
-              yield "Ball.ArrivalGateFactor must be in [0, 5]"
           // ReceptionGrace 20 subticks is 0.5s at 40Hz — beyond that too forgiving
           if b.ReceptionGrace < 0<subtick> || b.ReceptionGrace > 20<subtick> then
               yield "Ball.ReceptionGrace must be in [0, 20] subticks"
-          // ContestSpeedGap >20 would never trigger contest, <0 would always contest
-          if
-              b.ContestSpeedGap < 0.0<meterPerSecond>
-              || b.ContestSpeedGap > 20.0<meterPerSecond>
-          then
-              yield "Ball.ContestSpeedGap must be in [0, 20] m/s"
           if b.InterceptionBonus < 0.0 || b.InterceptionBonus > 1.0 then
               yield "Ball.InterceptionBonus must be in [0, 1]"
           if b.SaveReflexWeight < 0.0 || b.SaveReflexWeight > 1.0 then
@@ -193,14 +220,6 @@ module ConfigValidation =
           // SaveDistancePenalty beyond pitch half (50m) would make keeper useless
           if b.SaveDistancePenalty < 0.0<meter> || b.SaveDistancePenalty > 50.0<meter> then
               yield "Ball.SaveDistancePenalty must be in [0, 50] m"
-          if
-              b.ContactInterceptorMargin < 0.0<meter>
-              || b.ContactInterceptorMargin > 5.0<meter>
-          then
-              yield "Ball.ContactInterceptorMargin must be in [0, 5] m"
-          // Receiver bonus >10 would make receiver always win, <0 would penalize skill
-          if b.ContactReceiverQualityBonus < 0.0 || b.ContactReceiverQualityBonus > 10.0 then
-              yield "Ball.ContactReceiverQualityBonus must be in [0, 10]"
           if b.ReceptionBase < 0.0 || b.ReceptionBase > 1.0 then
               yield "Ball.ReceptionBase must be in [0, 1]"
           if b.ReceptionSpacePenalty < 0.0 || b.ReceptionSpacePenalty > 1.0 then
@@ -245,6 +264,30 @@ module ConfigValidation =
               yield "Movement.SeparationStrength must be in [0, 2]"
           if m.TurningRate < 0.5<radianPerSecond> || m.TurningRate > 10.0<radianPerSecond> then
               yield "Movement.TurningRate must be in [0.5, 10] rad/s"
+          if
+              not (System.Double.IsFinite(float m.TurningAcceleration))
+              || m.TurningAcceleration < 1.0<radianPerSecondSquared>
+              || m.TurningAcceleration > 100.0<radianPerSecondSquared>
+          then
+              yield "Movement.TurningAcceleration must be in [1, 100] rad/s²"
+          if
+              not (System.Double.IsFinite(float m.StandingHeight))
+              || m.StandingHeight < 1.0<meter>
+              || m.StandingHeight > 2.5<meter>
+          then
+              yield "Movement.StandingHeight must be finite and in [1, 2.5] metres"
+          if
+              not (System.Double.IsFinite(float m.JumpSpeed))
+              || m.JumpSpeed < 1.0<meterPerSecond>
+              || m.JumpSpeed > 5.0<meterPerSecond>
+          then
+              yield "Movement.JumpSpeed must be finite and in [1, 5] m/s"
+          if
+              not (System.Double.IsFinite(float m.AerialIntentRadius))
+              || m.AerialIntentRadius < 0.1<meter>
+              || m.AerialIntentRadius > 5.0<meter>
+          then
+              yield "Movement.AerialIntentRadius must be finite and in [0.1, 5] metres"
           // Smoothing outside [0,1] overshoots or inverts interpolation
           if m.Smoothing < 0.0 || m.Smoothing > 1.0 then
               yield "Movement.Smoothing must be in [0, 1]"
@@ -277,6 +320,11 @@ module ConfigValidation =
               yield "Actions.PassDistancePenaltyPerMeter must be in [0, 0.1]"
           if a.PassLongThreshold < 5.0<meter> || a.PassLongThreshold > 50.0<meter> then
               yield "Actions.PassLongThreshold must be in [5, 50] m"
+          if
+              not (System.Double.IsFinite(float a.MaxPassExecutionDistance))
+              || a.MaxPassExecutionDistance <= 0.0<meter>
+          then
+              yield "Actions.MaxPassExecutionDistance must be finite and positive"
           if a.PassVisionWeight < 0.0 || a.PassVisionWeight > 1.0 then
               yield "Actions.PassVisionWeight must be in [0, 1]"
           if a.PassTechnicalWeight < 0.0 || a.PassTechnicalWeight > 1.0 then
@@ -354,25 +402,44 @@ module ConfigValidation =
               yield "Actions.MemoryMentalDecay must be in [0, 1]" ]
 
     let validateSetPiece (s: SetPieceConfig) : string list =
-        [ if s.KickoffDelay < 0.0<second> || s.KickoffDelay > 10.0<second> then yield "SetPiece.KickoffDelay must be in [0, 10] s"
-          if s.ThrowInDelay < 0.0<second> || s.ThrowInDelay > 10.0<second> then yield "SetPiece.ThrowInDelay must be in [0, 10] s"
-          if s.CornerDelay < 0.0<second> || s.CornerDelay > 10.0<second> then yield "SetPiece.CornerDelay must be in [0, 10] s"
-          if s.GoalKickDelay < 0.0<second> || s.GoalKickDelay > 10.0<second> then yield "SetPiece.GoalKickDelay must be in [0, 10] s"
-          if s.FreeKickDelay < 0.0<second> || s.FreeKickDelay > 10.0<second> then yield "SetPiece.FreeKickDelay must be in [0, 10] s"
-          if s.PenaltyDelay < 0.0<second> || s.PenaltyDelay > 15.0<second> then yield "SetPiece.PenaltyDelay must be in [0, 15] s"
-          if s.WallDistance < 5.0<meter> || s.WallDistance > 15.0<meter> then yield "SetPiece.WallDistance must be in [5, 15] m"
-          if s.WallPlayers < 0 || s.WallPlayers > 10 then yield "SetPiece.WallPlayers must be in [0, 10]"
-          if s.PenaltyQualityBonus < 0.0 || s.PenaltyQualityBonus > 1.0 then yield "SetPiece.PenaltyQualityBonus must be in [0, 1]"
-          if s.FreeKickShotChance < 0.0 || s.FreeKickShotChance > 1.0 then yield "SetPiece.FreeKickShotChance must be in [0, 1]"
-          if s.CornerTargetRadius < 1.0<meter> || s.CornerTargetRadius > 30.0<meter> then yield "SetPiece.CornerTargetRadius must be in [1, 30] m"
-          if s.DirectFreeKickRange < 10.0<meter> || s.DirectFreeKickRange > 50.0<meter> then yield "SetPiece.DirectFreeKickRange must be in [10, 50] m"
-          if s.WallArcSpread < 0.0<meter> || s.WallArcSpread > 5.0<meter> then yield "SetPiece.WallArcSpread must be in [0, 5] m"
-          if s.CornerNearZoneDist < 1.0<meter> || s.CornerNearZoneDist > 20.0<meter> then yield "SetPiece.CornerNearZoneDist must be in [1, 20] m"
-          if s.CornerFarZoneDist < 5.0<meter> || s.CornerFarZoneDist > 30.0<meter> then yield "SetPiece.CornerFarZoneDist must be in [5, 30] m"
-          if s.CornerNearZoneDist >= s.CornerFarZoneDist then yield "SetPiece.CornerNearZoneDist must be < CornerFarZoneDist"
-          if s.ContactReadyRadius <= 0.0<meter> then yield "SetPiece.ContactReadyRadius must be positive"
-          if s.TargetTolerance <= 0.0<meter> then yield "SetPiece.TargetTolerance must be positive"
-          if s.MaxTargetDistance <= 0.0<meter> then yield "SetPiece.MaxTargetDistance must be positive" ]
+        [ if s.KickoffDelay < 0.0<second> || s.KickoffDelay > 10.0<second> then
+              yield "SetPiece.KickoffDelay must be in [0, 10] s"
+          if s.ThrowInDelay < 0.0<second> || s.ThrowInDelay > 10.0<second> then
+              yield "SetPiece.ThrowInDelay must be in [0, 10] s"
+          if s.CornerDelay < 0.0<second> || s.CornerDelay > 10.0<second> then
+              yield "SetPiece.CornerDelay must be in [0, 10] s"
+          if s.GoalKickDelay < 0.0<second> || s.GoalKickDelay > 10.0<second> then
+              yield "SetPiece.GoalKickDelay must be in [0, 10] s"
+          if s.FreeKickDelay < 0.0<second> || s.FreeKickDelay > 10.0<second> then
+              yield "SetPiece.FreeKickDelay must be in [0, 10] s"
+          if s.PenaltyDelay < 0.0<second> || s.PenaltyDelay > 15.0<second> then
+              yield "SetPiece.PenaltyDelay must be in [0, 15] s"
+          if s.WallDistance < 5.0<meter> || s.WallDistance > 15.0<meter> then
+              yield "SetPiece.WallDistance must be in [5, 15] m"
+          if s.WallPlayers < 0 || s.WallPlayers > 10 then
+              yield "SetPiece.WallPlayers must be in [0, 10]"
+          if s.PenaltyQualityBonus < 0.0 || s.PenaltyQualityBonus > 1.0 then
+              yield "SetPiece.PenaltyQualityBonus must be in [0, 1]"
+          if s.FreeKickShotChance < 0.0 || s.FreeKickShotChance > 1.0 then
+              yield "SetPiece.FreeKickShotChance must be in [0, 1]"
+          if s.CornerTargetRadius < 1.0<meter> || s.CornerTargetRadius > 30.0<meter> then
+              yield "SetPiece.CornerTargetRadius must be in [1, 30] m"
+          if s.DirectFreeKickRange < 10.0<meter> || s.DirectFreeKickRange > 50.0<meter> then
+              yield "SetPiece.DirectFreeKickRange must be in [10, 50] m"
+          if s.WallArcSpread < 0.0<meter> || s.WallArcSpread > 5.0<meter> then
+              yield "SetPiece.WallArcSpread must be in [0, 5] m"
+          if s.CornerNearZoneDist < 1.0<meter> || s.CornerNearZoneDist > 20.0<meter> then
+              yield "SetPiece.CornerNearZoneDist must be in [1, 20] m"
+          if s.CornerFarZoneDist < 5.0<meter> || s.CornerFarZoneDist > 30.0<meter> then
+              yield "SetPiece.CornerFarZoneDist must be in [5, 30] m"
+          if s.CornerNearZoneDist >= s.CornerFarZoneDist then
+              yield "SetPiece.CornerNearZoneDist must be < CornerFarZoneDist"
+          if s.ContactReadyRadius <= 0.0<meter> then
+              yield "SetPiece.ContactReadyRadius must be positive"
+          if s.TargetTolerance <= 0.0<meter> then
+              yield "SetPiece.TargetTolerance must be positive"
+          if s.MaxTargetDistance <= 0.0<meter> then
+              yield "SetPiece.MaxTargetDistance must be positive" ]
 
     let validateTeam (t: TeamConfig) : string list =
         [ if t.UtilityAttackingWeight < 0.0 || t.UtilityAttackingWeight > 5.0 then

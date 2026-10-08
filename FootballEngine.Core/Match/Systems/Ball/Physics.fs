@@ -49,7 +49,81 @@ module BallPhysics =
           ExecutionContext = executionContext }
 
     let withRestartId (restartId: RestartId) (impulse: BallImpulse) : BallImpulse =
-        { impulse with RestartId = Some restartId }
+        { impulse with
+            RestartId = Some restartId }
+
+    let worldSpin (velocity: LinearVelocity) (angular: AngularVelocity) : Spin =
+        let horizontal =
+            max 1e-10 (sqrt (float velocity.X ** 2.0 + float velocity.Y ** 2.0))
+
+        let forwardX, forwardY =
+            float velocity.X / horizontal, float velocity.Y / horizontal
+
+        { X =
+            (-forwardY * float angular.Top + forwardX * float angular.Roll)
+            * 1.0<radianPerSecond>
+          Y =
+            (forwardX * float angular.Top + forwardY * float angular.Roll)
+            * 1.0<radianPerSecond>
+          Z = angular.Side }
+
+    let strikeContact (cfg: BallConfig) (ball: BallState) (impulse: BallImpulse) : Vec3 * AngularVelocity =
+        let desired = worldSpin impulse.LinearVelocity impulse.AngularVelocity
+
+        let dx, dy, dz =
+            float (impulse.LinearVelocity.X - ball.Position.Vx),
+            float (impulse.LinearVelocity.Y - ball.Position.Vy),
+            float (impulse.LinearVelocity.Z - ball.Position.Vz)
+
+        let sx, sy, sz =
+            float (desired.X - ball.Spin.X), float (desired.Y - ball.Spin.Y), float (desired.Z - ball.Spin.Z)
+
+        let squared = dx * dx + dy * dy + dz * dz
+        let radius = float cfg.Radius
+        let inertia = cfg.InertiaRatio * radius * radius
+
+        let tx, ty, tz =
+            if squared < 1e-10 then
+                0.0, 0.0, 0.0
+            else
+                inertia * (dy * sz - dz * sy) / squared,
+                inertia * (dz * sx - dx * sz) / squared,
+                inertia * (dx * sy - dy * sx) / squared
+
+        let tangentLength = sqrt (tx * tx + ty * ty + tz * tz)
+
+        let scale =
+            if tangentLength > radius then
+                radius / tangentLength
+            else
+                1.0
+
+        let tx, ty, tz = tx * scale, ty * scale, tz * scale
+
+        let normal =
+            if squared < 1e-10 then
+                0.0
+            else
+                -sqrt(max 0.0 (radius * radius - tx * tx - ty * ty - tz * tz)) / sqrt squared
+
+        let rx, ry, rz = tx + dx * normal, ty + dy * normal, tz + dz * normal
+        // r cross delta-v divided by shell inertia ties spin to the actual off-centre impulse.
+        let wx = float ball.Spin.X + (ry * dz - rz * dy) / inertia
+        let wy = float ball.Spin.Y + (rz * dx - rx * dz) / inertia
+        let wz = float ball.Spin.Z + (rx * dy - ry * dx) / inertia
+
+        let speed =
+            max 1e-10 (sqrt (float impulse.LinearVelocity.X ** 2.0 + float impulse.LinearVelocity.Y ** 2.0))
+
+        let fx, fy =
+            float impulse.LinearVelocity.X / speed, float impulse.LinearVelocity.Y / speed
+
+        { X = ball.Position.X + rx * 1.0<meter>
+          Y = ball.Position.Y + ry * 1.0<meter>
+          Z = ball.Position.Z + cfg.Radius + rz * 1.0<meter> },
+        { Top = (-fy * wx + fx * wy) * 1.0<radianPerSecond>
+          Side = wz * 1.0<radianPerSecond>
+          Roll = (fx * wx + fy * wy) * 1.0<radianPerSecond> }
 
     /// Every kick enters the ball state through this function. ArrivalGate is
     /// only a candidate-search hint; the contact system still observes the
@@ -62,7 +136,8 @@ module BallPhysics =
         : unit =
         let origin = impulse.Origin
         let velocity = impulse.LinearVelocity
-        let angular = impulse.AngularVelocity
+
+        world.Observation.Impulse(world.State.Tick, impulse)
 
         MatchWorld.updateBall world (fun b ->
             { b with
@@ -73,16 +148,14 @@ module BallPhysics =
                       Vx = velocity.X
                       Vy = velocity.Y
                       Vz = velocity.Z }
-                Spin =
-                    { Top = angular.Top
-                      Side = angular.Side }
+                Spin = worldSpin velocity impulse.AngularVelocity
                 Control = BallControl.Airborne
                 Trajectory = Some trajectory
                 LastTouch = Some impulse.ActorId
                 StationarySince = None
                 GKHoldSince = None
                 ArrivalGate = arrivalGate
-                PreviousPosition = None
+                PreviousPosition = ValueNone
                 Impulse = Some impulse })
 
     let goalCrossing (previous: Spatial) (current: Spatial) : GoalCrossing option =
@@ -122,89 +195,19 @@ module BallPhysics =
         && float position.Z >= 0.0
         && float position.Z <= 2.44
 
-    let private integrate (ctx: SystemContext) (tick: int<subtick>) (ball: BallState) (cfg: BallConfig) : BallState =
-        let dt = float (SimulationClock.dt ctx.Clock)
-        let p = ball.Position
-        let dragDt = cfg.AirDrag ** dt
-
-        let vx0 = float p.Vx * dragDt
-        let vy0 = float p.Vy * dragDt
-        let vz0 = float p.Vz - float cfg.Gravity * dt
-
-        let speed = sqrt (vx0 * vx0 + vy0 * vy0 + vz0 * vz0)
-
-        // Magnus: topspin bends down, sidespin bends laterally.
-        let vz1 = vz0 - float cfg.MagnusFactor * speed * float ball.Spin.Top * dt
-        let vy1 = vy0 + float cfg.MagnusFactor * speed * float ball.Spin.Side * dt
-
-        let mutable vx = vx0 * 1.0<meterPerSecond>
-        let mutable vy = vy1 * 1.0<meterPerSecond>
-        let mutable vz = vz1 * 1.0<meterPerSecond>
-
-        // On the ground the ball has two regimes: a bounce when it still has vertical
-        // speed, or a roll otherwise — each with its own friction.
-        let grounded = float p.Z <= 0.0 && vz0 <= 0.0
-
-        if grounded && -vz1 > float cfg.StopSpeedCutoff then
-            vz <- -vz * cfg.BounceRestitution
-            vx <- vx * (1.0 - cfg.BounceFriction)
-            vy <- vy * (1.0 - cfg.BounceFriction)
-        elif grounded then
-            vz <- 0.0<meterPerSecond>
-
-        if float p.Z <= 0.0 then
-            let gd = cfg.GroundFriction ** dt
-            vx <- vx * gd
-            vy <- vy * gd
-
-        let totalSpeed = MatchMath.speedOf vx vy
-
-        if
-            totalSpeed < float cfg.StopSpeedCutoff
-            && abs (float vz) < float cfg.StopSpeedCutoff
-        then
-            vx <- 0.0<meterPerSecond>
-            vy <- 0.0<meterPerSecond>
-            vz <- 0.0<meterPerSecond>
-
-        let nx =
-            MatchMath.clamp (-(float Pitch.HalfLength + 5.0)) (float Pitch.HalfLength + 5.0) (float p.X + float vx * dt)
-
-        let ny =
-            MatchMath.clamp (-(float Pitch.HalfWidth + 5.0)) (float Pitch.HalfWidth + 5.0) (float p.Y + float vy * dt)
-
-        let nz = max 0.0 (float p.Z + float vz * dt)
-
-        let wasMoving = totalSpeed > float cfg.StopSpeedCutoff
-
-        let stationarySince =
-            if wasMoving then None
-            elif ball.StationarySince.IsSome then ball.StationarySince
-            else Some tick
-
-        let spinTop = float ball.Spin.Top * (cfg.SpinDecay ** dt) * 1.0<radianPerSecond>
-        let spinSide = float ball.Spin.Side * (cfg.SpinDecay ** dt) * 1.0<radianPerSecond>
-
-        { ball with
-            Position =
-                { X = nx * 1.0<meter>
-                  Y = ny * 1.0<meter>
-                  Z = nz * 1.0<meter>
-                  Vx = vx
-                  Vy = vy
-                  Vz = vz }
-            Spin = { Top = spinTop; Side = spinSide }
-            StationarySince = stationarySince
-            PreviousPosition = Some p }
-
     let step: SystemStep =
         fun ctx rng world _ ->
             let ball = world.State.Ball
 
-            match ball.Control with
-            | BallControl.Controlled _
-            | BallControl.Receiving _ -> rng
-            | _ ->
-                let updated = integrate ctx world.State.Tick ball ctx.Ctx.Config.Ball
+            if ball.GKHoldSince.IsSome then
+                rng
+            else
+                let updated =
+                    BallDynamics.integrate
+                        ctx.Ctx.Config.Ball
+                        (float (SimulationClock.dt ctx.Clock))
+                        world.State.Tick
+                        ball
+
                 MatchWorld.updateBall world (fun _ -> updated)
                 rng

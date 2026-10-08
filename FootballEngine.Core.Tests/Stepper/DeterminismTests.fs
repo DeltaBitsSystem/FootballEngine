@@ -17,9 +17,22 @@ module DeterminismTests =
     let determinismTests =
         testList
             "FootballEngine.Core.Stepper.DeterminismTests"
-            [ testCase "Same seed reproduces the same match" (fun _ ->
-                  let a = Simulator.runMatch systems ctx 0xDEADBEEFUL Simulator.RunMode.Fast None
-                  let b = Simulator.runMatch systems ctx 0xDEADBEEFUL Simulator.RunMode.Fast None
+            [ testCase "Invalid live policy returns an explicit error without throwing" (fun _ ->
+                  let policy =
+                      { LiveExecutionPolicy.defaultPolicy with
+                          WorkerSlice = 0<tickDelta> }
+
+                  match Simulator.runMatch systems ctx 42UL (Simulator.RunMode.Live policy) with
+                  | Error(InvalidRunMode _) -> ()
+                  | result -> failtestf "expected InvalidRunMode, got %A" result)
+              testCase "Same seed reproduces the same match" (fun _ ->
+                  let a =
+                      Simulator.runMatch systems ctx 0xDEADBEEFUL Simulator.RunMode.Fast
+                      |> TestBuilders.requireMatchOutcome
+
+                  let b =
+                      Simulator.runMatch systems ctx 0xDEADBEEFUL Simulator.RunMode.Fast
+                      |> TestBuilders.requireMatchOutcome
 
                   Expect.equal a.EventsHash b.EventsHash "event hash identical"
                   Expect.equal a.Events.Length b.Events.Length "event count identical"
@@ -28,7 +41,9 @@ module DeterminismTests =
                   Expect.equal a.Final.State.Tick b.Final.State.Tick "final tick")
 
               testCase "Match runs to a terminal state" (fun _ ->
-                  let out = Simulator.runMatch systems ctx 42UL Simulator.RunMode.Fast None
+                  let out =
+                      Simulator.runMatch systems ctx 42UL Simulator.RunMode.Fast
+                      |> TestBuilders.requireMatchOutcome
 
                   Expect.equal out.Final.State.Flow MatchFlow.MatchEnded "match ended"
                   Expect.isLessThan (int out.Final.State.Tick) 400000 "guard not hit"
@@ -37,7 +52,8 @@ module DeterminismTests =
 
               testCase "Replay mode returns serializable snapshots" (fun _ ->
                   let out =
-                      Simulator.runMatch systems ctx 7UL (Simulator.RunMode.Replay 4000<tickDelta>) None
+                      Simulator.runMatch systems ctx 7UL (Simulator.RunMode.Replay 4000<tickDelta>)
+                      |> TestBuilders.requireMatchOutcome
 
                   match out.Replay with
                   | None -> failtest "replay data expected"

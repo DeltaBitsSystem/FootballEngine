@@ -49,6 +49,13 @@ module MatchFactoryTests =
                           (-(float world.Home.Frame.PosX.[i]))
                           (sprintf "slot %d mirrored" i))
 
+              testCase "Initial body facing follows each team's attack direction" (fun _ ->
+                  let world = MatchFactory.create ctx
+
+                  for slot in 0..10 do
+                      Expect.equal world.Home.Frame.BodyFacing.[slot] 0.0f "home starts facing positive x"
+                      Expect.equal world.Away.Frame.BodyFacing.[slot] System.MathF.PI "away starts facing negative x")
+
               testCase "Extra slots are sidelined as substitutes" (fun _ ->
                   let ctx16 =
                       { ctx with
@@ -104,6 +111,11 @@ module MatchFactoryTests =
                           Tick = at
                           Clock = { world.State.Clock with Tick = at } }
 
+                  world.Home.Frame.BodyFacing.[0] <- 1.0f
+                  world.Home.Frame.BodyAngularVelocity.[0] <- -0.4f
+                  world.Home.Frame.BodyFacing.[11] <- -1.0f
+                  world.Home.Frame.BodyAngularVelocity.[11] <- 0.6f
+
                   EventApply.apply
                       ctx16
                       world
@@ -126,6 +138,16 @@ module MatchFactoryTests =
                       "the incoming role is read from its own identity slot"
 
                   Expect.equal world.Home.SubsUsed 1 "one substitution is consumed"
+
+                  Expect.equal
+                      world.Home.Frame.BodyFacing.[11]
+                      0.0f
+                      "incoming player starts with the team's neutral attack-facing"
+
+                  Expect.equal
+                      world.Home.Frame.BodyAngularVelocity.[11]
+                      0.0f
+                      "incoming player does not inherit an old turn"
 
                   let intervals = ParticipationBook.snapshot world.Home.Participation at
 

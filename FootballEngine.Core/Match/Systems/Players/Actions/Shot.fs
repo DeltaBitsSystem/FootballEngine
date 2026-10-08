@@ -46,7 +46,7 @@ module Shot =
         let vy = sin angle * speed
         let goalY = float y + tan angle * goalDistanceX
 
-        let linearVelocity =
+        let linearVelocity: LinearVelocity =
             { X = vx * 1.0<meterPerSecond>
               Y = vy * 1.0<meterPerSecond>
               Z = float cfg.Actions.ShotVzBase * 1.0<meterPerSecond> }
@@ -80,8 +80,10 @@ module Shot =
               * 1<subtick>
             + 4<subtick>
 
-        BallPhysics.applyImpulse
+        BallFootContact.request
+            ctx
             world
+            buffer
             impulse
             (TrajectoryIntent.Struck(pid, speed * 1.0<meterPerSecond>, angle, xg))
             (Some arrival)

@@ -44,6 +44,16 @@ type ExecutionContext =
     | OpenPlay
     | SetPiece of SetPieceKind
 
+[<Struct>]
+type ContactFoot =
+    | Left
+    | Right
+
+type FootTouchKind =
+    | Carry
+    | Receive
+    | Kick of StrikeKind
+
 type RestartRole =
     | Executor
     | Receiver

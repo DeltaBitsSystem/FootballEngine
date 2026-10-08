@@ -67,6 +67,28 @@ module BallOutcome =
         let bx = crossing.Position.X
         let by = crossing.Position.Y
 
+        let resolution kind probability succeeded =
+            if world.Observation.Enabled then
+                let action = ball.Impulse |> Option.map _.ActionId
+
+                let cause =
+                    match action with
+                    | Some id -> ValueSome(ActionCause id)
+                    | None -> ValueNone
+
+                world.Observation.Record(tick, cause, ProbabilityResolved(kind, action, probability, succeeded))
+                |> ValueOption.map ResolutionCause
+            else
+                ValueNone
+
+        let emitResolved cause data =
+            let event = { Tick = tick; Data = data }
+            buffer.Events.Add event
+
+            match cause with
+            | ValueSome source -> world.Observation.Associate(event, source)
+            | ValueNone -> ()
+
         // A defender within reach of the flight path gets one last chance to stop
         // the ball before arrival — resolving at arrival is what makes this possible.
         let blocker = MatchWorld.nearestOpponent ctx.Ctx world shooterSide bx by 3.0
@@ -74,11 +96,10 @@ module BallOutcome =
         match blocker with
         | Some _ ->
             let blocked, rng' = Rng.bernoulli 0.5 rng
+            let blockedCause = resolution DefenderBlock 0.5 blocked
 
             if blocked then
-                buffer.Events.Add
-                    { Tick = tick
-                      Data = EventData.Shot(shooter, ShotResult.Blocked, xG, speed, bx, by) }
+                emitResolved blockedCause (EventData.Shot(shooter, ShotResult.Blocked, xG, speed, bx, by))
 
                 let outForCorner, rng'' = Rng.bernoulli 0.25 rng'
 
@@ -128,18 +149,15 @@ module BallOutcome =
                         + (attrs - 195.0) / ctx.Ctx.Config.Ball.ShotGoalGKDivisor
                     )
 
-                let saved, rng' = Rng.bernoulli (max saveP (1.0 - goalP)) rng
+                let probability = max saveP (1.0 - goalP)
+                let saved, rng' = Rng.bernoulli probability rng
+                let savedCause = resolution GoalkeeperSave probability saved
                 let parriedOver, rng'' = Rng.bernoulli 0.15 rng'
                 let gkPid = (MatchWorld.lineup ctx.Ctx defSide).Profiles.[0].Id
 
                 if saved && parriedOver then
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, bx, by) }
-
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.Save(gkPid, shooter) }
+                    emitResolved savedCause (EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, bx, by))
+                    emitResolved savedCause (EventData.Save(gkPid, shooter))
 
                     emitSetPiece ctx world tick buffer SetPieceKind.Corner (MatchWorld.oppOf defSide)
                     rng''
@@ -154,16 +172,11 @@ module BallOutcome =
                                     Vx = 0.0<meterPerSecond>
                                     Vy = 0.0<meterPerSecond>
                                     Vz = 0.0<meterPerSecond> }
-                            PreviousPosition = None
+                            PreviousPosition = ValueNone
                             Impulse = None })
 
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, bx, by) }
-
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.Save(gkPid, shooter) }
+                    emitResolved savedCause (EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, bx, by))
+                    emitResolved savedCause (EventData.Save(gkPid, shooter))
 
                     buffer.Events.Add
                         { Tick = tick
@@ -190,15 +203,11 @@ module BallOutcome =
                                     Vy = 0.0<meterPerSecond>
                                     Vz = 0.0<meterPerSecond> } })
 
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.Shot(shooter, ShotResult.OnTarget false, xG, speed, bx, by) }
+                    emitResolved savedCause (EventData.Shot(shooter, ShotResult.OnTarget false, xG, speed, bx, by))
 
                     let scorer, assist = detectOwnGoal ctx world shooterSide shooter scoringSide
 
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.Goal(scoringSide, scorer, assist, xG) }
+                    emitResolved savedCause (EventData.Goal(scoringSide, scorer, assist, xG))
 
                     buffer.Events.Add
                         { Tick = tick
@@ -215,11 +224,10 @@ module BallOutcome =
 
                 if postZone then
                     let post, rng' = Rng.bernoulli 0.35 rng
+                    let postCause = resolution GoalFrameRebound 0.35 post
 
                     if post then
-                        buffer.Events.Add
-                            { Tick = tick
-                              Data = EventData.Shot(shooter, ShotResult.Post, xG, speed, bx, by) }
+                        emitResolved postCause (EventData.Shot(shooter, ShotResult.Post, xG, speed, bx, by))
 
                         MatchWorld.updateBall world (fun b ->
                             { b with
@@ -305,6 +313,7 @@ module BallOutcome =
         fun ctx rng world buffer ->
             let tick = world.State.Tick
             let ball = world.State.Ball
+            let firstEvent = buffer.Events.Count
             let mutable rng = rng
             let mutable shotCrossed = false
 
@@ -318,7 +327,7 @@ module BallOutcome =
                         Y = (float ball.Position.Y - float ball.Position.Vy * dt) * 1.0<meter>
                         Z = max 0.0 (float ball.Position.Z - float ball.Position.Vz * dt) * 1.0<meter> }
 
-                let previous = ball.PreviousPosition |> Option.defaultValue inferredPrevious
+                let previous = ball.PreviousPosition |> ValueOption.defaultValue inferredPrevious
 
                 match BallPhysics.goalCrossing previous ball.Position with
                 | Some crossing ->
@@ -327,6 +336,14 @@ module BallOutcome =
                 | None -> ()
             | _ -> ()
 
-            if shotCrossed then rng
-            elif handleOutOfBounds ctx world tick buffer then rng
-            else rng
+            if not shotCrossed then
+                handleOutOfBounds ctx world tick buffer |> ignore
+
+            if world.Observation.Enabled then
+                match ball.Impulse with
+                | Some impulse ->
+                    for index = firstEvent to buffer.Events.Count - 1 do
+                        world.Observation.AssociateDefault(buffer.Events[index], ActionCause impulse.ActionId)
+                | None -> ()
+
+            rng

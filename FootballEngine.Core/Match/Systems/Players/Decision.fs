@@ -3,7 +3,7 @@ namespace FootballEngine.Core.Match
 /// The carrier's mind: turns football judgement into one bounded choice so
 /// behaviour is a utility-weighted selection from a small option set
 /// (shot/pass/cross/dribble/clear), never a scripted trigger. The choice is
-/// stored as a marker (Phase 200) that Actions executes later — deciding and
+/// stored as a typed proposal that Actions executes later — deciding and
 /// doing stay decoupled. Deterministic: all randomness comes from the threaded
 /// Rng, so the same situation always picks the same option.
 module PlayerDecision =
@@ -79,8 +79,7 @@ module PlayerDecision =
         let frame = team.Frame
         let w = ctx.Config.Weights.Decision
 
-        let tactics =
-            (if side = ClubSide.Home then ctx.HomeClub else ctx.AwayClub).BaseTactics
+        let tactics = team.Tactics
 
         let tradeoffs = ctx.Config.TacticalTradeoffs
         let p = MatchWorld.profileOf ctx side slot
@@ -166,7 +165,7 @@ module PlayerDecision =
         // Attacking mentality lowers the bar for shots and take-ons; defensive
         // mentality only takes the sure thing.
         let riskShift =
-            float (if side = ClubSide.Home then ctx.HomeClub else ctx.AwayClub).BaseTactics.Mentality
+            float (MatchWorld.team world side).Tactics.Mentality
             * ctx.Config.TacticalTradeoffs.MentalityRiskThresholdShift
 
         let p = MatchWorld.profileOf ctx side slot
@@ -351,12 +350,61 @@ module PlayerDecision =
 
                 picked, pickedTarget, pickedEvaluationIndex
 
-        frame.RunLookup.[slot] <-
-            { Slot = slot
-              TargetX = float32 targetSlot
-              TargetY = float32 chosen
-              Phase = 200
+        let choice =
+            match chosen with
+            | 1 -> DeliverPass(int targetSlot)
+            | 2 -> TakeShot
+            | 3 -> ContestDuel
+            | 4 -> ClearBall
+            | _ -> DeliverCross
+
+        (MatchWorld.team world side).PendingActions[ slot ] <-
+            { Choice = choice
               ExpiresAt = tick + ctx.Config.Movement.CommittedRunDuration }
+
+        if world.Observation.Enabled then
+            let chosenValue =
+                if chosenEvaluationIndex >= 0 then
+                    chainEvals[chosenEvaluationIndex].Value
+                else
+                    options
+                    |> Array.tryPick (fun (value, code, target) ->
+                        if code = chosen && target = targetSlot then
+                            Some value
+                        else
+                            None)
+                    |> Option.defaultValue 0.0
+
+            world.Observation.Decision(
+                tick,
+                { Actor = p.Id
+                  ActionCode = chosen
+                  TargetSlot = int targetSlot
+                  Condition = frame.Condition[slot]
+                  Cognitive = frame.Cognitive[slot]
+                  Pressure = pressure
+                  OptionCount = options.Length
+                  ChosenValue = chosenValue
+                  Temperature = effectiveTemperature ctx.Config cognitive
+                  Sample = d }
+            )
+
+            if world.Observation.WantsDetail(tick, p.Id) then
+                let alternatives =
+                    if chainEvals.Length > 0 then
+                        chainEvals
+                        |> Array.map (fun evaluation ->
+                            { ActionCode = evaluation.ActionCode
+                              TargetSlot = evaluation.TargetSlot
+                              Value = evaluation.Value })
+                    else
+                        options
+                        |> Array.map (fun (value, code, target) ->
+                            { ActionCode = code
+                              TargetSlot = int target
+                              Value = value })
+
+                world.Observation.Alternatives(tick, p.Id, alternatives)
 
         // The plan must support the action the softmax actually picked, or
         // receivers would run for a move the carrier never makes. The chain

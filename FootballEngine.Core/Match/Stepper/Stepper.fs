@@ -14,14 +14,18 @@ module Stepper =
                 match restart.Plan with
                 | Some plan ->
                     let lateral = if plan.Spot.Y >= 0.0<meter> then -4.0 else 4.0
-                    let x, y = MatchMath.pitchClamp (float plan.Spot.X - 5.0) (float plan.Spot.Y + lateral)
+
+                    let x, y =
+                        MatchMath.pitchClamp (float plan.Spot.X - 5.0) (float plan.Spot.Y + lateral)
+
                     x, y, RefereeSignal.RestartDirection(plan.Kind, plan.Side)
                 | None -> float ball.X, float ball.Y, RefereeSignal.Whistle
             | _ ->
                 let x, y = MatchMath.pitchClamp (float ball.X - 7.0) (float ball.Y + 5.0)
                 x, y, RefereeSignal.NoSignal
 
-        let assistantX = MatchMath.clamp (-(float Pitch.HalfLength)) (float Pitch.HalfLength) (float ball.X)
+        let assistantX =
+            MatchMath.clamp (-(float Pitch.HalfLength)) (float Pitch.HalfLength) (float ball.X)
 
         world.Officials <-
             { Referee =
@@ -175,6 +179,19 @@ module Stepper =
             output[appliedCount] <- ev
             appliedCount <- appliedCount + 1
 
+            if world.Observation.Enabled then
+                let cause =
+                    match ev.Data with
+                    | EventData.RestartPlanned(id, _)
+                    | EventData.RestartAuthorized id
+                    | EventData.RestartCommandIssued(id, _)
+                    | EventData.RestartContact(id, _, _)
+                    | EventData.RestartCompleted id
+                    | EventData.RestartPlanChanged(id, _) -> ValueSome(RestartReference id)
+                    | _ -> world.Observation.ConsumeCause ev
+
+                world.Observation.Record(ev.Tick, cause, EventCommitted ev) |> ignore
+
         let pendingCount = buffer.Events.Count
 
         // Event reducers only write Applied/world state; removing the processed
@@ -235,15 +252,10 @@ module Stepper =
         let mutable rng = rng
 
         match world.State.Advantage with
-        | AdvantageState.AdvantagePending(_, _, _, _, _, expiresAt) when tick >= expiresAt ->
+        | AdvantageState.AdvantagePending(incident, expiresAt) when tick >= expiresAt ->
             buffer.Events.Add
                 { Tick = tick
-                  Data =
-                    EventData.AdvantageExpired(
-                        match world.State.Advantage with
-                        | AdvantageState.AdvantagePending(side, _, _, _, _, _) -> side
-                        | _ -> ClubSide.Home
-                    ) }
+                  Data = EventData.AdvantageExpired incident.Side }
         | _ -> ()
 
         // Knockout shootouts are events too: the resolver proposes the complete

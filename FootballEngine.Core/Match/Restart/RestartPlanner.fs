@@ -20,7 +20,12 @@ module RestartPlanner =
         match kind with
         | SetPieceKind.KickOff -> Vec2.create 0.0<meter> 0.0<meter>
         | SetPieceKind.Corner ->
-            Vec2.create (MatchMath.goalX side) (if y >= 0.0<meter> then Pitch.HalfWidth else -Pitch.HalfWidth)
+            Vec2.create
+                (MatchMath.goalX side)
+                (if y >= 0.0<meter> then
+                     Pitch.HalfWidth
+                 else
+                     -Pitch.HalfWidth)
         | SetPieceKind.GoalKick ->
             Vec2.create (MatchMath.ownGoalX side + Pitch.GoalAreaDepth * MatchMath.goalDirection side) 0.0<meter>
         | SetPieceKind.Penalty ->
@@ -38,12 +43,23 @@ module RestartPlanner =
         let dy = float point.Y - float spot.Y
         let d = sqrt (dx * dx + dy * dy)
 
-        if d >= required then
-            point
-        elif d < 0.001 then
-            clampPoint (float spot.X + required) (float spot.Y)
+        let projected =
+            if d >= required then
+                point
+            elif d < 0.001 then
+                clampPoint (float spot.X + required) (float spot.Y)
+            else
+                clampPoint (float spot.X + dx / d * required) (float spot.Y + dy / d * required)
+
+        if distance spot projected >= required then
+            projected
         else
-            clampPoint (float spot.X + dx / d * required) (float spot.Y + dy / d * required)
+            // Clipping a radial projection at a touchline can put the wall back inside the exclusion circle.
+            [| clampPoint (float spot.X + required) (float spot.Y)
+               clampPoint (float spot.X - required) (float spot.Y)
+               clampPoint (float spot.X) (float spot.Y + required)
+               clampPoint (float spot.X) (float spot.Y - required) |]
+            |> Array.minBy (fun candidate -> -(min required (distance spot candidate)), distance point candidate)
 
     let private actionFor
         (ctx: MatchContext)
@@ -60,32 +76,41 @@ module RestartPlanner =
 
         for slot in MatchWorld.activeSlots frame do
             if slot <> executorSlot && slot <> 0 then
-                if receiver < 0 then receiver <- slot
+                if receiver < 0 then
+                    receiver <- slot
 
-        let receiverId slot = (MatchWorld.lineup ctx side).Profiles.[slot].Id
+        let receiverId slot =
+            (MatchWorld.lineup ctx side).Profiles.[slot].Id
 
         match kind with
-        | SetPieceKind.Penalty ->
-            RestartAction.RestartShot(MatchMath.goalX side, 0.0<meter>)
-        | SetPieceKind.Corner ->
-            RestartAction.RestartCross(MatchMath.goalX side - 8.0<meter> * dir, 0.0<meter>)
-        | SetPieceKind.FreeKick when MatchMath.distanceToGoal side spot.X spot.Y <= float ctx.Config.SetPiece.DirectFreeKickRange ->
+        | SetPieceKind.Penalty -> RestartAction.RestartShot(MatchMath.goalX side, 0.0<meter>)
+        | SetPieceKind.Corner -> RestartAction.RestartCross(MatchMath.goalX side - 8.0<meter> * dir, 0.0<meter>)
+        | SetPieceKind.FreeKick when
+            MatchMath.distanceToGoal side spot.X spot.Y
+            <= float ctx.Config.SetPiece.DirectFreeKickRange
+            ->
             RestartAction.RestartShot(MatchMath.goalX side, 0.0<meter>)
         | SetPieceKind.GoalKick ->
-            if receiver >= 0 then RestartAction.RestartPass(receiverId receiver)
-            else RestartAction.RestartClearance(spot.X + 25.0<meter> * dir, spot.Y)
+            if receiver >= 0 then
+                RestartAction.RestartPass(receiverId receiver)
+            else
+                RestartAction.RestartClearance(spot.X + 25.0<meter> * dir, spot.Y)
         | SetPieceKind.ThrowIn
         | SetPieceKind.KickOff
         | SetPieceKind.FreeKick ->
-             if receiver >= 0 then RestartAction.RestartPass(receiverId receiver)
-             else RestartAction.RestartClearance(spot.X + 15.0<meter> * dir, spot.Y)
+            if receiver >= 0 then
+                RestartAction.RestartPass(receiverId receiver)
+            else
+                RestartAction.RestartClearance(spot.X + 15.0<meter> * dir, spot.Y)
 
     let private executorSlot (world: World) (side: ClubSide) (kind: SetPieceKind) (spot: Vec2) =
         let frame = (MatchWorld.team world side).Frame
+
         let slots =
             MatchWorld.activeSlots frame
             |> Array.filter (fun slot -> kind = SetPieceKind.GoalKick || slot <> 0)
-            |> Array.sortBy (fun slot -> MatchMath.dist spot.X spot.Y (MatchWorld.posX frame slot) (MatchWorld.posY frame slot), slot)
+            |> Array.sortBy (fun slot ->
+                MatchMath.dist spot.X spot.Y (MatchWorld.posX frame slot) (MatchWorld.posY frame slot), slot)
 
         slots |> Array.tryHead
 
@@ -101,6 +126,7 @@ module RestartPlanner =
         (awardTick: int<subtick>)
         : Result<RestartPlan, PlanError> =
         let spot = restartSpot kind side x y
+
         match executorSlot world side kind spot with
         | None -> Error PlanError.NoExecutor
         | Some executorSlot ->
@@ -115,12 +141,19 @@ module RestartPlanner =
 
                 for slot in MatchWorld.activeSlots currentFrame do
                     let player = (MatchWorld.lineup ctx currentSide).Profiles.[slot].Id
-                    let current = clampPoint (float (MatchWorld.posX currentFrame slot)) (float (MatchWorld.posY currentFrame slot))
+
+                    let current =
+                        clampPoint
+                            (float (MatchWorld.posX currentFrame slot))
+                            (float (MatchWorld.posY currentFrame slot))
+
                     let role, position =
                         if currentSide = side && player = executor then
                             RestartRole.Executor, executorTarget
                         elif currentSide = opponent && kind = SetPieceKind.KickOff then
-                            RestartRole.Support, awayFrom spot current 9.15
+                            // Aim beyond the legal boundary so normalized targets remain legal after rounding.
+                            RestartRole.Support,
+                            awayFrom spot current (9.15 + float ctx.Config.SetPiece.TargetTolerance)
                         elif currentSide = opponent && kind = SetPieceKind.FreeKick then
                             let target =
                                 if slot = 0 then
@@ -128,16 +161,21 @@ module RestartPlanner =
                                 else
                                     awayFrom spot current (float ctx.Config.SetPiece.WallDistance)
 
-                            if slot = 0 then RestartRole.Goalkeeper, target else RestartRole.Wall, target
+                            if slot = 0 then
+                                RestartRole.Goalkeeper, target
+                            else
+                                RestartRole.Wall, target
                         elif currentSide = opponent && kind = SetPieceKind.Penalty then
                             if slot = 0 then
                                 RestartRole.Goalkeeper, clampPoint (float (MatchMath.goalX side)) 0.0
                             else
                                 RestartRole.Support, awayFrom spot current (float Pitch.PenaltyAreaDepth)
-                        elif currentSide = side &&
-                             (match actionFor ctx world kind side executorSlot spot with
-                              | RestartAction.RestartPass receiverId' when receiverId' = player -> true
-                              | _ -> false) then
+                        elif
+                            currentSide = side
+                            && (match actionFor ctx world kind side executorSlot spot with
+                                | RestartAction.RestartPass receiverId' when receiverId' = player -> true
+                                | _ -> false)
+                        then
                             RestartRole.Receiver, current
                         else
                             RestartRole.Support, current
@@ -185,7 +223,9 @@ module RestartRules =
           Violations: Violation list }
 
     let private violation rule player detail =
-        { Rule = rule; Player = player; Detail = detail }
+        { Rule = rule
+          Player = player
+          Detail = detail }
 
     let private clampPoint (x: float) (y: float) : Vec2 =
         let px, py = MatchMath.pitchClamp x y
@@ -203,7 +243,8 @@ module RestartRules =
         let side = plan.Side
         let opponents = MatchWorld.oppOf side
 
-        let add rule player detail = errors.Add(violation rule player detail)
+        let add rule player detail =
+            errors.Add(violation rule player detail)
 
         let spotLegal =
             match plan.Kind with
@@ -211,19 +252,28 @@ module RestartRules =
             | SetPieceKind.Corner -> abs (abs (float spot.Y) - float Pitch.HalfWidth) < 0.01
             | SetPieceKind.GoalKick ->
                 abs (float spot.Y) <= float Pitch.GoalAreaHalfWidth
-                && abs (float spot.X - float (MatchMath.ownGoalX side)) <= float Pitch.GoalAreaDepth + 0.01
-            | SetPieceKind.Penalty -> abs (float spot.Y) < 0.01 && abs (float spot.X - float (MatchMath.goalX side)) = float Pitch.PenaltySpotDistance
+                && abs (float spot.X - float (MatchMath.ownGoalX side))
+                   <= float Pitch.GoalAreaDepth + 0.01
+            | SetPieceKind.Penalty ->
+                abs (float spot.Y) < 0.01
+                && abs (float spot.X - float (MatchMath.goalX side)) = float Pitch.PenaltySpotDistance
             | SetPieceKind.ThrowIn
             | SetPieceKind.FreeKick -> insidePitch spot
 
-        if not spotLegal then add Rule.BallSpot None "restart spot is outside the law-defined area"
+        if not spotLegal then
+            add Rule.BallSpot None "restart spot is outside the law-defined area"
 
         match MatchWorld.slotOf ctx side plan.Executor with
         | None -> add Rule.ExecutorActive (Some plan.Executor) "executor is not in the lineup"
         | Some slot ->
             let frame = (MatchWorld.team world side).Frame
-            if not (MatchWorld.isActive frame slot) then add Rule.ExecutorActive (Some plan.Executor) "executor is not active"
-            let actual = clampPoint (float (MatchWorld.posX frame slot)) (float (MatchWorld.posY frame slot))
+
+            if not (MatchWorld.isActive frame slot) then
+                add Rule.ExecutorActive (Some plan.Executor) "executor is not active"
+
+            let actual =
+                clampPoint (float (MatchWorld.posX frame slot)) (float (MatchWorld.posY frame slot))
+
             let executorTarget =
                 plan.Targets
                 |> Array.tryFind (fun target -> target.Player = plan.Executor)
@@ -240,7 +290,10 @@ module RestartRules =
             match MatchWorld.slotOf ctx target.Side target.Player with
             | Some slot ->
                 let frame = (MatchWorld.team world target.Side).Frame
-                let current = clampPoint (float (MatchWorld.posX frame slot)) (float (MatchWorld.posY frame slot))
+
+                let current =
+                    clampPoint (float (MatchWorld.posX frame slot)) (float (MatchWorld.posY frame slot))
+
                 if distance current target.Position > float ctx.Config.SetPiece.MaxTargetDistance then
                     add Rule.TargetReachability (Some target.Player) "target is unreachable"
             | None -> add Rule.TargetReachability (Some target.Player) "target player is not in the lineup"
@@ -249,23 +302,37 @@ module RestartRules =
                 match plan.Kind, target.Role with
                 | SetPieceKind.FreeKick, RestartRole.Wall ->
                     let d = distance target.Position spot
+
                     if d + float ctx.Config.SetPiece.TargetTolerance < float ctx.Config.SetPiece.WallDistance then
                         add Rule.OpponentDistance (Some target.Player) "wall is inside the minimum distance"
                 | SetPieceKind.FreeKick, RestartRole.Goalkeeper ->
                     let onGoalLine = abs (float target.Position.X - float (MatchMath.goalX side)) < 0.01
                     let betweenPosts = abs (float target.Position.Y) <= float Pitch.GoalHalfWidth
+
                     if not (onGoalLine && betweenPosts) then
-                        add Rule.GoalLineException (Some target.Player) "goalkeeper is not in a legal goal-line position"
+                        add
+                            Rule.GoalLineException
+                            (Some target.Player)
+                            "goalkeeper is not in a legal goal-line position"
                 | SetPieceKind.Penalty, RestartRole.Goalkeeper ->
-                    if abs (float target.Position.X - float (MatchMath.goalX side)) > 0.01 || abs (float target.Position.Y) > 0.01 then
-                        add Rule.GoalkeeperPosition (Some target.Player) "penalty goalkeeper must remain on the goal line"
+                    if
+                        abs (float target.Position.X - float (MatchMath.goalX side)) > 0.01
+                        || abs (float target.Position.Y) > 0.01
+                    then
+                        add
+                            Rule.GoalkeeperPosition
+                            (Some target.Player)
+                            "penalty goalkeeper must remain on the goal line"
                 | SetPieceKind.Penalty, _ when Pitch.isInPenaltyArea side target.Position.X target.Position.Y ->
                     add Rule.PenaltyArea (Some target.Player) "defender is inside the penalty area"
                 | _ -> ()
 
         if plan.Kind = SetPieceKind.KickOff then
             for target in plan.Targets do
-                if target.Side = opponents && MatchMath.dist target.Position.X target.Position.Y 0.0<meter> 0.0<meter> < 9.15 then
+                if
+                    target.Side = opponents
+                    && MatchMath.dist target.Position.X target.Position.Y 0.0<meter> 0.0<meter> < 9.15
+                then
                     add Rule.KickoffGeometry (Some target.Player) "opponent is inside the centre circle"
 
         if plan.Kind = SetPieceKind.ThrowIn then

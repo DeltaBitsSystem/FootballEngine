@@ -10,7 +10,7 @@ module InterceptTable =
 
     [<Struct>]
     type InterceptParams =
-        { BallDecayPerTick: float // effective ball speed decay per tick (air drag * ground friction per dt)
+        { BallDecayPerTick: float // conservative decay estimate; contact integration is authoritative
           PlayerSpeedPerSecond: float<meterPerSecond>
           ControlRadius: float<meter> // kickable area
           MaxSteps: int } // horizon cap: beyond this many ticks the ball is treated as unreachable
@@ -18,7 +18,10 @@ module InterceptTable =
     let private dt = 1.0<second> / 40.0
 
     let parameters (intercept: InterceptConfig) (movement: MovementConfig) (ball: BallConfig) : InterceptParams =
-        { BallDecayPerTick = float ball.AirDrag ** float dt * float ball.GroundFriction ** float dt
+        // This closed-form race estimate is conservative; authoritative motion remains BallDynamics.
+        { BallDecayPerTick =
+            float ball.AirDrag ** float dt
+            * exp (-ball.RollingResistance * float ball.Gravity * float dt)
           PlayerSpeedPerSecond = movement.SprintSpeed
           ControlRadius = intercept.ControlRadius
           MaxSteps = intercept.MaxSteps }

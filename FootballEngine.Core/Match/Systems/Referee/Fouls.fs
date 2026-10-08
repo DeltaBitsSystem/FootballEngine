@@ -120,7 +120,7 @@ module RefereeFouls =
         (buffer: EventBuffer)
         (tick: int<subtick>)
         (ev: MatchEvent)
-        : unit =
+        : ObservationId voption =
         match ev.Data with
         | EventData.Foul(fouler, fouled, severity, _, (fx, fy)) ->
             let fouledSide =
@@ -129,16 +129,28 @@ module RefereeFouls =
             let inBox = isFoulInBox fouledSide fx fy
             let advantage = shouldPlayAdvantage ctx.Ctx world fouledSide fx fy
 
+            let assessment =
+                if world.Observation.Enabled then
+                    world.Observation.Record(
+                        tick,
+                        ValueSome(EventCause(MatchEvent.id ev)),
+                        RefereeAssessed(ev, inBox, advantage)
+                    )
+                else
+                    ValueNone
+
             if advantage then
                 buffer.Events.Add
                     { Tick = tick
                       Data =
                         EventData.AdvantageStarted(
-                            fouledSide,
-                            fouler,
-                            fouled,
-                            fx,
-                            fy,
+                            { Source = MatchEvent.id ev
+                              Tick = ev.Tick
+                              Side = fouledSide
+                              Fouler = fouler
+                              Fouled = fouled
+                              X = fx
+                              Y = fy },
                             tick + ctx.Ctx.Config.Referee.AdvantageWindow
                         ) }
             elif inBox then
@@ -149,7 +161,9 @@ module RefereeFouls =
                 buffer.Events.Add
                     { Tick = tick
                       Data = EventData.SetPieceAt(SetPieceKind.FreeKick, fouledSide, fx, fy) }
-        | _ -> ()
+
+            assessment
+        | _ -> ValueNone
 
     let step: SystemStep =
         fun ctx rng world buffer ->
@@ -158,7 +172,17 @@ module RefereeFouls =
 
             for ev in buffer.Applied do
                 if MatchEvent.kind ev = EventKind.Foul then
+                    let firstEvent = buffer.Events.Count
                     r <- decideCard ctx r world buffer tick ev
-                    processFoul ctx world buffer tick ev
+                    let assessment = processFoul ctx world buffer tick ev
+
+                    if world.Observation.Enabled then
+                        let cause =
+                            match assessment with
+                            | ValueSome id -> ResolutionCause id
+                            | ValueNone -> EventCause(MatchEvent.id ev)
+
+                        for index = firstEvent to buffer.Events.Count - 1 do
+                            world.Observation.Associate(buffer.Events[index], cause)
 
             r

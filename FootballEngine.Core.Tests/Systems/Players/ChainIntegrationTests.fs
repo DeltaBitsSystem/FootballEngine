@@ -49,7 +49,7 @@ module ChainIntegrationTests =
     let chainIntegrationTests =
         testList
             "FootballEngine.Core.Systems.PlayerDecision.Chain"
-            [ testCase "choose writes a legal marker with chain scores" (fun _ ->
+            [ testCase "choose writes a typed action with chain scores" (fun _ ->
                   let world = chainWorld ()
 
                   world.State <-
@@ -62,10 +62,16 @@ module ChainIntegrationTests =
 
                   let _ = PlayerDecision.choose ctx world ClubSide.Home 5 100<subtick> rng
 
-                  let assignment = world.Home.Frame.RunLookup.[5]
+                  let assignment = world.Home.PendingActions[5]
 
-                  Expect.equal assignment.Phase 200 "marker phase"
-                  Expect.isTrue (assignment.TargetY >= 1.0f && assignment.TargetY <= 5.0f) "marker code in 1-5")
+                  Expect.equal
+                      assignment.ExpiresAt
+                      (100<subtick> + ctx.Config.Movement.CommittedRunDuration)
+                      "action validity"
+
+                  Expect.isFalse
+                      (world.Home.Frame.RunLookup.ContainsKey 5)
+                      "choosing an action does not occupy movement assignments")
 
               testCase "choose with chains is deterministic" (fun _ ->
                   let world = chainWorld ()
@@ -78,7 +84,7 @@ module ChainIntegrationTests =
 
                   let a = Rng.ofSeed 42UL
                   let _ = PlayerDecision.choose ctx world ClubSide.Home 5 100<subtick> a
-                  let mA = world.Home.Frame.RunLookup.[5]
+                  let mA = world.Home.PendingActions[5]
                   let pA = world.Home.ActivePlan
 
                   let world2 = chainWorld ()
@@ -91,7 +97,7 @@ module ChainIntegrationTests =
 
                   let b = Rng.ofSeed 42UL
                   let _ = PlayerDecision.choose ctx world2 ClubSide.Home 5 100<subtick> b
-                  let mB = world2.Home.Frame.RunLookup.[5]
+                  let mB = world2.Home.PendingActions[5]
                   let pB = world2.Home.ActivePlan
 
                   Expect.equal mA mB "markers identical"
@@ -106,12 +112,17 @@ module ChainIntegrationTests =
                   frame.Intent.TargetY.[slot] <- -8.0f
                   frame.Intent.Phase.[slot] <- IntentPhase.Executing
 
-                  let _ = PlayerDecision.choose ctx world ClubSide.Home slot 100<subtick> (Rng.ofSeed 42UL)
+                  let _ =
+                      PlayerDecision.choose ctx world ClubSide.Home slot 100<subtick> (Rng.ofSeed 42UL)
 
                   Expect.equal frame.Intent.Kind.[slot] IntentCode.BallCarry "intent kind remains owned by Intent"
                   Expect.equal frame.Intent.TargetX.[slot] 24.0f "decision does not pin the carrier x target"
                   Expect.equal frame.Intent.TargetY.[slot] -8.0f "decision does not pin the carrier y target"
-                  Expect.equal frame.Intent.Phase.[slot] IntentPhase.Executing "decision does not alter intent lifetime")
+
+                  Expect.equal
+                      frame.Intent.Phase.[slot]
+                      IntentPhase.Executing
+                      "decision does not alter intent lifetime")
 
               testCase "the deciding carrier is never planned as a future receiver" (fun _ ->
                   let world = chainWorld ()

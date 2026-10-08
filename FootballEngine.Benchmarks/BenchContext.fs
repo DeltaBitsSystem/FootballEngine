@@ -129,4 +129,4 @@ module BenchContext =
                    BalanceConfig.defaultConfig.Manager.ThirdSubWindowMin |]
               AllowExtraTime = true }
           Config = BalanceConfig.defaultConfig
-          IsKnockout = false }
+          TieResolution = MatchTieResolution.AllowDraw }

@@ -4,6 +4,11 @@ open FootballEngine.Core.Match
 
 module TestBuilders =
 
+    let requireMatchOutcome =
+        function
+        | Ok outcome -> outcome
+        | Error error -> failwithf "test fixture match failed: %A" error
+
     let makeProfile (id: int) (role: SlotRole) : PlayerProfile =
         let baseAttr =
             match role with
@@ -157,7 +162,7 @@ module TestBuilders =
                    BalanceConfig.defaultConfig.Manager.ThirdSubWindowMin |]
               AllowExtraTime = true }
           Config = BalanceConfig.defaultConfig
-          IsKnockout = false }
+          TieResolution = MatchTieResolution.AllowDraw }
 
     let emptyBall: BallState =
         { Position =
@@ -167,24 +172,24 @@ module TestBuilders =
               Vx = 0.0<meterPerSecond>
               Vy = 0.0<meterPerSecond>
               Vz = 0.0<meterPerSecond> }
+          Radius = BalanceConfig.defaultBall.Radius
           Spin =
-            { Top = 0.0<radianPerSecond>
-              Side = 0.0<radianPerSecond> }
+            { X = 0.0<radianPerSecond>
+              Y = 0.0<radianPerSecond>
+              Z = 0.0<radianPerSecond> }
+          Orientation = System.Numerics.Quaternion.Identity
+          FootMotion = None
+          PendingStrike = None
           Control = BallControl.Free
           Trajectory = None
           LastTouch = None
           StationarySince = None
           GKHoldSince = None
           ArrivalGate = None
-          PreviousPosition = None
+          PreviousPosition = ValueNone
           Impulse = None }
 
-    let restartState
-        (kind: SetPieceKind)
-        (side: ClubSide)
-        (spot: Vec2)
-        (phase: RestartPhase)
-        : RestartState =
+    let restartState (kind: SetPieceKind) (side: ClubSide) (spot: Vec2) (phase: RestartPhase) : RestartState =
         { Id = RestartId 1UL
           Cause = MatchStart
           Kind = kind
@@ -206,6 +211,14 @@ module TestBuilders =
               PosY = allocF32 ()
               VelX = allocF32 ()
               VelY = allocF32 ()
+              PosZ = allocF32 ()
+              VelZ = allocF32 ()
+              JumpRequested = Array.create n false
+              JumpSequence = Array.zeroCreate<uint64> n
+              BodyFacing = allocF32 ()
+              BodyAngularVelocity = allocF32 ()
+              BodyAngularAcceleration = allocF32 ()
+              BodyTravelDistance = allocF32 ()
               Condition = Array.init n (fun _ -> 1.0f)
               Mental =
                 { Composure = allocF32 ()
@@ -246,6 +259,7 @@ module TestBuilders =
               ActiveCache = ActiveSlotsCache() }
 
         { Frame = frame
+          Tactics = (defaultCtx ()).HomeClub.BaseTactics
           RosterIds = lineup.Profiles |> Array.map _.Id
           Memory =
             Array.init n (fun _ ->
@@ -328,6 +342,7 @@ module TestBuilders =
               AppliedAt = None
               UsedIncoming = Set.empty }
           Participation = ParticipationBook.create ()
+          PendingActions = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
           ActivePlan = None
           LastCarrierSlot = -1
           LastRoleAssignmentTick = -1<subtick>
@@ -377,8 +392,12 @@ module TestBuilders =
               FarAssistant = { X = 0.0<meter>; Y = Pitch.HalfWidth }
               Signal = RefereeSignal.NoSignal }
           Home = makeTeamWorld ctx.HomeLineup
-          Away = makeTeamWorld ctx.AwayLineup
+          Away =
+            { makeTeamWorld ctx.AwayLineup with
+                Tactics = ctx.AwayClub.BaseTactics }
           AppliedEventIds = System.Collections.Generic.HashSet<EventId>()
+          Observation = ObservationBuffer(4096)
+          Reviews = RefereeReviewBook()
           NextRestartId = 1UL }
 
     let worldWithBallAt (x: float<meter>) (y: float<meter>) (world: World) : World =

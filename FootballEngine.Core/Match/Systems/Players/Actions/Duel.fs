@@ -80,7 +80,9 @@ module Duel =
         let y = MatchWorld.posY frame slot
 
         match MatchWorld.nearestOpponent ctx.Ctx world side x y 3.0 with
-        | None -> rng
+        | None ->
+            world.Observation.RejectAction(tick, pid, NoDuelOpponent) |> ignore
+            rng
         | Some dSlot ->
             let dPid = (MatchWorld.lineup ctx.Ctx (MatchWorld.oppOf side)).Profiles.[dSlot].Id
             let d = MatchWorld.profileOf ctx.Ctx (MatchWorld.oppOf side) dSlot
@@ -95,6 +97,33 @@ module Duel =
             let r, rng' = Rng.double rng
             let foulRoll, rng'' = Rng.double rng'
             let foul = foulRoll < cfg.Actions.DuelFoulChance
+            let firstEvent = buffer.Events.Count
+
+            let resolution =
+                if world.Observation.Enabled then
+                    world.Observation.Execution(
+                        tick,
+                        DuelResolved
+                            { Carrier = pid
+                              Defender = dPid
+                              X = x
+                              Y = y
+                              WinProbability = pWin
+                              WinDraw = r
+                              FoulProbability = cfg.Actions.DuelFoulChance
+                              FoulDraw = foulRoll
+                              Foul = foul
+                              Won = not foul && r < pWin }
+                    )
+                else
+                    ValueNone
+
+            let linkConsequences () =
+                match resolution with
+                | ValueSome id ->
+                    for index = firstEvent to buffer.Events.Count - 1 do
+                        world.Observation.Associate(buffer.Events[index], ResolutionCause id)
+                | ValueNone -> ()
 
             if foul then
                 let severity = foulSeverity ctx.Ctx world side slot x y
@@ -107,12 +136,14 @@ module Duel =
                     { Tick = tick
                       Data = EventData.BallLoose(x, y) }
 
+                linkConsequences ()
                 rng''
             elif r < pWin then
                 buffer.Events.Add
                     { Tick = tick
                       Data = EventData.Dribble(pid, true, x, y) }
 
+                linkConsequences ()
                 rng''
             else
                 buffer.Events.Add
@@ -127,4 +158,5 @@ module Duel =
                     { Tick = tick
                       Data = EventData.Possession(MatchWorld.oppOf side, dPid) }
 
+                linkConsequences ()
                 rng''

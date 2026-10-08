@@ -18,8 +18,7 @@ module Gate0Tests =
         { Ctx = ctx
           Clock = SimulationClock.defaultClock }
 
-    // The dictionary is the only unordered part of the world; sort it before
-    // hashing so a state comparison cannot depend on dictionary enumeration.
+    // Sorting keyed state keeps hash comparisons independent of dictionary enumeration.
     let private canonicalTeam (team: TeamWorld) =
         let runs =
             team.Frame.RunLookup
@@ -58,7 +57,7 @@ module Gate0Tests =
          team.Cards,
          team.SubsUsed,
          team.Shape,
-         team.Directive,
+         (team.Directive, team.Tactics),
          team.Blackboard,
          team.Emergent,
          team.Intercept,
@@ -70,7 +69,11 @@ module Gate0Tests =
          team.EventWindow.Kinds,
          team.EventWindow.Counts,
          team.ActivePlan,
-         team.LastCarrierSlot)
+         team.LastCarrierSlot,
+         team.PendingActions
+         |> Seq.map (fun entry -> entry.Key, entry.Value)
+         |> Seq.sortBy fst
+         |> Seq.toArray)
 
     let private canonicalState (world: World) : string =
         let state =
@@ -85,7 +88,13 @@ module Gate0Tests =
              world.State.Possession,
              world.State.Stoppage)
 
-        sprintf "%A|%A|%A" state (canonicalTeam world.Home) (canonicalTeam world.Away)
+        let reviews =
+            world.Reviews.Offside
+            |> Seq.map (fun entry -> entry.Key, entry.Value)
+            |> Seq.sortBy fst
+            |> Seq.toArray
+
+        sprintf "%A|%A|%A|%A" state (canonicalTeam world.Home) (canonicalTeam world.Away) reviews
 
     let private canonicalHash (world: World) : string =
         canonicalState world
@@ -117,7 +126,17 @@ module Gate0Tests =
                   |> ignore
 
                   let afterKick = world.State.Ball.Position
-                  let impulseSpeed = MatchMath.speedOf afterKick.Vx afterKick.Vy
+                  Expect.equal afterKick origin "request does not kick during preparation"
+
+                  world.State <-
+                      { world.State with
+                          Tick = world.State.Tick + ctx.Config.Ball.KickWindup }
+
+                  BallFootContact.step sctx (Rng.ofSeed 17UL) world (buffer ()) |> ignore
+
+                  let impulseSpeed =
+                      MatchMath.speedOf world.State.Ball.Position.Vx world.State.Ball.Position.Vy
+
                   Expect.isGreaterThan impulseSpeed 0.0 "a kick must create horizontal impulse"
 
                   BallPhysics.step sctx (Rng.ofSeed 17UL) world (buffer ()) |> ignore
@@ -220,10 +239,12 @@ module Gate0Tests =
                   let ctx = TestBuilders.defaultCtx ()
 
                   let fast =
-                      Simulator.runMatch Scheduler.systems ctx 0xD00DFEEDUL Simulator.RunMode.Fast None
+                      Simulator.runMatch Scheduler.systems ctx 0xD00DFEEDUL Simulator.RunMode.Fast
+                      |> TestBuilders.requireMatchOutcome
 
                   let full =
-                      Simulator.runMatch Scheduler.systems ctx 0xD00DFEEDUL (Simulator.RunMode.Replay 20<tickDelta>) None
+                      Simulator.runMatch Scheduler.systems ctx 0xD00DFEEDUL (Simulator.RunMode.Replay 20<tickDelta>)
+                      |> TestBuilders.requireMatchOutcome
 
                   Expect.equal (canonicalHash fast.Final) (canonicalHash full.Final) "full state hash identical"
                   Expect.equal fast.EventsHash full.EventsHash "event hash identical"

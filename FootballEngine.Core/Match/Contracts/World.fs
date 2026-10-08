@@ -54,9 +54,30 @@ module ParticipationBook =
                 EndAt = Some(max interval.StartAt (interval.EndAt |> Option.defaultValue endAt)) })
         |> Array.ofSeq
 
-/// One team's live match state. All books are owned by this match (no globals).
+/// Action proposals cannot share storage with movement commitments or review evidence.
+type PlayerActionChoice =
+    | DeliverPass of receiverSlot: int
+    | TakeShot
+    | ContestDuel
+    | ClearBall
+    | DeliverCross
+
+type PendingPlayerAction =
+    { Choice: PlayerActionChoice
+      ExpiresAt: int<subtick> }
+
+type OffsideReviewSnapshot =
+    { ScorerX: float32<meter>
+      DefensiveLineX: float32<meter>
+      CapturedAt: int<subtick> }
+
+/// Reviews survive action execution without sharing the movement assignment namespace.
+type RefereeReviewBook() =
+    member val Offside = System.Collections.Generic.Dictionary<ClubSide * int, OffsideReviewSnapshot>()
+
 type TeamWorld =
     { mutable Frame: TeamFrame
+      mutable Tactics: TacticsConfig
       RosterIds: PlayerId[]
       mutable Memory: PlayerMemory[]
       mutable Cards: CardsBook
@@ -71,6 +92,7 @@ type TeamWorld =
       mutable EventWindow: EventWindow
       mutable Substitution: SubstitutionState
       Participation: ParticipationBook
+      PendingActions: System.Collections.Generic.Dictionary<int, PendingPlayerAction>
       mutable ActivePlan: ChainPlan option
       mutable LastCarrierSlot: int
       mutable LastRoleAssignmentTick: int<subtick>
@@ -89,9 +111,7 @@ type RefereeSignal =
     | RestartDirection of SetPieceKind * ClubSide
 
 [<Struct>]
-type MatchOfficial =
-    { X: float<meter>
-      Y: float<meter> }
+type MatchOfficial = { X: float<meter>; Y: float<meter> }
 
 [<Struct>]
 type OfficialsState =
@@ -107,4 +127,6 @@ type World =
       Home: TeamWorld
       Away: TeamWorld
       AppliedEventIds: System.Collections.Generic.HashSet<EventId>
+      Observation: ObservationBuffer
+      Reviews: RefereeReviewBook
       mutable NextRestartId: uint64 }

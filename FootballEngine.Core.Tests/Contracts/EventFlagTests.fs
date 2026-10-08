@@ -8,6 +8,9 @@ module EventFlagTests =
     let private allKinds: EventKind list =
         [ EventKind.PossessionGained
           EventKind.PossessionLost
+          EventKind.PlayerBodyFlight
+          EventKind.FootContact
+          EventKind.FootStrikeCancelled
           EventKind.BallLoose
           EventKind.PassLaunched
           EventKind.PassCompleted
@@ -105,7 +108,17 @@ module EventFlagTests =
           { Tick = 0<subtick>
             Data = EventData.Offside p }
           { Tick = 0<subtick>
-            Data = EventData.AdvantageStarted(ClubSide.Home, p, q, 1.0<meter>, 2.0<meter>, 10<subtick>) }
+            Data =
+              EventData.AdvantageStarted(
+                  { Source = EventId 1UL
+                    Tick = 0<subtick>
+                    Side = ClubSide.Home
+                    Fouler = p
+                    Fouled = q
+                    X = 1.0<meter>
+                    Y = 2.0<meter> },
+                  10<subtick>
+              ) }
           { Tick = 0<subtick>
             Data = EventData.AdvantageRealized ClubSide.Home }
           { Tick = 0<subtick>
@@ -216,6 +229,18 @@ module EventFlagTests =
               }
 
               test "EventFlags.all sets every bit" {
+                  let runtimeKinds =
+                      Microsoft.FSharp.Reflection.FSharpType.GetUnionCases typeof<EventKind>
+                      |> Array.map (fun case ->
+                          Microsoft.FSharp.Reflection.FSharpValue.MakeUnion(case, [||]) :?> EventKind)
+
+                  let masks = runtimeKinds |> Array.map (fun kind -> (EventFlags.ofKind kind).Bits)
+                  Expect.equal (Array.distinct masks).Length masks.Length "every explicit bit assignment is unique"
+
+                  Expect.isTrue
+                      (masks |> Array.forall (fun bits -> bits <> 0UL && (bits &&& (bits - 1UL)) = 0UL))
+                      "each kind owns one scheduler bit"
+
                   let combined =
                       allKinds
                       |> List.fold (fun acc k -> EventFlags.union acc (EventFlags.ofKind k)) { Bits = 0UL }

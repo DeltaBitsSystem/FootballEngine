@@ -11,7 +11,32 @@ module VARTests =
     let varTests =
         testList
             "FootballEngine.Core.Systems.Referee.VARTests"
-            [ test "offside marker beyond the margin overturns" {
+            [ test "review snapshots cannot overwrite movement or action proposals" {
+                  let world = TestBuilders.minimalWorld ()
+
+                  let run =
+                      { Slot = 9
+                        TargetX = 12.0f
+                        TargetY = 4.0f
+                        Phase = 1
+                        ExpiresAt = 50<subtick> }
+
+                  world.Home.Frame.RunLookup[9] <- run
+
+                  world.Home.PendingActions[9] <-
+                      { Choice = TakeShot
+                        ExpiresAt = 50<subtick> }
+
+                  RefereeVAR.markOffsideSnapshot world ClubSide.Home 9 20.0<meter> 18.0<meter> 0<subtick>
+                  RefereeVAR.markOffsideSnapshot world ClubSide.Away 9 -20.0<meter> -18.0<meter> 0<subtick>
+                  RefereeVAR.clearSnapshots world ClubSide.Home
+                  Expect.equal world.Home.Frame.RunLookup[9] run "movement survives review"
+                  Expect.equal world.Home.PendingActions[9].Choice TakeShot "pending action survives review"
+                  Expect.isFalse (RefereeVAR.isOffside ctx world ClubSide.Home) "home review was cleared"
+                  Expect.isTrue (RefereeVAR.isOffside ctx world ClubSide.Away) "away review is independently retained"
+                  Expect.equal world.Home.Frame.RunLookup.Count 1 "no hidden movement keys"
+              }
+              test "offside marker beyond the margin overturns" {
                   let world = TestBuilders.minimalWorld ()
                   // Home attacks +X. Attacker shoots from 1 m ahead of the line.
                   RefereeVAR.markOffsideSnapshot
@@ -50,7 +75,7 @@ module VARTests =
                       (Pitch.awayGoalX - 3.0<meter>)
                       0<subtick>
 
-                  RefereeVAR.clearMarkers world ClubSide.Home
+                  RefereeVAR.clearSnapshots world ClubSide.Home
 
                   Expect.isFalse (RefereeVAR.isOffside ctx world ClubSide.Home) "cleared markers -> no review"
               } ]

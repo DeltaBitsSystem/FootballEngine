@@ -209,6 +209,7 @@ type MatchDayUiState =
       IntelligenceWorkspace: IntelligenceWorkspace
       SelectedPlayerId: FootballEngine.Domain.PlayerId option
       SelectedEventId: MatchEventId option
+      EvidenceQuery: ObservationQuery
       DraftSubstitutions: SubstitutionChange list
       PinnedRail: MatchDayRail option }
 
@@ -247,6 +248,7 @@ type LiveMatchState =
       Score: int * int
       Metrics: LiveMetrics
       Events: MatchEvent list
+      Evidence: ObservationSnapshot option
       Commentary: CommentaryEntry list
       PendingCommands: Map<MatchCommandId, PendingCommand>
       NextCommandId: uint64
@@ -264,6 +266,7 @@ type LiveMatchMsg =
     | SelectManagerWorkspace of MatchDayWorkspace
     | SelectIntelligenceWorkspace of IntelligenceWorkspace
     | SelectPlayer of FootballEngine.Domain.PlayerId option
+    | SetEvidenceQuery of ObservationQuery
     | SetDraftSubstitutions of SubstitutionChange list
     | SubmitDraftSubstitutions
     | DismissError
@@ -293,6 +296,12 @@ module LiveMatchState =
           IntelligenceWorkspace = Commentary
           SelectedPlayerId = None
           SelectedEventId = None
+          EvidenceQuery =
+            { Actor = None
+              Action = None
+              Event = None
+              FromTick = 0<subtick>
+              UntilTick = System.Int32.MaxValue * 1<subtick> }
           DraftSubstitutions = []
           PinnedRail = None }
 
@@ -302,6 +311,7 @@ module LiveMatchState =
           Fixture = fixture
           Revision = revision
           Status = Preparing
+          Evidence = None
           Speed = Normal
           Clock =
             { Elapsed = 0<subtick>
@@ -508,7 +518,8 @@ module LiveMatchUpdate =
             Some(LiveMatchState.create sessionId fixture revision source), NoEffect
         | _, None -> None, NoEffect
         | SemanticReceived(revision, clock, (homeScore, awayScore), homeStats, awayStats, events), Some current when
-            revision >= current.Revision ->
+            revision >= current.Revision
+            ->
             let next =
                 { applyEvents current.Fixture events current with
                     Revision = revision
@@ -545,7 +556,10 @@ module LiveMatchUpdate =
             Some
                 { current with
                     Status = status
-                    Speed = match status with Live speed -> speed | _ -> current.Speed },
+                    Speed =
+                        match status with
+                        | Live speed -> speed
+                        | _ -> current.Speed },
             NoEffect
         | SelectManagerWorkspace workspace, Some current ->
             Some
@@ -561,13 +575,35 @@ module LiveMatchUpdate =
                         { current.Ui with
                             IntelligenceWorkspace = workspace } },
             NoEffect
+        | SelectPlayer playerId, Some current when playerId = current.Ui.SelectedPlayerId -> Some current, NoEffect
         | SelectPlayer playerId, Some current ->
             Some
                 { current with
                     Ui =
                         { current.Ui with
-                            SelectedPlayerId = playerId } },
+                            SelectedPlayerId = playerId
+                            EvidenceQuery =
+                                { current.Ui.EvidenceQuery with
+                                    Actor = playerId |> Option.map FootballEngine.Core.Match.PlayerId } } },
             NoEffect
+        | SetEvidenceQuery query, Some current ->
+            let query =
+                { query with
+                    Actor = current.Ui.SelectedPlayerId |> Option.map FootballEngine.Core.Match.PlayerId }
+
+            if
+                query.FromTick < 0<subtick>
+                || query.UntilTick < query.FromTick
+                || query = current.Ui.EvidenceQuery
+            then
+                Some current, NoEffect
+            else
+                Some
+                    { current with
+                        Ui =
+                            { current.Ui with
+                                EvidenceQuery = query } },
+                NoEffect
         | SetDraftSubstitutions changes, Some current ->
             Some
                 { current with

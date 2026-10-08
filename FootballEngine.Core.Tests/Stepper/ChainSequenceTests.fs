@@ -38,7 +38,9 @@ module ChainSequenceTests =
             "FootballEngine.Core.Systems.PlayerDecision.Chain.Sequence"
             [ testCase "multi-pass sequences occur in seeded matches" (fun _ ->
                   for seed in [ 1UL; 2UL; 3UL; 4UL; 5UL ] do
-                      let out = Simulator.runMatch systems ctx seed Simulator.RunMode.Fast None
+                      let out =
+                          Simulator.runMatch systems ctx seed Simulator.RunMode.Fast
+                          |> TestBuilders.requireMatchOutcome
 
                       let maxHome = consecutivePasses out.Events ClubSide.Home
                       let maxAway = consecutivePasses out.Events ClubSide.Away
@@ -54,7 +56,10 @@ module ChainSequenceTests =
                   let awayPasses = ResizeArray()
 
                   for seed in [ 101UL; 102UL; 103UL; 104UL; 105UL ] do
-                      let out = Simulator.runMatch systems ctx seed Simulator.RunMode.Fast None
+                      let out =
+                          Simulator.runMatch systems ctx seed Simulator.RunMode.Fast
+                          |> TestBuilders.requireMatchOutcome
+
                       homePasses.Add out.Final.Home.Stats.PassesCompleted
                       awayPasses.Add out.Final.Away.Stats.PassesCompleted
 
@@ -67,7 +72,13 @@ module ChainSequenceTests =
                   Expect.isLessThan avgAway 1500.0 "away passes completed average remains bounded")
 
               testCase "same seed produces same event hash" (fun _ ->
-                  let a = Simulator.runMatch systems ctx 777UL Simulator.RunMode.Fast None
-                  let b = Simulator.runMatch systems ctx 777UL Simulator.RunMode.Fast None
+                  let a =
+                      Simulator.runMatch systems ctx 777UL Simulator.RunMode.Fast
+                      |> TestBuilders.requireMatchOutcome
+
+                  let b =
+                      Simulator.runMatch systems ctx 777UL Simulator.RunMode.Fast
+                      |> TestBuilders.requireMatchOutcome
+
                   Expect.equal a.EventsHash b.EventsHash "deterministic hash"
                   Expect.equal a.Events.Length b.Events.Length "deterministic count") ]

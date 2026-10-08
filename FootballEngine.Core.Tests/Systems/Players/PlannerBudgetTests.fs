@@ -71,7 +71,9 @@ module PlannerBudgetTests =
                   let seeds = [ 201UL; 202UL ]
 
                   for seed in seeds do
-                      let out = Simulator.runMatch systems ctx seed Simulator.RunMode.Fast None
+                      let out =
+                          Simulator.runMatch systems ctx seed Simulator.RunMode.Fast
+                          |> TestBuilders.requireMatchOutcome
 
                       Expect.equal out.Final.State.Flow MatchFlow.MatchEnded "match ended"
                       Expect.isGreaterThanOrEqual out.Final.State.HomeScore 0 "home score sane"

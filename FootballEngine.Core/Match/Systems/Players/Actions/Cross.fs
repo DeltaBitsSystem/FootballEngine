@@ -39,10 +39,6 @@ module Cross =
                         bestScore <- score + attrs
                         bestSlot <- s2
 
-        buffer.Events.Add
-            { Tick = tick
-              Data = EventData.CrossAttempt(pid, x, y) }
-
         if bestSlot >= 0 then
             let d =
                 MatchMath.dist x y (MatchWorld.posX frame bestSlot) (MatchWorld.posY frame bestSlot)
@@ -60,7 +56,7 @@ module Cross =
             let ry = MatchWorld.posY frame bestSlot
             let direction = max d 0.001
 
-            let linearVelocity =
+            let linearVelocity: LinearVelocity =
                 { X = float (rx - x) / direction * speed * 1.0<meterPerSecond>
                   Y = float (ry - y) / direction * speed * 1.0<meterPerSecond>
                   Z = (4.0 + quality * 2.0) * 1.0<meterPerSecond> }
@@ -90,12 +86,24 @@ module Cross =
                 + int (round (d / speed * float ctx.Clock.SubTicksPerSecond)) * 1<subtick>
                 + 10<subtick>
 
-            BallPhysics.applyImpulse
+            BallFootContact.request
+                ctx
                 world
+                buffer
                 impulse
                 (TrajectoryIntent.Aimed(pid, (MatchWorld.lineup ctx.Ctx side).Profiles.[bestSlot].Id, quality))
                 (Some arrival)
 
             rng
         else
+            let attempt =
+                { Tick = tick
+                  Data = EventData.CrossAttempt(pid, x, y) }
+
+            buffer.Events.Add attempt
+
+            match world.Observation.RejectAction(tick, pid, NoCrossTarget) with
+            | ValueSome id -> world.Observation.Associate(attempt, ResolutionCause id)
+            | ValueNone -> ()
+
             rng

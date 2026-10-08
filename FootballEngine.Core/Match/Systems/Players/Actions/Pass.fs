@@ -6,25 +6,6 @@ namespace FootballEngine.Core.Match
 /// event), so launching and resolving stay one step each.
 module Pass =
 
-    let private flagOffside
-        (ctx: SystemContext)
-        (world: World)
-        (buffer: EventBuffer)
-        (side: ClubSide)
-        (receiverSlot: int)
-        (tick: int<subtick>)
-        : unit =
-        let team = MatchWorld.team world side
-        let receiver = (MatchWorld.lineup ctx.Ctx side).Profiles.[receiverSlot].Id
-        let line = MatchWorld.offsideLine ctx.Ctx world side
-        let receiverX = MatchWorld.posX team.Frame receiverSlot
-
-        RefereeVAR.markOffsideSnapshot world side receiverSlot receiverX line tick
-
-        buffer.Events.Add
-            { Tick = tick
-              Data = EventData.Offside receiver }
-
     /// Launch a pass to a teammate slot. `qualityBonus` lets the GK system
     /// make distribution easier (positive) or hurried (negative); passes
     /// beyond 65 m are refused as a sanity cap on delivery.
@@ -73,13 +54,16 @@ module Pass =
         let launchDelivery (quality: float) (rng: Rng) : Rng =
             let direction = max (float (MatchMath.dist originX originY targetRx targetRy)) 0.001
 
-            let linearVelocity =
+            let linearVelocity: LinearVelocity =
                 { X = float (targetRx - originX) / direction * speed * 1.0<meterPerSecond>
                   Y = float (targetRy - originY) / direction * speed * 1.0<meterPerSecond>
                   Z = 0.0<meterPerSecond> }
 
             let angularVelocity =
-                { Top = 0.0<radianPerSecond>
+                { Top =
+                    speed / float cfg.Ball.Radius
+                    * cfg.Ball.PassRollingSpinRatio
+                    * 1.0<radianPerSecond>
                   Side = 0.0<radianPerSecond>
                   Roll = 0.0<radianPerSecond> }
 
@@ -103,8 +87,10 @@ module Pass =
                 + int (round (flightSeconds * float ctx.Clock.SubTicksPerSecond)) * 1<subtick>
                 + 6<subtick>
 
-            BallPhysics.applyImpulse
+            BallFootContact.request
+                ctx
                 world
+                buffer
                 impulse
                 (TrajectoryIntent.Aimed(pid, (MatchWorld.lineup ctx.Ctx side).Profiles.[targetSlot].Id, quality))
                 (Some arrival)
@@ -115,39 +101,26 @@ module Pass =
         let receiverCognition = float frame.Cognitive.[targetSlot]
         let cognitiveQuality = 0.6 + 0.4 * receiverCognition
 
-        if d > 65.0 then
+        if d > float cfg.Actions.MaxPassExecutionDistance then
+            world.Observation.RejectAction(
+                tick,
+                pid,
+                PassDistanceLimit(d * 1.0<meter>, cfg.Actions.MaxPassExecutionDistance)
+            )
+            |> ignore
+
             rng
         else
-            let line = MatchWorld.offsideLine ctx.Ctx world side
-            let dir = MatchMath.goalDirection side
-            let forward = (float rx - float x) * dir > 0.0
+            let jitter, rng' = Rng.uniform (-1.0) 1.0 rng
 
-            let beyond =
-                if dir > 0.0 then
-                    float rx > float line
-                else
-                    float rx < float line
+            let quality =
+                MatchMath.clamp01 (
+                    cfg.Actions.PassBaseQuality * cognitiveQuality
+                    + (float p.Passing - 60.0) * cfg.Actions.PassTechnicalWeight
+                    + (float p.Vision - 60.0) * cfg.Actions.PassVisionWeight
+                    - d * cfg.Actions.PassDistancePenaltyPerMeter
+                    + jitter * cfg.Actions.PassJitterBase
+                    + qualityBonus
+                )
 
-            let beyondBall =
-                if dir > 0.0 then
-                    float rx > float world.State.Ball.Position.X
-                else
-                    float rx < float world.State.Ball.Position.X
-
-            if forward && beyond && beyondBall then
-                flagOffside ctx world buffer side targetSlot tick
-                rng
-            else
-                let jitter, rng' = Rng.uniform (-1.0) 1.0 rng
-
-                let quality =
-                    MatchMath.clamp01 (
-                        cfg.Actions.PassBaseQuality * cognitiveQuality
-                        + (float p.Passing - 60.0) * cfg.Actions.PassTechnicalWeight
-                        + (float p.Vision - 60.0) * cfg.Actions.PassVisionWeight
-                        - d * cfg.Actions.PassDistancePenaltyPerMeter
-                        + jitter * cfg.Actions.PassJitterBase
-                        + qualityBonus
-                    )
-
-                launchDelivery quality rng'
+            launchDelivery quality rng'

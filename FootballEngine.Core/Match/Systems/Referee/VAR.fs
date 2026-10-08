@@ -1,12 +1,7 @@
 namespace FootballEngine.Core.Match
 
-/// An offside review must be deterministic and reproducible: instead of
-/// re-simulating the scoring moment, the shot system stores a snapshot marker
-/// (Phase = 250) in the scoring team's RunLookup, and the referee reads that
-/// snapshot at review expiry to give the verdict.
+/// Review consumes captured evidence, never a re-simulation of the scoring moment.
 module RefereeVAR =
-
-    let private markerKey (slot: int) : int = slot + 1000
 
     let markOffsideSnapshot
         (world: World)
@@ -16,68 +11,39 @@ module RefereeVAR =
         (defLineX: float<meter>)
         (tick: int<subtick>)
         : unit =
-        let team = MatchWorld.team world side
+        world.Reviews.Offside[(side, shooterSlot)] <-
+            { ScorerX = float32 scorerX * 1.0f<meter>
+              DefensiveLineX = float32 defLineX * 1.0f<meter>
+              CapturedAt = tick }
 
-        team.Frame.RunLookup.[markerKey shooterSlot] <-
-            { Slot = shooterSlot
-              TargetX = float32 scorerX
-              TargetY = float32 defLineX
-              Phase = 250
-              ExpiresAt = tick }
-
-    let clearMarkers (world: World) (side: ClubSide) : unit =
-        let team = MatchWorld.team world side
-
+    let clearSnapshots (world: World) (side: ClubSide) : unit =
         let keys =
-            team.Frame.RunLookup
-            |> Seq.filter (fun kv -> kv.Value.Phase = 250)
-            |> Seq.map (fun kv -> kv.Key)
-            |> Array.ofSeq
+            world.Reviews.Offside.Keys
+            |> Seq.filter (fun (snapshotSide, _) -> snapshotSide = side)
+            |> Seq.toArray
 
-        for k in keys do
-            team.Frame.RunLookup.Remove k |> ignore
+        for key in keys do
+            world.Reviews.Offside.Remove key |> ignore
 
-    /// The verdict is read, not re-simulated: the same snapshot always gives the
-    /// same overturn, and only positions beyond the margin (VarOffsideMargin)
-    /// overturn the goal — marginal calls stand.
+    let private beyondMargin (ctx: MatchContext) side (snapshot: OffsideReviewSnapshot) =
+        let scorerX = float snapshot.ScorerX * 1.0<meter>
+        let defLine = float snapshot.DefensiveLineX * 1.0<meter>
+
+        if MatchMath.goalDirection side > 0.0 then
+            scorerX > defLine + ctx.Config.Referee.VarOffsideMargin
+        else
+            scorerX < defLine - ctx.Config.Referee.VarOffsideMargin
+
     let isOffsideFor (ctx: MatchContext) (world: World) (scoringSide: ClubSide) (scorer: PlayerId) : bool =
-        let team = MatchWorld.team world scoringSide
-        let dir = MatchMath.goalDirection scoringSide
-        let mutable verdict = false
-
-        for kv in team.Frame.RunLookup do
-            if
-                kv.Value.Phase = 250
-                && MatchWorld.slotOf ctx scoringSide scorer = Some kv.Value.Slot
-            then
-                let scorerX = float kv.Value.TargetX * 1.0<meter>
-                let defLine = float kv.Value.TargetY * 1.0<meter>
-
-                let off =
-                    if dir > 0.0 then
-                        scorerX > defLine + ctx.Config.Referee.VarOffsideMargin
-                    else
-                        scorerX < defLine - ctx.Config.Referee.VarOffsideMargin
-
-                if off then
-                    verdict <- true
-
-        verdict
+        match MatchWorld.slotOf ctx scoringSide scorer with
+        | Some slot ->
+            match world.Reviews.Offside.TryGetValue((scoringSide, slot)) with
+            | true, snapshot -> beyondMargin ctx scoringSide snapshot
+            | _ -> false
+        | None -> false
 
     let isOffside (ctx: MatchContext) (world: World) (scoringSide: ClubSide) : bool =
-        let team = MatchWorld.team world scoringSide
-        let dir = MatchMath.goalDirection scoringSide
-        let mutable verdict = false
-
-        for kv in team.Frame.RunLookup do
-            if kv.Value.Phase = 250 then
-                let scorerX = float kv.Value.TargetX * 1.0<meter>
-                let defLine = float kv.Value.TargetY * 1.0<meter>
-
-                if
-                    (dir > 0.0 && scorerX > defLine + ctx.Config.Referee.VarOffsideMargin)
-                    || (dir < 0.0 && scorerX < defLine - ctx.Config.Referee.VarOffsideMargin)
-                then
-                    verdict <- true
-
-        verdict
+        world.Reviews.Offside
+        |> Seq.exists (fun entry ->
+            let side, _ = entry.Key
+            side = scoringSide && beyondMargin ctx scoringSide entry.Value)

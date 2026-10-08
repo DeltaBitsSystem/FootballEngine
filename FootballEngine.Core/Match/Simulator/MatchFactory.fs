@@ -31,6 +31,7 @@ module MatchFactory =
             let x = if side = ClubSide.Home then bx.X else -bx.X
             frame.PosX.[i] <- float32 x
             frame.PosY.[i] <- float32 bx.Y
+            frame.BodyFacing.[i] <- if side = ClubSide.Home then 0.0f else System.MathF.PI
 
         let activeCount = min n lineup.StarterCount
 
@@ -75,6 +76,7 @@ module MatchFactory =
             ParticipationBook.start participation profile.Id profile.Role 0<subtick>
 
         { Frame = frame
+          Tactics = (if side = ClubSide.Home then ctx.HomeClub else ctx.AwayClub).BaseTactics
           RosterIds = lineup.Profiles |> Array.map _.Id
           Memory = memory
           Cards = { Yellows = 0; Reds = 0 }
@@ -139,6 +141,7 @@ module MatchFactory =
               AppliedAt = None
               UsedIncoming = Set.empty }
           Participation = participation
+          PendingActions = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
           ActivePlan = None
           LastCarrierSlot = -1
           LastRoleAssignmentTick = -1<subtick>
@@ -178,16 +181,21 @@ module MatchFactory =
                       Vx = 0.0<meterPerSecond>
                       Vy = 0.0<meterPerSecond>
                       Vz = 0.0<meterPerSecond> }
+                  Radius = ctx.Config.Ball.Radius
                   Spin =
-                    { Top = 0.0<radianPerSecond>
-                      Side = 0.0<radianPerSecond> }
+                    { X = 0.0<radianPerSecond>
+                      Y = 0.0<radianPerSecond>
+                      Z = 0.0<radianPerSecond> }
+                  Orientation = System.Numerics.Quaternion.Identity
+                  FootMotion = None
+                  PendingStrike = None
                   Control = BallControl.Free
                   Trajectory = None
                   LastTouch = None
                   StationarySince = None
                   GKHoldSince = None
                   ArrivalGate = None
-                  PreviousPosition = None
+                  PreviousPosition = ValueNone
                   Impulse = None }
               Momentum = 0.0
               LastAttackingClub = Some ClubSide.Home
@@ -213,4 +221,6 @@ module MatchFactory =
           Home = home
           Away = away
           AppliedEventIds = System.Collections.Generic.HashSet<EventId>()
+          Observation = ObservationBuffer(4096)
+          Reviews = RefereeReviewBook()
           NextRestartId = 1UL }

@@ -32,6 +32,21 @@ module Gate1ImpulseTests =
                                 Vz = 0.0<meterPerSecond> } } }
 
     let private assertImpulse (kind: StrikeKind) (context: ExecutionContext) (world: World) : unit =
+        match world.State.Ball.PendingStrike with
+        | Some pending ->
+            Expect.equal world.State.Ball.Position.Vx 0.0<meterPerSecond> "preparation has no impulse"
+
+            world.State <-
+                { world.State with
+                    Tick = SimTick.value pending.Impulse.ContactTick
+                    Flow = MatchFlow.Live
+                    Ball =
+                        { world.State.Ball with
+                            Control = BallControl.Controlled(pending.Side, pending.Impulse.ActorId) } }
+
+            BallFootContact.step sctx (Rng.ofSeed 4UL) world (buffer ()) |> ignore
+        | None -> ()
+
         match world.State.Ball.Impulse with
         | Some impulse ->
             Expect.equal impulse.StrikeKind kind "strike kind recorded"
@@ -55,7 +70,7 @@ module Gate1ImpulseTests =
                         Y = 0.0<meter>
                         Z = 0.0<meter> }
 
-                  let velocity =
+                  let velocity: LinearVelocity =
                       { X = 10.0<meterPerSecond>
                         Y = 1.0<meterPerSecond>
                         Z = 0.0<meterPerSecond> }
@@ -135,6 +150,8 @@ module Gate1ImpulseTests =
               testCase "clearance uses the common impulse path" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
                   let pid = ctx.HomeLineup.Profiles.[5].Id
+                  world.Home.Frame.PosX[5] <- 0.0f
+                  world.Home.Frame.PosY[5] <- 0.0f
                   setBall world 0.0<meter> 0.0<meter>
 
                   world.State <-
@@ -143,11 +160,8 @@ module Gate1ImpulseTests =
                               { world.State.Ball with
                                   Control = BallControl.Controlled(ClubSide.Home, pid) } }
 
-                  world.Home.Frame.RunLookup.[5] <-
-                      { Slot = 5
-                        TargetX = 0.0f
-                        TargetY = 4.0f
-                        Phase = 200
+                  world.Home.PendingActions[5] <-
+                      { Choice = ClearBall
                         ExpiresAt = 0<subtick> }
 
                   Actions.step sctx (Rng.ofSeed 4UL) world (buffer ()) |> ignore
@@ -166,4 +180,4 @@ module Gate1ImpulseTests =
                   assertImpulse StrikeKind.Shot ExecutionContext.OpenPlay world
                   Expect.isGreaterThan (abs (float world.State.Ball.Position.Vx)) 0.0 "shot has horizontal velocity")
 
-               ]
+              ]

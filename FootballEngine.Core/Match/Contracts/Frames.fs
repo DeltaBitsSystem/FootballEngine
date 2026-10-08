@@ -178,6 +178,14 @@ type TeamFrame =
       mutable PosY: float32[]
       mutable VelX: float32[]
       mutable VelY: float32[]
+      mutable PosZ: float32[]
+      mutable VelZ: float32[]
+      mutable JumpRequested: bool[]
+      mutable JumpSequence: uint64[]
+      mutable BodyFacing: float32[]
+      mutable BodyAngularVelocity: float32[]
+      mutable BodyAngularAcceleration: float32[]
+      mutable BodyTravelDistance: float32[]
       mutable Condition: float32[]
       mutable Mental: MentalFrame
       mutable Intent: IntentFrame
@@ -406,6 +414,14 @@ module TeamFrame =
           PosY = Array.zeroCreate<float32> slotCount
           VelX = Array.zeroCreate<float32> slotCount
           VelY = Array.zeroCreate<float32> slotCount
+          PosZ = Array.zeroCreate<float32> slotCount
+          VelZ = Array.zeroCreate<float32> slotCount
+          JumpRequested = Array.create slotCount false
+          JumpSequence = Array.zeroCreate<uint64> slotCount
+          BodyFacing = Array.zeroCreate<float32> slotCount
+          BodyAngularVelocity = Array.zeroCreate<float32> slotCount
+          BodyAngularAcceleration = Array.zeroCreate<float32> slotCount
+          BodyTravelDistance = Array.zeroCreate<float32> slotCount
           Condition = Array.create slotCount 1.0f
           Mental =
             { Composure = Array.create slotCount 1.0f

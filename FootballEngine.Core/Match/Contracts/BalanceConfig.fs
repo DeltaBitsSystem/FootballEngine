@@ -6,22 +6,32 @@ namespace FootballEngine.Core.Match
 type BallConfig =
     { Gravity: float<meterPerSecondSquared>
       AirDrag: float
-      GroundFriction: float
+      Radius: float<meter>
+      InertiaRatio: float
+      SlipFriction: float
+      RollingResistance: float
+      FootReach: float<meter>
+      FootContactHeight: float<meter>
+      KickWindup: int<subtick>
+      KickRecovery: int<subtick>
+      CarryTouchInterval: int<subtick>
+      CarryLeadTime: float<second>
+      CarryOffset: float<meter>
+      CarryMaxSpeed: float<meterPerSecond>
+      CarryTechniqueError: float
+      PassRollingSpinRatio: float
+      ReceptionVelocityRetention: float
       BounceRestitution: float
       BounceFriction: float
       StopSpeedCutoff: float<meterPerSecond>
       MaxShotSpeed: float<meterPerSecond>
       MagnusFactor: float
       SpinDecay: float
-      ArrivalGateFactor: float
       ReceptionGrace: int<subtick>
-      ContestSpeedGap: float<meterPerSecond>
       InterceptionBonus: float
       SaveReflexWeight: float
       SavePositioningWeight: float
       SaveDistancePenalty: float<meter>
-      ContactInterceptorMargin: float<meter>
-      ContactReceiverQualityBonus: float
       ReceptionBase: float
       ReceptionSpacePenalty: float
       ShotSaveBaseProbability: float
@@ -41,6 +51,10 @@ type MovementConfig =
       SeparationRadius: float<meter>
       SeparationStrength: float
       TurningRate: float<radianPerSecond>
+      TurningAcceleration: float<radianPerSecondSquared>
+      StandingHeight: float<meter>
+      JumpSpeed: float<meterPerSecond>
+      AerialIntentRadius: float<meter>
       Smoothing: float
       FatigueSpeedDecay: float
       ConditionDecayPerSecond: float
@@ -64,6 +78,7 @@ type ActionsConfig =
       PassJitterBase: float
       PassHeavyTouchChance: float
       PassLaunchSpeed: float<meterPerSecond>
+      MaxPassExecutionDistance: float<meter>
       ShotQualityGate: float
       ShotAngleSpread: float
       ShotDistanceToGoalMultiplier: float
@@ -396,22 +411,34 @@ module BalanceConfig =
     let defaultBall: BallConfig =
         { Gravity = 9.81<meterPerSecondSquared>
           AirDrag = 0.999
-          GroundFriction = 0.985
+          Radius = 0.11<meter>
+          // A football is approximately a thin spherical shell, not a solid sphere.
+          InertiaRatio = 2.0 / 3.0
+          SlipFriction = 0.35
+          RollingResistance = 0.025
+          FootReach = 1.05<meter>
+          FootContactHeight = 0.45<meter>
+          KickWindup = 6<subtick>
+          KickRecovery = 12<subtick>
+          CarryTouchInterval = 7<subtick>
+          CarryLeadTime = 0.12<second>
+          CarryOffset = 0.32<meter>
+          CarryMaxSpeed = 9.0<meterPerSecond>
+          CarryTechniqueError = 0.6
+          // Ground passes leave the boot close to rolling; zero spin would lose substantial range while skidding.
+          PassRollingSpinRatio = 0.8
+          ReceptionVelocityRetention = 0.12
           BounceRestitution = 0.6
           BounceFriction = 0.7
-          StopSpeedCutoff = 0.5<meterPerSecond>
+          StopSpeedCutoff = 0.06<meterPerSecond>
           MaxShotSpeed = 32.0<meterPerSecond>
-          MagnusFactor = 0.15
+          MagnusFactor = 0.02
           SpinDecay = 0.99
-          ArrivalGateFactor = 1.0
           ReceptionGrace = 6<subtick>
-          ContestSpeedGap = 8.0<meterPerSecond>
           InterceptionBonus = 0.1
           SaveReflexWeight = 0.5
           SavePositioningWeight = 0.3
           SaveDistancePenalty = 12.0<meter>
-          ContactInterceptorMargin = 2.2<meter>
-          ContactReceiverQualityBonus = 4.0
           ReceptionBase = 0.5
           ReceptionSpacePenalty = 0.04
           ShotSaveBaseProbability = 0.45
@@ -428,6 +455,10 @@ module BalanceConfig =
           SeparationRadius = 1.8<meter>
           SeparationStrength = 0.5
           TurningRate = 3.0<radianPerSecond>
+          TurningAcceleration = 12.0<radianPerSecondSquared>
+          StandingHeight = 1.85<meter>
+          JumpSpeed = 3.6<meterPerSecond>
+          AerialIntentRadius = 1.6<meter>
           Smoothing = 0.8
           FatigueSpeedDecay = 0.4
           ConditionDecayPerSecond = 0.00006
@@ -447,6 +478,7 @@ module BalanceConfig =
           PassJitterBase = 0.2
           PassHeavyTouchChance = 0.05
           PassLaunchSpeed = 22.0<meterPerSecond>
+          MaxPassExecutionDistance = 65.0<meter>
           ShotQualityGate = 0.5
           ShotAngleSpread = 0.3
           ShotDistanceToGoalMultiplier = 0.02

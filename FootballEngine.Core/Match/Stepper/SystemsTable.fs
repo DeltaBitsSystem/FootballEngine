@@ -16,9 +16,15 @@ module Scheduler =
                 (EventFlags.union (EventFlags.ofKind EventKind.ThrowIn) (EventFlags.ofKind EventKind.KickOff)))
 
     let systems: SystemSpec list =
-        [ { Name = "BallPhysics"
+        [ { Name = "PlayerBodyPhysics"
+            Triggers = [ Trigger.WhenMovementAllowed Trigger.EveryTick ]
+            Step = PlayerBodyPhysics.step }
+          { Name = "BallPhysics"
             Triggers = [ Trigger.WhenMovementAllowed Trigger.EveryTick ]
             Step = BallPhysics.step }
+          { Name = "BallFootContact"
+            Triggers = [ Trigger.EveryTick ]
+            Step = BallFootContact.step }
           { Name = "BallContact"
             Triggers = [ Trigger.WhenMovementAllowed Trigger.EveryTick ]
             Step = BallContact.step }

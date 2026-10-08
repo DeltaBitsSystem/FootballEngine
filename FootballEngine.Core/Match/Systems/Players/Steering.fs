@@ -36,6 +36,51 @@ module PlayerSteering =
 
         let px = float frame.PosX.[slot]
         let py = float frame.PosY.[slot]
+
+        let restartExecutor =
+            match world.State.Flow with
+            | MatchFlow.Restart { Plan = Some plan; Phase = phase } when
+                plan.Side = side
+                && (phase = RestartPhase.Positioning || phase = RestartPhase.Authorized)
+                ->
+                plan.Executor = team.RosterIds.[slot]
+            | _ -> false
+
+        let desiredFacing =
+            let targetDx = tx - px
+            let targetDy = ty - py
+
+            if targetDx * targetDx + targetDy * targetDy > 0.0025 then
+                Some(atan2 targetDy targetDx)
+            else
+                None
+
+        let maxRate = float cfg.TurningRate
+        let maxRateDelta = float cfg.TurningAcceleration * dt
+        let oldRate = float frame.BodyAngularVelocity.[slot]
+
+        let advanceFacing targetRate =
+            let rate =
+                oldRate + MatchMath.clamp (-maxRateDelta) maxRateDelta (targetRate - oldRate)
+
+            let facing =
+                atan2
+                    (sin (float frame.BodyFacing.[slot] + rate * dt))
+                    (cos (float frame.BodyFacing.[slot] + rate * dt))
+
+            frame.BodyAngularVelocity.[slot] <- float32 rate
+            frame.BodyAngularAcceleration.[slot] <- float32 ((rate - oldRate) / max dt 0.000001)
+            frame.BodyFacing.[slot] <- float32 facing
+
+        match desiredFacing with
+        | Some target ->
+            let current = float frame.BodyFacing.[slot]
+            let error = atan2 (sin (target - current)) (cos (target - current))
+            let stoppingRate = sqrt (2.0 * float cfg.TurningAcceleration * abs error)
+            let rateLimit = min maxRate stoppingRate
+            advanceFacing (MatchMath.clamp (-rateLimit) rateLimit (error / max dt 0.000001))
+        | None -> advanceFacing 0.0
+
         let dx = tx - px
         let dy = ty - py
         let dist = sqrt (dx * dx + dy * dy)
@@ -104,7 +149,8 @@ module PlayerSteering =
             // Separation: teammates repel within the separation radius, so a
             // compact shape never collapses into players standing on each other.
             for s2 in MatchWorld.activeSlots teamFrame do
-                if s2 <> slot then
+                // Teammates yield to the dead-ball executor, whose contact target cannot move.
+                if s2 <> slot && not restartExecutor then
                     let ox = float teamFrame.PosX.[s2]
                     let oy = float teamFrame.PosY.[s2]
                     let sdx = px - ox
@@ -138,7 +184,7 @@ module PlayerSteering =
             let mutable pushY = 0.0
 
             for teammate in MatchWorld.activeSlots frame do
-                if teammate <> slot then
+                if teammate <> slot && not restartExecutor then
                     let dx = px - float frame.PosX.[teammate]
                     let dy = py - float frame.PosY.[teammate]
                     let distanceSquared = dx * dx + dy * dy
@@ -183,6 +229,13 @@ module PlayerSteering =
         let legalX, legalY = MatchMath.pitchClampF32 frame.PosX.[slot] frame.PosY.[slot]
         frame.PosX.[slot] <- legalX
         frame.PosY.[slot] <- legalY
+        // Distance, not render time multiplied by current speed, preserves gait continuity through acceleration.
+        let travelledX = float legalX - px
+        let travelledY = float legalY - py
+
+        frame.BodyTravelDistance.[slot] <-
+            frame.BodyTravelDistance.[slot]
+            + float32 (sqrt (travelledX * travelledX + travelledY * travelledY))
 
     let private decayCondition (ctx: MatchContext) (clock: SimulationClock) (world: World) : unit =
         let dt = float (SimulationClock.dt clock)

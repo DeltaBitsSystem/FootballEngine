@@ -338,8 +338,13 @@ module Program =
           AwayStats = outcome.Final.Away.Stats }
 
     let private verifyDeterminism (systems: SystemSpec list) (ctx: MatchContext) (scenario: Scenario) (seed: uint64) =
-        let first = Simulator.runMatch systems ctx seed scenario.Mode None
-        let second = Simulator.runMatch systems ctx seed scenario.Mode None
+        let requireOutcome =
+            function
+            | Ok outcome -> outcome
+            | Error error -> failwithf "benchmark match failed: %A" error
+
+        let first = Simulator.runMatch systems ctx seed scenario.Mode |> requireOutcome
+        let second = Simulator.runMatch systems ctx seed scenario.Mode |> requireOutcome
         fingerprint first = fingerprint second
 
     let private collectSample
@@ -357,7 +362,12 @@ module Program =
         let gen1Before = GC.CollectionCount(1)
         let gen2Before = GC.CollectionCount(2)
         let stopwatch = Stopwatch.StartNew()
-        let outcome = Simulator.runMatch systems ctx seed scenario.Mode None
+
+        let outcome =
+            match Simulator.runMatch systems ctx seed scenario.Mode with
+            | Ok outcome -> outcome
+            | Error error -> failwithf "benchmark match failed: %A" error
+
         stopwatch.Stop()
 
         { Seed = seed
@@ -382,8 +392,9 @@ module Program =
         : ScenarioReport =
         if options.Warmups > 0 then
             for warmup in 0 .. options.Warmups - 1 do
-                Simulator.runMatch systems ctx (0xD00D0000UL + uint64 warmup) scenario.Mode None
-                |> ignore
+                match Simulator.runMatch systems ctx (0xD00D0000UL + uint64 warmup) scenario.Mode with
+                | Ok _ -> ()
+                | Error error -> failwithf "benchmark warmup failed: %A" error
 
         let samples =
             [| for i in 0 .. options.Repetitions - 1 -> collectSample systems ctx scenario (0x1000UL + uint64 i) |]
@@ -520,7 +531,11 @@ module Program =
         let ctx = BenchContext.create ()
         let seed = 0xFACEUL
         let stopwatch = Stopwatch.StartNew()
-        Simulator.runMatch systems ctx seed scenario.Mode None |> ignore
+
+        match Simulator.runMatch systems ctx seed scenario.Mode with
+        | Ok _ -> ()
+        | Error error -> failwithf "benchmark profile failed: %A" error
+
         stopwatch.Stop()
 
         let report =

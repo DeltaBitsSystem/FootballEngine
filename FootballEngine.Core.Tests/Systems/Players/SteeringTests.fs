@@ -44,6 +44,36 @@ module SteeringTests =
                   Expect.equal intent.TargetY[0] expectedY "stale target is replaced"
                   Expect.equal intent.CommittedAt[0] 100<subtick> "refresh is recorded")
 
+              testCase "body flight emits one takeoff and landing without consuming randomness" (fun _ ->
+                  let world = TestBuilders.formationWorld ()
+
+                  world.State <-
+                      { world.State with
+                          Flow = MatchFlow.Live }
+
+                  let frame = world.Home.Frame
+                  let events = buffer ()
+                  let rng = Rng.ofSeed 1UL
+                  frame.JumpRequested[5] <- true
+                  let result = PlayerBodyPhysics.step systemContext rng world events
+                  Expect.equal result rng "body integration cannot affect random decisions"
+                  Expect.isGreaterThan frame.PosZ[5] 0.0f "takeoff raises the body"
+                  Expect.isFalse frame.JumpRequested[5] "request is consumed once"
+                  frame.JumpRequested[5] <- true
+
+                  for _ in 1..200 do
+                      PlayerBodyPhysics.step systemContext rng world events |> ignore
+
+                  Expect.equal frame.PosZ[5] 0.0f "landing never penetrates the pitch"
+                  Expect.equal frame.VelZ[5] 0.0f "landing stops vertical motion"
+                  Expect.equal frame.JumpSequence[5] 1UL "an airborne request cannot start a second jump"
+
+                  Expect.equal
+                      (events.Events |> Seq.map _.Data |> Seq.toList)
+                      [ EventData.PlayerBodyFlight(world.Home.RosterIds[5], 1UL, true)
+                        EventData.PlayerBodyFlight(world.Home.RosterIds[5], 1UL, false) ]
+                      "takeoff and landing share a stable flight identity")
+
               testCase "continuous intent remains executing at its target" (fun _ ->
                   let world = TestBuilders.formationWorld ()
                   let frame = world.Home.Frame
@@ -121,14 +151,49 @@ module SteeringTests =
                   Expect.isLessThanOrEqual frame.PosX[slot] (float32 Pitch.HalfLength) "x remains in bounds"
                   Expect.isLessThanOrEqual frame.PosY[slot] (float32 Pitch.HalfWidth) "y remains in bounds")
 
+              testCase "body facing turns with bounded angular speed and acceleration" (fun _ ->
+                  let world = TestBuilders.formationWorld ()
+                  let frame = world.Home.Frame
+                  let slot = 5
+                  frame.PosX[slot] <- 0.0f
+                  frame.PosY[slot] <- 0.0f
+                  frame.BodyFacing[slot] <- 1.5707964f
+                  frame.Intent.Kind[slot] <- IntentCode.BallCarry
+                  frame.Intent.TargetX[slot] <- 10.0f
+                  frame.Intent.TargetY[slot] <- 0.0f
+                  frame.Intent.Phase[slot] <- IntentPhase.Executing
+
+                  for teammate in 0 .. frame.PosX.Length - 1 do
+                      if teammate <> slot then
+                          frame.PosX[teammate] <- float32 (20 + teammate)
+                          frame.PosY[teammate] <- float32 (20 + teammate)
+
+                  stepSteering world
+
+                  Expect.isLessThan
+                      frame.BodyFacing[slot]
+                      1.5707964f
+                      "facing begins rotating toward the movement target"
+
+                  Expect.isLessThan
+                      frame.BodyAngularVelocity[slot]
+                      0.0f
+                      "turn direction follows the shortest angular path"
+
+                  Expect.isLessThanOrEqual
+                      (abs frame.BodyAngularVelocity[slot])
+                      (float32 ctx.Config.Movement.TurningRate)
+                      "angular velocity respects its configured limit"
+
+                  Expect.isLessThanOrEqual
+                      (abs frame.BodyAngularAcceleration[slot])
+                      (float32 ctx.Config.Movement.TurningAcceleration + 0.001f)
+                      "angular acceleration respects its configured limit")
+
               testCase "a replay never freezes for a full match minute" (fun _ ->
                   let outcome =
-                      Simulator.runMatch
-                          Scheduler.systems
-                          ctx
-                          0x53484F5453UL
-                          (Simulator.RunMode.Replay 20<tickDelta>)
-                          None
+                      Simulator.runMatch Scheduler.systems ctx 0x53484F5453UL (Simulator.RunMode.Replay 20<tickDelta>)
+                      |> TestBuilders.requireMatchOutcome
 
                   let replay = outcome.Replay |> Option.get
                   let mutable previous = Replay.readFrame replay 0
