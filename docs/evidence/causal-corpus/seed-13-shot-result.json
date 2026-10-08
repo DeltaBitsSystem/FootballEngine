@@ -1,0 +1,59 @@
+{
+  "Cycles": [],
+  "Enabled": true,
+  "Entries": [
+    {
+      "Causes": [
+        {
+          "Id": 826,
+          "Kind": "resolution",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "Shot OnTarget true 25.9m/s. Recorded payload: Shot (PlayerId 3, OnTarget true, 0.1804671696, 25.9, 52.5, -0.7205667768)",
+      "Id": 827,
+      "Tick": 3028
+    },
+    {
+      "Causes": [
+        {
+          "Id": 12936441496324,
+          "Kind": "action",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "Current model resolved GoalkeeperSave with probability 0.776: success=true, action=Some (ActionId 12936441496324UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 826,
+      "Tick": 3028
+    },
+    {
+      "Causes": [
+        {
+          "Id": 824,
+          "Kind": "decision",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "PlayerId 3 applied Shot, action ActionId 12936441496324UL, from (42.63, 0.31, 0.00).",
+      "Id": 825,
+      "Tick": 3012
+    },
+    {
+      "Causes": [],
+      "Duel": [],
+      "Explanation": "PlayerId 3 chose shot (target slot -1) from 6 options using utility-weighted sampling (value 0.605, temperature 0.248, draw 0.513). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 824,
+      "Tick": 3012
+    }
+  ],
+  "Evicted": 0,
+  "FormatVersion": 2,
+  "FutureCauses": [],
+  "MissingCauses": [],
+  "Root": 827,
+  "Total": 29073,
+  "Unlinked": 0
+}

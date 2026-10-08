@@ -1,0 +1,59 @@
+{
+  "Cycles": [],
+  "Enabled": true,
+  "Entries": [
+    {
+      "Causes": [
+        {
+          "Id": 108,
+          "Kind": "resolution",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "Tackle. Recorded payload: Tackle (PlayerId 10, PlayerId 107)",
+      "Id": 110,
+      "Tick": 146844
+    },
+    {
+      "Causes": [
+        {
+          "Id": 107,
+          "Kind": "decision",
+          "Role": "source"
+        }
+      ],
+      "Duel": [
+        {
+          "Carrier": 107,
+          "Defender": 10,
+          "Foul": false,
+          "FoulDraw": 0.5049063994221047,
+          "FoulProbability": 0.15,
+          "WinDraw": 0.8430199421180666,
+          "WinProbability": 0.5,
+          "Won": false,
+          "X": -28.857006072998047,
+          "Y": -25.995830535888672
+        }
+      ],
+      "Explanation": "PlayerId 107 contested PlayerId 10 at (-28.86, -26.00): current model win probability 0.500/draw 0.843; foul probability 0.150/draw 0.505; foul=false, won=false. Foul takes precedence over the win draw. This is stochastic adjudication, not measured body/ball contact or certification of legal severity.",
+      "Id": 108,
+      "Tick": 146844
+    },
+    {
+      "Causes": [],
+      "Duel": [],
+      "Explanation": "PlayerId 107 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 6.977, temperature 0.248, draw 0.688). Pressure 1; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 107,
+      "Tick": 146844
+    }
+  ],
+  "Evicted": 0,
+  "FormatVersion": 2,
+  "FutureCauses": [],
+  "MissingCauses": [],
+  "Root": 110,
+  "Total": 25833,
+  "Unlinked": 0
+}

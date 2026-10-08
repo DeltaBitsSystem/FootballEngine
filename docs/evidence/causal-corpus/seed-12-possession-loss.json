@@ -1,0 +1,46 @@
+{
+  "Cycles": [],
+  "Enabled": true,
+  "Entries": [
+    {
+      "Causes": [
+        {
+          "Id": 2697239489793,
+          "Kind": "action",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "Interception. Recorded payload: Interception (PlayerId 101, PlayerId 109)",
+      "Id": 43,
+      "Tick": 690
+    },
+    {
+      "Causes": [
+        {
+          "Id": 40,
+          "Kind": "decision",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "PlayerId 109 applied Pass, action ActionId 2697239489793UL, from (39.73, -0.14, 0.00).",
+      "Id": 41,
+      "Tick": 628
+    },
+    {
+      "Causes": [],
+      "Duel": [],
+      "Explanation": "PlayerId 109 chose pass (target slot 1) from 3 options using utility-weighted sampling (value 0.996, temperature 0.248, draw 0.900). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 40,
+      "Tick": 628
+    }
+  ],
+  "Evicted": 0,
+  "FormatVersion": 2,
+  "FutureCauses": [],
+  "MissingCauses": [],
+  "Root": 43,
+  "Total": 36925,
+  "Unlinked": 0
+}

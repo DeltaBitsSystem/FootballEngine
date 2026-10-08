@@ -1,0 +1,98 @@
+{
+  "Cycles": [],
+  "Enabled": true,
+  "Entries": [
+    {
+      "Causes": [
+        {
+          "Id": 11783094649217622549,
+          "Kind": "event",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "Penalty awarded to Away at (-41.50, 0.00), restart RestartId 2UL. Recorded football cause: Foul (None, None).",
+      "Id": 60,
+      "Tick": 465
+    },
+    {
+      "Causes": [
+        {
+          "Id": 58,
+          "Kind": "resolution",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "SetPiece: Penalty at -42.1,-3.6. Recorded payload: SetPieceAt (Penalty, Away, -42.07622147, -3.565975666)",
+      "Id": 61,
+      "Tick": 465
+    },
+    {
+      "Causes": [
+        {
+          "Id": 11904187541264379252,
+          "Kind": "event",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "Referee assessed Foul: Minor: penalty-area=true, advantage=false. These are the current model\u0027s assessments, not certification of legal correctness.",
+      "Id": 58,
+      "Tick": 465
+    },
+    {
+      "Causes": [
+        {
+          "Id": 55,
+          "Kind": "resolution",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "Foul: Minor. Recorded payload: Foul (PlayerId 11, PlayerId 104, Minor, NoCard, (-42.07622147, -3.565975666))",
+      "Id": 56,
+      "Tick": 464
+    },
+    {
+      "Causes": [
+        {
+          "Id": 54,
+          "Kind": "decision",
+          "Role": "source"
+        }
+      ],
+      "Duel": [
+        {
+          "Carrier": 11,
+          "Defender": 104,
+          "Foul": true,
+          "FoulDraw": 0.033555342659860266,
+          "FoulProbability": 0.15,
+          "WinDraw": 0.7443893833288584,
+          "WinProbability": 0.6899744811276125,
+          "Won": false,
+          "X": -42.07622146606445,
+          "Y": -3.5659756660461426
+        }
+      ],
+      "Explanation": "PlayerId 11 contested PlayerId 104 at (-42.08, -3.57): current model win probability 0.690/draw 0.744; foul probability 0.150/draw 0.034; foul=true, won=false. Foul takes precedence over the win draw. This is stochastic adjudication, not measured body/ball contact or certification of legal severity.",
+      "Id": 55,
+      "Tick": 464
+    },
+    {
+      "Causes": [],
+      "Duel": [],
+      "Explanation": "PlayerId 11 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 9.291, temperature 0.248, draw 0.776). Pressure 1; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 54,
+      "Tick": 464
+    }
+  ],
+  "Evicted": 0,
+  "FormatVersion": 2,
+  "FutureCauses": [],
+  "MissingCauses": [],
+  "Root": 60,
+  "Total": 25833,
+  "Unlinked": 0
+}

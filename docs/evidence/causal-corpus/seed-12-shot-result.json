@@ -1,0 +1,46 @@
+{
+  "Cycles": [],
+  "Enabled": true,
+  "Entries": [
+    {
+      "Causes": [
+        {
+          "Id": 9569187137284,
+          "Kind": "action",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "Shot OffTarget 25.9m/s. Recorded payload: Shot (PlayerId 7, OffTarget, 0.2337692634, 25.9, 52.5, 4.799220967)",
+      "Id": 622,
+      "Tick": 2240
+    },
+    {
+      "Causes": [
+        {
+          "Id": 620,
+          "Kind": "decision",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "PlayerId 7 applied Shot, action ActionId 9569187137284UL, from (45.23, 3.45, 0.00).",
+      "Id": 621,
+      "Tick": 2228
+    },
+    {
+      "Causes": [],
+      "Duel": [],
+      "Explanation": "PlayerId 7 chose shot (target slot -1) from 2 options using utility-weighted sampling (value 0.642, temperature 0.248, draw 0.873). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 620,
+      "Tick": 2228
+    }
+  ],
+  "Evicted": 0,
+  "FormatVersion": 2,
+  "FutureCauses": [],
+  "MissingCauses": [],
+  "Root": 622,
+  "Total": 36925,
+  "Unlinked": 0
+}

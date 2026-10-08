@@ -1,0 +1,266 @@
+[
+  {
+    "Architecture": "X64",
+    "AwayScore": 1,
+    "CaptureEquivalent": true,
+    "EngineAssemblySha256": "71872D02F98BBC939A92609EC58727141D5A9A677200C837DB32541CBC410807",
+    "Episodes": [
+      {
+        "Candidates": 755,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "pass-result",
+        "Nodes": 4,
+        "Root": 17
+      },
+      {
+        "Candidates": 431,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "possession-loss",
+        "Nodes": 3,
+        "Root": 110
+      },
+      {
+        "Candidates": 95,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "shot-result",
+        "Nodes": 3,
+        "Root": 760
+      },
+      {
+        "Candidates": 56,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "foul-restart",
+        "Nodes": 6,
+        "Root": 60
+      },
+      {
+        "Candidates": 17,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "recalled-advantage",
+        "Nodes": 5,
+        "Root": 6112
+      },
+      {
+        "Candidates": 550,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "duel-resolution",
+        "Nodes": 2,
+        "Root": 55
+      },
+      {
+        "Candidates": 318,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "rejected-cross",
+        "Nodes": 2,
+        "Root": 552
+      },
+      {
+        "Candidates": 1,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "effective-tactics",
+        "Nodes": 1,
+        "Root": 63
+      }
+    ],
+    "EventsHash": 16611939113468323872,
+    "Frontier": 265202,
+    "HomeScore": 0,
+    "Occurrences": 25833,
+    "RetentionBudget": 131072,
+    "Runtime": ".NET 10.0.10",
+    "Seed": 11,
+    "Unlinked": 0
+  },
+  {
+    "Architecture": "X64",
+    "AwayScore": 2,
+    "CaptureEquivalent": true,
+    "EngineAssemblySha256": "71872D02F98BBC939A92609EC58727141D5A9A677200C837DB32541CBC410807",
+    "Episodes": [
+      {
+        "Candidates": 1094,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "pass-result",
+        "Nodes": 4,
+        "Root": 16
+      },
+      {
+        "Candidates": 562,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "possession-loss",
+        "Nodes": 3,
+        "Root": 43
+      },
+      {
+        "Candidates": 136,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "shot-result",
+        "Nodes": 3,
+        "Root": 622
+      },
+      {
+        "Candidates": 83,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "foul-restart",
+        "Nodes": 6,
+        "Root": 56
+      },
+      {
+        "Candidates": 20,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "recalled-advantage",
+        "Nodes": 11,
+        "Root": 151
+      },
+      {
+        "Candidates": 651,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "duel-resolution",
+        "Nodes": 2,
+        "Root": 51
+      },
+      {
+        "Candidates": 487,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "rejected-cross",
+        "Nodes": 2,
+        "Root": 1008
+      },
+      {
+        "Candidates": 1,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "effective-tactics",
+        "Nodes": 1,
+        "Root": 1244
+      }
+    ],
+    "EventsHash": 12611290943253902881,
+    "Frontier": 263202,
+    "HomeScore": 0,
+    "Occurrences": 36925,
+    "RetentionBudget": 131072,
+    "Runtime": ".NET 10.0.10",
+    "Seed": 12,
+    "Unlinked": 0
+  },
+  {
+    "Architecture": "X64",
+    "AwayScore": 1,
+    "CaptureEquivalent": true,
+    "EngineAssemblySha256": "71872D02F98BBC939A92609EC58727141D5A9A677200C837DB32541CBC410807",
+    "Episodes": [
+      {
+        "Candidates": 864,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "pass-result",
+        "Nodes": 4,
+        "Root": 16
+      },
+      {
+        "Candidates": 443,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "possession-loss",
+        "Nodes": 3,
+        "Root": 50
+      },
+      {
+        "Candidates": 88,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "shot-result",
+        "Nodes": 4,
+        "Root": 827
+      },
+      {
+        "Candidates": 53,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "foul-restart",
+        "Nodes": 6,
+        "Root": 3598
+      },
+      {
+        "Candidates": 18,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "recalled-advantage",
+        "Nodes": 5,
+        "Root": 4298
+      },
+      {
+        "Candidates": 535,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "duel-resolution",
+        "Nodes": 2,
+        "Root": 54
+      },
+      {
+        "Candidates": 326,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "rejected-cross",
+        "Nodes": 2,
+        "Root": 707
+      },
+      {
+        "Candidates": 1,
+        "Cycles": 0,
+        "Future": 0,
+        "Missing": 0,
+        "Name": "effective-tactics",
+        "Nodes": 1,
+        "Root": 1516
+      }
+    ],
+    "EventsHash": 1556896200877222377,
+    "Frontier": 262762,
+    "HomeScore": 2,
+    "Occurrences": 29073,
+    "RetentionBudget": 131072,
+    "Runtime": ".NET 10.0.10",
+    "Seed": 13,
+    "Unlinked": 0
+  }
+]

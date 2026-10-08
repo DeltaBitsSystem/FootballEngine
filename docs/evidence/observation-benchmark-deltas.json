@@ -1,0 +1,427 @@
+{
+  "OS": "CachyOS",
+  "ProcessorCount": 12,
+  "Rows": [
+    {
+      "AllocatedBytes": 103868888,
+      "Enabled": false,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 194.999512,
+      "P99Microseconds": 52.188,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 97005312,
+      "Enabled": true,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 137.658305,
+      "P99Microseconds": 31.427999999999997,
+      "Publish": false,
+      "Retained": 61,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 94181816,
+      "Enabled": true,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 98.424578,
+      "P99Microseconds": 24.736,
+      "Publish": true,
+      "Retained": 61,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 60592824,
+      "Enabled": true,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 125.50948600000001,
+      "P99Microseconds": 118.592,
+      "Publish": true,
+      "Retained": 1791,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60410144,
+      "Enabled": true,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 122.33591100000001,
+      "P99Microseconds": 116.288,
+      "Publish": false,
+      "Retained": 1791,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60187816,
+      "Enabled": false,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 120.854045,
+      "P99Microseconds": 115.62599999999999,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60418000,
+      "Enabled": false,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 132.08951199999998,
+      "P99Microseconds": 114.15400000000001,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 13
+    },
+    {
+      "AllocatedBytes": 60589248,
+      "Enabled": true,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 132.90311699999998,
+      "P99Microseconds": 115.125,
+      "Publish": false,
+      "Retained": 1744,
+      "Seed": 13
+    },
+    {
+      "AllocatedBytes": 60754576,
+      "Enabled": true,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 135.812256,
+      "P99Microseconds": 113.803,
+      "Publish": true,
+      "Retained": 1744,
+      "Seed": 13
+    },
+    {
+      "AllocatedBytes": 93823208,
+      "Enabled": true,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 85.84660600000001,
+      "P99Microseconds": 22.712,
+      "Publish": true,
+      "Retained": 61,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 93724520,
+      "Enabled": true,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 85.521336,
+      "P99Microseconds": 22.663,
+      "Publish": false,
+      "Retained": 61,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 93719072,
+      "Enabled": false,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 87.085477,
+      "P99Microseconds": 22.993000000000002,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 60176192,
+      "Enabled": false,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 120.261906,
+      "P99Microseconds": 112.34,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60336800,
+      "Enabled": true,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 121.365212,
+      "P99Microseconds": 116.709,
+      "Publish": false,
+      "Retained": 1791,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60504440,
+      "Enabled": true,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 120.391579,
+      "P99Microseconds": 112.62100000000001,
+      "Publish": true,
+      "Retained": 1791,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60753496,
+      "Enabled": true,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 131.44711900000001,
+      "P99Microseconds": 112.15100000000001,
+      "Publish": true,
+      "Retained": 1744,
+      "Seed": 13
+    },
+    {
+      "AllocatedBytes": 60587736,
+      "Enabled": true,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 131.068269,
+      "P99Microseconds": 112.331,
+      "Publish": false,
+      "Retained": 1744,
+      "Seed": 13
+    },
+    {
+      "AllocatedBytes": 60416488,
+      "Enabled": false,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 130.717482,
+      "P99Microseconds": 111.89999999999999,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 13
+    },
+    {
+      "AllocatedBytes": 93719016,
+      "Enabled": false,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 85.054291,
+      "P99Microseconds": 22.442,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 93724464,
+      "Enabled": true,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 85.117481,
+      "P99Microseconds": 22.402,
+      "Publish": false,
+      "Retained": 61,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 93822904,
+      "Enabled": true,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 85.02307400000001,
+      "P99Microseconds": 22.382,
+      "Publish": true,
+      "Retained": 61,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 60504440,
+      "Enabled": true,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 120.08139700000001,
+      "P99Microseconds": 112.36999999999999,
+      "Publish": true,
+      "Retained": 1791,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60336520,
+      "Enabled": true,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 120.40312,
+      "P99Microseconds": 113.482,
+      "Publish": false,
+      "Retained": 1791,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60175632,
+      "Enabled": false,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 121.898802,
+      "P99Microseconds": 116.097,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60416320,
+      "Enabled": false,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 130.578091,
+      "P99Microseconds": 111.538,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 13
+    },
+    {
+      "AllocatedBytes": 60587568,
+      "Enabled": true,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 131.367329,
+      "P99Microseconds": 111.869,
+      "Publish": false,
+      "Retained": 1744,
+      "Seed": 13
+    },
+    {
+      "AllocatedBytes": 60753328,
+      "Enabled": true,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 131.28319199999999,
+      "P99Microseconds": 112.04,
+      "Publish": true,
+      "Retained": 1744,
+      "Seed": 13
+    },
+    {
+      "AllocatedBytes": 93822904,
+      "Enabled": true,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 85.616044,
+      "P99Microseconds": 22.382,
+      "Publish": true,
+      "Retained": 61,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 93724464,
+      "Enabled": true,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 85.05311999999999,
+      "P99Microseconds": 22.462,
+      "Publish": false,
+      "Retained": 61,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 93718936,
+      "Enabled": false,
+      "EventsHash": 6104987999638426024,
+      "Evicted": 0,
+      "Milliseconds": 88.597659,
+      "P99Microseconds": 23.264,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 11
+    },
+    {
+      "AllocatedBytes": 60175552,
+      "Enabled": false,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 123.954623,
+      "P99Microseconds": 118.502,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60336160,
+      "Enabled": true,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 127.098823,
+      "P99Microseconds": 119.273,
+      "Publish": false,
+      "Retained": 1791,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60503800,
+      "Enabled": true,
+      "EventsHash": 6105309831803607426,
+      "Evicted": 0,
+      "Milliseconds": 123.586263,
+      "P99Microseconds": 118.221,
+      "Publish": true,
+      "Retained": 1791,
+      "Seed": 12
+    },
+    {
+      "AllocatedBytes": 60753248,
+      "Enabled": true,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 505.78487400000006,
+      "P99Microseconds": 122.97,
+      "Publish": true,
+      "Retained": 1744,
+      "Seed": 13
+    },
+    {
+      "AllocatedBytes": 60587488,
+      "Enabled": true,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 139.314297,
+      "P99Microseconds": 116.89899999999999,
+      "Publish": false,
+      "Retained": 1744,
+      "Seed": 13
+    },
+    {
+      "AllocatedBytes": 60416240,
+      "Enabled": false,
+      "EventsHash": 10973793027856930435,
+      "Evicted": 0,
+      "Milliseconds": 134.064412,
+      "P99Microseconds": 114.97500000000001,
+      "Publish": false,
+      "Retained": 0,
+      "Seed": 13
+    }
+  ],
+  "Runtime": ".NET 10.0.10",
+  "Summary": [
+    {
+      "Enabled": false,
+      "MedianAllocatedBytes": 60416488,
+      "MedianMilliseconds": 123.954623,
+      "MedianP99Microseconds": 112.34,
+      "Publish": false
+    },
+    {
+      "Enabled": true,
+      "MedianAllocatedBytes": 60587736,
+      "MedianMilliseconds": 127.098823,
+      "MedianP99Microseconds": 113.482,
+      "Publish": false
+    },
+    {
+      "Enabled": true,
+      "MedianAllocatedBytes": 60753496,
+      "MedianMilliseconds": 123.586263,
+      "MedianP99Microseconds": 112.36999999999999,
+      "Publish": true
+    }
+  ],
+  "TickCount": 12000
+}

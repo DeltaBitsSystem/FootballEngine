@@ -1,0 +1,55 @@
+Seed 13 score 2-1 frontier 262762 hash 1556896200877222377 occurrences 29073 unlinked 0; capture on/off identical.
+
+pass-result root #16 (864 candidates):
+  #16 tick 167 cause ValueSome (ResolutionCause (ObservationId 14UL)): Pass 13.3m completed=true. Recorded payload: Pass
+  (PlayerId 2, Some (PlayerId 5), 13.28601446, 1.0, true, -20.30826569,
+   -10.02109528, -33.59425467, -9.995077009)
+  #14 tick 167 cause ValueSome (ActionCause (ActionId 618475291137UL)): Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 618475291137UL). This is a stochastic adjudication, not measured physical contact.
+  #13 tick 144 cause ValueSome (DecisionCause (ObservationId 12UL)): PlayerId 2 applied Pass, action ActionId 618475291137UL, from (-20.44, -10.23, 0.00).
+  #12 tick 144 cause ValueNone: PlayerId 2 chose pass (target slot 4) from 7 options using utility-weighted sampling (value 4.915, temperature 0.248, draw 0.962). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.
+  Missing=[||] Cycles=[||] Future=[||]
+
+possession-loss root #50 (443 candidates):
+  #50 tick 433 cause ValueSome (ActionCause (ActionId 1769526527233UL)): Interception. Recorded payload: Interception (PlayerId 104, PlayerId 5)
+  #48 tick 412 cause ValueSome (DecisionCause (ObservationId 47UL)): PlayerId 5 applied Pass, action ActionId 1769526527233UL, from (-43.63, -5.49, 0.00).
+  #47 tick 412 cause ValueNone: PlayerId 5 chose pass (target slot 1) from 4 options using utility-weighted sampling (value 3.349, temperature 0.248, draw 0.576). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.
+  Missing=[||] Cycles=[||] Future=[||]
+
+shot-result root #827 (88 candidates):
+  #827 tick 3028 cause ValueSome (ResolutionCause (ObservationId 826UL)): Shot OnTarget true 25.9m/s. Recorded payload: Shot (PlayerId 3, OnTarget true, 0.1804671696, 25.9, 52.5, -0.7205667768)
+  #826 tick 3028 cause ValueSome (ActionCause (ActionId 12936441496324UL)): Current model resolved GoalkeeperSave with probability 0.776: success=true, action=Some (ActionId 12936441496324UL). This is a stochastic adjudication, not measured physical contact.
+  #825 tick 3012 cause ValueSome (DecisionCause (ObservationId 824UL)): PlayerId 3 applied Shot, action ActionId 12936441496324UL, from (42.63, 0.31, 0.00).
+  #824 tick 3012 cause ValueNone: PlayerId 3 chose shot (target slot -1) from 6 options using utility-weighted sampling (value 0.605, temperature 0.248, draw 0.513). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.
+  Missing=[||] Cycles=[||] Future=[||]
+
+foul-restart root #3598 (53 candidates):
+  #3598 tick 16549 cause ValueSome (EventCause (EventId 16430299765875289015UL)): FreeKick awarded to Home at (-6.38, -10.95), restart RestartId 24UL. Recorded football cause: Foul (None, None).
+  #3599 tick 16549 cause ValueSome (ResolutionCause (ObservationId 3596UL)): SetPiece: FreeKick at -6.4,-10.9. Recorded payload: SetPieceAt (FreeKick, Home, -6.376766682, -10.94663429)
+  #3596 tick 16549 cause ValueSome (EventCause (EventId 13222998439269702706UL)): Referee assessed Foul: Minor: penalty-area=false, advantage=false. These are the current model's assessments, not certification of legal correctness.
+  #3594 tick 16548 cause ValueSome (ResolutionCause (ObservationId 3593UL)): Foul: Minor. Recorded payload: Foul (PlayerId 102, PlayerId 9, Minor, NoCard, (-6.376766682, -10.94663429))
+  #3593 tick 16548 cause ValueSome (DecisionCause (ObservationId 3592UL)): PlayerId 102 contested PlayerId 9 at (-6.38, -10.95): current model win probability 0.488/draw 0.265; foul probability 0.150/draw 0.127; foul=true, won=false. Foul takes precedence over the win draw. This is stochastic adjudication, not measured body/ball contact or certification of legal severity.
+  #3592 tick 16548 cause ValueNone: PlayerId 102 had no evaluated option; current fallback selected duel. This is not an evaluated utility preference.
+  Missing=[||] Cycles=[||] Future=[||]
+
+recalled-advantage root #4298 (18 candidates):
+  #4298 tick 22261 cause ValueSome
+  (PairedEvents (EventId 3526257760240206015UL, EventId 9393718141942468814UL)): FreeKick awarded to Away at (-36.25, -28.92), restart RestartId 41UL. Recorded football cause: Foul (Some (PlayerId 10), Some (PlayerId 110)).
+  #4253 tick 22180 cause ValueSome (ResolutionCause (ObservationId 4252UL)): Foul: Minor. Recorded payload: Foul (PlayerId 10, PlayerId 110, Minor, NoCard, (-36.24870682, -28.92338371))
+  #4252 tick 22180 cause ValueSome (DecisionCause (ObservationId 4251UL)): PlayerId 10 contested PlayerId 110 at (-36.25, -28.92): current model win probability 0.499/draw 0.004; foul probability 0.150/draw 0.136; foul=true, won=false. Foul takes precedence over the win draw. This is stochastic adjudication, not measured body/ball contact or certification of legal severity.
+  #4251 tick 22180 cause ValueNone: PlayerId 10 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 28.280, temperature 0.248, draw 0.586). Pressure 1; condition 0.99, cognition 0.91. Choice is not a guarantee of execution.
+  #4299 tick 22261 cause ValueNone: Advantage expired: Away. Recorded payload: AdvantageExpired Away
+  Missing=[||] Cycles=[||] Future=[||]
+
+duel-resolution root #54 (535 candidates):
+  #54 tick 436 cause ValueSome (DecisionCause (ObservationId 53UL)): PlayerId 104 contested PlayerId 2 at (-39.99, -13.65): current model win probability 0.500/draw 0.015; foul probability 0.150/draw 0.913; foul=false, won=true. Foul takes precedence over the win draw. This is stochastic adjudication, not measured body/ball contact or certification of legal severity.
+  #53 tick 436 cause ValueNone: PlayerId 104 chose duel (target slot -1) from 7 options using utility-weighted sampling (value 9.705, temperature 0.248, draw 0.540). Pressure 1; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.
+  Missing=[||] Cycles=[||] Future=[||]
+
+rejected-cross root #707 (326 candidates):
+  #707 tick 2096 cause ValueSome (DecisionCause (ObservationId 706UL)): PlayerId 9 attempted a cross but the current target search found no eligible teammate in its target region. No impulse was applied; CrossAttempt is intention, not a consumed physical contact.
+  #706 tick 2096 cause ValueNone: PlayerId 9 chose cross (target slot -1) from 4 options using utility-weighted sampling (value 0.580, temperature 0.248, draw 0.909). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.
+  Missing=[||] Cycles=[||] Future=[||]
+
+effective-tactics root #1516 (1 candidates):
+  #1516 tick 6000 cause ValueNone: Manager 1 effective instruction #1: formation 4-3-3, mentality 0.50, line 44.00 metres, press 0.70, width 0.70, tempo 0.50, directness 0.50. Effective tactics feed team and player decisions; the executor does not yet apply all instruction fields to formation roles. Player response requires subsequent evidence.
+  Missing=[||] Cycles=[||] Future=[||]

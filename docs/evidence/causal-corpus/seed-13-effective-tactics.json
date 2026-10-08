@@ -1,0 +1,20 @@
+{
+  "Cycles": [],
+  "Enabled": true,
+  "Entries": [
+    {
+      "Causes": [],
+      "Duel": [],
+      "Explanation": "Manager 1 effective instruction #1: formation 4-3-3, mentality 0.50, line 44.00 metres, press 0.70, width 0.70, tempo 0.50, directness 0.50. Effective tactics feed team and player decisions; the executor does not yet apply all instruction fields to formation roles. Player response requires subsequent evidence.",
+      "Id": 1516,
+      "Tick": 6000
+    }
+  ],
+  "Evicted": 0,
+  "FormatVersion": 2,
+  "FutureCauses": [],
+  "MissingCauses": [],
+  "Root": 1516,
+  "Total": 29073,
+  "Unlinked": 0
+}

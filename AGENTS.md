@@ -40,6 +40,20 @@ dotnet fantomas . --check   # check only, do not modify
 
 ## Project Architecture
 
+### Current architecture (authoritative)
+
+The engine has moved out of Client. The historical layout and layer descriptions below are retained as context, not source paths or the current scheduler contract. Use these locations for new work:
+
+- `FootballEngine.Core/Match/Contracts/`: match state, frames, world, configuration, events, observation and session boundary.
+- `FootballEngine.Core/Match/Stepper/`: `Stepper.fs`, `EventApply.fs`, `SystemsTable.fs` (the sole scheduler table).
+- `FootballEngine.Core/Match/Systems/`: Ball, Players, Referee, Team and Manager systems; `Match/Restart/` owns restart planning.
+- `FootballEngine.Core/Match/Simulator/`: factory, Result-based `Simulator.runMatch`, visual replay projection. No `weightsPath` argument or exception-returning facade.
+- `FootballEngine.Client/`: Avalonia UI, runtime worker, persistence adapter and WebGPU presentation. Rendering never determines sporting outcomes.
+- Core tests: `dotnet run --project FootballEngine.Core.Tests/FootballEngine.Core.Tests.fsproj`; client tests: `dotnet run --project FootballEngine.Client.Tests/FootballEngine.Client.Tests.fsproj`.
+- `FootballEngine.slnx` contains Core, Core.Tests, Client and Training. Client.Tests and Benchmarks are built separately.
+
+Decision proposals belong to `TeamWorld.PendingActions`; VAR snapshots belong to `World.Reviews`. Neither belongs in `TeamFrame.RunLookup`. Evidence is captured through `World.Observation`; format text/export outside ticks. Scheduling/visibility and determinism decisions are documented in `docs/evidence/MATCH_ENGINE_FOUNDATION.md`.
+
 ### Solution Structure
 
 The solution (`FootballEngine.slnx`) contains 3 main projects:

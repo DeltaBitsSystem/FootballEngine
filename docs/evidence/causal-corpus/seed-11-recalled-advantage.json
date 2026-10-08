@@ -1,0 +1,84 @@
+{
+  "Cycles": [],
+  "Enabled": true,
+  "Entries": [
+    {
+      "Causes": [
+        {
+          "Id": 2703889395283790907,
+          "Kind": "event",
+          "Role": "incident"
+        },
+        {
+          "Id": 5918188017302752626,
+          "Kind": "event",
+          "Role": "trigger"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "FreeKick awarded to Away at (-24.81, -3.54), restart RestartId 65UL. Recorded football cause: Foul (Some (PlayerId 6), Some (PlayerId 106)).",
+      "Id": 6112,
+      "Tick": 178401
+    },
+    {
+      "Causes": [
+        {
+          "Id": 6066,
+          "Kind": "resolution",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "Foul: Minor. Recorded payload: Foul (PlayerId 6, PlayerId 106, Minor, NoCard, (-24.8142662, -3.542781353))",
+      "Id": 6067,
+      "Tick": 178320
+    },
+    {
+      "Causes": [
+        {
+          "Id": 6065,
+          "Kind": "decision",
+          "Role": "source"
+        }
+      ],
+      "Duel": [
+        {
+          "Carrier": 6,
+          "Defender": 106,
+          "Foul": true,
+          "FoulDraw": 0.06545578420815312,
+          "FoulProbability": 0.15,
+          "WinDraw": 0.4904684460792177,
+          "WinProbability": 0.48947473368559613,
+          "Won": false,
+          "X": -24.814266204833984,
+          "Y": -3.542781352996826
+        }
+      ],
+      "Explanation": "PlayerId 6 contested PlayerId 106 at (-24.81, -3.54): current model win probability 0.489/draw 0.490; foul probability 0.150/draw 0.065; foul=true, won=false. Foul takes precedence over the win draw. This is stochastic adjudication, not measured body/ball contact or certification of legal severity.",
+      "Id": 6066,
+      "Tick": 178320
+    },
+    {
+      "Causes": [],
+      "Duel": [],
+      "Explanation": "PlayerId 6 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 38.780, temperature 0.247, draw 0.416). Pressure 1; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 6065,
+      "Tick": 178320
+    },
+    {
+      "Causes": [],
+      "Duel": [],
+      "Explanation": "Advantage expired: Away. Recorded payload: AdvantageExpired Away",
+      "Id": 6113,
+      "Tick": 178401
+    }
+  ],
+  "Evicted": 0,
+  "FormatVersion": 2,
+  "FutureCauses": [],
+  "MissingCauses": [],
+  "Root": 6112,
+  "Total": 25833,
+  "Unlinked": 0
+}

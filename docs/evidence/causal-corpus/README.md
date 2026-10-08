@@ -1,0 +1,11 @@
+# Textual causal corpus — 2026-10-05
+
+Generated with `dotnet fsi Tools/MatchDiagnostics/CausalCorpus.fsx`; fixture context from `FootballEngine.Core.Tests/Infrastructure/TestBuilders.fs`, seeds 11/12/13, each with the same effective tactical command at tick 6000. Three pairs of complete matches compare capture on/off: event hashes, final sporting state and RNG are equal. No renderer is loaded.
+
+`summary.json` records scores, frontier, event hash, occurrence counts, budget and representative chain identities. `seed-*.txt` contains the actual typed explanations and explicit source edges for pass, possession loss, shot, foul/restart, recalled advantage and applied tactics. Every selected example has zero missing links, cycles or future edges; this does **not** imply exhaustive causal or legal coverage of the whole game.
+
+The direct referee linkage traverses the recorded assessment and original foul, rather than bypassing the assessment. Recalled advantage now preserves the original incident in authoritative state and links both the original foul and the later trigger; original participants survive into the restart award. This changes the event payload/hash contract directly, without compatibility. An effective tactical command still does not establish a later outcome's cause. Physical contact/outcomes, complete advantage law and deferred sanctions remain later obligations, not results certified by this corpus.
+
+Offline retention budget: 131072 occurrences per game; contiguous publication is checked. The sporting producer still uses its existing bounded ring. Archiving/formatting happen in the external consumer, not inside a tick.
+
+Each selected chain also has `seed-<seed>-<episode>.json`: explicit root, typed links, missing causes, cycles and future-directed links. `seed-<seed>-audit.json` audits every retained direct link, not just successful examples. All three runs have zero missing/ambiguous/future links and duplicate occurrence IDs; they also have 12093/17021/13471 uncaused entries. `UncausedKinds` separates decision roots from currently unlinked consequences. These reports are evidence of remaining work, not proof that every event has been explained. The whole-window direct-edge audit does not certify legal coverage or detect every cycle; rooted traversal supplies cycle diagnostics.

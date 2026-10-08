@@ -1,0 +1,59 @@
+{
+  "Cycles": [],
+  "Enabled": true,
+  "Entries": [
+    {
+      "Causes": [
+        {
+          "Id": 15,
+          "Kind": "resolution",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "Pass 13.0m completed=true. Recorded payload: Pass\n  (PlayerId 2, Some (PlayerId 6), 13.04975792, 1.0, true, -20.55657578,\n   -9.772694588, -19.54288448, 3.237632536)",
+      "Id": 17,
+      "Tick": 173
+    },
+    {
+      "Causes": [
+        {
+          "Id": 635655160321,
+          "Kind": "action",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 635655160321UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 15,
+      "Tick": 173
+    },
+    {
+      "Causes": [
+        {
+          "Id": 13,
+          "Kind": "decision",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "PlayerId 2 applied Pass, action ActionId 635655160321UL, from (-21.75, -10.89, 0.00).",
+      "Id": 14,
+      "Tick": 148
+    },
+    {
+      "Causes": [],
+      "Duel": [],
+      "Explanation": "PlayerId 2 chose pass (target slot 5) from 7 options using utility-weighted sampling (value 4.922, temperature 0.248, draw 0.669). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 13,
+      "Tick": 148
+    }
+  ],
+  "Evicted": 0,
+  "FormatVersion": 2,
+  "FutureCauses": [],
+  "MissingCauses": [],
+  "Root": 17,
+  "Total": 25833,
+  "Unlinked": 0
+}

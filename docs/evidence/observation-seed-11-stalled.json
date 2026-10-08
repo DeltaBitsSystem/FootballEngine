@@ -1,0 +1,2109 @@
+{
+  "Enabled": true,
+  "Entries": [
+    {
+      "CauseId": "7299535241449974069",
+      "CauseKind": "event",
+      "Explanation": "KickOff awarded to Home at (0.00, 0.00), restart RestartId 1UL. Recorded football cause: MatchStart.",
+      "Id": 1,
+      "Tick": 0
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "SetPiece: KickOff. Recorded payload: SetPiece (KickOff, Home)",
+      "Id": 2,
+      "Tick": 0
+    },
+    {
+      "CauseId": "1",
+      "CauseKind": "restart",
+      "Explanation": "Restart planned. Recorded payload: RestartPlanned (RestartId 1UL, PlayerId 3)",
+      "Id": 3,
+      "Tick": 1
+    },
+    {
+      "CauseId": "1",
+      "CauseKind": "restart",
+      "Explanation": "Restart authorized. Recorded payload: RestartAuthorized (RestartId 1UL)",
+      "Id": 4,
+      "Tick": 98
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 3 applied Restart KickOff, action ActionId 425201763077UL, from (0.00, 0.00, 0.00).",
+      "Id": 5,
+      "Tick": 99
+    },
+    {
+      "CauseId": "1",
+      "CauseKind": "restart",
+      "Explanation": "Restart command issued. Recorded payload: RestartCommandIssued (RestartId 1UL, PlayerId 3)",
+      "Id": 6,
+      "Tick": 99
+    },
+    {
+      "CauseId": "425201763077",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 0.957: success=false, action=Some (ActionId 425201763077UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 7,
+      "Tick": 141
+    },
+    {
+      "CauseId": "1",
+      "CauseKind": "restart",
+      "Explanation": "Restart contact. Recorded payload: RestartContact (RestartId 1UL, PlayerId 3, KickOff)",
+      "Id": 8,
+      "Tick": 141
+    },
+    {
+      "CauseId": "7",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 26.5m completed=false. Recorded payload: Pass\n  (PlayerId 3, Some (PlayerId 2), 26.47065084, 0.8, false, 3.925758839, 0.0,\n   -20.48333061, -10.2416653)",
+      "Id": 9,
+      "Tick": 141
+    },
+    {
+      "CauseId": "7",
+      "CauseKind": "resolution",
+      "Explanation": "Ball loose. Recorded payload: BallLoose (-20.48333061, -10.2416653)",
+      "Id": 10,
+      "Tick": 141
+    },
+    {
+      "CauseId": "1",
+      "CauseKind": "restart",
+      "Explanation": "Restart completed. Recorded payload: RestartCompleted (RestartId 1UL)",
+      "Id": 11,
+      "Tick": 142
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 2)",
+      "Id": 12,
+      "Tick": 144
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 2 chose pass (target slot 5) from 7 options using utility-weighted sampling (value 4.922, temperature 0.248, draw 0.669). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 13,
+      "Tick": 148
+    },
+    {
+      "CauseId": "13",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 2 applied Pass, action ActionId 635655160321UL, from (-21.75, -10.89, 0.00).",
+      "Id": 14,
+      "Tick": 148
+    },
+    {
+      "CauseId": "635655160321",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 635655160321UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 15,
+      "Tick": 173
+    },
+    {
+      "CauseId": "15",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 6)",
+      "Id": 16,
+      "Tick": 173
+    },
+    {
+      "CauseId": "15",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 13.0m completed=true. Recorded payload: Pass\n  (PlayerId 2, Some (PlayerId 6), 13.04975792, 1.0, true, -20.55657578,\n   -9.772694588, -19.54288448, 3.237632536)",
+      "Id": 17,
+      "Tick": 173
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 6 chose pass (target slot 6) from 8 options using utility-weighted sampling (value 2.304, temperature 0.248, draw 0.446). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 18,
+      "Tick": 176
+    },
+    {
+      "CauseId": "18",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 6 applied Pass, action ActionId 755914245633UL, from (-19.54, 3.09, 0.00).",
+      "Id": 19,
+      "Tick": 176
+    },
+    {
+      "CauseId": "755914245633",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 755914245633UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 20,
+      "Tick": 223
+    },
+    {
+      "CauseId": "20",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 7)",
+      "Id": 21,
+      "Tick": 223
+    },
+    {
+      "CauseId": "20",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 27.0m completed=true. Recorded payload: Pass\n  (PlayerId 6, Some (PlayerId 7), 27.03630698, 1.0, true, -20.38892937,\n   1.568917871, -12.28505929, -24.22428249)",
+      "Id": 22,
+      "Tick": 223
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose pass (target slot 4) from 9 options using utility-weighted sampling (value 10.781, temperature 0.248, draw 0.632). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 23,
+      "Tick": 224
+    },
+    {
+      "CauseId": "23",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 7 applied Pass, action ActionId 962072676097UL, from (-12.31, -24.14, 0.00).",
+      "Id": 24,
+      "Tick": 224
+    },
+    {
+      "CauseId": "962072676097",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 962072676097UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 25,
+      "Tick": 274
+    },
+    {
+      "CauseId": "25",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 5)",
+      "Id": 26,
+      "Tick": 274
+    },
+    {
+      "CauseId": "25",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 29.4m completed=true. Recorded payload: Pass\n  (PlayerId 7, Some (PlayerId 5), 29.39708705, 1.0, true, -14.83712006,\n   -25.43596077, -35.89471461, -4.923368566)",
+      "Id": 27,
+      "Tick": 274
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 5 chose pass (target slot 8) from 6 options using utility-weighted sampling (value 0.365, temperature 0.248, draw 0.502). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 28,
+      "Tick": 276
+    },
+    {
+      "CauseId": "28",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 5 applied Pass, action ActionId 1185410974977UL, from (-35.94, -4.81, 0.00).",
+      "Id": 29,
+      "Tick": 276
+    },
+    {
+      "CauseId": "1185410974977",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 1185410974977UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 30,
+      "Tick": 300
+    },
+    {
+      "CauseId": "30",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 9)",
+      "Id": 31,
+      "Tick": 300
+    },
+    {
+      "CauseId": "30",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 11.6m completed=true. Recorded payload: Pass\n  (PlayerId 5, Some (PlayerId 9), 11.58936591, 1.0, true, -37.40163803,\n   -2.675004959, -36.23471806, 8.855463369)",
+      "Id": 32,
+      "Tick": 300
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 9 chose pass (target slot 1) from 7 options using utility-weighted sampling (value 0.369, temperature 0.248, draw 0.965). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 33,
+      "Tick": 304
+    },
+    {
+      "CauseId": "33",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 9 applied Pass, action ActionId 1305670060289UL, from (-36.17, 8.49, 0.00).",
+      "Id": 34,
+      "Tick": 304
+    },
+    {
+      "CauseId": "1305670060289",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 1305670060289UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 35,
+      "Tick": 344
+    },
+    {
+      "CauseId": "35",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 2)",
+      "Id": 36,
+      "Tick": 344
+    },
+    {
+      "CauseId": "35",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 25.2m completed=true. Recorded payload: Pass\n  (PlayerId 9, Some (PlayerId 2), 25.20848634, 1.0, true, -37.09962082,\n   9.686113358, -26.11150037, -13.00152629)",
+      "Id": 37,
+      "Tick": 344
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 2 chose pass (target slot 5) from 6 options using utility-weighted sampling (value 46.307, temperature 0.248, draw 0.589). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 38,
+      "Tick": 348
+    },
+    {
+      "CauseId": "38",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 2 applied Pass, action ActionId 1494648619521UL, from (-26.27, -12.72, 0.00).",
+      "Id": 39,
+      "Tick": 348
+    },
+    {
+      "CauseId": "1494648619521",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 1494648619521UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 40,
+      "Tick": 380
+    },
+    {
+      "CauseId": "40",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 6)",
+      "Id": 41,
+      "Tick": 380
+    },
+    {
+      "CauseId": "40",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 15.3m completed=true. Recorded payload: Pass\n  (PlayerId 2, Some (PlayerId 6), 15.26238717, 1.0, true, -29.46820068,\n   -11.33834457, -39.06270481, 0.5311942775)",
+      "Id": 42,
+      "Tick": 380
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 6 chose pass (target slot 9) from 5 options using utility-weighted sampling (value 8.372, temperature 0.248, draw 0.866). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 43,
+      "Tick": 384
+    },
+    {
+      "CauseId": "43",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 6 applied Pass, action ActionId 1649267443201UL, from (-38.77, 0.23, 0.00).",
+      "Id": 44,
+      "Tick": 384
+    },
+    {
+      "CauseId": "1649267443201",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 1649267443201UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 45,
+      "Tick": 424
+    },
+    {
+      "CauseId": "45",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 10)",
+      "Id": 46,
+      "Tick": 424
+    },
+    {
+      "CauseId": "45",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 24.0m completed=true. Recorded payload: Pass\n  (PlayerId 6, Some (PlayerId 10), 23.9503852, 1.0, true, -43.01337814,\n   0.5713750124, -42.11142769, -23.36202083)",
+      "Id": 47,
+      "Tick": 424
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 10 chose pass (target slot 10) from 4 options using utility-weighted sampling (value 0.942, temperature 0.248, draw 0.727). Pressure 0; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 48,
+      "Tick": 428
+    },
+    {
+      "CauseId": "48",
+      "CauseKind": "decision",
+      "Explanation": "Selective capture for PlayerId 10: evaluated options [{ ActionCode = 3\n   TargetSlot = -1\n   Value = -11.07385714 }; { ActionCode = 5\n                             TargetSlot = -1\n                             Value = 0.4666717855 }; { ActionCode = 1\n                                                       TargetSlot = 10\n                                                       Value = 0.941560754 };\n { ActionCode = 1\n   TargetSlot = 4\n   Value = 0.3415638653 }]. Values are the decision model\u0027s estimates, not future outcomes.",
+      "Id": 49,
+      "Tick": 428
+    },
+    {
+      "CauseId": "48",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 10 applied Pass, action ActionId 1838246005249UL, from (-42.09, -22.91, 0.00).",
+      "Id": 50,
+      "Tick": 428
+    },
+    {
+      "CauseId": "1838246005249",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 1838246005249UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 51,
+      "Tick": 462
+    },
+    {
+      "CauseId": "51",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 11)",
+      "Id": 52,
+      "Tick": 462
+    },
+    {
+      "CauseId": "51",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 21.0m completed=true. Recorded payload: Pass\n  (PlayerId 10, Some (PlayerId 11), 20.96118883, 1.0, true, -44.97867966,\n   -23.71764374, -41.57960454, -3.03388863)",
+      "Id": 53,
+      "Tick": 462
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 11 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 11.791, temperature 0.248, draw 0.636). Pressure 1; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 54,
+      "Tick": 463
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 11 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 9.291, temperature 0.248, draw 0.776). Pressure 1; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 55,
+      "Tick": 464
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Foul: Minor. Recorded payload: Foul (PlayerId 11, PlayerId 104, Minor, NoCard, (-42.07622147, -3.565975666))",
+      "Id": 56,
+      "Tick": 464
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Ball loose. Recorded payload: BallLoose (-42.07622147, -3.565975666)",
+      "Id": 57,
+      "Tick": 464
+    },
+    {
+      "CauseId": "11904187541264379252",
+      "CauseKind": "event",
+      "Explanation": "Referee assessed Foul: Minor: penalty-area=true, advantage=false. These are the current model\u0027s assessments, not certification of legal correctness.",
+      "Id": 58,
+      "Tick": 465
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 11)",
+      "Id": 59,
+      "Tick": 465
+    },
+    {
+      "CauseId": "11783094649217622549",
+      "CauseKind": "event",
+      "Explanation": "Penalty awarded to Away at (-41.50, 0.00), restart RestartId 2UL. Recorded football cause: Foul (None, None).",
+      "Id": 60,
+      "Tick": 465
+    },
+    {
+      "CauseId": "11904187541264379252",
+      "CauseKind": "event",
+      "Explanation": "SetPiece: Penalty at -42.1,-3.6. Recorded payload: SetPieceAt (Penalty, Away, -42.07622147, -3.565975666)",
+      "Id": 61,
+      "Tick": 465
+    },
+    {
+      "CauseId": "2",
+      "CauseKind": "restart",
+      "Explanation": "Restart planned. Recorded payload: RestartPlanned (RestartId 2UL, PlayerId 104)",
+      "Id": 62,
+      "Tick": 466
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Half time. Recorded payload: HalfTime",
+      "Id": 63,
+      "Tick": 110521
+    },
+    {
+      "CauseId": "8353751891301714987",
+      "CauseKind": "event",
+      "Explanation": "KickOff awarded to Away at (0.00, 0.00), restart RestartId 3UL. Recorded football cause: PeriodStart.",
+      "Id": 64,
+      "Tick": 146521
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "SetPiece: KickOff. Recorded payload: SetPiece (KickOff, Away)",
+      "Id": 65,
+      "Tick": 146521
+    },
+    {
+      "CauseId": "3",
+      "CauseKind": "restart",
+      "Explanation": "Restart planned. Recorded payload: RestartPlanned (RestartId 3UL, PlayerId 106)",
+      "Id": 66,
+      "Tick": 146522
+    },
+    {
+      "CauseId": "3",
+      "CauseKind": "restart",
+      "Explanation": "Restart authorized. Recorded payload: RestartAuthorized (RestartId 3UL)",
+      "Id": 67,
+      "Tick": 146670
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 106 applied Restart KickOff, action ActionId 629947148298757UL, from (0.00, 0.00, 0.00).",
+      "Id": 68,
+      "Tick": 146671
+    },
+    {
+      "CauseId": "3",
+      "CauseKind": "restart",
+      "Explanation": "Restart command issued. Recorded payload: RestartCommandIssued (RestartId 3UL, PlayerId 106)",
+      "Id": 69,
+      "Tick": 146671
+    },
+    {
+      "CauseId": "629947148298757",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 0.917: success=true, action=Some (ActionId 629947148298757UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 70,
+      "Tick": 146715
+    },
+    {
+      "CauseId": "3",
+      "CauseKind": "restart",
+      "Explanation": "Restart contact. Recorded payload: RestartContact (RestartId 3UL, PlayerId 106, KickOff)",
+      "Id": 71,
+      "Tick": 146715
+    },
+    {
+      "CauseId": "70",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Away. Recorded payload: Possession (Away, PlayerId 102)",
+      "Id": 72,
+      "Tick": 146715
+    },
+    {
+      "CauseId": "70",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 24.0m completed=true. Recorded payload: Pass\n  (PlayerId 106, Some (PlayerId 102), 23.96759338, 0.8, true, -0.01596040465,\n   -0.0001304647303, -21.48844361, -10.64804094)",
+      "Id": 73,
+      "Tick": 146715
+    },
+    {
+      "CauseId": "3",
+      "CauseKind": "restart",
+      "Explanation": "Restart completed. Recorded payload: RestartCompleted (RestartId 3UL)",
+      "Id": 74,
+      "Tick": 146716
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 102 chose pass (target slot 2) from 2 options using utility-weighted sampling (value 5.517, temperature 0.248, draw 0.561). Pressure 1; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 75,
+      "Tick": 146720
+    },
+    {
+      "CauseId": "75",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 102 applied Pass, action ActionId 630157601695233UL, from (-21.57, -10.52, 0.00).",
+      "Id": 76,
+      "Tick": 146720
+    },
+    {
+      "CauseId": "630157601695233",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 630157601695233UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 77,
+      "Tick": 146745
+    },
+    {
+      "CauseId": "77",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Away. Recorded payload: Possession (Away, PlayerId 103)",
+      "Id": 78,
+      "Tick": 146745
+    },
+    {
+      "CauseId": "77",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 14.2m completed=true. Recorded payload: Pass\n  (PlayerId 102, Some (PlayerId 103), 14.18206641, 1.0, true, -21.08228874,\n   -10.09750462, -27.50953472, 2.544548891)",
+      "Id": 79,
+      "Tick": 146745
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 103 chose pass (target slot 7) from 5 options using utility-weighted sampling (value 0.626, temperature 0.248, draw 0.578). Pressure 0; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 80,
+      "Tick": 146748
+    },
+    {
+      "CauseId": "80",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 103 applied Pass, action ActionId 630277860779777UL, from (-27.46, 2.40, 0.00).",
+      "Id": 81,
+      "Tick": 146748
+    },
+    {
+      "CauseId": "630277860779777",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 630277860779777UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 82,
+      "Tick": 146783
+    },
+    {
+      "CauseId": "82",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Away. Recorded payload: Possession (Away, PlayerId 108)",
+      "Id": 83,
+      "Tick": 146783
+    },
+    {
+      "CauseId": "82",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 20.1m completed=true. Recorded payload: Pass\n  (PlayerId 103, Some (PlayerId 108), 20.10307319, 1.0, true, -26.22842598,\n   1.344835877, -36.28461719, -16.06224803)",
+      "Id": 84,
+      "Tick": 146783
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 108 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 6.865, temperature 0.248, draw 0.462). Pressure 0; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 85,
+      "Tick": 146784
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 108 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 6.866, temperature 0.248, draw 0.317). Pressure 0; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 86,
+      "Tick": 146788
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 108 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 7.366, temperature 0.248, draw 0.802). Pressure 0; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 87,
+      "Tick": 146792
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 108 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 10.116, temperature 0.248, draw 0.981). Pressure 0; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 88,
+      "Tick": 146796
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 108 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 12.867, temperature 0.248, draw 0.424). Pressure 0; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 89,
+      "Tick": 146800
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 108 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 12.867, temperature 0.248, draw 0.015). Pressure 0; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 90,
+      "Tick": 146804
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 108 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 12.967, temperature 0.248, draw 0.026). Pressure 1; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 91,
+      "Tick": 146808
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 108 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 12.716, temperature 0.248, draw 0.287). Pressure 1; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 92,
+      "Tick": 146812
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 108 chose shot (target slot -1) from 1 options using utility-weighted sampling (value 0.518, temperature 0.248, draw 0.785). Pressure 2; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 93,
+      "Tick": 146816
+    },
+    {
+      "CauseId": "93",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 108 applied Shot, action ActionId 630569918557188UL, from (-36.60, -14.60, 0.00).",
+      "Id": 94,
+      "Tick": 146816
+    },
+    {
+      "CauseId": "630569918557188",
+      "CauseKind": "action",
+      "Explanation": "Shot OffTarget 25.9m/s. Recorded payload: Shot (PlayerId 108, OffTarget, 0.07943278256, 25.9, -52.5, -15.11318745)",
+      "Id": 95,
+      "Tick": 146841
+    },
+    {
+      "CauseId": "2488352553742425092",
+      "CauseKind": "event",
+      "Explanation": "GoalKick awarded to Home at (-46.00, 0.00), restart RestartId 4UL. Recorded football cause: BallCrossedGoalLine None.",
+      "Id": 96,
+      "Tick": 146842
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "SetPiece: GoalKick. Recorded payload: SetPiece (GoalKick, Home)",
+      "Id": 97,
+      "Tick": 146842
+    },
+    {
+      "CauseId": "4",
+      "CauseKind": "restart",
+      "Explanation": "Restart planned. Recorded payload: RestartPlanned (RestartId 4UL, PlayerId 1)",
+      "Id": 98,
+      "Tick": 146843
+    },
+    {
+      "CauseId": "4",
+      "CauseKind": "restart",
+      "Explanation": "Restart authorized. Recorded payload: RestartAuthorized (RestartId 4UL)",
+      "Id": 99,
+      "Tick": 146894
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 1 applied Restart GoalKick, action ActionId 630909220946184UL, from (-46.00, 0.00, 0.00).",
+      "Id": 100,
+      "Tick": 146895
+    },
+    {
+      "CauseId": "4",
+      "CauseKind": "restart",
+      "Explanation": "Restart command issued. Recorded payload: RestartCommandIssued (RestartId 4UL, PlayerId 1)",
+      "Id": 101,
+      "Tick": 146895
+    },
+    {
+      "CauseId": "630909220946184",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 0.957: success=true, action=Some (ActionId 630909220946184UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 102,
+      "Tick": 146938
+    },
+    {
+      "CauseId": "4",
+      "CauseKind": "restart",
+      "Explanation": "Restart contact. Recorded payload: RestartContact (RestartId 4UL, PlayerId 1, GoalKick)",
+      "Id": 103,
+      "Tick": 146938
+    },
+    {
+      "CauseId": "102",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 2)",
+      "Id": 104,
+      "Tick": 146938
+    },
+    {
+      "CauseId": "102",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 23.5m completed=true. Recorded payload: Pass\n  (PlayerId 1, Some (PlayerId 2), 23.46822736, 0.8, true, -46.02890396,\n   0.0002914962533, -24.5131228, -9.371413619)",
+      "Id": 105,
+      "Tick": 146938
+    },
+    {
+      "CauseId": "4",
+      "CauseKind": "restart",
+      "Explanation": "Restart completed. Recorded payload: RestartCompleted (RestartId 4UL)",
+      "Id": 106,
+      "Tick": 146939
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 2 chose pass (target slot 3) from 5 options using utility-weighted sampling (value 57.014, temperature 0.248, draw 0.843). Pressure 0; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 107,
+      "Tick": 146940
+    },
+    {
+      "CauseId": "107",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 2 applied Pass, action ActionId 631102494474753UL, from (-24.51, -9.37, 0.00).",
+      "Id": 108,
+      "Tick": 146940
+    },
+    {
+      "CauseId": "631102494474753",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 631102494474753UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 109,
+      "Tick": 146987
+    },
+    {
+      "CauseId": "109",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 4)",
+      "Id": 110,
+      "Tick": 146987
+    },
+    {
+      "CauseId": "109",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 28.1m completed=true. Recorded payload: Pass\n  (PlayerId 2, Some (PlayerId 4), 28.12168753, 1.0, true, -24.38946152,\n   -10.46601009, 2.355608915, -19.15683958)",
+      "Id": 111,
+      "Tick": 146987
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose pass (target slot 6) from 3 options using utility-weighted sampling (value 0.368, temperature 0.248, draw 0.854). Pressure 0; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 112,
+      "Tick": 146988
+    },
+    {
+      "CauseId": "112",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 4 applied Pass, action ActionId 631308652905473UL, from (2.41, -19.16, 0.00).",
+      "Id": 113,
+      "Tick": 146988
+    },
+    {
+      "CauseId": "631308652905473",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 631308652905473UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 114,
+      "Tick": 147005
+    },
+    {
+      "CauseId": "114",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 7)",
+      "Id": 115,
+      "Tick": 147005
+    },
+    {
+      "CauseId": "114",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 9.3m completed=true. Recorded payload: Pass\n  (PlayerId 4, Some (PlayerId 7), 9.299497679, 1.0, true, 2.231882334,\n   -19.39288902, -5.464943811, -24.6120388)",
+      "Id": 116,
+      "Tick": 147005
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose pass (target slot 3) from 4 options using utility-weighted sampling (value 1.477, temperature 0.248, draw 0.890). Pressure 0; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 117,
+      "Tick": 147008
+    },
+    {
+      "CauseId": "117",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 7 applied Pass, action ActionId 631394552252161UL, from (-5.27, -24.47, 0.00).",
+      "Id": 118,
+      "Tick": 147008
+    },
+    {
+      "CauseId": "631394552252161",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 631394552252161UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 119,
+      "Tick": 147030
+    },
+    {
+      "CauseId": "119",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 4)",
+      "Id": 120,
+      "Tick": 147030
+    },
+    {
+      "CauseId": "119",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 11.6m completed=true. Recorded payload: Pass\n  (PlayerId 7, Some (PlayerId 4), 11.56522465, 1.0, true, -5.16157341,\n   -22.97374916, 5.074185221, -17.59010109)",
+      "Id": 121,
+      "Tick": 147030
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose pass (target slot 2) from 4 options using utility-weighted sampling (value 0.318, temperature 0.248, draw 0.786). Pressure 0; condition 0.98, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 122,
+      "Tick": 147032
+    },
+    {
+      "CauseId": "122",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 4 applied Pass, action ActionId 631497631466497UL, from (4.99, -17.65, 0.00).",
+      "Id": 123,
+      "Tick": 147032
+    },
+    {
+      "CauseId": "2814201583190903217",
+      "CauseKind": "event",
+      "Explanation": "ThrowIn awarded to Away at (-30.41, 33.70), restart RestartId 5UL. Recorded football cause: BallCrossedTouchline None.",
+      "Id": 124,
+      "Tick": 147138
+    },
+    {
+      "CauseId": "631497631466497",
+      "CauseKind": "action",
+      "Explanation": "SetPiece: ThrowIn. Recorded payload: SetPiece (ThrowIn, Away)",
+      "Id": 125,
+      "Tick": 147138
+    },
+    {
+      "CauseId": "5",
+      "CauseKind": "restart",
+      "Explanation": "Restart planned. Recorded payload: RestartPlanned (RestartId 5UL, PlayerId 103)",
+      "Id": 126,
+      "Tick": 147139
+    },
+    {
+      "CauseId": "5",
+      "CauseKind": "restart",
+      "Explanation": "Restart authorized. Recorded payload: RestartAuthorized (RestartId 5UL)",
+      "Id": 127,
+      "Tick": 147386
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 103 applied Restart ThrowIn, action ActionId 633022344881926UL, from (-30.41, 33.70, 0.00).",
+      "Id": 128,
+      "Tick": 147387
+    },
+    {
+      "CauseId": "5",
+      "CauseKind": "restart",
+      "Explanation": "Restart command issued. Recorded payload: RestartCommandIssued (RestartId 5UL, PlayerId 103)",
+      "Id": 129,
+      "Tick": 147387
+    },
+    {
+      "CauseId": "633022344881926",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 0.957: success=true, action=Some (ActionId 633022344881926UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 130,
+      "Tick": 147472
+    },
+    {
+      "CauseId": "5",
+      "CauseKind": "restart",
+      "Explanation": "Restart contact. Recorded payload: RestartContact (RestartId 5UL, PlayerId 103, ThrowIn)",
+      "Id": 131,
+      "Tick": 147472
+    },
+    {
+      "CauseId": "130",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Away. Recorded payload: Possession (Away, PlayerId 102)",
+      "Id": 132,
+      "Tick": 147472
+    },
+    {
+      "CauseId": "130",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 44.6m completed=true. Recorded payload: Pass\n  (PlayerId 103, Some (PlayerId 102), 44.62313409, 0.8, true, -34.29260254, 34.0,\n   -51.01503063, -7.371300376)",
+      "Id": 133,
+      "Tick": 147472
+    },
+    {
+      "CauseId": "5",
+      "CauseKind": "restart",
+      "Explanation": "Restart completed. Recorded payload: RestartCompleted (RestartId 5UL)",
+      "Id": 134,
+      "Tick": 147473
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 102 chose pass (target slot 7) from 6 options using utility-weighted sampling (value 4.157, temperature 0.248, draw 0.314). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 135,
+      "Tick": 147476
+    },
+    {
+      "CauseId": "135",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 102 applied Pass, action ActionId 633404596971009UL, from (-51.10, -7.43, 0.00).",
+      "Id": 136,
+      "Tick": 147476
+    },
+    {
+      "CauseId": "633404596971009",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 633404596971009UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 137,
+      "Tick": 147492
+    },
+    {
+      "CauseId": "137",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Away. Recorded payload: Possession (Away, PlayerId 108)",
+      "Id": 138,
+      "Tick": 147492
+    },
+    {
+      "CauseId": "137",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 8.5m completed=true. Recorded payload: Pass\n  (PlayerId 102, Some (PlayerId 108), 8.520709551, 1.0, true, -51.09529495,\n   -8.00374794, -45.78072066, -14.66391246)",
+      "Id": 139,
+      "Tick": 147492
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 108 chose pass (target slot 1) from 6 options using utility-weighted sampling (value 1.821, temperature 0.248, draw 0.915). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 140,
+      "Tick": 147496
+    },
+    {
+      "CauseId": "140",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 108 applied Pass, action ActionId 633490496318465UL, from (-45.91, -14.52, 0.00).",
+      "Id": 141,
+      "Tick": 147496
+    },
+    {
+      "CauseId": "9746390285163008017",
+      "CauseKind": "event",
+      "Explanation": "GoalKick awarded to Home at (-46.00, 0.00), restart RestartId 6UL. Recorded football cause: BallCrossedGoalLine None.",
+      "Id": 142,
+      "Tick": 147515
+    },
+    {
+      "CauseId": "633490496318465",
+      "CauseKind": "action",
+      "Explanation": "SetPiece: GoalKick. Recorded payload: SetPiece (GoalKick, Home)",
+      "Id": 143,
+      "Tick": 147515
+    },
+    {
+      "CauseId": "6",
+      "CauseKind": "restart",
+      "Explanation": "Restart planned. Recorded payload: RestartPlanned (RestartId 6UL, PlayerId 1)",
+      "Id": 144,
+      "Tick": 147516
+    },
+    {
+      "CauseId": "6",
+      "CauseKind": "restart",
+      "Explanation": "Restart authorized. Recorded payload: RestartAuthorized (RestartId 6UL)",
+      "Id": 145,
+      "Tick": 147566
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 1 applied Restart GoalKick, action ActionId 633795438969096UL, from (-46.00, 0.00, 0.00).",
+      "Id": 146,
+      "Tick": 147567
+    },
+    {
+      "CauseId": "6",
+      "CauseKind": "restart",
+      "Explanation": "Restart command issued. Recorded payload: RestartCommandIssued (RestartId 6UL, PlayerId 1)",
+      "Id": 147,
+      "Tick": 147567
+    },
+    {
+      "CauseId": "633795438969096",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 0.957: success=true, action=Some (ActionId 633795438969096UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 148,
+      "Tick": 147611
+    },
+    {
+      "CauseId": "6",
+      "CauseKind": "restart",
+      "Explanation": "Restart contact. Recorded payload: RestartContact (RestartId 6UL, PlayerId 1, GoalKick)",
+      "Id": 149,
+      "Tick": 147611
+    },
+    {
+      "CauseId": "148",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 2)",
+      "Id": 150,
+      "Tick": 147611
+    },
+    {
+      "CauseId": "148",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 24.0m completed=true. Recorded payload: Pass\n  (PlayerId 1, Some (PlayerId 2), 24.03171528, 0.8, true, -46.05193329,\n   6.323755315e-07, -23.02197505, -6.866174622)",
+      "Id": 151,
+      "Tick": 147611
+    },
+    {
+      "CauseId": "6",
+      "CauseKind": "restart",
+      "Explanation": "Restart completed. Recorded payload: RestartCompleted (RestartId 6UL)",
+      "Id": 152,
+      "Tick": 147612
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 2 chose pass (target slot 7) from 8 options using utility-weighted sampling (value 11.444, temperature 0.248, draw 0.132). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 153,
+      "Tick": 147616
+    },
+    {
+      "CauseId": "153",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 2 applied Pass, action ActionId 634005892366849UL, from (-22.88, -6.83, 0.00).",
+      "Id": 154,
+      "Tick": 147616
+    },
+    {
+      "CauseId": "634005892366849",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 0.977: success=true, action=Some (ActionId 634005892366849UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 155,
+      "Tick": 147648
+    },
+    {
+      "CauseId": "155",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 8)",
+      "Id": 156,
+      "Tick": 147648
+    },
+    {
+      "CauseId": "155",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 18.8m completed=true. Recorded payload: Pass\n  (PlayerId 2, Some (PlayerId 8), 18.75731492, 1.0, true, -22.97531509,\n   -7.080266953, -4.734820088, -11.45304697)",
+      "Id": 157,
+      "Tick": 147648
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 8 chose pass (target slot 6) from 3 options using utility-weighted sampling (value 9.324, temperature 0.248, draw 0.800). Pressure 1; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 158,
+      "Tick": 147652
+    },
+    {
+      "CauseId": "158",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 8 applied Pass, action ActionId 634160511191041UL, from (-4.98, -11.39, 0.00).",
+      "Id": 159,
+      "Tick": 147652
+    },
+    {
+      "CauseId": "634160511191041",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 634160511191041UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 160,
+      "Tick": 147671
+    },
+    {
+      "CauseId": "160",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 7)",
+      "Id": 161,
+      "Tick": 147671
+    },
+    {
+      "CauseId": "160",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 9.9m completed=true. Recorded payload: Pass\n  (PlayerId 8, Some (PlayerId 7), 9.931984658, 1.0, true, -5.995858669,\n   -11.73083019, -10.5890312, -20.53691249)",
+      "Id": 162,
+      "Tick": 147671
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 4.126, temperature 0.248, draw 0.876). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 163,
+      "Tick": 147672
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 4.126, temperature 0.248, draw 0.321). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 164,
+      "Tick": 147676
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 4.126, temperature 0.248, draw 0.506). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 165,
+      "Tick": 147680
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 4.126, temperature 0.248, draw 0.206). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 166,
+      "Tick": 147684
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 4.126, temperature 0.248, draw 0.442). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 167,
+      "Tick": 147688
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 9.126, temperature 0.248, draw 0.647). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 168,
+      "Tick": 147692
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 11.626, temperature 0.248, draw 0.232). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 169,
+      "Tick": 147696
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 11.626, temperature 0.248, draw 0.421). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 170,
+      "Tick": 147700
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 11.126, temperature 0.248, draw 0.223). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 171,
+      "Tick": 147704
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 10.626, temperature 0.248, draw 0.781). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 172,
+      "Tick": 147708
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 10.626, temperature 0.248, draw 0.976). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 173,
+      "Tick": 147712
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 10.626, temperature 0.248, draw 0.874). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 174,
+      "Tick": 147716
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 10.626, temperature 0.248, draw 0.368). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 175,
+      "Tick": 147720
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 10.626, temperature 0.248, draw 0.709). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 176,
+      "Tick": 147724
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 8.126, temperature 0.248, draw 0.809). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 177,
+      "Tick": 147728
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 8.126, temperature 0.248, draw 0.990). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 178,
+      "Tick": 147732
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 8.126, temperature 0.248, draw 0.243). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 179,
+      "Tick": 147736
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 8.126, temperature 0.248, draw 0.736). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 180,
+      "Tick": 147740
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 8.626, temperature 0.248, draw 0.813). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 181,
+      "Tick": 147744
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 8.626, temperature 0.248, draw 0.769). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 182,
+      "Tick": 147748
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 8.626, temperature 0.248, draw 0.233). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 183,
+      "Tick": 147752
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 7.626, temperature 0.248, draw 0.914). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 184,
+      "Tick": 147756
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 7 chose pass (target slot 4) from 4 options using utility-weighted sampling (value 7.850, temperature 0.248, draw 0.437). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 185,
+      "Tick": 147760
+    },
+    {
+      "CauseId": "185",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 7 applied Pass, action ActionId 634624367658753UL, from (-4.68, -25.07, 0.00).",
+      "Id": 186,
+      "Tick": 147760
+    },
+    {
+      "CauseId": "634624367658753",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 634624367658753UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 187,
+      "Tick": 147815
+    },
+    {
+      "CauseId": "187",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 5)",
+      "Id": 188,
+      "Tick": 147815
+    },
+    {
+      "CauseId": "187",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 38.7m completed=true. Recorded payload: Pass\n  (PlayerId 7, Some (PlayerId 5), 38.68390404, 1.0, true, -2.062743187,\n   -31.71068001, -37.84494949, -17.01108331)",
+      "Id": 189,
+      "Tick": 147815
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 5 chose pass (target slot 10) from 8 options using utility-weighted sampling (value 23.116, temperature 0.248, draw 0.511). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 190,
+      "Tick": 147816
+    },
+    {
+      "CauseId": "190",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 5 applied Pass, action ActionId 634864885826817UL, from (-37.76, -17.04, 0.00).",
+      "Id": 191,
+      "Tick": 147816
+    },
+    {
+      "CauseId": "634864885826817",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 634864885826817UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 192,
+      "Tick": 147865
+    },
+    {
+      "CauseId": "192",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 11)",
+      "Id": 193,
+      "Tick": 147865
+    },
+    {
+      "CauseId": "192",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 30.3m completed=true. Recorded payload: Pass\n  (PlayerId 5, Some (PlayerId 11), 30.30942012, 1.0, true, -38.19762802,\n   -18.25640297, -8.69945435, -11.2908665)",
+      "Id": 194,
+      "Tick": 147865
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 11 chose pass (target slot 1) from 8 options using utility-weighted sampling (value 5.070, temperature 0.248, draw 0.982). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 195,
+      "Tick": 147868
+    },
+    {
+      "CauseId": "195",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 11 applied Pass, action ActionId 635088224127745UL, from (-8.85, -11.33, 0.00).",
+      "Id": 196,
+      "Tick": 147868
+    },
+    {
+      "CauseId": "635088224127745",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 635088224127745UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 197,
+      "Tick": 147907
+    },
+    {
+      "CauseId": "197",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 2)",
+      "Id": 198,
+      "Tick": 147907
+    },
+    {
+      "CauseId": "197",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 18.3m completed=true. Recorded payload: Pass\n  (PlayerId 11, Some (PlayerId 2), 18.31879602, 1.0, true, -13.01462555,\n   -12.78334618, -30.12591328, -19.32415037)",
+      "Id": 199,
+      "Tick": 147907
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 2 chose pass (target slot 5) from 8 options using utility-weighted sampling (value 14.975, temperature 0.248, draw 0.686). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 200,
+      "Tick": 147908
+    },
+    {
+      "CauseId": "200",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 2 applied Pass, action ActionId 635260022817281UL, from (-30.05, -19.36, 0.00).",
+      "Id": 201,
+      "Tick": 147908
+    },
+    {
+      "CauseId": "635260022817281",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 635260022817281UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 202,
+      "Tick": 147943
+    },
+    {
+      "CauseId": "202",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 6)",
+      "Id": 203,
+      "Tick": 147943
+    },
+    {
+      "CauseId": "202",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 21.2m completed=true. Recorded payload: Pass\n  (PlayerId 2, Some (PlayerId 6), 21.16661272, 1.0, true, -32.90834808,\n   -20.78832054, -37.46691379, -0.1184155382)",
+      "Id": 204,
+      "Tick": 147943
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 6 chose pass (target slot 8) from 5 options using utility-weighted sampling (value 31.098, temperature 0.248, draw 0.289). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 205,
+      "Tick": 147944
+    },
+    {
+      "CauseId": "205",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 6 applied Pass, action ActionId 635414641640961UL, from (-37.43, -0.18, 0.00).",
+      "Id": 206,
+      "Tick": 147944
+    },
+    {
+      "CauseId": "635414641640961",
+      "CauseKind": "action",
+      "Explanation": "Current model resolved Reception with probability 1.000: success=true, action=Some (ActionId 635414641640961UL). This is a stochastic adjudication, not measured physical contact.",
+      "Id": 207,
+      "Tick": 147956
+    },
+    {
+      "CauseId": "207",
+      "CauseKind": "resolution",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 9)",
+      "Id": 208,
+      "Tick": 147956
+    },
+    {
+      "CauseId": "207",
+      "CauseKind": "resolution",
+      "Explanation": "Pass 5.6m completed=true. Recorded payload: Pass\n  (PlayerId 6, Some (PlayerId 9), 5.637579772, 1.0, true, -37.35165405,\n   -1.597982049, -32.79509016, -4.917625283)",
+      "Id": 209,
+      "Tick": 147956
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 9 chose pass (target slot 7) from 6 options using utility-weighted sampling (value 21.203, temperature 0.248, draw 0.714). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 210,
+      "Tick": 147960
+    },
+    {
+      "CauseId": "210",
+      "CauseKind": "decision",
+      "Explanation": "PlayerId 9 applied Pass, action ActionId 635483361118465UL, from (-32.99, -4.71, 0.00).",
+      "Id": 211,
+      "Tick": 147960
+    },
+    {
+      "CauseId": "635483361118465",
+      "CauseKind": "action",
+      "Explanation": "Pass 35.9m completed=false. Recorded payload: Pass\n  (PlayerId 9, Some (PlayerId 8), 35.8810821, 1.0, false, -37.49783707,\n   0.2939167321, -6.842802268, -18.35335905)",
+      "Id": 212,
+      "Tick": 148008
+    },
+    {
+      "CauseId": "635483361118465",
+      "CauseKind": "action",
+      "Explanation": "Interception. Recorded payload: Interception (PlayerId 4, PlayerId 9)",
+      "Id": 213,
+      "Tick": 148008
+    },
+    {
+      "CauseId": "635483361118465",
+      "CauseKind": "action",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 4)",
+      "Id": 214,
+      "Tick": 148008
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 4.626, temperature 0.248, draw 0.476). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 215,
+      "Tick": 148012
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 4.626, temperature 0.248, draw 0.500). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 216,
+      "Tick": 148016
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 3.126, temperature 0.248, draw 0.980). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 217,
+      "Tick": 148020
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 3.126, temperature 0.248, draw 0.116). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 218,
+      "Tick": 148024
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.113). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 219,
+      "Tick": 148028
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.253). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 220,
+      "Tick": 148032
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 3.876, temperature 0.248, draw 0.733). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 221,
+      "Tick": 148036
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 3.876, temperature 0.248, draw 0.806). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 222,
+      "Tick": 148040
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 4.376, temperature 0.248, draw 0.807). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 223,
+      "Tick": 148044
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 4.376, temperature 0.248, draw 0.865). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 224,
+      "Tick": 148048
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 4.376, temperature 0.248, draw 0.801). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 225,
+      "Tick": 148052
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 4.376, temperature 0.248, draw 0.622). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 226,
+      "Tick": 148056
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.803). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 227,
+      "Tick": 148060
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.890). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 228,
+      "Tick": 148064
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.926). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 229,
+      "Tick": 148068
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.014). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 230,
+      "Tick": 148072
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.087). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 231,
+      "Tick": 148076
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.810). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 232,
+      "Tick": 148080
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.494). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 233,
+      "Tick": 148084
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.040). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 234,
+      "Tick": 148088
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 4.126, temperature 0.248, draw 0.611). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 235,
+      "Tick": 148092
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 4.126, temperature 0.248, draw 0.130). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 236,
+      "Tick": 148096
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 3.126, temperature 0.248, draw 0.326). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 237,
+      "Tick": 148100
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 3.126, temperature 0.248, draw 0.203). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 238,
+      "Tick": 148104
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 3.126, temperature 0.248, draw 0.008). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 239,
+      "Tick": 148108
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.636). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 240,
+      "Tick": 148112
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.045). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 241,
+      "Tick": 148116
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.702). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 242,
+      "Tick": 148120
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 2.626, temperature 0.248, draw 0.553). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 243,
+      "Tick": 148124
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 5.126, temperature 0.248, draw 0.612). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 244,
+      "Tick": 148128
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 7.126, temperature 0.248, draw 0.013). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 245,
+      "Tick": 148132
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 5 options using utility-weighted sampling (value 5.876, temperature 0.248, draw 0.613). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 246,
+      "Tick": 148136
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 5.876, temperature 0.248, draw 0.362). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 247,
+      "Tick": 148140
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 4.876, temperature 0.248, draw 0.208). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 248,
+      "Tick": 148144
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 4.876, temperature 0.248, draw 0.986). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 249,
+      "Tick": 148148
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 5.376, temperature 0.248, draw 0.615). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 250,
+      "Tick": 148152
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 5.126, temperature 0.248, draw 0.875). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 251,
+      "Tick": 148156
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 5.126, temperature 0.248, draw 0.006). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 252,
+      "Tick": 148160
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 5.126, temperature 0.248, draw 0.518). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 253,
+      "Tick": 148164
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 5.126, temperature 0.248, draw 0.400). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 254,
+      "Tick": 148168
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 6.376, temperature 0.248, draw 0.099). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 255,
+      "Tick": 148172
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 6.376, temperature 0.248, draw 0.742). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 256,
+      "Tick": 148176
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 5.876, temperature 0.248, draw 0.880). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 257,
+      "Tick": 148180
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 6.126, temperature 0.248, draw 0.276). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 258,
+      "Tick": 148184
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 6.126, temperature 0.248, draw 0.952). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 259,
+      "Tick": 148188
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 6.126, temperature 0.248, draw 0.117). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 260,
+      "Tick": 148192
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 6.626, temperature 0.248, draw 0.824). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 261,
+      "Tick": 148196
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 6.626, temperature 0.248, draw 0.917). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 262,
+      "Tick": 148200
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 6.626, temperature 0.248, draw 0.653). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 263,
+      "Tick": 148204
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 6.376, temperature 0.248, draw 0.291). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 264,
+      "Tick": 148208
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 5.876, temperature 0.248, draw 0.499). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 265,
+      "Tick": 148212
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 6.126, temperature 0.248, draw 0.098). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 266,
+      "Tick": 148216
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 4 options using utility-weighted sampling (value 6.126, temperature 0.248, draw 0.615). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 267,
+      "Tick": 148220
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 6.126, temperature 0.248, draw 0.215). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 268,
+      "Tick": 148224
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 3 options using utility-weighted sampling (value 6.126, temperature 0.248, draw 0.724). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 269,
+      "Tick": 148228
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 6.376, temperature 0.248, draw 0.810). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 270,
+      "Tick": 148232
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 11.626, temperature 0.248, draw 0.944). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 271,
+      "Tick": 148236
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 11.626, temperature 0.248, draw 0.830). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 272,
+      "Tick": 148240
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 11.626, temperature 0.248, draw 0.018). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 273,
+      "Tick": 148244
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 11.126, temperature 0.248, draw 0.990). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 274,
+      "Tick": 148248
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 10.476, temperature 0.248, draw 0.280). Pressure 1; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 275,
+      "Tick": 148252
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 10.476, temperature 0.248, draw 0.670). Pressure 1; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 276,
+      "Tick": 148256
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 10.726, temperature 0.248, draw 0.276). Pressure 1; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 277,
+      "Tick": 148260
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 10.726, temperature 0.248, draw 0.576). Pressure 1; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 278,
+      "Tick": 148264
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Dribble succeeded=false. Recorded payload: Dribble (PlayerId 4, false, 7.931051254, -32.92881012)",
+      "Id": 279,
+      "Tick": 148264
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Tackle. Recorded payload: Tackle (PlayerId 102, PlayerId 4)",
+      "Id": 280,
+      "Tick": 148264
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Possession: Away. Recorded payload: Possession (Away, PlayerId 102)",
+      "Id": 281,
+      "Tick": 148264
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 102 had no evaluated option; current fallback selected duel. This is not an evaluated utility preference.",
+      "Id": 282,
+      "Tick": 148266
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 102 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 5.202, temperature 0.248, draw 0.751). Pressure 1; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 283,
+      "Tick": 148268
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Dribble succeeded=false. Recorded payload: Dribble (PlayerId 102, false, 6.790293694, -31.45843124)",
+      "Id": 284,
+      "Tick": 148268
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Tackle. Recorded payload: Tackle (PlayerId 4, PlayerId 102)",
+      "Id": 285,
+      "Tick": 148268
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Possession: Home. Recorded payload: Possession (Home, PlayerId 4)",
+      "Id": 286,
+      "Tick": 148268
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 4 chose duel (target slot -1) from 1 options using utility-weighted sampling (value 10.469, temperature 0.248, draw 0.820). Pressure 1; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 287,
+      "Tick": 148269
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Dribble succeeded=false. Recorded payload: Dribble (PlayerId 4, false, 8.532992363, -33.24631882)",
+      "Id": 288,
+      "Tick": 148270
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Tackle. Recorded payload: Tackle (PlayerId 102, PlayerId 4)",
+      "Id": 289,
+      "Tick": 148270
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Possession: Away. Recorded payload: Possession (Away, PlayerId 102)",
+      "Id": 290,
+      "Tick": 148270
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 102 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 8.202, temperature 0.248, draw 0.931). Pressure 1; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 291,
+      "Tick": 148271
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "PlayerId 102 chose duel (target slot -1) from 2 options using utility-weighted sampling (value 9.702, temperature 0.248, draw 0.155). Pressure 1; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 292,
+      "Tick": 148272
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Foul: Tactical. Recorded payload: Foul (PlayerId 102, PlayerId 4, Tactical, NoCard, (7.318174839, -32.04520798))",
+      "Id": 293,
+      "Tick": 148272
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Ball loose. Recorded payload: BallLoose (7.318174839, -32.04520798)",
+      "Id": 294,
+      "Tick": 148272
+    },
+    {
+      "CauseId": "6274552578220643012",
+      "CauseKind": "event",
+      "Explanation": "Referee assessed Foul: Tactical: penalty-area=false, advantage=false. These are the current model\u0027s assessments, not certification of legal correctness.",
+      "Id": 295,
+      "Tick": 148273
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Possession: Away. Recorded payload: Possession (Away, PlayerId 102)",
+      "Id": 296,
+      "Tick": 148273
+    },
+    {
+      "CauseId": "5665578820115983003",
+      "CauseKind": "event",
+      "Explanation": "FreeKick awarded to Home at (7.32, -32.05), restart RestartId 7UL. Recorded football cause: Foul (None, None).",
+      "Id": 297,
+      "Tick": 148273
+    },
+    {
+      "CauseId": "6274552578220643012",
+      "CauseKind": "event",
+      "Explanation": "SetPiece: FreeKick at 7.3,-32.0. Recorded payload: SetPieceAt (FreeKick, Home, 7.318174839, -32.04520798)",
+      "Id": 298,
+      "Tick": 148273
+    },
+    {
+      "CauseId": "7",
+      "CauseKind": "restart",
+      "Explanation": "Restart planned. Recorded payload: RestartPlanned (RestartId 7UL, PlayerId 4)",
+      "Id": 299,
+      "Tick": 148274
+    },
+    {
+      "CauseId": "",
+      "CauseKind": "none",
+      "Explanation": "Full time. Recorded payload: FullTime",
+      "Id": 300,
+      "Tick": 254521
+    }
+  ],
+  "Evicted": 0,
+  "FormatVersion": 1,
+  "Total": 300,
+  "Unlinked": 0
+}

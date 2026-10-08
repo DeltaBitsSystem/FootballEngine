@@ -1,0 +1,46 @@
+{
+  "Cycles": [],
+  "Enabled": true,
+  "Entries": [
+    {
+      "Causes": [
+        {
+          "Id": 53,
+          "Kind": "decision",
+          "Role": "source"
+        }
+      ],
+      "Duel": [
+        {
+          "Carrier": 104,
+          "Defender": 2,
+          "Foul": false,
+          "FoulDraw": 0.913296016444416,
+          "FoulProbability": 0.15,
+          "WinDraw": 0.015400887414907749,
+          "WinProbability": 0.5,
+          "Won": true,
+          "X": -39.98596954345703,
+          "Y": -13.647929191589355
+        }
+      ],
+      "Explanation": "PlayerId 104 contested PlayerId 2 at (-39.99, -13.65): current model win probability 0.500/draw 0.015; foul probability 0.150/draw 0.913; foul=false, won=true. Foul takes precedence over the win draw. This is stochastic adjudication, not measured body/ball contact or certification of legal severity.",
+      "Id": 54,
+      "Tick": 436
+    },
+    {
+      "Causes": [],
+      "Duel": [],
+      "Explanation": "PlayerId 104 chose duel (target slot -1) from 7 options using utility-weighted sampling (value 9.705, temperature 0.248, draw 0.540). Pressure 1; condition 1.00, cognition 0.91. Choice is not a guarantee of execution.",
+      "Id": 53,
+      "Tick": 436
+    }
+  ],
+  "Evicted": 0,
+  "FormatVersion": 2,
+  "FutureCauses": [],
+  "MissingCauses": [],
+  "Root": 54,
+  "Total": 29073,
+  "Unlinked": 0
+}

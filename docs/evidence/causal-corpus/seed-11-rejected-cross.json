@@ -1,0 +1,33 @@
+{
+  "Cycles": [],
+  "Enabled": true,
+  "Entries": [
+    {
+      "Causes": [
+        {
+          "Id": 551,
+          "Kind": "decision",
+          "Role": "source"
+        }
+      ],
+      "Duel": [],
+      "Explanation": "PlayerId 7 attempted a cross but the current target search found no eligible teammate in its target region. No impulse was applied; CrossAttempt is intention, not a consumed physical contact.",
+      "Id": 552,
+      "Tick": 148920
+    },
+    {
+      "Causes": [],
+      "Duel": [],
+      "Explanation": "PlayerId 7 chose cross (target slot -1) from 9 options using utility-weighted sampling (value 0.636, temperature 0.248, draw 0.022). Pressure 0; condition 0.98, cognition 0.90. Choice is not a guarantee of execution.",
+      "Id": 551,
+      "Tick": 148920
+    }
+  ],
+  "Evicted": 0,
+  "FormatVersion": 2,
+  "FutureCauses": [],
+  "MissingCauses": [],
+  "Root": 552,
+  "Total": 25833,
+  "Unlinked": 0
+}
