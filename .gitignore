@@ -76,10 +76,24 @@
 !/FootballEngine.Client/Assets/MatchViewer/*.py
 !/FootballEngine.Client/Assets/MatchViewer/player-*.png
 !/FootballEngine.Client/Assets/MatchViewer/players.blend
+!/FootballEngine.Client/Assets/MatchViewer/player.glb
+!/FootballEngine.Client/Assets/MatchViewer/player-motion.json
+!/FootballEngine.Client/Assets/MatchViewer/Sources/MakeHuman/base.obj
+!/FootballEngine.Client/Assets/MatchViewer/Sources/MakeHuman/*.target
+!/FootballEngine.Client/Assets/MatchViewer/Sources/MakeHuman/*.json
+!/FootballEngine.Client/Assets/MatchViewer/Sources/MakeHuman/*.md
 !/FootballEngine.Client/Assets/MatchViewer/pitch-floodlit.blend
 !/FootballEngine.Client/Assets/MatchViewer/stadium.glb
 !/FootballEngine.Client/Assets/MatchViewer/manifest.json
 !/FootballEngine.Client/Assets/MatchViewer/LICENSES.md
+!/FootballEngine.Client/Assets/MatchViewer/Surfaces/*.bin
+!/FootballEngine.Client/Assets/MatchViewer/Surfaces/manifest.json
+!/FootballEngine.Client/Assets/MatchViewer/Surfaces/README.md
+!/FootballEngine.Client/Assets/MatchViewer/Surfaces/Sources/Grass004_1K-PNG_*.png
+!/FootballEngine.Client/Assets/MatchViewer/Surfaces/Sources/concrete_floor_02_*_1k.jpg
+!/FootballEngine.Client/Assets/MatchViewer/Lighting/*.bin
+!/FootballEngine.Client/Assets/MatchViewer/Lighting/manifest.json
+!/FootballEngine.Client/Match3D/Shaders/*.wgsl
 
 # --- Planes de agencia (opencode) ---
 !/.opencode/**

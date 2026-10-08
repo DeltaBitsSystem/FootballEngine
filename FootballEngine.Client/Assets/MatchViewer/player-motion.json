@@ -1,0 +1,210 @@
+{
+  "author": "FootballEngine anatomical adaptation, clothing, textures and motion",
+  "blenderVersion": "5.2.2 LTS",
+  "clips": [
+    {
+      "contact": null,
+      "durationSeconds": 2.0,
+      "id": "idle",
+      "kind": "idle",
+      "loop": true,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": null,
+      "durationSeconds": 1.0,
+      "id": "walk",
+      "kind": "locomotion",
+      "loop": true,
+      "nominalSpeedMetersPerSecond": 1.2
+    },
+    {
+      "contact": null,
+      "durationSeconds": 0.7,
+      "id": "run",
+      "kind": "locomotion",
+      "loop": true,
+      "nominalSpeedMetersPerSecond": 3.8
+    },
+    {
+      "contact": null,
+      "durationSeconds": 0.5666666666666667,
+      "id": "sprint",
+      "kind": "locomotion",
+      "loop": true,
+      "nominalSpeedMetersPerSecond": 6.5
+    },
+    {
+      "contact": null,
+      "durationSeconds": 0.9,
+      "id": "turn_left",
+      "kind": "turn",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": null,
+      "durationSeconds": 0.9,
+      "id": "turn_right",
+      "kind": "turn",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": null,
+      "durationSeconds": 1.0,
+      "id": "shield_left",
+      "kind": "shield",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": null,
+      "durationSeconds": 1.0,
+      "id": "shield_right",
+      "kind": "shield",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": {
+        "limb": "leftFoot",
+        "normalizedTime": 0.5
+      },
+      "durationSeconds": 0.85,
+      "id": "pass_left",
+      "kind": "pass",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": {
+        "limb": "rightFoot",
+        "normalizedTime": 0.5
+      },
+      "durationSeconds": 0.85,
+      "id": "pass_right",
+      "kind": "pass",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": {
+        "limb": "leftFoot",
+        "normalizedTime": 0.5
+      },
+      "durationSeconds": 1.05,
+      "id": "shot_left",
+      "kind": "shot",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": {
+        "limb": "rightFoot",
+        "normalizedTime": 0.5
+      },
+      "durationSeconds": 1.05,
+      "id": "shot_right",
+      "kind": "shot",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": {
+        "limb": "leftFoot",
+        "normalizedTime": 0.5
+      },
+      "durationSeconds": 0.75,
+      "id": "receive_left",
+      "kind": "receive",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": {
+        "limb": "rightFoot",
+        "normalizedTime": 0.5
+      },
+      "durationSeconds": 0.75,
+      "id": "receive_right",
+      "kind": "receive",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": {
+        "limb": "leftFoot",
+        "normalizedTime": 0.5
+      },
+      "durationSeconds": 1.1,
+      "id": "tackle_left",
+      "kind": "tackle",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": {
+        "limb": "rightFoot",
+        "normalizedTime": 0.5
+      },
+      "durationSeconds": 1.1,
+      "id": "tackle_right",
+      "kind": "tackle",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": null,
+      "durationSeconds": 1.5,
+      "id": "keeper_ready",
+      "kind": "keeper",
+      "loop": true,
+      "nominalSpeedMetersPerSecond": 0.0
+    },
+    {
+      "contact": {
+        "limb": "bothHands",
+        "normalizedTime": 0.5
+      },
+      "durationSeconds": 1.1,
+      "id": "throw_in",
+      "kind": "throw",
+      "loop": false,
+      "nominalSpeedMetersPerSecond": 0.0
+    }
+  ],
+  "coordinates": {
+    "forward": "+Z",
+    "units": "metres",
+    "up": "+Y"
+  },
+  "file": {
+    "path": "player.glb",
+    "sha256": "661e4f664b105c4741b4a4c9e483fe23fe6614aba902a08e03d9b088ef3dd510"
+  },
+  "joints": 22,
+  "qualityStatus": "first-party authoring corpus; gameplay/contact acceptance pending",
+  "rigSchemaVersion": 1,
+  "rootMotion": "in-place; match engine owns world transform",
+  "schemaVersion": 1,
+  "source": [
+    "generate_players.py",
+    "player_authoring.py",
+    "human_authoring.py",
+    "Sources/MakeHuman/sources.json"
+  ],
+  "textures": [
+    {
+      "path": "player-albedo.png",
+      "sha256": "75197697bffe9679a805c46c799c0030566537ab2260137eaf7bb35ff46f92e1"
+    },
+    {
+      "path": "player-normal-roughness.png",
+      "sha256": "c4ba0e3ea3e5d15cefc0265f80528a16542b24daa740030b780b18b0baf1485b"
+    }
+  ],
+  "thirdPartyGeometryLicense": "CC0-1.0; MakeHuman hm08 and anatomical targets",
+  "thirdPartyGeometryOrMotion": true,
+  "thirdPartyMotion": false
+}
