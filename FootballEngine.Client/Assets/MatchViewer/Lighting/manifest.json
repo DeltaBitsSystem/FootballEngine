@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "width": 128,
+  "height": 64,
+  "layers": 7,
+  "specularLayers": 6,
+  "diffuseLayer": 6,
+  "lutSize": 128,
+  "samples": 256,
+  "encoding": "little-endian IEEE754 binary16, scene-linear RGB; environment RGBA, BRDF RG",
+  "projection": "equirectangular: atan2(z,x), acos(y), right-handed Y-up",
+  "source": "project-owned analytic daylight sky without solar disc; not a photographed HDRI",
+  "roughness": [
+    0,
+    0.2,
+    0.4,
+    0.6,
+    0.8,
+    1
+  ],
+  "files": [
+    {
+      "path": "environment.bin",
+      "bytes": 458752,
+      "sha256": "35990e8a6b3ed3dfb763beae3236cb11bbadcd02852214d167f80edb44c43582"
+    },
+    {
+      "path": "brdf.bin",
+      "bytes": 65536,
+      "sha256": "6e4ec5f84e9d7c65075e160794d0614703274ab1eb4d125cc777c96416418961"
+    }
+  ]
+}

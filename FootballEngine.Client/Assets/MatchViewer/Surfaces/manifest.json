@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "size": 1024,
+  "layers": 2,
+  "levels": 11,
+  "layout": "mip-major/layer-major RGBA8",
+  "albedo": "sRGB",
+  "normal": "OpenGL tangent-space",
+  "arm": "AO/roughness/metallic linear",
+  "materials": [
+    "ambientCG Grass004: 1.4 metres/tile, pitch colour calibration",
+    "Poly Haven concrete_floor_02: 2 metres/tile"
+  ],
+  "author": "ambientCG (Grass004); Rob Tuytel (concrete)",
+  "license": "CC0-1.0",
+  "source": [
+    "https://ambientcg.com/a/Grass004",
+    "https://polyhaven.com/a/concrete_floor_02"
+  ],
+  "licenseUrl": [
+    "https://docs.ambientcg.com/license/",
+    "https://polyhaven.com/license"
+  ],
+  "sources": [
+    {
+      "path": "Sources/concrete_floor_02_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_diff_1k.jpg",
+      "sha256": "6db84a6d87dc50508b9d134d6fbd2b7e876b8081a5f43a118a249ca18de73af5"
+    },
+    {
+      "path": "Sources/concrete_floor_02_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_nor_gl_1k.jpg",
+      "sha256": "fcda391b57a816d646ae15544688be53790478da5cd48dbe514b3c6901415e61"
+    },
+    {
+      "path": "Sources/concrete_floor_02_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_arm_1k.jpg",
+      "sha256": "01d80e4cb4eb4605902d1c1362da1c309fdba5907039acddd9226d893bbd8946"
+    },
+    {
+      "path": "Sources/Grass004_1K-PNG_Color.png",
+      "url": "https://ambientcg.com/get?file=Grass004_1K-PNG.zip",
+      "sha256": "1c504b956e5550fedd8822e7e2135fe45f513bc1212f72ed67885de1002fabb6"
+    },
+    {
+      "path": "Sources/Grass004_1K-PNG_NormalGL.png",
+      "url": "https://ambientcg.com/get?file=Grass004_1K-PNG.zip",
+      "sha256": "a6fce3c4f2c5d486b5c993bf47b47ce9d4c1dbb04ecef424ad2c0b703715c3c6"
+    },
+    {
+      "path": "Sources/Grass004_1K-PNG_Roughness.png",
+      "url": "https://ambientcg.com/get?file=Grass004_1K-PNG.zip",
+      "sha256": "c3bac30c64d246019e80dd6448544ac381706d43eb583e5ac875cb4f6eece6d8"
+    },
+    {
+      "path": "Sources/Grass004_1K-PNG_AmbientOcclusion.png",
+      "url": "https://ambientcg.com/get?file=Grass004_1K-PNG.zip",
+      "sha256": "2b90f33cb488385e18d698b6d8e8c649116ebc7478bf7dbd5d08214884adabaf"
+    }
+  ],
+  "files": [
+    {
+      "path": "albedo.bin",
+      "sha256": "a6acf9ee9614e746dbff1458fc8d7f976c2fde7c990156c005143fbca2cd4ead",
+      "bytes": 11184808
+    },
+    {
+      "path": "normal.bin",
+      "sha256": "fefa15b5dd3c35b1d38585956e15675583dc018c9dae6865fdb12457fc63f27e",
+      "bytes": 11184808
+    },
+    {
+      "path": "arm.bin",
+      "sha256": "65849e29cd3292c06a9dfde8c6debcce1949e0f2bb8097008d281a71ccf12c70",
+      "bytes": 11184808
+    }
+  ]
+}
