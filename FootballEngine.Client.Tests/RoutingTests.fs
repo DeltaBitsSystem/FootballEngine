@@ -178,7 +178,7 @@ let matchNavigationTests =
                   Expect.equal matchId fixture.Id "the current user match opens"
               | message -> failtestf "expected prematch navigation first, got %A" message
 
-          testCase "replay v6 preserves roster identity and remaps active substitutes"
+          testCase "replay v10 preserves body orientation and remaps active substitutes"
           <| fun _ ->
               let snapshot: Replay.ReplaySnapshot =
                   { Tick = 0<subtick>
@@ -199,8 +199,12 @@ let matchNavigationTests =
                     BallVx = 8.0f
                     BallVy = -2.0f
                     BallVz = 1.0f
-                    BallSpinTop = 3.0f
-                    BallSpinSide = 0.5f
+                    BallSpinX = 0.0f
+                    BallSpinY = 3.0f
+                    BallSpinZ = 0.5f
+                    BallRadius = 0.11f
+                    BallOrientation = System.Numerics.Quaternion.Identity
+                    FootMotion = None
                     BallControlSide = 0y
                     BallController = 1
                     RefereeX = 2.0f
@@ -212,15 +216,27 @@ let matchNavigationTests =
                     RefereeSignal = 1uy
                     HomeX = [| -10.0f; 0.0f; 0.0f |]
                     HomeY = [| 0.0f; 5.0f; 0.0f |]
+                    HomeZ = [| 0.35f; 0.0f; 0.0f |]
+                    HomeVz = [| -1.25f; 0.0f; 0.0f |]
                     HomeVx = [| 4.0f; 2.0f; 0.0f |]
                     HomeVy = [| 1.0f; 0.0f; 0.0f |]
+                    HomeFacing = [| 0.5f; -1.0f; 0.0f |]
+                    HomeAngularVelocity = [| 0.2f; -0.3f; 0.0f |]
+                    HomeAngularAcceleration = [| 0.1f; 0.0f; 0.0f |]
+                    HomeTravelDistance = [| 3.5f; 1.25f; 0.0f |]
                     HomeCondition = [| 0.9f; 0.7f; 0.5f |]
                     HomeIntent = [| 1uy; 2uy; 0uy |]
                     HomeActive = [| true; true; false |]
                     AwayX = [| 10.0f; 0.0f; 0.0f |]
                     AwayY = [| 0.0f; -5.0f; 0.0f |]
+                    AwayZ = [| 0.0f; 0.42f; 0.0f |]
+                    AwayVz = [| 0.0f; 1.5f; 0.0f |]
                     AwayVx = [| -3.0f; -1.0f; 0.0f |]
                     AwayVy = [| 0.0f; 1.0f; 0.0f |]
+                    AwayFacing = [| -0.5f; 1.0f; 0.0f |]
+                    AwayAngularVelocity = [| 0.0f; 0.4f; 0.0f |]
+                    AwayAngularAcceleration = [| -0.1f; 0.0f; 0.0f |]
+                    AwayTravelDistance = [| 0.5f; 2.0f; 0.0f |]
                     AwayCondition = [| 0.8f; 0.6f; 0.5f |]
                     AwayIntent = [| 1uy; 2uy; 0uy |]
                     AwayActive = [| true; true; false |] }
@@ -229,6 +245,16 @@ let matchNavigationTests =
               let restored = Replay.read replay |> Seq.exactlyOne
               Expect.equal restored.HomePlayerIds snapshot.HomePlayerIds "home roster identity survives serialization"
               Expect.equal restored.AwayPlayerIds snapshot.AwayPlayerIds "away roster identity survives serialization"
+              Expect.equal restored.HomeFacing snapshot.HomeFacing "home body facing survives serialization"
+              Expect.equal restored.HomeZ snapshot.HomeZ "home body elevation survives serialization"
+              Expect.equal restored.HomeVz snapshot.HomeVz "home vertical velocity survives serialization"
+              Expect.equal restored.AwayZ snapshot.AwayZ "away body elevation survives serialization"
+              Expect.equal restored.AwayVz snapshot.AwayVz "away vertical velocity survives serialization"
+
+              Expect.equal
+                  restored.AwayAngularVelocity
+                  snapshot.AwayAngularVelocity
+                  "away angular velocity survives serialization"
 
               let frame =
                   MatchProjection.project
@@ -250,15 +276,55 @@ let matchNavigationTests =
                       restored
                       0.0
 
-              Expect.equal replay.Meta.Version 6 "visual replay schema is explicit"
+              Expect.equal replay.Meta.Version 10 "visual replay schema is explicit"
+              Expect.equal restored.HomeTravelDistance snapshot.HomeTravelDistance "travel distance survives replay"
               Expect.equal frame.Players.Length 4 "only active players are rendered"
               Expect.equal frame.Officials.Length 3 "the referee team is projected"
               Expect.equal frame.Officials[0].Signal OfficialSignal.Whistle "the referee signal survives replay"
               Expect.equal frame.Ball.Velocity.X 8.0 "ball velocity survives replay"
+              let homeCarrier = frame.Players |> Array.find (fun player -> player.Id = 1)
+              Expect.equal homeCarrier.TravelDistance 3.5 "projection preserves distance-driven gait"
+              Expect.equal homeCarrier.Height (float snapshot.HomeZ[0]) "projection preserves authoritative body height"
+              Expect.equal homeCarrier.VelocityZ -1.25 "projection preserves descending motion"
+
+              let airborne =
+                  { homeCarrier with
+                      Height = 0.0
+                      VelocityZ = 4.0 }
+
+              let descending =
+                  { homeCarrier with
+                      Height = 0.0
+                      VelocityZ = -4.0 }
+
+              let start = { frame with Players = [| airborne |] }
+
+              let finish =
+                  { frame with
+                      Players = [| descending |] }
+
+              let apex = MatchInterp.hermite start finish 0.5 0.8
+              Expect.floatClose Accuracy.medium apex.Players[0].Height 0.8 "vertical tangents preserve the jump apex"
+              Expect.floatClose Accuracy.medium apex.Players[0].VelocityZ 0.0 "vertical velocity vanishes at the apex"
+
+              Expect.equal
+                  (MatchInterp.hermite start finish 0.0 0.8).Players[0].Height
+                  0.0
+                  "takeoff starts on the ground"
+
+              Expect.equal
+                  (MatchInterp.hermite start finish 1.0 0.8).Players[0].Height
+                  0.0
+                  "landing returns to the ground"
+
+              Expect.equal
+                  homeCarrier.BodyFacing
+                  (float snapshot.HomeFacing[0])
+                  "projection uses authoritative body facing"
 
               let oldFormat = Array.copy replay.Snapshots
 
-              BitConverter.GetBytes(5)
+              BitConverter.GetBytes(6)
               |> fun version -> Array.blit version 0 oldFormat 4 version.Length
 
               let oldReplayRejected =

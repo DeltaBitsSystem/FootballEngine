@@ -50,7 +50,16 @@
         <Compile Include="Views\Components\MatchCamera.fs"/>
         <Compile Include="Views\Components\MatchProjection.fs"/>
         <Compile Include="Match3D\StadiumAsset.fs"/>
+        <Compile Include="Match3D\PitchMarkings.fs"/>
+        <Compile Include="Match3D\CharacterAsset.fs"/>
+        <Compile Include="Match3D\SurfaceTexturePack.fs"/>
+        <Compile Include="Match3D\HdrLighting.fs"/>
+        <Compile Include="Match3D\HdrOutputPass.fs"/>
+        <Compile Include="Match3D\MatchHudInvalidation.fs"/>
+        <Compile Include="Match3D\MatchHudRenderer.fs"/>
         <Compile Include="Match3D\WebGpuStadiumRenderer.fs"/>
+        <Compile Include="Match3D\PresentationLoop.fs"/>
+        <Compile Include="Match3D\RenderWorker.fs"/>
         <Compile Include="Views\MatchPitch\RenderResources.fs"/>
         <Compile Include="Views\MatchPitch\PitchRenderer.fs"/>
         <Compile Include="Views\MatchPitch\EntityRenderer.fs"/>
@@ -85,7 +94,16 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <Link>Data\%(RecursiveDir)%(Filename)%(Extension)</Link>
         </Content>
+        <Content Include="Assets\MatchViewer\Surfaces\*.bin;Assets\MatchViewer\Surfaces\manifest.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="Assets\MatchViewer\Lighting\*.bin;Assets\MatchViewer\Lighting\manifest.json;Match3D\Shaders\*.wgsl">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
         <Content Include="Assets\MatchViewer\stadium.glb">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="Assets\MatchViewer\player.glb;Assets\MatchViewer\player-motion.json;Assets\MatchViewer\player-albedo.png;Assets\MatchViewer\player-normal-roughness.png">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>

@@ -53,8 +53,13 @@ module MatchProjection =
         (isHome: bool)
         (xs: float32[])
         (ys: float32[])
+        (zs: float32[])
+        (vzs: float32[])
         (vxs: float32[])
         (vys: float32[])
+        (facings: float32[])
+        (angularVelocities: float32[])
+        (travelDistances: float32[])
         (conditions: float32[])
         (active: bool[])
         (ids: FootballEngine.Core.Match.PlayerId[])
@@ -66,8 +71,13 @@ module MatchProjection =
 
         if
             ys.Length <> slotCount
+            || zs.Length <> slotCount
+            || vzs.Length <> slotCount
             || vxs.Length <> slotCount
             || vys.Length <> slotCount
+            || facings.Length <> slotCount
+            || angularVelocities.Length <> slotCount
+            || travelDistances.Length <> slotCount
             || conditions.Length <> slotCount
             || active.Length <> slotCount
             || ids.Length <> slotCount
@@ -128,8 +138,13 @@ module MatchProjection =
                 Some
                     { Id = id
                       Position = { X = float x; Y = float ys[i] }
+                      Height = float zs[i]
+                      VelocityZ = float vzs[i]
                       Velocity = { X = vx; Y = vy }
                       Acceleration = Vector2.zero
+                      BodyFacing = float facings[i]
+                      AngularVelocity = float angularVelocities[i]
+                      TravelDistance = float travelDistances[i]
                       State = visualState
                       VisualSlot = visualSlots[i]
                       ShortName = name
@@ -161,8 +176,13 @@ module MatchProjection =
                 true
                 snapshot.HomeX
                 snapshot.HomeY
+                snapshot.HomeZ
+                snapshot.HomeVz
                 snapshot.HomeVx
                 snapshot.HomeVy
+                snapshot.HomeFacing
+                snapshot.HomeAngularVelocity
+                snapshot.HomeTravelDistance
                 snapshot.HomeCondition
                 snapshot.HomeActive
                 snapshot.HomePlayerIds
@@ -178,8 +198,13 @@ module MatchProjection =
                 false
                 snapshot.AwayX
                 snapshot.AwayY
+                snapshot.AwayZ
+                snapshot.AwayVz
                 snapshot.AwayVx
                 snapshot.AwayVy
+                snapshot.AwayFacing
+                snapshot.AwayAngularVelocity
+                snapshot.AwayTravelDistance
                 snapshot.AwayCondition
                 snapshot.AwayActive
                 snapshot.AwayPlayerIds
@@ -198,9 +223,10 @@ module MatchProjection =
                 { X = float snapshot.BallVx
                   Y = float snapshot.BallVy }
               VelocityZ = float snapshot.BallVz
-              Spin =
-                { X = float snapshot.BallSpinSide
-                  Y = float snapshot.BallSpinTop }
+              Orientation = snapshot.BallOrientation
+              AngularVelocity = System.Numerics.Vector3(snapshot.BallSpinX, snapshot.BallSpinY, snapshot.BallSpinZ)
+              Radius = float snapshot.BallRadius
+              FootMotion = snapshot.FootMotion
               Height = float snapshot.BallZ }
 
         let officials =
@@ -235,6 +261,33 @@ module MatchProjection =
 
 module MatchInterp =
 
+    let private advanceOrientation orientation (rotation: System.Numerics.Vector3) =
+        let angle = rotation.Length()
+
+        if angle < 1e-8f then
+            orientation
+        else
+            System.Numerics.Quaternion.Normalize(
+                System.Numerics.Quaternion.CreateFromAxisAngle(rotation / angle, angle)
+                * orientation
+            )
+
+    let private orientationBetween (a: RenderBall) (b: RenderBall) t dt =
+        // A rolling football can turn more than pi per pose; shortest-arc slerp alone would reverse its spin.
+        let average = (a.AngularVelocity + b.AngularVelocity) * 0.5f
+        let predictedEnd = advanceOrientation a.Orientation (average * float32 dt)
+        let correction = b.Orientation * System.Numerics.Quaternion.Inverse predictedEnd
+
+        let rotation =
+            (a.AngularVelocity * float32 t
+             + (b.AngularVelocity - a.AngularVelocity) * float32 (0.5 * t * t))
+            * float32 dt
+
+        System.Numerics.Quaternion.Normalize(
+            System.Numerics.Quaternion.Slerp(System.Numerics.Quaternion.Identity, correction, float32 t)
+            * advanceOrientation a.Orientation rotation
+        )
+
     let private hermiteScalar (p0: float) (v0: float) (p1: float) (v1: float) (t: float) (dt: float) =
         let t2 = t * t
         let t3 = t2 * t
@@ -266,6 +319,12 @@ module MatchInterp =
                     Some
                         { p0 with
                             Position = hermiteVec2 p0.Position p0.Velocity p1.Position p1.Velocity t dt
+                            Height = max 0.0 (hermiteScalar p0.Height p0.VelocityZ p1.Height p1.VelocityZ t dt)
+                            VelocityZ =
+                                dh00 * p0.Height / dt
+                                + dh10 * p0.VelocityZ
+                                + dh01 * p1.Height / dt
+                                + dh11 * p1.VelocityZ
                             Velocity =
                                 { X =
                                     dh00 * p0.Position.X / dt
@@ -280,6 +339,13 @@ module MatchInterp =
                             Acceleration =
                                 { X = (p1.Velocity.X - p0.Velocity.X) / dt
                                   Y = (p1.Velocity.Y - p0.Velocity.Y) / dt }
+                            BodyFacing =
+                                let delta =
+                                    atan2 (sin (p1.BodyFacing - p0.BodyFacing)) (cos (p1.BodyFacing - p0.BodyFacing))
+
+                                atan2 (sin (p0.BodyFacing + t * delta)) (cos (p0.BodyFacing + t * delta))
+                            AngularVelocity = p0.AngularVelocity + (p1.AngularVelocity - p0.AngularVelocity) * t
+                            TravelDistance = p0.TravelDistance + (p1.TravelDistance - p0.TravelDistance) * t
                             State = p0.State })
 
             |> fun existing ->
@@ -317,8 +383,15 @@ module MatchInterp =
                 + dh10 * b0.VelocityZ
                 + dh01 * b1.Height / dt
                 + dh11 * b1.VelocityZ
-              Spin = Vector2.scale (1.0 - t) b0.Spin |> Vector2.add (Vector2.scale t b1.Spin)
-              Height = hermiteScalar b0.Height b0.VelocityZ b1.Height b1.VelocityZ t dt }
+              Orientation = orientationBetween b0 b1 t dt
+              AngularVelocity = System.Numerics.Vector3.Lerp(b0.AngularVelocity, b1.AngularVelocity, float32 t)
+              Radius = b0.Radius
+              FootMotion =
+                if t < 1.0 then
+                    b0.FootMotion |> Option.orElse b1.FootMotion
+                else
+                    b1.FootMotion
+              Height = max 0.0 (hermiteScalar b0.Height b0.VelocityZ b1.Height b1.VelocityZ t dt) }
 
         let officials =
             Array.map2
@@ -328,6 +401,83 @@ module MatchInterp =
                         Signal = if t < 0.5 then a.Signal else b.Signal })
                 frame0.Officials
                 frame1.Officials
+
+        let ball =
+            match frame1.Ball.FootMotion with
+            | Some motion when
+                float motion.ContactAt / 40.0 > frame0.TimeSeconds
+                && float motion.ContactAt / 40.0 <= frame1.TimeSeconds
+                ->
+                // Split at the impulse: outgoing velocity must never bend the pre-contact trajectory.
+                let contactTime = float motion.ContactAt / 40.0
+                let now = frame0.TimeSeconds + t * dt
+
+                let contactPosition =
+                    Vector2.create (float motion.BallCenter.X) (float motion.BallCenter.Y)
+
+                let contactHeight = max 0.0 (float motion.BallCenter.Z - ball.Radius)
+                let before = now < contactTime
+
+                let startTime, endTime =
+                    if before then
+                        frame0.TimeSeconds, contactTime
+                    else
+                        contactTime, frame1.TimeSeconds
+
+                let duration = endTime - startTime
+
+                let fraction =
+                    if duration <= 0.0 then
+                        1.0
+                    else
+                        System.Math.Clamp((now - startTime) / duration, 0.0, 1.0)
+
+                let a, b, velocity, heightA, heightB, velocityZ =
+                    if before then
+                        frame0.Ball.Position,
+                        contactPosition,
+                        frame0.Ball.Velocity,
+                        frame0.Ball.Height,
+                        contactHeight,
+                        frame0.Ball.VelocityZ
+                    else
+                        contactPosition,
+                        frame1.Ball.Position,
+                        frame1.Ball.Velocity,
+                        contactHeight,
+                        frame1.Ball.Height,
+                        frame1.Ball.VelocityZ
+
+                let contactOrientation =
+                    advanceOrientation
+                        frame0.Ball.Orientation
+                        (frame0.Ball.AngularVelocity * float32 (contactTime - frame0.TimeSeconds))
+
+                let orientation =
+                    if before then
+                        advanceOrientation
+                            frame0.Ball.Orientation
+                            (frame0.Ball.AngularVelocity * float32 (now - frame0.TimeSeconds))
+                    else
+                        let contactBall =
+                            { frame1.Ball with
+                                Orientation = contactOrientation }
+
+                        orientationBetween contactBall frame1.Ball fraction duration
+
+                { ball with
+                    Position = hermiteVec2 a velocity b velocity fraction duration
+                    Height = max 0.0 (hermiteScalar heightA velocityZ heightB velocityZ fraction duration)
+                    Velocity = velocity
+                    VelocityZ = velocityZ
+                    Orientation = orientation
+                    AngularVelocity =
+                        if before then
+                            frame0.Ball.AngularVelocity
+                        else
+                            frame1.Ball.AngularVelocity
+                    FootMotion = Some motion }
+            | _ -> ball
 
         { frame0 with
             Players = players

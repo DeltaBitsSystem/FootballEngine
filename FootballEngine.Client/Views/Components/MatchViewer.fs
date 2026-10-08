@@ -14,6 +14,7 @@ open FootballEngine.AppTypes
 open FootballEngine.Client.Match3D
 open FootballEngine.Client.Views.Components
 open FootballEngine.Client.Views.MatchPitch
+open FootballEngine.Icons
 open FootballEngine.LiveMatch
 
 module MatchViewer =
@@ -118,7 +119,7 @@ module MatchViewer =
     let private livePitch (runtimeId: MatchRuntimeId) (live: LiveMatchState) : IView =
         Border.create
             [ Border.background Theme.BgMain
-              Border.child (MatchPitch.view runtimeId live.Fixture) ]
+              Border.child (MatchPitch.view runtimeId live) ]
 
     let private scoreHeader (live: LiveMatchState) : IView =
         let score = live.Score
@@ -221,9 +222,7 @@ module MatchViewer =
                        |> Array.take team.StarterCount
                        |> Array.map (fun player ->
                            TextBlock.create
-                               [ TextBlock.text (
-                                     (if player.IsGoalkeeper then "GK · " else "") + player.Name
-                                 )
+                               [ TextBlock.text ((if player.IsGoalkeeper then "GK · " else "") + player.Name)
                                  TextBlock.foreground Theme.TextSub ]
                            :> IView)
                        |> Array.toList) ]
@@ -429,73 +428,237 @@ module MatchViewer =
                              events) ] ]
 
     let private controlDock (live: LiveMatchState) (dispatch: Msg -> unit) : IView =
+        let tokens = Theme.currentTokens.Value
+        let colors = tokens.Colors
+        let canControl = live.Source = LiveSession && live.Status <> Finished
+        let localized key = Localization.resolve key []
+
+        let dockButton (label: string) icon selected enabled onClick : IView =
+            let foreground =
+                if not enabled then colors.DisabledText
+                elif selected then colors.Accent
+                else colors.TextSecondary
+
+            Button.create
+                [ Button.background (if selected then colors.Surface3 else colors.Surface2)
+                  Button.foreground foreground
+                  Button.borderBrush (if selected then colors.Accent else colors.BorderSubtle)
+                  Button.borderThickness 1.0
+                  Button.cornerRadius tokens.Radii.Control
+                  Button.padding (10.0, 6.0)
+                  Button.minHeight tokens.Controls.StandardHeight
+                  Button.isEnabled enabled
+                  Button.onClick (fun _ -> onClick ())
+                  ToolTip.tip label
+                  Button.content (
+                      StackPanel.create
+                          [ StackPanel.orientation Orientation.Horizontal
+                            StackPanel.spacing 5.0
+                            StackPanel.children
+                                [ match icon with
+                                  | Some kind -> Icons.iconSm kind foreground
+                                  | None -> ()
+                                  TextBlock.create
+                                      [ TextBlock.text label
+                                        TextBlock.fontSize 12.0
+                                        TextBlock.fontWeight FontWeight.SemiBold
+                                        TextBlock.foreground foreground
+                                        TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                  ) ]
+            :> IView
+
+        let workspace label icon target =
+            dockButton label (Some icon) (live.Ui.ManagerWorkspace = target) true (fun () ->
+                dispatch (LiveMsg(LiveMsg.SelectManagerWorkspace target)))
+
+        let submit payload =
+            let matchCommand =
+                { CommandId = MatchCommandId live.NextCommandId
+                  SessionId = live.SessionId
+                  ExpectedRevision = live.Revision
+                  IssuedAt = live.Clock.Elapsed
+                  Payload = payload }
+
+            dispatch (LiveMsg(LiveMsg.CommandSubmitted matchCommand))
+
+        let command label payload =
+            dockButton label None false canControl (fun () -> submit payload)
+
         let isPaused =
             match live.Status with
             | Paused
             | HalfTime -> true
             | _ -> false
 
-        let pauseControl =
-            Button.create
-                [ Button.content (if isPaused then "Resume" else "Pause")
-                  Button.isEnabled (live.Source = LiveSession && live.Status <> Finished)
-                  Button.background Theme.Surface3
-                  Button.foreground Theme.TextMain
-                  Button.borderBrush Theme.BorderLight
-                  Button.borderThickness 1.0
-                  Button.cornerRadius Theme.RadiusSm
-                  Button.padding (10.0, 7.0)
-                  Button.onClick (fun _ -> dispatch (LiveMsg LiveMsg.TogglePause)) ]
+        let team =
+            if live.Fixture.UserClubId = live.Fixture.Home.ClubId then
+                live.Fixture.HomeLineup
+            else
+                live.Fixture.AwayLineup
+
+        let activeTools =
+            match live.Ui.ManagerWorkspace with
+            | Overview ->
+                [ TextBlock.create
+                      [ TextBlock.text $"{team.InitialTactics.Formation}  ·  {live.Fixture.CompetitionName}"
+                        TextBlock.fontSize 12.0
+                        TextBlock.foreground colors.TextSecondary
+                        TextBlock.verticalAlignment VerticalAlignment.Center ]
+                  :> IView ]
+            | Tactics _ ->
+                [ command (localized TranslationKey.MatchDefensive) (ChangeMentality Defensive)
+                  command (localized TranslationKey.MatchBalanced) (ChangeMentality Balanced)
+                  command (localized TranslationKey.MatchPositive) (ChangeMentality Positive)
+                  command (localized TranslationKey.MatchAttacking) (ChangeMentality Attacking) ]
+            | Players ->
+                [ TextBlock.create
+                      [ TextBlock.text (
+                            Localization.resolve
+                                TranslationKey.MatchStartersAndSubstitutes
+                                [ "starters", string team.StarterCount
+                                  "substitutes", string (team.Players.Length - team.StarterCount) ]
+                        )
+                        TextBlock.fontSize 12.0
+                        TextBlock.foreground colors.TextSecondary
+                        TextBlock.verticalAlignment VerticalAlignment.Center ]
+                  :> IView ]
+            | Substitutions ->
+                if team.Players.Length > team.StarterCount then
+                    let change =
+                        { Outgoing = team.Players[team.StarterCount - 1].Id
+                          Incoming = team.Players[team.StarterCount].Id
+                          Role = StrikerRole
+                          Duty = SupportDuty }
+
+                    [ command (localized TranslationKey.MatchConfirmSubstitution) (ConfirmSubstitutions [ change ]) ]
+                else
+                    [ TextBlock.create
+                          [ TextBlock.text (localized TranslationKey.MatchNoEligibleSubstitute)
+                            TextBlock.foreground colors.TextMuted
+                            TextBlock.verticalAlignment VerticalAlignment.Center ]
+                      :> IView ]
+            | Touchline ->
+                [ command (localized TranslationKey.MatchEncourage) (IssueTouchlineInstruction Encourage)
+                  command (localized TranslationKey.MatchDemandMore) (IssueTouchlineInstruction DemandMore)
+                  command (localized TranslationKey.MatchCalmDown) (IssueTouchlineInstruction CalmDown) ]
 
         Border.create
-            [ Grid.row 2
-              Border.background Theme.BgSidebar
-              Border.borderBrush Theme.Border
+            [ Grid.row 1
+              Border.background colors.Surface1
+              Border.borderBrush colors.BorderSubtle
               Border.borderThickness (0.0, 1.0, 0.0, 0.0)
-              Border.padding (12.0, 10.0)
+              Border.padding (12.0, 8.0)
               Border.child (
-                  Grid.create
-                      [ Grid.columnDefinitions "Auto, Auto, Auto, Auto, Auto, *, Auto"
-                        Grid.children
-                            [ pauseControl
-                              commandButton "1x" live (SetLiveSpeed Normal) dispatch
-                              |> fun view -> ContentControl.create [ Grid.column 1; ContentControl.content view ]
-                              commandButton "2x" live (SetLiveSpeed Fast) dispatch
-                              |> fun view -> ContentControl.create [ Grid.column 2; ContentControl.content view ]
-                              commandButton "4x" live (SetLiveSpeed VeryFast) dispatch
-                              |> fun view -> ContentControl.create [ Grid.column 3; ContentControl.content view ]
-                              commandButton "Positive" live (ChangeMentality Positive) dispatch
-                              |> fun view -> ContentControl.create [ Grid.column 4; ContentControl.content view ]
-                              TextBlock.create
-                                  [ Grid.column 5
-                                    TextBlock.text $"{statusText live.Status}  ·  revision {live.Revision}"
-                                    TextBlock.fontSize 12.0
-                                    TextBlock.foreground (statusColor live.Status)
-                                    TextBlock.verticalAlignment VerticalAlignment.Center
-                                    TextBlock.horizontalAlignment HorizontalAlignment.Center ]
-                              Button.create
-                                  [ Grid.column 6
-                                    Button.content (
-                                        if live.Status = Finished then
-                                            "Continue to post-match"
-                                        else
-                                            "Leave Match Day"
-                                    )
-                                    Button.background Theme.BgCard
-                                    Button.foreground Theme.TextSub
-                                    Button.borderBrush Theme.Border
-                                    Button.borderThickness 1.0
-                                    Button.cornerRadius Theme.RadiusSm
-                                    Button.padding (12.0, 7.0)
-                                    Button.onClick (fun _ ->
-                                        dispatch (
-                                            LiveMsg(
-                                                if live.Status = Finished then
-                                                    LiveMsg.ConfirmFinish
-                                                else
-                                                    LiveMsg.Close
-                                            )
-                                        )) ] ] ]
+                  ScrollViewer.create
+                      [ ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Auto
+                        ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Disabled
+                        ScrollViewer.content (
+                            Grid.create
+                                [ Grid.columnDefinitions "Auto, *, Auto"
+                                  Grid.minWidth 980.0
+                                  Grid.children
+                                      [ StackPanel.create
+                                            [ Grid.column 0
+                                              StackPanel.orientation Orientation.Horizontal
+                                              StackPanel.spacing 5.0
+                                              StackPanel.children
+                                                  [ workspace
+                                                        (localized TranslationKey.MatchOverview)
+                                                        IconName.home
+                                                        Overview
+                                                    workspace
+                                                        (localized TranslationKey.Tactics)
+                                                        IconName.tactics
+                                                        (Tactics InPossession)
+                                                    workspace
+                                                        (localized TranslationKey.MatchPlayers)
+                                                        IconName.squad
+                                                        Players
+                                                    workspace
+                                                        (localized TranslationKey.MatchSubstitutions)
+                                                        ClubIcon.transfer
+                                                        Substitutions
+                                                    workspace
+                                                        (localized TranslationKey.MatchTouchline)
+                                                        IconName.bullhorn
+                                                        Touchline ] ]
+                                        ScrollViewer.create
+                                            [ Grid.column 1
+                                              ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Auto
+                                              ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Disabled
+                                              ScrollViewer.margin (14.0, 0.0)
+                                              ScrollViewer.content (
+                                                  StackPanel.create
+                                                      [ StackPanel.orientation Orientation.Horizontal
+                                                        StackPanel.spacing 5.0
+                                                        StackPanel.verticalAlignment VerticalAlignment.Center
+                                                        StackPanel.children activeTools ]
+                                              ) ]
+                                        StackPanel.create
+                                            [ Grid.column 2
+                                              StackPanel.orientation Orientation.Horizontal
+                                              StackPanel.spacing 5.0
+                                              StackPanel.children
+                                                  [ TextBlock.create
+                                                        [ TextBlock.text (statusText live.Status)
+                                                          TextBlock.fontSize 11.0
+                                                          TextBlock.fontWeight FontWeight.SemiBold
+                                                          TextBlock.foreground (statusColor live.Status)
+                                                          TextBlock.verticalAlignment VerticalAlignment.Center
+                                                          TextBlock.margin (0.0, 0.0, 9.0, 0.0) ]
+                                                    dockButton
+                                                        (localized (
+                                                            if isPaused then
+                                                                TranslationKey.MatchResume
+                                                            else
+                                                                TranslationKey.MatchPause
+                                                        ))
+                                                        (Some(if isPaused then Nav.play else Nav.pause))
+                                                        isPaused
+                                                        canControl
+                                                        (fun () -> dispatch (LiveMsg LiveMsg.TogglePause))
+                                                    dockButton "1x" None (live.Speed = Normal) canControl (fun () ->
+                                                        submit (SetLiveSpeed Normal))
+                                                    dockButton "2x" None (live.Speed = Fast) canControl (fun () ->
+                                                        submit (SetLiveSpeed Fast))
+                                                    dockButton "4x" None (live.Speed = VeryFast) canControl (fun () ->
+                                                        submit (SetLiveSpeed VeryFast))
+                                                    dockButton
+                                                        "Why?"
+                                                        None
+                                                        (live.Ui.IntelligenceWorkspace = Events)
+                                                        true
+                                                        (fun () ->
+                                                            dispatch (
+                                                                LiveMsg(
+                                                                    LiveMsg.SelectIntelligenceWorkspace(
+                                                                        if live.Ui.IntelligenceWorkspace = Events then
+                                                                            Commentary
+                                                                        else
+                                                                            Events
+                                                                    )
+                                                                )
+                                                            ))
+                                                    dockButton
+                                                        (localized (
+                                                            if live.Status = Finished then
+                                                                TranslationKey.MatchPostMatch
+                                                            else
+                                                                TranslationKey.MatchLeave
+                                                        ))
+                                                        (Some IconName.next)
+                                                        false
+                                                        true
+                                                        (fun () ->
+                                                            dispatch (
+                                                                LiveMsg(
+                                                                    if live.Status = Finished then
+                                                                        LiveMsg.ConfirmFinish
+                                                                    else
+                                                                        LiveMsg.Close
+                                                                )
+                                                            )) ] ] ] ]
+                        ) ]
               ) ]
 
     let private noMatch (error: string option) : IView =
@@ -524,81 +687,18 @@ module MatchViewer =
     let view (state: State) (dispatch: Msg -> unit) : IView =
         match state.Match.Live, state.Match.RuntimeId with
         | Some live, Some runtimeId ->
-            let width =
-                match Avalonia.Application.Current with
-                | null -> 1600.0
-                | application ->
-                    match application.ApplicationLifetime with
-                    | :? IClassicDesktopStyleApplicationLifetime as desktop when not (isNull desktop.MainWindow) ->
-                        desktop.MainWindow.ClientSize.Width
-                    | _ -> 1600.0
-
-            let pitchAndHud =
-                Grid.create
-                    [ Grid.row 1
-                      Grid.clipToBounds true
-                      Grid.children
-                          [ livePitch runtimeId live
-                            if width >= 1300.0 then
-                                Border.create
-                                    [ Border.horizontalAlignment HorizontalAlignment.Left
-                                      Border.verticalAlignment VerticalAlignment.Top
-                                      Border.margin MatchPitchOverlay.margin
-                                      Border.width MatchPitchOverlay.managerWidth
-                                      Border.height MatchPitchOverlay.managerHeight
-                                      Border.background Theme.BgSidebar
-                                      Border.borderBrush Theme.Border
-                                      Border.borderThickness 1.0
-                                      Border.cornerRadius Theme.RadiusMd
-                                      Border.clipToBounds true
-                                      Border.child (
-                                          ScrollViewer.create
-                                              [ ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Auto
-                                                ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Disabled
-                                                ScrollViewer.content (leftRail live dispatch) ]
-                                      ) ]
-
-                                Border.create
-                                    [ Border.horizontalAlignment HorizontalAlignment.Right
-                                      Border.verticalAlignment VerticalAlignment.Top
-                                      Border.margin MatchPitchOverlay.margin
-                                      Border.width MatchPitchOverlay.intelligenceWidth
-                                      Border.height MatchPitchOverlay.intelligenceHeight
-                                      Border.background Theme.BgSidebar
-                                      Border.borderBrush Theme.Border
-                                      Border.borderThickness 1.0
-                                      Border.cornerRadius Theme.RadiusMd
-                                      Border.clipToBounds true
-                                      Border.padding 12.0
-                                      Border.child (
-                                          ScrollViewer.create
-                                              [ ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Auto
-                                                ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Disabled
-                                                ScrollViewer.content (rightRail live) ]
-                                      ) ] ] ]
+            let inspect = live.Ui.IntelligenceWorkspace = Events
 
             Grid.create
                 [ Grid.background Theme.BgMain
-                  Grid.rowDefinitions "Auto, *, Auto"
+                  Grid.rowDefinitions "*, Auto"
                   Grid.children
-                      [ Border.create
-                            [ Grid.row 0
-                              Border.background Theme.BgSidebar
-                              Border.borderBrush Theme.Border
-                              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
-                              Border.padding (18.0, 12.0)
-                              Border.child (
-                                  StackPanel.create
-                                      [ StackPanel.spacing 4.0
-                                        StackPanel.children
-                                            [ TextBlock.create
-                                                  [ TextBlock.text live.Fixture.CompetitionName
-                                                    TextBlock.fontSize 11.0
-                                                    TextBlock.foreground Theme.TextMuted
-                                                    TextBlock.horizontalAlignment HorizontalAlignment.Center ]
-                                              scoreHeader live ] ]
-                              ) ]
-                        pitchAndHud
+                      [ Grid.create
+                            [ Grid.columnDefinitions (if inspect then "*, 380" else "*")
+                              Grid.children
+                                  [ livePitch runtimeId live
+                                    if inspect then
+                                        MatchEvidenceInspector.view runtimeId live dispatch ] ]
                         controlDock live dispatch ] ]
             :> IView
         | _ -> noMatch state.Match.Error

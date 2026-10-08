@@ -152,8 +152,21 @@ module Views =
             | Route.Match _ -> 1100.0
             | _ -> 800.0
 
+        let isMatchRoute =
+            match state.Navigation.Current with
+            | Route.Match _ -> true
+            | _ -> false
+
         if not shellVisible then
             content
+        elif isMatchRoute then
+            if viewportWidth () < compactThreshold then
+                content
+            else
+                DockPanel.create
+                    [ DockPanel.background Theme.BgMain
+                      DockPanel.lastChildFill true
+                      DockPanel.children [ sidebar state dispatch; content ] ]
         elif viewportWidth () < compactThreshold then
             DockPanel.create
                 [ DockPanel.background Theme.BgMain

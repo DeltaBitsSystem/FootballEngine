@@ -7,7 +7,6 @@ open Avalonia.Controls
 open Avalonia.FuncUI.Builder
 open Avalonia.FuncUI.DSL
 open Avalonia.FuncUI.Types
-open Avalonia.Threading
 open FootballEngine
 open FootballEngine.AppTypes
 open FootballEngine.Client.Views.Components
@@ -18,6 +17,7 @@ open FootballEngine.LiveMatch
 type private PitchBindingState =
     { Binding: MatchPitchBinding
       Stream: MatchPresentationStream
+      HudStats: MatchHudStats
       HomeNames: string array
       AwayNames: string array
       HomeIds: FootballEngine.Core.Match.PlayerId array
@@ -32,6 +32,7 @@ module private PitchBindingState =
 
         { Binding = binding
           Stream = stream
+          HudStats = binding.HudStats
           HomeNames = home |> Array.map _.Name
           AwayNames = away |> Array.map _.Name
           HomeIds = home |> Array.map (fun player -> FootballEngine.Core.Match.PlayerId player.Id)
@@ -58,43 +59,58 @@ module private PitchBindingState =
             snapshot
             time
 
+type private PitchProjectionCache() =
+    let mutable first = None
+    let mutable second = None
+    let mutable fixture = None
+
+    member _.Project(state: PitchBindingState, snapshot: FootballEngine.Core.Match.Replay.ReplaySnapshot) =
+        if
+            not (
+                fixture
+                |> Option.exists (fun source -> obj.ReferenceEquals(source, state.Binding.Fixture))
+            )
+        then
+            first <- None
+            second <- None
+            fixture <- Some state.Binding.Fixture
+
+        match first, second with
+        | Some(source, frame), _ when obj.ReferenceEquals(source, snapshot) -> frame
+        | _, Some(source, frame) when obj.ReferenceEquals(source, snapshot) -> frame
+        | _ ->
+            let frame = PitchBindingState.project state snapshot
+            first <- second
+            second <- Some(snapshot, frame)
+            frame
+
 type MatchPitchControl() as this =
     inherit Control()
 
     static let bindingProperty =
         AvaloniaProperty.Register<MatchPitchControl, MatchPitchBinding option>("Binding", None)
 
-    let mutable renderer: WebGpuStadiumRenderer option = None
-    let mutable state: PitchBindingState option = None
-    let timer = DispatcherTimer(Interval = TimeSpan.FromSeconds(1.0 / 60.0))
+    let mutable worker: RenderWorker<PixelRect * PitchBindingState option, WebGpuStadiumRenderer> option =
+        None
 
-    let currentFrame state =
+    let mutable state: PitchBindingState option = None
+    let mutable presentation: PresentationLoop option = None
+
+    let currentFrame (cache: PitchProjectionCache) state =
         match state.Stream.Sample(Stopwatch.GetTimestamp()) with
         | None -> None
-        | Some(Hold pose) -> Some(PitchBindingState.project state pose.Snapshot)
+        | Some(Hold pose) -> Some(cache.Project(state, pose.Snapshot))
         | Some(Between(first, second, t)) ->
-            let left = PitchBindingState.project state first.Snapshot
-            let right = PitchBindingState.project state second.Snapshot
+            let left = cache.Project(state, first.Snapshot)
+            let right = cache.Project(state, second.Snapshot)
             let dt = right.TimeSeconds - left.TimeSeconds
             Some(MatchInterp.hermite left right t dt)
 
-    do
-        timer.Tick.Add(fun _ ->
-            match renderer, state with
-            | Some activeRenderer, Some state ->
-                try
-                    currentFrame state
-                    |> Option.iter (fun frame ->
-                        activeRenderer.Render(
-                            MatchPitchNative.bounds this,
-                            frame,
-                            MatchPitchNative.overlayCutouts this
-                        ))
-                with error ->
-                    Diagnostics.Trace.WriteLine($"WebGPU match viewer stopped after a render error: {error}")
-                    (activeRenderer :> IDisposable).Dispose()
-                    renderer <- None
-            | _ -> ())
+    let publishLayout () =
+        let visibleState = if this.IsEffectivelyVisible then state else None
+
+        worker
+        |> Option.iter (fun active -> active.Publish(MatchPitchNative.bounds this, visibleState))
 
     static member BindingProperty = bindingProperty
 
@@ -109,32 +125,101 @@ type MatchPitchControl() as this =
             state <-
                 match this.Binding with
                 | Some binding ->
-                    MatchRuntime.presentationStream binding.RuntimeId
-                    |> Option.map (PitchBindingState.create binding)
+                    match state with
+                    | Some previous when
+                        previous.Binding.RuntimeId = binding.RuntimeId
+                        && obj.ReferenceEquals(previous.Binding.Fixture, binding.Fixture)
+                        ->
+                        Some
+                            { previous with
+                                Binding = binding
+                                HudStats = binding.HudStats }
+                    | _ ->
+                        MatchRuntime.presentationStream binding.RuntimeId
+                        |> Option.map (PitchBindingState.create binding)
                 | None -> None
+
+            publishLayout ()
 
     override this.OnAttachedToVisualTree args =
         base.OnAttachedToVisualTree args
 
         try
-            renderer <- MatchPitchNative.createRenderer this
+            match TopLevel.GetTopLevel(this), MatchPitchNative.rendererFactory this with
+            | null, _
+            | _, None -> ()
+            | topLevel, Some create ->
+                let cache = PitchProjectionCache()
+
+                let render (renderer: WebGpuStadiumRenderer) ((bounds: PixelRect), state) =
+                    match state with
+                    | Some state when bounds.Width > 0 && bounds.Height > 0 ->
+                        match currentFrame cache state with
+                        | Some frame -> renderer.Render(bounds, frame, [||], state.HudStats)
+                        | None -> false
+                    | _ -> false
+
+                let onError error =
+                    Diagnostics.Trace.WriteLine($"WebGPU match viewer stopped after a render error: {error}")
+
+                worker <- Some(new RenderWorker<_, _>((fun (bounds, _) -> create bounds), render, onError))
+                publishLayout ()
+
+                let loop =
+                    new PresentationLoop(topLevel.RequestAnimationFrame, publishLayout, onError)
+
+                presentation <- Some loop
+                loop.Start()
         with error ->
             Diagnostics.Trace.WriteLine($"WebGPU match viewer could not initialize: {error}")
 
-        timer.Start()
-
     override this.OnDetachedFromVisualTree args =
-        timer.Stop()
-        renderer |> Option.iter (fun value -> (value :> IDisposable).Dispose())
-        renderer <- None
+        presentation |> Option.iter _.Stop()
+        presentation <- None
+        worker |> Option.iter (fun value -> (value :> IDisposable).Dispose())
+        worker <- None
         state <- None
         base.OnDetachedFromVisualTree args
 
 module MatchPitch =
-    let view (runtimeId: MatchRuntimeId) (fixture: FixtureContext) : IView =
+    let private hudStats (live: LiveMatchState) =
+        let fixture = live.Fixture
+
+        let clubsByPlayer =
+            [| yield!
+                   fixture.HomeLineup.Players
+                   |> Array.map (fun player -> player.Id, fixture.Home.ClubId)
+               yield!
+                   fixture.AwayLineup.Players
+                   |> Array.map (fun player -> player.Id, fixture.Away.ClubId) |]
+            |> Map.ofArray
+
+        let metrics =
+            FootballEngine.Domain.MatchMetrics.extract
+                live.Events
+                fixture.Home.ClubId
+                fixture.Away.ClubId
+                (fun playerId -> Map.tryFind playerId clubsByPlayer)
+
+        { HomeShortName = fixture.Home.ShortName
+          AwayShortName = fixture.Away.ShortName
+          Period = live.Clock.Period
+          HomePossession = int (Math.Round(metrics.PossessionHome * 100.0))
+          AwayPossession = int (Math.Round(metrics.PossessionAway * 100.0))
+          HomeShots = live.Metrics.Home.Shots
+          AwayShots = live.Metrics.Away.Shots
+          HomeOnTarget = live.Metrics.Home.OnTarget
+          AwayOnTarget = live.Metrics.Away.OnTarget
+          HomePasses = live.Metrics.Home.PassesCompleted
+          AwayPasses = live.Metrics.Away.PassesCompleted
+          HomeColor = fixture.Home.PrimaryColor
+          AwayColor = fixture.Away.PrimaryColor }
+
+    let view (runtimeId: MatchRuntimeId) (live: LiveMatchState) : IView =
         let binding =
             { RuntimeId = runtimeId
-              Fixture = fixture }
+              Fixture = live.Fixture
+              HudStats = hudStats live }
 
         ViewBuilder.Create<MatchPitchControl>(
             [ AttrBuilder<MatchPitchControl>

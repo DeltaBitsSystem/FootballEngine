@@ -62,6 +62,32 @@ type TranslationKey =
     | LoadGame
     | NoSaveSlots
     | ItemsCount
+    | MatchStats
+    | MatchPossession
+    | MatchShots
+    | MatchOnTarget
+    | MatchPasses
+    | MatchBallCarrier
+    | MatchFit
+    | MatchTired
+    | MatchOverview
+    | MatchPlayers
+    | MatchSubstitutions
+    | MatchTouchline
+    | MatchPause
+    | MatchResume
+    | MatchLeave
+    | MatchPostMatch
+    | MatchDefensive
+    | MatchBalanced
+    | MatchPositive
+    | MatchAttacking
+    | MatchEncourage
+    | MatchDemandMore
+    | MatchCalmDown
+    | MatchConfirmSubstitution
+    | MatchNoEligibleSubstitute
+    | MatchStartersAndSubstitutes
 
 type TranslationCatalog =
     { Es: Map<TranslationKey, string>
@@ -106,7 +132,35 @@ module Localization =
           TranslationKey.NewCareer, "Nueva carrera", "New career"
           TranslationKey.LoadGame, "Cargar partida", "Load game"
           TranslationKey.NoSaveSlots, "No hay partidas guardadas", "No saved careers"
-          TranslationKey.ItemsCount, "{count} elementos", "{count} items" ]
+          TranslationKey.ItemsCount, "{count} elementos", "{count} items"
+          TranslationKey.MatchStats, "ESTADÍSTICAS", "MATCH STATS"
+          TranslationKey.MatchPossession, "POSESIÓN", "POSSESSION"
+          TranslationKey.MatchShots, "TIROS", "SHOTS"
+          TranslationKey.MatchOnTarget, "A PUERTA", "ON TARGET"
+          TranslationKey.MatchPasses, "PASES", "PASSES"
+          TranslationKey.MatchBallCarrier, "CON BALÓN", "BALL CARRIER"
+          TranslationKey.MatchFit, "EN FORMA", "FIT"
+          TranslationKey.MatchTired, "CANSADO", "TIRED"
+          TranslationKey.MatchOverview, "Resumen", "Overview"
+          TranslationKey.MatchPlayers, "Jugadores", "Players"
+          TranslationKey.MatchSubstitutions, "Cambios", "Subs"
+          TranslationKey.MatchTouchline, "Banda", "Touchline"
+          TranslationKey.MatchPause, "Pausa", "Pause"
+          TranslationKey.MatchResume, "Reanudar", "Resume"
+          TranslationKey.MatchLeave, "Salir", "Leave"
+          TranslationKey.MatchPostMatch, "Postpartido", "Post-match"
+          TranslationKey.MatchDefensive, "Defensiva", "Defensive"
+          TranslationKey.MatchBalanced, "Equilibrada", "Balanced"
+          TranslationKey.MatchPositive, "Positiva", "Positive"
+          TranslationKey.MatchAttacking, "Ofensiva", "Attacking"
+          TranslationKey.MatchEncourage, "Animar", "Encourage"
+          TranslationKey.MatchDemandMore, "Exigir más", "Demand more"
+          TranslationKey.MatchCalmDown, "Calmar", "Calm down"
+          TranslationKey.MatchConfirmSubstitution, "Confirmar cambio", "Confirm substitution"
+          TranslationKey.MatchNoEligibleSubstitute, "Sin suplentes disponibles", "No eligible substitute"
+          TranslationKey.MatchStartersAndSubstitutes,
+          "{starters} titulares · {substitutes} suplentes",
+          "{starters} starters · {substitutes} substitutes" ]
 
     let catalog: TranslationCatalog =
         { Es = entries |> List.map (fun (key, es, _) -> key, es) |> Map.ofList

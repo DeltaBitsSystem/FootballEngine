@@ -10,7 +10,13 @@
     <Compile Include="TacticsDraftTests.fs" />
     <Compile Include="ModEditorTests.fs" />
     <Compile Include="LiveMatchTests.fs" />
+    <Compile Include="CharacterAnimationTests.fs" />
+    <Compile Include="HdrLightingTests.fs" />
+    <Compile Include="PitchMarkingsTests.fs" />
     <Compile Include="MatchDiagnosticsTests.fs" />
+    <Compile Include="MatchHudTests.fs" />
+    <Compile Include="PresentationLoopTests.fs" />
+    <Compile Include="RenderWorkerTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

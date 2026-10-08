@@ -5,7 +5,16 @@ open SkiaSharp
 open FootballEngine.Client.Views.Components
 
 module EntityRenderer =
-    let private person (canvas: SKCanvas) (r: RenderResources) x y stride (shirt: SKPaint) (sleeve: SKPaint) (shorts: SKPaint) =
+    let private person
+        (canvas: SKCanvas)
+        (r: RenderResources)
+        x
+        y
+        stride
+        (shirt: SKPaint)
+        (sleeve: SKPaint)
+        (shorts: SKPaint)
+        =
         canvas.DrawOval(SKRect(x - 13.0f, y + 8.0f, x + 13.0f, y + 17.0f), r.Shadow)
         canvas.Save() |> ignore
         canvas.Translate(x, y)
@@ -29,32 +38,64 @@ module EntityRenderer =
     let player (canvas: SKCanvas) (r: RenderResources) (player: RenderPlayer) position isKeeper time =
         let x, y = PitchRenderer.toCanvas position.X position.Y
         let speed = Vector2.magnitude player.Velocity
-        let gait = float32 (Math.Sin(time * (2.2 + min 3.8 speed) + float player.VisualSlot * 0.73))
+
+        let gait =
+            float32 (Math.Sin(time * (2.2 + min 3.8 speed) + float player.VisualSlot * 0.73))
+
         let stride = gait * min 4.5f (float32 speed * 0.75f)
-        let shirt = if isKeeper then r.Keeper elif player.IsHome then r.Home else r.Away
-        let sleeve = if isKeeper then r.KeeperSleeve elif player.IsHome then r.HomeSleeve else r.AwaySleeve
+
+        let shirt =
+            if isKeeper then r.Keeper
+            elif player.IsHome then r.Home
+            else r.Away
+
+        let sleeve =
+            if isKeeper then r.KeeperSleeve
+            elif player.IsHome then r.HomeSleeve
+            else r.AwaySleeve
+
         let shorts = if player.IsHome then r.HomeShorts else r.AwayShorts
-        let sprite = if isKeeper then r.KeeperSprite elif player.IsHome then r.HomeSprite else r.AwaySprite
+
+        let sprite =
+            if isKeeper then r.KeeperSprite
+            elif player.IsHome then r.HomeSprite
+            else r.AwaySprite
+
         if player.HasBall then
             canvas.DrawOval(SKRect(x - 16.0f, y + 15.0f, x + 16.0f, y + 25.0f), r.Possession)
+
         match sprite with
         | Some bitmap ->
             canvas.DrawOval(SKRect(x - 13.0f, y + 15.0f, x + 13.0f, y + 22.0f), r.Shadow)
             canvas.DrawBitmap(bitmap, SKRect(x - 17.0f, y - 28.0f, x + 17.0f, y + 24.0f))
         | None -> person canvas r x y stride shirt sleeve shorts
-        let condition = if player.Condition >= 70 then r.Condition elif player.Condition >= 45 then r.Tired else r.Exhausted
+
+        let condition =
+            if player.Condition >= 70 then r.Condition
+            elif player.Condition >= 45 then r.Tired
+            else r.Exhausted
+
         canvas.DrawLine(x - 8.0f, y + 25.0f, x - 8.0f + 16.0f * float32 player.Condition / 100.0f, y + 25.0f, condition)
         let nameWidth = r.Name.MeasureText player.ShortName
-        canvas.DrawRoundRect(SKRect(x - nameWidth / 2.0f - 4.0f, y + 29.0f, x + nameWidth / 2.0f + 4.0f, y + 42.0f), 3.0f, 3.0f, r.NameBackground)
+
+        canvas.DrawRoundRect(
+            SKRect(x - nameWidth / 2.0f - 4.0f, y + 29.0f, x + nameWidth / 2.0f + 4.0f, y + 42.0f),
+            3.0f,
+            3.0f,
+            r.NameBackground
+        )
+
         canvas.DrawText(player.ShortName, x, y + 39.0f, r.Name)
 
     let official (canvas: SKCanvas) (r: RenderResources) (official: RenderOfficial) =
         let x, y = PitchRenderer.toCanvas official.Position.X official.Position.Y
+
         match r.OfficialSprite with
         | Some bitmap ->
             canvas.DrawOval(SKRect(x - 13.0f, y + 15.0f, x + 13.0f, y + 22.0f), r.Shadow)
             canvas.DrawBitmap(bitmap, SKRect(x - 17.0f, y - 28.0f, x + 17.0f, y + 24.0f))
         | None -> person canvas r x y 0.0f r.Official r.OfficialSleeve r.Boot
+
         if official.IsAssistant then
             canvas.DrawLine(x + 8.0f, y - 2.0f, x + 8.0f, y + 10.0f, r.Boot)
             canvas.DrawRect(SKRect(x + 8.0f, y - 2.0f, x + 17.0f, y + 4.0f), r.Flag)
@@ -70,18 +111,30 @@ module EntityRenderer =
         canvas.Translate(x, y - h * 8.0f)
         let radius = 6.5f + min 2.0f (h * 0.25f)
         let speed = Vector2.magnitude ball.Velocity
+
         if speed > 5.0 then
             let trail = float32 (min 24.0 (speed * 2.0))
-            canvas.DrawLine(-float32 (ball.Velocity.X / speed) * trail, -float32 (ball.Velocity.Y / speed) * trail, 0.0f, 0.0f, r.BallTrail)
+
+            canvas.DrawLine(
+                -float32(ball.Velocity.X / speed) * trail,
+                -float32(ball.Velocity.Y / speed) * trail,
+                0.0f,
+                0.0f,
+                r.BallTrail
+            )
+
         canvas.DrawCircle(0.0f, 0.0f, radius, r.Ball)
-        canvas.RotateRadians(float32 (ball.Spin.Y * time))
+        let q = ball.Orientation
+        canvas.RotateRadians(atan2 (2.0f * (q.W * q.Z + q.X * q.Y)) (1.0f - 2.0f * (q.Y * q.Y + q.Z * q.Z)))
         canvas.DrawCircle(0.0f, 0.0f, radius * 0.3f, r.BallPanel)
+
         for index = 0 to 4 do
             let angle = float32 index * 2.0f * MathF.PI / 5.0f
             let px = MathF.Cos angle * radius * 0.64f
             let py = MathF.Sin angle * radius * 0.64f
             canvas.DrawLine(0.0f, 0.0f, px, py, r.BallSeam)
             canvas.DrawCircle(px, py, radius * 0.1f, r.BallPanel)
+
         canvas.DrawCircle(0.0f, 0.0f, radius, r.BallOutline)
         canvas.DrawOval(SKRect(-3.2f, -4.2f, -0.8f, -2.2f), r.Highlight)
         canvas.Restore()

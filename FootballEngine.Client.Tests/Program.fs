@@ -18,4 +18,10 @@ let main argv =
               tacticsTests
               ModEditorTests.tests
               LiveMatchTests.tests
-              MatchDiagnosticsTests.tests ])
+              CharacterAnimationTests.tests
+              HdrLightingTests.tests
+              PitchMarkingsTests.tests
+              MatchDiagnosticsTests.tests
+              MatchHudTests.tests
+              PresentationLoopTests.tests
+              RenderWorkerTests.tests ])

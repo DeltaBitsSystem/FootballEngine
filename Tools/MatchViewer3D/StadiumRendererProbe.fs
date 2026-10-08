@@ -23,6 +23,12 @@ module private ProbeLifecycle =
     let mutable private detached = 0
 
     let cycles = configuredCycles
+
+    let interval =
+        match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CYCLE_MS") with
+        | null -> TimeSpan.FromMilliseconds 350.0
+        | value -> TimeSpan.FromMilliseconds(Double.Parse(value, Globalization.CultureInfo.InvariantCulture))
+
     let attachCount () = attached
     let detachCount () = detached
     let attachedOnce () = attached <- attached + 1
@@ -33,8 +39,61 @@ type private ProbePitch() as this =
     inherit Control()
 
     let mutable renderer: WebGpuStadiumRenderer option = None
+    let mutable worker: RenderWorker<PixelRect, WebGpuStadiumRenderer> option = None
+    let mutable nativeBounds = PixelRect(0, 0, 1, 1)
+    let mutable parentWindow = 0n
+    let mutable hostWindow: Window option = None
     let mutable time = 0.0
-    let timer = DispatcherTimer(Interval = TimeSpan.FromSeconds(1.0 / 30.0))
+
+    let secondHalf =
+        Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_SECOND_HALF") = "1"
+
+    let cameraScenario =
+        Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CAMERA_SCENE")
+
+    let fixedPose =
+        Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_FIXED_POSE") = "1"
+
+    let contactFoot = Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CONTACT")
+
+    let contactPhase =
+        Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CONTACT_PHASE")
+
+    let capturePath = Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CAPTURE")
+    let measure = Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_MEASURE") = "1"
+
+    let waitForGpu =
+        measure
+        && Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_WAIT_GPU") <> "0"
+
+    let captureFrame =
+        match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CAPTURE_FRAME") with
+        | null -> 120
+        | value -> Int32.Parse value
+
+    let exerciseResize =
+        Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_RESIZE") = "1"
+
+    let frameLimit =
+        match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_FRAMES") with
+        | null -> 0
+        | value -> Int32.Parse value
+
+    let timings = Collections.Generic.List<float>()
+    let submissions = Collections.Generic.List<float>()
+    let allocations = Collections.Generic.List<int64>()
+    let uploads = Collections.Generic.List<int64>()
+    let intervals = Collections.Generic.List<float>()
+    let mutable previousStarted = 0L
+    let mutable renderedFrames = 0
+
+    let mutable presentation: PresentationLoop option = None
+
+    // Explicit diagnostic pacing reproduces the baseline; normal runs use the display clock.
+    let diagnosticInterval =
+        match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_INTERVAL_MS") with
+        | null -> None
+        | value -> Some(TimeSpan.FromMilliseconds(Double.Parse(value, Globalization.CultureInfo.InvariantCulture)))
 
     let players =
         let home =
@@ -48,6 +107,11 @@ type private ProbePitch() as this =
                              Position = { X = x; Y = y }
                              Velocity = Vector2.zero
                              Acceleration = Vector2.zero
+                             BodyFacing = 0.0
+                             AngularVelocity = 0.0
+                             TravelDistance = 0.0
+                             Height = 0.0
+                             VelocityZ = 0.0
                              State = Idle
                              VisualSlot = index
                              ShortName = "HOME"
@@ -67,6 +131,11 @@ type private ProbePitch() as this =
                              Position = { X = x; Y = y }
                              Velocity = Vector2.zero
                              Acceleration = Vector2.zero
+                             BodyFacing = 0.0
+                             AngularVelocity = 0.0
+                             TravelDistance = 0.0
+                             Height = 0.0
+                             VelocityZ = 0.0
                              State = Idle
                              VisualSlot = index
                              ShortName = "AWAY"
@@ -78,11 +147,25 @@ type private ProbePitch() as this =
         Array.append home away
         |> Array.mapi (fun index player ->
             { player with
+                Position =
+                    if index = 9 then
+                        match cameraScenario with
+                        | "left-goal" -> { X = -44.0; Y = 0.0 }
+                        | "right-goal" -> { X = 44.0; Y = 0.0 }
+                        | "near-touchline" -> { X = 16.0; Y = -30.0 }
+                        | "far-touchline" -> { X = 16.0; Y = 30.0 }
+                        | "midfield" -> Vector2.zero
+                        | _ -> { player.Position with X = 16.0 }
+                    else
+                        player.Position
                 VisualSlot = index % 11
-                IsHome = index < 11 })
+                IsHome = index < 11
+                HasBall = index = 9
+                ShortName = if index = 9 then "ENZO FERNANDEZ" else player.ShortName
+                Condition = if index = 9 then 78 else player.Condition })
 
     let frame () =
-        time <- time + 1.0 / 30.0
+        time <- if fixedPose then 2.0 else time + 1.0 / 30.0
 
         let movingPlayers =
             players
@@ -95,33 +178,189 @@ type private ProbePitch() as this =
                           Y = player.Position.Y + cos phase * 1.5 }
                     Velocity =
                         { X = cos phase * 1.1
-                          Y = -sin phase * 0.8 } })
+                          Y = -sin phase * 0.825 }
+                    BodyFacing = atan2 (-sin phase * 0.825) (cos phase * 1.1)
+                    TravelDistance = time
+                    State = Walking })
+
+        let carrier = movingPlayers |> Array.find _.HasBall
+        let timeSeconds = (if secondHalf then 73.0 else 37.0) * 60.0 + 24.0 + time
+        let contact = contactFoot = "left" || contactFoot = "right"
+        let dx, dy = cos carrier.BodyFacing, sin carrier.BodyFacing
+        let lateral = if contactFoot = "left" then 0.10 else -0.10
+
+        let ballPosition =
+            if contact then
+                Vector2.create
+                    (carrier.Position.X + dx * 0.32 - dy * lateral)
+                    (carrier.Position.Y + dy * 0.32 + dx * lateral)
+            else
+                { carrier.Position with
+                    X = carrier.Position.X + 0.7 }
+
+        let motion: FootballEngine.Core.Match.FootMotion option =
+            if not contact then
+                None
+            else
+                let phaseOffset =
+                    if contactPhase = "prepare" then 3
+                    elif contactPhase = "recover" then -5
+                    else 0
+
+                let tick = int (round (timeSeconds * 40.0)) + phaseOffset
+
+                Some
+                    { Actor = FootballEngine.Core.Match.PlayerId carrier.Id
+                      Foot =
+                        if contactFoot = "left" then
+                            FootballEngine.Core.Match.ContactFoot.Left
+                        else
+                            FootballEngine.Core.Match.ContactFoot.Right
+                      Kind = FootballEngine.Core.Match.FootTouchKind.Kick FootballEngine.Core.Match.StrikeKind.Pass
+                      StartedAt = (tick - 6) * 1<FootballEngine.Core.Match.subtick>
+                      ContactAt = tick * 1<FootballEngine.Core.Match.subtick>
+                      EndsAt = (tick + 12) * 1<FootballEngine.Core.Match.subtick>
+                      Point =
+                        { X = (ballPosition.X - dx * 0.11) * 1.0<FootballEngine.Core.Match.meter>
+                          Y = (ballPosition.Y - dy * 0.11) * 1.0<FootballEngine.Core.Match.meter>
+                          Z = 0.11<FootballEngine.Core.Match.meter> }
+                      BallCenter =
+                        { X = ballPosition.X * 1.0<FootballEngine.Core.Match.meter>
+                          Y = ballPosition.Y * 1.0<FootballEngine.Core.Match.meter>
+                          Z = 0.11<FootballEngine.Core.Match.meter> } }
 
         { Players = movingPlayers
           Ball =
-            { Position =
-                { X = 4.0 + sin time * 6.0
-                  Y = 2.0 + cos time * 4.0 }
+            { Position = ballPosition
               Velocity = { X = 0.0; Y = 0.0 }
               VelocityZ = 0.0
-              Spin = { X = 0.0; Y = 1.0 }
-              Height = 0.8 + abs (sin (time * 2.0)) }
+              Orientation = System.Numerics.Quaternion.Identity
+              AngularVelocity = System.Numerics.Vector3.Zero
+              Radius = 0.11
+              FootMotion = motion
+              Height = 0.0 }
           Officials = [||]
-          TimeSeconds = time
-          HomeScore = 2
-          AwayScore = 1
+          TimeSeconds = timeSeconds
+          HomeScore = 1
+          AwayScore = 0
           AttackingClubId = None
           Momentum = 0.0
           Situation = MatchSituation.Live
-          HomeName = "HOME"
-          AwayName = "AWAY"
-          CompetitionName = Some "STADIUM WEBGPU PROBE" }
+          HomeName = "River Plate"
+          AwayName = "Boca Juniors"
+          CompetitionName = Some "LIGA PROFESIONAL" }
 
-    do
-        timer.Tick.Add(fun _ ->
-            match renderer with
-            | Some active -> active.Render(MatchPitchNative.bounds this, frame (), [||])
-            | None -> ())
+    let render () =
+        match renderer with
+        | Some active ->
+            let started = Diagnostics.Stopwatch.GetTimestamp()
+            let allocated = GC.GetAllocatedBytesForCurrentThread()
+            let uploaded = active.HudUploadBytes
+
+            let presented =
+                active.Render(
+                    nativeBounds,
+                    frame (),
+                    [||],
+                    { HomeShortName = "RIV"
+                      AwayShortName = "BOC"
+                      Period =
+                        if secondHalf then
+                            FootballEngine.LiveMatch.MatchPeriod.SecondHalf
+                        else
+                            FootballEngine.LiveMatch.MatchPeriod.FirstHalf
+                      HomePossession = 62
+                      AwayPossession = 38
+                      HomeShots = 8
+                      AwayShots = 5
+                      HomeOnTarget = 4
+                      AwayOnTarget = 2
+                      HomePasses = 132
+                      AwayPasses = 96
+                      HomeColor = 0xD71920u
+                      AwayColor = 0x00529Fu }
+                )
+
+            if not presented then
+                invalidOp "The probe could not present its frame."
+
+            let submission = Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds
+
+            if waitForGpu then
+                active.WaitForGpu()
+
+            renderedFrames <- renderedFrames + 1
+
+            if exerciseResize && (renderedFrames = 30 || renderedFrames = 50) then
+                let shrink = renderedFrames = 30
+
+                Dispatcher.UIThread.Post(fun () ->
+                    hostWindow
+                    |> Option.iter (fun window ->
+                        window.Width <- if shrink then 940.0 else 1160.0
+                        window.Height <- if shrink then 670.0 else 790.0))
+
+            if measure && renderedFrames > 15 then
+                timings.Add(Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds)
+                submissions.Add submission
+                allocations.Add(GC.GetAllocatedBytesForCurrentThread() - allocated)
+                uploads.Add(active.HudUploadBytes - uploaded)
+
+                if
+                    previousStarted > 0L
+                    && (String.IsNullOrWhiteSpace capturePath || renderedFrames <> captureFrame + 1)
+                then
+                    intervals.Add(Diagnostics.Stopwatch.GetElapsedTime(previousStarted, started).TotalMilliseconds)
+
+            previousStarted <- started
+
+            if renderedFrames = captureFrame && not (String.IsNullOrWhiteSpace capturePath) then
+                let info = Diagnostics.ProcessStartInfo("import")
+                info.ArgumentList.Add("-window")
+                info.ArgumentList.Add(string (uint64 parentWindow))
+                info.ArgumentList.Add(capturePath)
+                use process = Diagnostics.Process.Start(info)
+                process.WaitForExit()
+
+                if process.ExitCode <> 0 then
+                    invalidOp "Native HDR screenshot failed."
+
+                Console.Error.WriteLine($"Captured HDR frame: {capturePath}")
+
+            if frameLimit > 0 && renderedFrames >= frameLimit then
+                if timings.Count > 0 then
+                    let sorted = timings |> Seq.sort |> Seq.toArray
+                    let median = sorted[sorted.Length / 2]
+                    let p95 = sorted[min (sorted.Length - 1) (int (float sorted.Length * 0.95))]
+
+                    let measurement =
+                        if waitForGpu then
+                            "completed CPU+GPU-wait"
+                        else
+                            "submission/backpressure (no GPU wait)"
+
+                    Console.Error.WriteLine(
+                        $"HDR {measurement} measurement n={sorted.Length}, medianMs={median:F3}, p95Ms={p95:F3}; not GPU timestamps"
+                    )
+
+                    let cpu = submissions |> Seq.sort |> Seq.toArray
+                    let cpuP95 = cpu[min (cpu.Length - 1) (int (float cpu.Length * 0.95))]
+                    let meanAllocation = allocations |> Seq.averageBy float
+                    let meanUpload = uploads |> Seq.averageBy float
+
+                    let fps =
+                        if intervals.Count > 0 then
+                            1000.0 / (intervals |> Seq.average)
+                        else
+                            0.0
+
+                    Console.Error.WriteLine(
+                        $"Submission CPU medianMs={cpu[cpu.Length / 2]:F3}, p95Ms={cpuP95:F3}; managedBytes/frame={meanAllocation:F0}; HUD uploadBytes/frame={meanUpload:F0}; presentedFPS={fps:F1}"
+                    )
+
+                Dispatcher.UIThread.Post(fun () ->
+                    (Application.Current.ApplicationLifetime :?> IClassicDesktopStyleApplicationLifetime).Shutdown(0))
+        | None -> ()
 
     override this.OnAttachedToVisualTree args =
         base.OnAttachedToVisualTree args
@@ -136,14 +375,57 @@ type private ProbePitch() as this =
             let asset =
                 IO.Path.GetFullPath("FootballEngine.Client/Assets/MatchViewer/stadium.glb")
 
-            renderer <- Some(new WebGpuStadiumRenderer(parent, MatchPitchNative.bounds this, asset))
-            ProbeLifecycle.attachedOnce ()
-            timer.Start()
+            let exposure =
+                match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_EXPOSURE_STOPS") with
+                | null -> HdrLighting.broadcastDaylight.ExposureStops
+                | value -> Single.Parse(value, Globalization.CultureInfo.InvariantCulture)
+
+            let lighting =
+                { HdrLighting.broadcastDaylight with
+                    ExposureStops = exposure }
+
+            let topLevel = TopLevel.GetTopLevel(this)
+            parentWindow <- handle.Handle
+            hostWindow <- Some(topLevel :?> Window)
+
+            let onError (error: exn) =
+                Console.Error.WriteLine(error)
+
+                Dispatcher.UIThread.Post(fun () ->
+                    (Application.Current.ApplicationLifetime :?> IClassicDesktopStyleApplicationLifetime).Shutdown(1))
+
+            let create bounds =
+                let active = new WebGpuStadiumRenderer(parent, bounds, asset, lighting)
+                renderer <- Some active
+                ProbeLifecycle.attachedOnce ()
+                active
+
+            let draw _ bounds =
+                if frameLimit > 0 && renderedFrames >= frameLimit then
+                    false
+                else
+                    nativeBounds <- bounds
+                    render ()
+                    diagnosticInterval |> Option.iter Threading.Thread.Sleep
+                    true
+
+            worker <- Some(new RenderWorker<_, _>(create, draw, onError))
+
+            let publish () =
+                worker
+                |> Option.iter (fun active -> active.Publish(MatchPitchNative.bounds this))
+
+            publish ()
+            let loop = new PresentationLoop(topLevel.RequestAnimationFrame, publish, onError)
+            presentation <- Some loop
+            loop.Start()
 
     override this.OnDetachedFromVisualTree args =
-        timer.Stop()
+        presentation |> Option.iter _.Stop()
+        presentation <- None
+        worker |> Option.iter (fun value -> (value :> IDisposable).Dispose())
+        worker <- None
         let wasAttached = renderer.IsSome
-        renderer |> Option.iter (fun value -> (value :> IDisposable).Dispose())
         renderer <- None
 
         if wasAttached then
@@ -187,7 +469,7 @@ type private ProbeApp() =
 
                 let title =
                     TextBlock(
-                        Text = "FOOTBALL ENGINE  ·  HOME 2–1 AWAY",
+                        Text = "MATCH VIEWER  ·  LIVE HUD PROBE",
                         Foreground = Brushes.White,
                         VerticalAlignment = VerticalAlignment.Center,
                         Margin = Thickness(20.0, 0.0)
@@ -234,7 +516,7 @@ type private ProbeApp() =
                 desktop.ShutdownMode <- ShutdownMode.OnExplicitShutdown
                 let mutable completed = 0
                 let mutable activeWindow: Window option = None
-                let cycleTimer = DispatcherTimer(Interval = TimeSpan.FromMilliseconds 350.0)
+                let cycleTimer = DispatcherTimer(Interval = ProbeLifecycle.interval)
 
                 cycleTimer.Tick.Add(fun _ ->
                     cycleTimer.Stop()
@@ -274,6 +556,32 @@ type private ProbeApp() =
         base.OnFrameworkInitializationCompleted()
 
 module Program =
+    type private ValidationTraceListener() =
+        inherit Diagnostics.TraceListener()
+        let mutable errors = 0
+        member _.ErrorCount = errors
+
+        override _.Write(message: string) =
+            if
+                not (isNull message)
+                && message.Contains("WebGPU uncaptured error", StringComparison.Ordinal)
+            then
+                Threading.Interlocked.Increment(&errors) |> ignore
+
+        override this.WriteLine(message: string) = this.Write(message)
+
     [<EntryPoint>]
     let main args =
-        AppBuilder.Configure<ProbeApp>().UsePlatformDetect().StartWithClassicDesktopLifetime(args)
+        use validation = new ValidationTraceListener()
+        Diagnostics.Trace.Listeners.Add(validation) |> ignore
+
+        Diagnostics.Trace.Listeners.Add(new Diagnostics.TextWriterTraceListener(Console.Error))
+        |> ignore
+
+        Diagnostics.Trace.AutoFlush <- true
+
+        let exitCode =
+            AppBuilder.Configure<ProbeApp>().UsePlatformDetect().StartWithClassicDesktopLifetime(args)
+
+        Diagnostics.Trace.Listeners.Remove(validation)
+        if validation.ErrorCount = 0 then exitCode else 1

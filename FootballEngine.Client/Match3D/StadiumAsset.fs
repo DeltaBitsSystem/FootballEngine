@@ -6,13 +6,41 @@ open System.Numerics
 open System.Runtime.InteropServices
 open SharpGLTF.Schema2
 
+[<RequireQualifiedAccess>]
+type StadiumSurface =
+    | Plain = 0
+    | TurfLight = 1
+    | TurfDark = 2
+    | TurfRunoff = 3
+    | Concrete = 4
+    | Steel = 5
+    | Enamel = 6
+
+module StadiumSurface =
+    let ofMaterialName (name: string) =
+        if name.StartsWith("Grass |", StringComparison.Ordinal) then
+            if name.Contains("stripe 0", StringComparison.Ordinal) then
+                StadiumSurface.TurfLight
+            else
+                StadiumSurface.TurfDark
+        else
+            match name with
+            | "Runoff grass" -> StadiumSurface.TurfRunoff
+            | "Architectural concrete" -> StadiumSurface.Concrete
+            | "Midnight steel" -> StadiumSurface.Steel
+            | "Ivory enamel" -> StadiumSurface.Enamel
+            | _ -> StadiumSurface.Plain
+
 [<Struct; StructLayout(LayoutKind.Sequential)>]
 type GpuVertex =
     { Position: Vector3
       Normal: Vector3
       Color: Vector4
       Uv: Vector2
-      RootIndex: uint32 }
+      RootIndex: uint32
+      Joints: Vector4
+      Weights: Vector4
+      Surface: uint32 }
 
 type MeshBatchData =
     { MaterialName: string
@@ -64,16 +92,7 @@ module StadiumAsset =
             else
                 Vector4(0.8f, 0.8f, 0.8f, 1.0f)
 
-        let color =
-            if name.StartsWith("Grass |", StringComparison.Ordinal) then
-                if name.Contains("stripe 0", StringComparison.Ordinal) then
-                    Vector4(0.17f, 0.39f, 0.12f, 1.0f)
-                else
-                    Vector4(0.12f, 0.32f, 0.09f, 1.0f)
-            else
-                baseColor
-
-        name, color
+        name, baseColor
 
     let private getBuilder (builders: Dictionary<string, BatchBuilder>) materialName =
         match builders.TryGetValue materialName with
@@ -95,7 +114,12 @@ module StadiumAsset =
         (rootIndex: int option)
         (ballRadius: float32 ref option)
         =
-        if primitive.DrawPrimitiveType = PrimitiveType.TRIANGLES then
+        // The pitch shader paints blades directly; retaining the raised chalk meshes would duplicate and float the markings.
+        let raisedPitchPaint =
+            not (isNull primitive.Material)
+            && primitive.Material.Name = "Chalk | warm white"
+
+        if primitive.DrawPrimitiveType = PrimitiveType.TRIANGLES && not raisedPitchPaint then
             let materialName, color = materialDetails primitive.Material
             let builder = getBuilder builders materialName
             let positions = primitive.GetVertexAccessor("POSITION").AsVector3Array()
@@ -135,7 +159,10 @@ module StadiumAsset =
                       Normal = normal
                       Color = color
                       Uv = uv
-                      RootIndex = rootIndex |> Option.defaultValue 23 |> uint32 }
+                      RootIndex = rootIndex |> Option.defaultValue 23 |> uint32
+                      Joints = Vector4.Zero
+                      Weights = Vector4.Zero
+                      Surface = uint32 (StadiumSurface.ofMaterialName materialName) }
 
                 ballRadius
                 |> Option.iter (fun radius -> radius.Value <- max radius.Value (position.Length()))
@@ -211,9 +238,6 @@ module StadiumAsset =
             |> Seq.sortBy fst
             |> Seq.toArray
 
-        if playerRoots.Length <> 22 then
-            invalidOp $"The stadium scene must contain 22 linked player models; found {playerRoots.Length}."
-
         let ballNode =
             model.LogicalNodes
             |> Seq.tryFind (fun node -> node.Name = "Match ball")
@@ -234,19 +258,6 @@ module StadiumAsset =
             if not (dynamicNodes.Contains node) && not (isNull node.Mesh) then
                 for primitive in node.Mesh.Primitives do
                     appendPrimitive staticBuilders primitive node.WorldMatrix None None
-
-        for rootIndex, root in playerRoots do
-            let mutable inverseRoot = Matrix4x4.Identity
-
-            if not (Matrix4x4.Invert(root.WorldMatrix, &inverseRoot)) then
-                invalidOp $"Could not invert player transform for {root.Name}."
-
-            for node in flatten root do
-                if not (isNull node.Mesh) then
-                    let localToRoot = node.WorldMatrix * inverseRoot
-
-                    for primitive in node.Mesh.Primitives do
-                        appendPrimitive dynamicBuilders primitive localToRoot (Some rootIndex) None
 
         let mutable inverseBall = Matrix4x4.Identity
 

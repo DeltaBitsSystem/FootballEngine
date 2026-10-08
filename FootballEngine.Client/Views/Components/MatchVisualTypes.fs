@@ -50,8 +50,13 @@ type OfficialSignal =
 type RenderPlayer =
     { Id: PlayerId
       Position: Vector2
+      Height: float
+      VelocityZ: float
       Velocity: Vector2
       Acceleration: Vector2
+      BodyFacing: float
+      AngularVelocity: float
+      TravelDistance: float
       State: PlayerVisualState
       VisualSlot: int
       ShortName: string
@@ -64,13 +69,32 @@ type RenderBall =
     { Position: Vector2
       Velocity: Vector2
       VelocityZ: float
-      Spin: Vector2
+      Orientation: System.Numerics.Quaternion
+      AngularVelocity: System.Numerics.Vector3
+      Radius: float
+      FootMotion: FootballEngine.Core.Match.FootMotion option
       Height: float }
 
 type RenderOfficial =
     { Position: Vector2
       Signal: OfficialSignal
       IsAssistant: bool }
+
+[<Struct>]
+type MatchHudStats =
+    { HomeShortName: string
+      AwayShortName: string
+      Period: MatchPeriod
+      HomePossession: int
+      AwayPossession: int
+      HomeShots: int
+      AwayShots: int
+      HomeOnTarget: int
+      AwayOnTarget: int
+      HomePasses: int
+      AwayPasses: int
+      HomeColor: uint32
+      AwayColor: uint32 }
 
 type RenderFrame =
     { Players: RenderPlayer[]
@@ -88,4 +112,5 @@ type RenderFrame =
 
 type MatchPitchBinding =
     { RuntimeId: MatchRuntimeId
-      Fixture: FixtureContext }
+      Fixture: FixtureContext
+      HudStats: MatchHudStats }

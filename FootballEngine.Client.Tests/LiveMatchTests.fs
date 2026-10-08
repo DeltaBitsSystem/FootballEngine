@@ -7,6 +7,7 @@ open Expecto
 open FootballEngine
 open FootballEngine.AppMsgs
 open FootballEngine.AppTypes
+open FootballEngine.Client.Match3D
 open FootballEngine.Client.Views.Components
 open FootballEngine.Core.Match
 open FootballEngine.Data
@@ -93,8 +94,12 @@ let private visualSnapshot tick x : Replay.ReplaySnapshot =
       BallVx = 1.0f
       BallVy = 0.0f
       BallVz = 0.0f
-      BallSpinTop = 0.0f
-      BallSpinSide = 0.0f
+      BallSpinX = 0.0f
+      BallSpinY = 0.0f
+      BallSpinZ = 0.0f
+      BallRadius = 0.11f
+      BallOrientation = System.Numerics.Quaternion.Identity
+      FootMotion = None
       BallControlSide = -1y
       BallController = -1
       RefereeX = 0.0f
@@ -106,15 +111,27 @@ let private visualSnapshot tick x : Replay.ReplaySnapshot =
       RefereeSignal = 0uy
       HomeX = [| x |]
       HomeY = [| 0.0f |]
+      HomeZ = [| 0.0f |]
+      HomeVz = [| 0.0f |]
       HomeVx = [| 1.0f |]
       HomeVy = [| 0.0f |]
+      HomeFacing = [| 0.0f |]
+      HomeAngularVelocity = [| 0.0f |]
+      HomeAngularAcceleration = [| 0.0f |]
+      HomeTravelDistance = [| 0.0f |]
       HomeCondition = [| 1.0f |]
       HomeIntent = [| 0uy |]
       HomeActive = [| true |]
       AwayX = [| -x |]
       AwayY = [| 0.0f |]
+      AwayZ = [| 0.0f |]
+      AwayVz = [| 0.0f |]
       AwayVx = [| -1.0f |]
       AwayVy = [| 0.0f |]
+      AwayFacing = [| 0.0f |]
+      AwayAngularVelocity = [| 0.0f |]
+      AwayAngularAcceleration = [| 0.0f |]
+      AwayTravelDistance = [| 0.0f |]
       AwayCondition = [| 1.0f |]
       AwayIntent = [| 0uy |]
       AwayActive = [| true |] }
@@ -124,6 +141,11 @@ let private renderPlayer id x =
       Position = Vector2.create x 0.0
       Velocity = Vector2.zero
       Acceleration = Vector2.zero
+      BodyFacing = 0.0
+      AngularVelocity = 0.0
+      TravelDistance = 0.0
+      Height = 0.0
+      VelocityZ = 0.0
       State = Idle
       VisualSlot = id
       ShortName = string id
@@ -367,7 +389,10 @@ let tests =
                       { Position = Vector2.zero
                         Velocity = Vector2.zero
                         VelocityZ = 0.0
-                        Spin = Vector2.zero
+                        Orientation = System.Numerics.Quaternion.Identity
+                        AngularVelocity = System.Numerics.Vector3.Zero
+                        Radius = 0.11
+                        FootMotion = None
                         Height = 0.0 }
                     Officials = [||]
                     TimeSeconds = 0.0
@@ -407,7 +432,10 @@ let tests =
                       { Position = Vector2.create 0.0 0.0
                         Velocity = Vector2.create 20.0 0.0
                         VelocityZ = 0.0
-                        Spin = Vector2.zero
+                        Orientation = System.Numerics.Quaternion.Identity
+                        AngularVelocity = System.Numerics.Vector3.Zero
+                        Radius = 0.11
+                        FootMotion = None
                         Height = 0.0 }
                     Officials = [||]
                     TimeSeconds = 0.0
@@ -431,6 +459,83 @@ let tests =
               Expect.isGreaterThan interpolated.Ball.Position.X 0.0 "the ball leaves its previous pose before midpoint"
               Expect.isLessThan interpolated.Ball.Position.X 8.0 "the ball does not snap to its next pose at midpoint"
 
+              let motion: FootballEngine.Core.Match.FootMotion =
+                  { Actor = FootballEngine.Core.Match.PlayerId 1
+                    Foot = FootballEngine.Core.Match.ContactFoot.Right
+                    Kind = FootballEngine.Core.Match.FootTouchKind.Kick FootballEngine.Core.Match.StrikeKind.Pass
+                    StartedAt = 0<subtick>
+                    ContactAt = 8<subtick>
+                    EndsAt = 16<subtick>
+                    Point =
+                      { X = -0.11<meter>
+                        Y = 0.0<meter>
+                        Z = 0.11<meter> }
+                    BallCenter =
+                      { X = 0.0<meter>
+                        Y = 0.0<meter>
+                        Z = 0.11<meter> } }
+
+              let prepared =
+                  { first with
+                      Ball =
+                          { first.Ball with
+                              Velocity = Vector2.zero
+                              FootMotion = Some motion } }
+
+              let kicked =
+                  { second with
+                      Ball =
+                          { second.Ball with
+                              Position = Vector2.create 4.0 0.0
+                              FootMotion = Some motion } }
+
+              Expect.equal
+                  (MatchInterp.hermite prepared kicked 0.25 0.4).Ball.Position
+                  Vector2.zero
+                  "outgoing velocity cannot pull the ball backward before impact"
+
+              Expect.equal
+                  (MatchInterp.hermite prepared kicked 0.5 0.4).Ball.Position
+                  Vector2.zero
+                  "ball is at the authoritative contact point at impact"
+
+              Expect.floatClose
+                  Accuracy.high
+                  (MatchInterp.hermite prepared kicked 0.75 0.4).Ball.Position.X
+                  2.0
+                  "post-contact motion starts at impact"
+
+              let spinning =
+                  { first with
+                      Ball =
+                          { first.Ball with
+                              AngularVelocity = System.Numerics.Vector3(0.0f, 0.0f, 160.0f) } }
+
+              let rotated =
+                  { spinning with
+                      TimeSeconds = 0.025
+                      Ball =
+                          { spinning.Ball with
+                              Orientation =
+                                  System.Numerics.Quaternion.CreateFromAxisAngle(System.Numerics.Vector3.UnitZ, 4.0f) } }
+
+              let middle = MatchInterp.hermite spinning rotated 0.5 0.025
+
+              let direction =
+                  System.Numerics.Vector3.Transform(System.Numerics.Vector3.UnitX, middle.Ball.Orientation)
+
+              Expect.floatClose
+                  Accuracy.medium
+                  (float direction.X)
+                  (cos 2.0)
+                  "fast rotation retains the physical turn rather than the shortest quaternion arc"
+
+              Expect.floatClose
+                  Accuracy.medium
+                  (float direction.Y)
+                  (sin 2.0)
+                  "sidespin does not visually reverse between poses"
+
           testCase "subsecond pose intervals scale Hermite tangents in seconds"
           <| fun _ ->
               let movingPlayer =
@@ -443,7 +548,10 @@ let tests =
                       { Position = Vector2.zero
                         Velocity = Vector2.create 10.0 0.0
                         VelocityZ = 10.0
-                        Spin = Vector2.zero
+                        Orientation = System.Numerics.Quaternion.Identity
+                        AngularVelocity = System.Numerics.Vector3.Zero
+                        Radius = 0.11
+                        FootMotion = None
                         Height = 0.0 }
                     Officials = [||]
                     TimeSeconds = 0.0
@@ -835,4 +943,11 @@ let tests =
               Expect.isNone committed.Match.PendingResult "successful commit consumes the result"
               Expect.isNonEmpty command "commit schedules persistence"
               Expect.equal repeated committed "a second confirmation is idempotent"
-              Expect.isEmpty secondCommand "a second confirmation emits no effects" ]
+              Expect.isEmpty secondCommand "a second confirmation emits no effects"
+
+          testCase "the match HUD displays the authoritative half under the score"
+          <| fun _ ->
+              Expect.equal (MatchHudRenderer.periodLabel MatchPeriod.FirstHalf) "1T" "first half"
+              Expect.equal (MatchHudRenderer.periodLabel MatchPeriod.SecondHalf) "2T" "second half"
+              Expect.equal (MatchHudRenderer.periodLabel MatchPeriod.HalfTimeInterval) "DESC" "half-time"
+              Expect.equal (MatchHudRenderer.periodLabel MatchPeriod.ExtraTimeFirstHalf) "1TE" "extra time" ]
