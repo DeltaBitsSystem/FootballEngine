@@ -35,7 +35,10 @@ module TeamPerceive =
             else
                 match MatchWorld.ballCarrier ctx world with
                 | Some(carrierSide, _, _) ->
-                    if carrierSide = side then PhaseKind.Attacking else PhaseKind.Defending
+                    if carrierSide = side then
+                        PhaseKind.Attacking
+                    else
+                        PhaseKind.Defending
                 | None ->
                     match situationPhase with
                     | Some p -> p

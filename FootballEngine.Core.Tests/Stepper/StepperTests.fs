@@ -223,11 +223,17 @@ module StepperTests =
                       "goal stands")
 
               testCase "Restart expiry remains dead until a real impulse" (fun _ ->
-                  let world, restart = TestBuilders.minimalWorld (), TestBuilders.restartState SetPieceKind.KickOff ClubSide.Home (Vec2.create 0.0<meter> 0.0<meter>) RestartPhase.Positioning
+                  let world, restart =
+                      TestBuilders.minimalWorld (),
+                      TestBuilders.restartState
+                          SetPieceKind.KickOff
+                          ClubSide.Home
+                          (Vec2.create 0.0<meter> 0.0<meter>)
+                          RestartPhase.Positioning
 
                   world.State <-
-                       { world.State with
-                           Flow = MatchFlow.Restart restart }
+                      { world.State with
+                          Flow = MatchFlow.Restart restart }
 
                   let _, _, _ = Stepper.step [] sctx (Rng.ofSeed 3UL) world (buffer ())
 

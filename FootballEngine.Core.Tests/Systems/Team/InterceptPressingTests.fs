@@ -136,17 +136,31 @@ module InterceptPressingTests =
                       MatchWorld.activeSlots world.Home.Frame
                       |> Array.filter (fun slot -> world.Home.Frame.Intent.Kind.[slot] = IntentCode.Press)
 
-                  Expect.equal world.Home.Blackboard.OurPhase PhaseKind.Defending "rival control sets the defensive phase"
+                  Expect.equal
+                      world.Home.Blackboard.OurPhase
+                      PhaseKind.Defending
+                      "rival control sets the defensive phase"
+
                   Expect.equal pressers.Length 1 "one coordinated first defender presses"
+
                   Expect.equal
                       world.Home.Frame.DefensiveRoles.[pressers.[0]]
                       DefensiveRole.FirstDefender
                       "the assigned first defender owns the press"
-                  Expect.equal world.Home.Frame.Intent.TargetX.[pressers.[0]] 0.0f "the press targets the carrier position"
-                  Expect.equal world.Home.Frame.Intent.TargetY.[pressers.[0]] 0.0f "the press targets the carrier position"
+
+                  Expect.equal
+                      world.Home.Frame.Intent.TargetX.[pressers.[0]]
+                      0.0f
+                      "the press targets the carrier position"
+
+                  Expect.equal
+                      world.Home.Frame.Intent.TargetY.[pressers.[0]]
+                      0.0f
+                      "the press targets the carrier position"
 
                   let before = abs world.Home.Frame.PosX.[pressers.[0]]
                   PlayerSteering.step (sctx ctx) (Rng.ofSeed 11UL) world (buffer ()) |> ignore
+
                   Expect.isLessThan
                       (abs world.Home.Frame.PosX.[pressers.[0]])
                       before

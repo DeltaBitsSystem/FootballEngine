@@ -404,9 +404,9 @@ module UI =
                           CheckBox.minHeight tokens.Controls.MinimumTarget
                           CheckBox.isEnabled isEnabled
                           CheckBox.onIsCheckedChanged (fun args ->
-                               match args.Source with
-                               | :? CheckBox as checkBox -> onChanged (checkBox.IsChecked = Nullable true)
-                               | _ -> ())
+                              match args.Source with
+                              | :? CheckBox as checkBox -> onChanged (checkBox.IsChecked = Nullable true)
+                              | _ -> ())
                           automationName label
                           automationHelp (help |> Option.defaultValue "") ]
                     yield!

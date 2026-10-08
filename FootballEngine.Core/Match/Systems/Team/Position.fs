@@ -80,10 +80,12 @@ module TeamPosition =
 
             let cover =
                 active
-                |> Array.filter (fun slot -> frame.SlotRoles.[slot] <> SlotRole.Goalkeeper && slot <> nearest && not (Array.contains slot rest))
+                |> Array.filter (fun slot ->
+                    frame.SlotRoles.[slot] <> SlotRole.Goalkeeper
+                    && slot <> nearest
+                    && not (Array.contains slot rest))
                 |> Array.sortBy (fun slot ->
-                    MatchMath.dist ball.X ball.Y (MatchWorld.posX frame slot) (MatchWorld.posY frame slot),
-                    slot)
+                    MatchMath.dist ball.X ball.Y (MatchWorld.posX frame slot) (MatchWorld.posY frame slot), slot)
                 |> Array.tryHead
 
             for slot in active do
@@ -238,6 +240,7 @@ module TeamPosition =
                 if i = gkSlot then
                     let ownGoalX = float (MatchMath.ownGoalX side)
                     let ballDistance = abs (float ball.X - ownGoalX)
+
                     let opponentDistance =
                         opponentActive
                         |> Array.map (fun opponentSlot ->
@@ -257,12 +260,9 @@ module TeamPosition =
                         || opponentDistance < float posCfg.GkThreatDistance
 
                     let targetX =
-                        if threat then
-                            ownGoalX * dir
-                        elif float ballFx > 0.0 then
-                            tx + float posCfg.GkMaxAdvance
-                        else
-                            tx
+                        if threat then ownGoalX * dir
+                        elif float ballFx > 0.0 then tx + float posCfg.GkMaxAdvance
+                        else tx
 
                     FPoint.ofXY targetX 0.0
                 else
@@ -289,8 +289,7 @@ module TeamPosition =
             let safeHalfWidth = float Pitch.HalfWidth - inset
             team.Shape.TargetsX.[i] <- float32 (MatchMath.clamp (-safeHalfLength) safeHalfLength wx)
 
-            team.Shape.TargetsY.[i] <-
-                float32 (MatchMath.clamp (-safeHalfWidth) safeHalfWidth refinedTarget.Y)
+            team.Shape.TargetsY.[i] <- float32 (MatchMath.clamp (-safeHalfWidth) safeHalfWidth refinedTarget.Y)
 
     let step: SystemStep =
         fun ctx rng world _ ->

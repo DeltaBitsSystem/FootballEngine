@@ -83,6 +83,7 @@ module PositionTests =
 
               testCase "loose ball assigns one chaser and defensive roles" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
+
                   world.State <-
                       { world.State with
                           Ball =
@@ -108,12 +109,14 @@ module PositionTests =
                   Expect.notEqual pressers.[0] 0 "the goalkeeper is never the chaser"
                   Expect.equal frame.Intent.TargetX.[pressers.[0]] 10.0f "the chaser targets the ball"
                   Expect.equal frame.DefensiveRoles.[pressers.[0]] DefensiveRole.FirstDefender "chaser role"
+
                   Expect.equal
                       (MatchWorld.activeSlots frame
                        |> Array.filter (fun slot -> frame.DefensiveRoles.[slot] = DefensiveRole.Cover)
                        |> Array.length)
                       1
                       "one player covers"
+
                   Expect.equal
                       (MatchWorld.activeSlots frame
                        |> Array.filter (fun slot -> frame.DefensiveRoles.[slot] = DefensiveRole.Marker)
@@ -151,7 +154,11 @@ module PositionTests =
                   Expect.equal supportSlots.Length 2 "carrier selects at most two support runners"
                   Expect.equal frame.Intent.Kind.[carrier] IntentCode.BallCarry "carrier keeps the ball"
                   Expect.isGreaterThan frame.Intent.TargetX.[carrier] frame.PosX.[carrier] "carry target advances"
-                  Expect.isLessThanOrEqual (abs (float frame.Intent.TargetY.[carrier])) (float Pitch.HalfWidth - 2.0) "carry stays inside inset"
+
+                  Expect.isLessThanOrEqual
+                      (abs (float frame.Intent.TargetY.[carrier]))
+                      (float Pitch.HalfWidth - 2.0)
+                      "carry stays inside inset"
 
                   for slot in MatchWorld.activeSlots frame do
                       if slot <> carrier && not (Array.contains slot supportSlots) then
@@ -188,6 +195,7 @@ module PositionTests =
                       frame.Intent.TargetY.[carrier]
                       frame.PosY.[carrier]
                       "an inward run is retained until the carrier clears the boundary zone"
+
                   Expect.isLessThan
                       frame.Intent.TargetX.[carrier]
                       frame.PosX.[carrier]
@@ -229,8 +237,16 @@ module PositionTests =
                   Expect.isGreaterThan farX threatenedX "keeper advances only when the ball is not a goal threat"
                   Expect.isLessThan (abs (float farY)) 0.1 "keeper target stays central when advancing"
                   Expect.isLessThan (abs (float threatenedY)) 0.1 "keeper target stays central under threat"
-                  Expect.isLessThanOrEqual (abs (float farX)) (float Pitch.HalfLength - 2.0) "far target respects inset"
-                  Expect.isLessThanOrEqual (abs (float threatenedX)) (float Pitch.HalfLength - 2.0) "threat target respects inset")
+
+                  Expect.isLessThanOrEqual
+                      (abs (float farX))
+                      (float Pitch.HalfLength - 2.0)
+                      "far target respects inset"
+
+                  Expect.isLessThanOrEqual
+                      (abs (float threatenedX))
+                      (float Pitch.HalfLength - 2.0)
+                      "threat target respects inset")
 
               testCase "expired committed run completes with an exit trigger" (fun _ ->
                   let world = TestBuilders.minimalWorld ()

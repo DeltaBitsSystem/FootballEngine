@@ -20,6 +20,7 @@ module SetPieceTests =
     /// Applies the award first so the routine observes the authoritative restart state.
     let private runSetPiece (world: World) (kind: SetPieceKind) (side: ClubSide) : EventBuffer =
         let buf = buffer ()
+
         let event =
             { Tick = world.State.Tick
               Data = EventData.SetPiece(kind, side) }
@@ -56,7 +57,8 @@ module SetPieceTests =
                   let anchorX = float (Pitch.awayGoalX - 20.0<meter>) + 9.15
 
                   let hasWall =
-                       world.Away.Frame.Intent.TargetX |> Array.exists (fun x -> abs (float x - anchorX) < 4.0)
+                      world.Away.Frame.Intent.TargetX
+                      |> Array.exists (fun x -> abs (float x - anchorX) < 4.0)
 
                   Expect.isTrue hasWall "the defensive wall is placed 9.15 m from the ball")
 
@@ -73,13 +75,19 @@ module SetPieceTests =
 
                       world.State <-
                           { world.State with
-                              Flow = MatchFlow.Restart { restart with Phase = RestartPhase.Ready } }
+                              Flow =
+                                  MatchFlow.Restart
+                                      { restart with
+                                          Phase = RestartPhase.Ready } }
 
                       SetPieceRoutines.step sctx (Rng.ofSeed 5UL) world (buffer ()) |> ignore
 
                       match world.State.Ball.Impulse with
                       | Some impulse ->
-                          Expect.equal impulse.StrikeKind (StrikeKind.Restart SetPieceKind.FreeKick) "free kick uses restart impulse"
+                          Expect.equal
+                              impulse.StrikeKind
+                              (StrikeKind.Restart SetPieceKind.FreeKick)
+                              "free kick uses restart impulse"
                       | None -> failtest "distant free kick did not execute"
                   | flow -> failtestf "expected free kick restart, got %A" flow)
 
@@ -99,6 +107,7 @@ module SetPieceTests =
                   let world = TestBuilders.minimalWorld ()
                   placeBall world (Pitch.awayGoalX - 20.0<meter>) 0.0<meter>
                   let setupBuffer = buffer ()
+
                   let event =
                       { Tick = world.State.Tick
                         Data = EventData.SetPiece(SetPieceKind.FreeKick, ClubSide.Home) }
@@ -111,7 +120,10 @@ module SetPieceTests =
                   | MatchFlow.Restart restart ->
                       world.State <-
                           { world.State with
-                              Flow = MatchFlow.Restart { restart with Phase = RestartPhase.Ready } }
+                              Flow =
+                                  MatchFlow.Restart
+                                      { restart with
+                                          Phase = RestartPhase.Ready } }
 
                       SetPieceRoutines.step systemCtx (Rng.ofSeed 5UL) world (buffer ()) |> ignore
                   | flow -> failtestf "expected free kick restart, got %A" flow
@@ -149,6 +161,7 @@ module SetPieceTests =
                       | MatchFlow.Restart restart ->
                           Expect.equal restart.Kind kind (sprintf "%A preserves restart kind" kind)
                           Expect.equal restart.Side ClubSide.Home (sprintf "%A preserves restart side" kind)
+
                           Expect.isTrue
                               (MatchWorld.slotOf ctx ClubSide.Home restart.Executor).IsSome
                               (sprintf "%A appoints an active executor" kind)

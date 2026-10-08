@@ -7,7 +7,8 @@ open SkiaSharp
 /// Owned by the drawing operation so Avalonia may safely retain it on its render thread.
 type RenderResources() =
     let owned = ResizeArray<IDisposable>()
-    let own (resource: 'T when 'T :> IDisposable) =
+
+    let own (resource: 'T :> IDisposable) =
         owned.Add resource
         resource
 
@@ -15,16 +16,34 @@ type RenderResources() =
         own (new SKPaint(Color = SKColor.Parse color, IsAntialias = true))
 
     let stroke color width =
-        own (new SKPaint(Color = SKColor.Parse color, IsAntialias = true, Style = SKPaintStyle.Stroke,
-                         StrokeWidth = width, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round))
+        own (
+            new SKPaint(
+                Color = SKColor.Parse color,
+                IsAntialias = true,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = width,
+                StrokeCap = SKStrokeCap.Round,
+                StrokeJoin = SKStrokeJoin.Round
+            )
+        )
 
     let font = own (SKTypeface.FromFamilyName("Inter", SKFontStyle.Bold))
+
     let text color size =
-        own (new SKPaint(Color = SKColor.Parse color, IsAntialias = true, TextSize = size,
-                         Typeface = font, TextAlign = SKTextAlign.Center))
+        own (
+            new SKPaint(
+                Color = SKColor.Parse color,
+                IsAntialias = true,
+                TextSize = size,
+                Typeface = font,
+                TextAlign = SKTextAlign.Center
+            )
+        )
 
     let sprite name =
-        let path = Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", $"player-{name}.png")
+        let path =
+            Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", $"player-{name}.png")
+
         if File.Exists path then
             match SKBitmap.Decode path with
             | null -> None
@@ -103,4 +122,5 @@ type RenderResources() =
         member _.Dispose() =
             for index = owned.Count - 1 downto 0 do
                 owned[index].Dispose()
+
             owned.Clear()

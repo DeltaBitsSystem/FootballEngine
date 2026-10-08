@@ -39,7 +39,13 @@ module MatchClockTests =
                   Expect.equal world.State.Clock.Tick 1<subtick> "clock advanced")
 
               testCase "Clock advances during a restart delay" (fun _ ->
-                  let world, restart = TestBuilders.minimalWorld (), TestBuilders.restartState SetPieceKind.Corner ClubSide.Home (Vec2.create Pitch.awayGoalX Pitch.HalfWidth) RestartPhase.Positioning
+                  let world, restart =
+                      TestBuilders.minimalWorld (),
+                      TestBuilders.restartState
+                          SetPieceKind.Corner
+                          ClubSide.Home
+                          (Vec2.create Pitch.awayGoalX Pitch.HalfWidth)
+                          RestartPhase.Positioning
 
                   world.State <-
                       { world.State with

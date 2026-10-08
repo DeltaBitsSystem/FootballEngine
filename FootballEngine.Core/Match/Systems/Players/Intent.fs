@@ -16,6 +16,7 @@ module PlayerIntent =
         (duration: int<subtick>)
         : unit =
         let currentKind = frame.Intent.Kind.[slot]
+
         let currentExpired =
             not (IntentCode.isContinuous currentKind)
             && frame.Intent.Phase.[slot] = IntentPhase.Committed
@@ -69,12 +70,7 @@ module PlayerIntent =
         let halfWidth = float Pitch.HalfWidth - inset
         float32 (MatchMath.clamp (-halfLength) halfLength x), float32 (MatchMath.clamp (-halfWidth) halfWidth y)
 
-    let private carryTarget
-        (ctx: MatchContext)
-        (world: World)
-        (side: ClubSide)
-        (slot: int)
-        : float32 * float32 =
+    let private carryTarget (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : float32 * float32 =
         let team = MatchWorld.team world side
         let opponents = MatchWorld.team world (MatchWorld.oppOf side)
         let frame = team.Frame
@@ -87,6 +83,7 @@ module PlayerIntent =
         let forwardStep = if roomAhead < forward then -forward * 0.5 else forward
         let preferred = if py >= 0.0 then -1.0 else 1.0
         let safeHalfWidth = float Pitch.HalfWidth - float ctx.Config.Positioning.TargetInset
+
         let wasMovingInward =
             frame.Intent.Kind.[slot] = IntentCode.BallCarry
             && abs (float frame.Intent.TargetY.[slot]) < abs py
@@ -96,18 +93,17 @@ module PlayerIntent =
         let forceInward =
             abs py >= safeHalfWidth - lateral
             || (wasMovingInward && abs py > safeHalfWidth - lateral * 2.0)
+
         let mutable bestX = px * dir + forwardStep
         let mutable bestY = py + preferred * lateral
         let mutable bestSpace = -System.Double.MaxValue
 
-        for candidate in 0 .. 1 do
+        for candidate in 0..1 do
             let sign =
-                if forceInward then
-                    preferred
-                elif candidate = 0 then
-                    preferred
-                else
-                    -preferred
+                if forceInward then preferred
+                elif candidate = 0 then preferred
+                else -preferred
+
             let tx, ty = insetTarget ctx (px * dir + forwardStep) (py + sign * lateral)
             let mutable nearest = System.Double.MaxValue
 
@@ -146,7 +142,13 @@ module PlayerIntent =
             for candidate in MatchWorld.activeSlots frame do
                 if candidate <> carrierSlot && frame.SlotRoles.[candidate] <> SlotRole.Goalkeeper then
                     let relativeForward = (float (MatchWorld.posX frame candidate) - carrierX) * dir
-                    let distance = MatchMath.distF32 frame.PosX.[candidate] frame.PosY.[candidate] frame.PosX.[carrierSlot] frame.PosY.[carrierSlot]
+
+                    let distance =
+                        MatchMath.distF32
+                            frame.PosX.[candidate]
+                            frame.PosY.[candidate]
+                            frame.PosX.[carrierSlot]
+                            frame.PosY.[carrierSlot]
 
                     if relativeForward >= 0.0 then
                         if distance < frontDistance || (distance = frontDistance && candidate < frontSlot) then
@@ -161,11 +163,26 @@ module PlayerIntent =
                     None
                 else
                     let candidateY = float (MatchWorld.posY frame slot)
-                    let naturalSign = if candidateY > carrierY then 1.0 elif candidateY < carrierY then -1.0 else if slot % 2 = 0 then 1.0 else -1.0
+
+                    let naturalSign =
+                        if candidateY > carrierY then 1.0
+                        elif candidateY < carrierY then -1.0
+                        else if slot % 2 = 0 then 1.0
+                        else -1.0
+
                     let sign = if front then naturalSign else -naturalSign
-                    let xOffset = if front then float ctx.Config.Positioning.SupportForwardDistance else -float ctx.Config.Positioning.SupportForwardDistance
+
+                    let xOffset =
+                        if front then
+                            float ctx.Config.Positioning.SupportForwardDistance
+                        else
+                            -float ctx.Config.Positioning.SupportForwardDistance
+
                     let yOffset = sign * float ctx.Config.Positioning.SupportLateralDistance
-                    let targetX, targetY = insetTarget ctx (carrierX * dir + xOffset) (carrierY + yOffset)
+
+                    let targetX, targetY =
+                        insetTarget ctx (carrierX * dir + xOffset) (carrierY + yOffset)
+
                     Some(float32 (float targetX * dir), targetY)
 
             match targetFor frontSlot true with
@@ -195,6 +212,7 @@ module PlayerIntent =
         let shapeY = float team.Shape.TargetsY.[slot]
         let phase = team.Blackboard.OurPhase
         let dir = MatchMath.goalDirection side
+
         let setRoleIntent frame slot kind tx ty tick =
             setIntent frame slot kind tx ty tick ctx.Config.Movement.CommittedRunDuration
 
@@ -216,22 +234,29 @@ module PlayerIntent =
                 setRoleIntent frame slot IntentCode.Cover (float32 coverX) (float32 coverY) tick
             | DefensiveRole.Marker ->
                 let ownGoal = float (MatchMath.ownGoalX side)
-                let restX = ownGoal + dir * min (float ctx.Config.Team.RestDefenseDistance) (abs (bx - ownGoal) * 0.65)
-                let restY = shapeY + (if slot % 2 = 0 then 1.0 else -1.0) * float ctx.Config.Team.WeakSideSeparation * 0.25
+
+                let restX =
+                    ownGoal
+                    + dir
+                      * min (float ctx.Config.Team.RestDefenseDistance) (abs (bx - ownGoal) * 0.65)
+
+                let restY =
+                    shapeY
+                    + (if slot % 2 = 0 then 1.0 else -1.0)
+                      * float ctx.Config.Team.WeakSideSeparation
+                      * 0.25
+
                 setRoleIntent frame slot IntentCode.Recover (float32 restX) (float32 restY) tick
-            | _ ->
-                setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
+            | _ -> setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
         elif opponentControlsBall then
             match frame.DefensiveRoles.[slot] with
             | _ when p.Role = SlotRole.Goalkeeper ->
                 setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
-            | DefensiveRole.FirstDefender ->
-                setRoleIntent frame slot IntentCode.Press (float32 bx) (float32 by) tick
+            | DefensiveRole.FirstDefender -> setRoleIntent frame slot IntentCode.Press (float32 bx) (float32 by) tick
             | DefensiveRole.Cover ->
                 let coverX = bx - dir * float ctx.Config.Team.LooseBallCoverDistance
                 setRoleIntent frame slot IntentCode.Cover (float32 coverX) (float32 shapeY) tick
-            | DefensiveRole.Marker ->
-                setRoleIntent frame slot IntentCode.Recover (float32 shapeX) (float32 shapeY) tick
+            | DefensiveRole.Marker -> setRoleIntent frame slot IntentCode.Recover (float32 shapeX) (float32 shapeY) tick
             | DefensiveRole.Unassigned ->
                 setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
         elif slot = carrierSlot then
@@ -249,6 +274,7 @@ module PlayerIntent =
                 MatchMath.distF32 team.Shape.TargetsX.[slot] team.Shape.TargetsY.[slot] (float32 bx) (float32 by)
 
             let myStep = team.Intercept.SlotSteps.[slot]
+
             let press =
                 looseBallChaser = Some slot
                 || Pressing.shouldPress ctx.Config.Press team.Intercept p.Role myStep
@@ -333,8 +359,8 @@ module PlayerIntent =
                 match world.State.Ball.Trajectory, world.State.Ball.ArrivalGate with
                 | Some(TrajectoryIntent.Aimed(_, receiver, _)), Some gate when gate > tick ->
                     match MatchWorld.teamOfPlayer ctx.Ctx receiver with
-                        | Some side -> MatchWorld.slotOf ctx.Ctx side receiver |> Option.map (fun slot -> side, slot)
-                        | None -> None
+                    | Some side -> MatchWorld.slotOf ctx.Ctx side receiver |> Option.map (fun slot -> side, slot)
+                    | None -> None
                 | _ -> None
 
             let incomingPass =
@@ -367,6 +393,7 @@ module PlayerIntent =
 
                     if team.LastCarrierSlot <> -1 then
                         team.ActivePlan <- None
+
                     team.LastCarrierSlot <- carrierSlot
 
                 if incomingPass then
@@ -384,14 +411,14 @@ module PlayerIntent =
 
                 let pressX, pressY = pressSpot ctx.Ctx world side
 
-                let supportFor slot = supportTarget ctx.Ctx world side carrierSlot slot
+                let supportFor slot =
+                    supportTarget ctx.Ctx world side carrierSlot slot
 
                 let looseBallChaser =
                     match world.State.Ball.Control with
                     | BallControl.Free
                     | BallControl.Airborne
-                    | BallControl.Contesting _ ->
-                        MatchWorld.looseBallChaser world side
+                    | BallControl.Contesting _ -> MatchWorld.looseBallChaser world side
                     | _ -> None
 
                 let looseBall =
@@ -418,7 +445,14 @@ module PlayerIntent =
                                 && frame.SlotRoles.[slot] <> SlotRole.Goalkeeper
                                 && frame.Intent.Kind.[slot] = IntentCode.None
                             then
-                                setIntent frame slot IntentCode.ExecuteRun (float32 px) (float32 py) tick ctx.Ctx.Config.Movement.CommittedRunDuration
+                                setIntent
+                                    frame
+                                    slot
+                                    IntentCode.ExecuteRun
+                                    (float32 px)
+                                    (float32 py)
+                                    tick
+                                    ctx.Ctx.Config.Movement.CommittedRunDuration
                     | _ -> ()
 
                     match receiveTarget with
@@ -427,7 +461,18 @@ module PlayerIntent =
 
                     for slot in MatchWorld.activeSlots frame do
                         if not cancelledByReplacement.[slot] then
-                            roleIntent ctx.Ctx world side carrierSlot (supportFor slot) pressX pressY looseBallChaser looseBall slot tick
+                            roleIntent
+                                ctx.Ctx
+                                world
+                                side
+                                carrierSlot
+                                (supportFor slot)
+                                pressX
+                                pressY
+                                looseBallChaser
+                                looseBall
+                                slot
+                                tick
 
             processTeam ClubSide.Home
             processTeam ClubSide.Away

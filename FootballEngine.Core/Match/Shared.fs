@@ -174,9 +174,7 @@ module MatchWorld =
         elif tiedForBest then
             activeSlots frame
             |> Array.filter (fun slot -> frame.SlotRoles.[slot] <> SlotRole.Goalkeeper)
-            |> Array.sortBy (fun slot ->
-                MatchMath.dist ball.X ball.Y (posX frame slot) (posY frame slot),
-                slot)
+            |> Array.sortBy (fun slot -> MatchMath.dist ball.X ball.Y (posX frame slot) (posY frame slot), slot)
             |> Array.tryHead
         else
             Some bestSlot

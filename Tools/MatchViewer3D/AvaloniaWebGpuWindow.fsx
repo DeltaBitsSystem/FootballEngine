@@ -18,16 +18,24 @@ open ProGPU.Scene.Extensions
 // there. Set an isolated script-only base directory; production projects use
 // NuGet's normal RID asset copying instead.
 let nativePackageRoot =
-    match Environment.GetEnvironmentVariable("NUGET_PACKAGES") with
-    | null
-    | "" -> Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages")
-    | path -> path
+  match Environment.GetEnvironmentVariable("NUGET_PACKAGES") with
+  | null
+  | "" -> Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages")
+  | path -> path
 
 let nativeLibrary =
-    Path.Combine(nativePackageRoot, "silk.net.webgpu.native.wgpu", "2.23.0", "runtimes", "linux-x64", "native", "libwgpu_native.so")
+  Path.Combine(
+    nativePackageRoot,
+    "silk.net.webgpu.native.wgpu",
+    "2.23.0",
+    "runtimes",
+    "linux-x64",
+    "native",
+    "libwgpu_native.so"
+  )
 
 if not (File.Exists nativeLibrary) then
-    failwithf "Linux x64 native WebGPU library missing: %s" nativeLibrary
+  failwithf "Linux x64 native WebGPU library missing: %s" nativeLibrary
 
 let scriptRuntime = Path.Combine(Path.GetTempPath(), "opencode", "fe-webgpu-fsi")
 let nativeDir = Path.Combine(scriptRuntime, "runtimes", "linux-x64", "native")
@@ -35,13 +43,13 @@ Directory.CreateDirectory(nativeDir) |> ignore
 let link = Path.Combine(nativeDir, "libwgpu_native.so")
 
 if not (File.Exists link) then
-    File.CreateSymbolicLink(link, nativeLibrary) |> ignore
+  File.CreateSymbolicLink(link, nativeLibrary) |> ignore
 
 AppContext.SetData("APP_CONTEXT_BASE_DIRECTORY", scriptRuntime + string Path.DirectorySeparatorChar)
 
 type ProbeOperation(bounds: Rect) =
-    let shaderSource =
-        """// One ray/plane and one ray/sphere intersection per pixel; O(1) memory and work per pixel.
+  let shaderSource =
+    """// One ray/plane and one ray/sphere intersection per pixel; O(1) memory and work per pixel.
 fn mainImage(fragCoord: vec2<f32>) -> vec4<f32> {
     let uv = (fragCoord / inputs.iResolution.xy) * 2.0 - vec2<f32>(1.0, 1.0);
     let origin = vec3<f32>(0.0, 20.0, 34.0);
@@ -75,69 +83,72 @@ fn mainImage(fragCoord: vec2<f32>) -> vec4<f32> {
 }
 """
 
-    interface ICustomDrawOperation with
-        member _.Bounds = bounds
-        member _.HitTest _ = false
-        member _.Equals _ = false
-        member _.Dispose() = ()
+  interface ICustomDrawOperation with
+    member _.Bounds = bounds
+    member _.HitTest _ = false
+    member _.Equals _ = false
+    member _.Dispose() = ()
 
-        member _.Render(context: ImmediateDrawingContext) =
-            let feature = context.TryGetFeature<IProGpuApiLeaseFeature>()
+    member _.Render(context: ImmediateDrawingContext) =
+      let feature = context.TryGetFeature<IProGpuApiLeaseFeature>()
 
-            if isNull feature then
-                failwith "WebGPU API lease unavailable"
+      if isNull feature then
+        failwith "WebGPU API lease unavailable"
 
-            use lease = feature.Lease()
-            let width = float32 bounds.Width
-            let height = float32 bounds.Height
-            let shader = ShaderToyParams()
-            shader.Rect <- ProGPU.Scene.Rect(0f, 0f, width, height)
-            shader.Resolution <- Vector3(width, height, 1f)
-            shader.ShaderKey <- "football-engine-ray-scene-v1"
-            shader.ShaderSource <- shaderSource
+      use lease = feature.Lease()
+      let width = float32 bounds.Width
+      let height = float32 bounds.Height
+      let shader = ShaderToyParams()
+      shader.Rect <- ProGPU.Scene.Rect(0f, 0f, width, height)
+      shader.Resolution <- Vector3(width, height, 1f)
+      shader.ShaderKey <- "football-engine-ray-scene-v1"
+      shader.ShaderSource <- shaderSource
 
-            lease.DrawingContext.DrawExtension(
-                ProGPU.Scene.CompositorBuiltInExtensions.ShaderToy,
-                dataParam = shader,
-                transform = lease.CurrentTransform
-            )
+      lease.DrawingContext.DrawExtension(
+        ProGPU.Scene.CompositorBuiltInExtensions.ShaderToy,
+        dataParam = shader,
+        transform = lease.CurrentTransform
+      )
 
 type ProbeSurface() =
-    inherit Control()
+  inherit Control()
 
-    override this.Render(context: DrawingContext) =
-        base.Render(context)
-        context.Custom(new ProbeOperation(Rect(this.Bounds.Size)))
+  override this.Render(context: DrawingContext) =
+    base.Render(context)
+    context.Custom(new ProbeOperation(Rect(this.Bounds.Size)))
 
 type ProbeApp() =
-    inherit Application()
+  inherit Application()
 
-    override _.Initialize() = ()
+  override _.Initialize() = ()
 
-    override _.OnFrameworkInitializationCompleted() =
-        let window = Window(Title = "FE WebGPU + Avalonia HUD probe", Width = 900.0, Height = 580.0)
-        let grid = Grid()
-        grid.Children.Add(ProbeSurface()) |> ignore
+  override _.OnFrameworkInitializationCompleted() =
+    let window =
+      Window(Title = "FE WebGPU + Avalonia HUD probe", Width = 900.0, Height = 580.0)
 
-        let overlay =
-            Border(
-                Background = SolidColorBrush(Avalonia.Media.Color.Parse("#dd152434")),
-                CornerRadius = CornerRadius(8.0),
-                Padding = Thickness(12.0),
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = Thickness(20.0)
-            )
+    let grid = Grid()
+    grid.Children.Add(ProbeSurface()) |> ignore
 
-        overlay.Child <- TextBlock(Text = "AVALONIA HUD OVER WEBGPU", Foreground = Brushes.White)
-        grid.Children.Add(overlay) |> ignore
-        window.Content <- grid
-        window.Show()
-        base.OnFrameworkInitializationCompleted()
+    let overlay =
+      Border(
+        Background = SolidColorBrush(Avalonia.Media.Color.Parse("#dd152434")),
+        CornerRadius = CornerRadius(8.0),
+        Padding = Thickness(12.0),
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Top,
+        Margin = Thickness(20.0)
+      )
 
-AppBuilder.Configure<ProbeApp>()
-    .UseSilkNet()
-    .UseProGpu()
-    .UseProGpuTextShaping()
-    .WithInterFont()
-    .StartWithClassicDesktopLifetime([||])
+    overlay.Child <- TextBlock(Text = "AVALONIA HUD OVER WEBGPU", Foreground = Brushes.White)
+    grid.Children.Add(overlay) |> ignore
+    window.Content <- grid
+    window.Show()
+    base.OnFrameworkInitializationCompleted()
+
+AppBuilder
+  .Configure<ProbeApp>()
+  .UseSilkNet()
+  .UseProGpu()
+  .UseProGpuTextShaping()
+  .WithInterFont()
+  .StartWithClassicDesktopLifetime([||])

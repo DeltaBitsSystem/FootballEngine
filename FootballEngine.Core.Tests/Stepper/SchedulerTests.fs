@@ -88,7 +88,13 @@ module SchedulerTests =
                   Expect.equal total 3 "fires at ticks 0, 5, 10")
 
               testCase "WhenLive fires only while the flow is Live" (fun _ ->
-                  let world, restart = TestBuilders.minimalWorld (), TestBuilders.restartState SetPieceKind.KickOff ClubSide.Home (Vec2.create 0.0<meter> 0.0<meter>) RestartPhase.Positioning
+                  let world, restart =
+                      TestBuilders.minimalWorld (),
+                      TestBuilders.restartState
+                          SetPieceKind.KickOff
+                          ClubSide.Home
+                          (Vec2.create 0.0<meter> 0.0<meter>)
+                          RestartPhase.Positioning
 
                   world.State <-
                       { world.State with
@@ -112,7 +118,12 @@ module SchedulerTests =
                   Expect.equal total 0 "setup and ready phases never become Live without an impulse")
 
               testCase "WhenMovementAllowed fires only for Live and Restart" (fun _ ->
-                  let restart = TestBuilders.restartState SetPieceKind.KickOff ClubSide.Home (Vec2.create 0.0<meter> 0.0<meter>) RestartPhase.Positioning
+                  let restart =
+                      TestBuilders.restartState
+                          SetPieceKind.KickOff
+                          ClubSide.Home
+                          (Vec2.create 0.0<meter> 0.0<meter>)
+                          RestartPhase.Positioning
 
                   let system =
                       { markerSystem with

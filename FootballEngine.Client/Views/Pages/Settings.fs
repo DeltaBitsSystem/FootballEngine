@@ -1372,35 +1372,35 @@ module Settings =
                     CheckBox.create
                         [ CheckBox.isChecked isOn
                           CheckBox.onIsCheckedChanged (fun args ->
-                               match args.Source with
-                               | :? CheckBox as checkBox ->
-                                   dispatch (
-                                       SettingsMsg(
-                                           UpdateGlobal(fun gs ->
-                                               let d = gs.Data
+                              match args.Source with
+                              | :? CheckBox as checkBox ->
+                                  dispatch (
+                                      SettingsMsg(
+                                          UpdateGlobal(fun gs ->
+                                              let d = gs.Data
 
-                                               if checkBox.IsChecked = System.Nullable true then
-                                                   let nextActive = (modId :: d.ActiveMods) |> List.distinct
+                                              if checkBox.IsChecked = System.Nullable true then
+                                                  let nextActive = (modId :: d.ActiveMods) |> List.distinct
 
-                                                   let nextOrder =
-                                                       if List.contains modId d.ModOrder then
-                                                           d.ModOrder
-                                                       else
-                                                           d.ModOrder @ [ modId ]
+                                                  let nextOrder =
+                                                      if List.contains modId d.ModOrder then
+                                                          d.ModOrder
+                                                      else
+                                                          d.ModOrder @ [ modId ]
 
-                                                   { gs with
-                                                       Data =
-                                                           { d with
-                                                               ActiveMods = nextActive
-                                                               ModOrder = nextOrder } }
-                                               else
-                                                   let nextActive = d.ActiveMods |> List.filter ((<>) modId)
+                                                  { gs with
+                                                      Data =
+                                                          { d with
+                                                              ActiveMods = nextActive
+                                                              ModOrder = nextOrder } }
+                                              else
+                                                  let nextActive = d.ActiveMods |> List.filter ((<>) modId)
 
-                                                   { gs with
-                                                       Data = { d with ActiveMods = nextActive } })
-                                       )
-                                   )
-                               | _ -> ())
+                                                  { gs with
+                                                      Data = { d with ActiveMods = nextActive } })
+                                      )
+                                  )
+                              | _ -> ())
                           CheckBox.content (if isOn then "Activo" else "Inactivo")
                           CheckBox.foreground (if isOn then Theme.Success else Theme.TextMuted) ]
                     :> IView
