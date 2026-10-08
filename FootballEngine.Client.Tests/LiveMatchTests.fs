@@ -650,6 +650,148 @@ let tests =
               Expect.notEqual first second "a new session receives a distinct stable handle"
               host.Close second
 
+          testCase "inspector filters are presentation only and retain the selected player"
+          <| fun _ ->
+              withRuntime (fun _ _ session fixture _ ->
+                  let initial = LiveMatchState.create session fixture 1UL LiveSession
+
+                  let state =
+                      { MatchSlice.clearState with
+                          Live = Some initial }
+
+                  let selected = MatchSlice.update (LiveMsg.SelectPlayer(Some 1)) state
+
+                  let filter =
+                      { Actor = Some(FootballEngine.Core.Match.PlayerId 999)
+                        Action = Some(ActionId 7UL)
+                        Event = Some(EventId 8UL)
+                        FromTick = 10<subtick>
+                        UntilTick = 20<subtick> }
+
+                  let filtered = MatchSlice.update (LiveMsg.SetEvidenceQuery filter) selected
+                  let live = filtered.Live.Value
+
+                  let repeated =
+                      MatchSlice.update (LiveMsg.SetEvidenceQuery live.Ui.EvidenceQuery) filtered
+
+                  Expect.isTrue
+                      (obj.ReferenceEquals(repeated, filtered))
+                      "rebinding an unchanged query cannot enqueue another UI render"
+
+                  let repeatedPlayer = MatchSlice.update (LiveMsg.SelectPlayer(Some 1)) filtered
+
+                  Expect.isTrue
+                      (obj.ReferenceEquals(repeatedPlayer, filtered))
+                      "rebinding an unchanged player cannot enqueue another UI render"
+
+                  Expect.equal
+                      live.Ui.EvidenceQuery
+                      { filter with
+                          Actor = Some(FootballEngine.Core.Match.PlayerId 1) }
+                      "actor comes from the existing player selection"
+
+                  Expect.equal live.PendingCommands initial.PendingCommands "querying cannot submit a sporting command"
+                  Expect.equal live.Revision initial.Revision "querying does not advance the authoritative revision"
+                  Expect.equal live.Events initial.Events "querying does not modify the event timeline"
+
+                  let invalid =
+                      MatchSlice.update (LiveMsg.SetEvidenceQuery { filter with FromTick = 21<subtick> }) filtered
+
+                  Expect.equal invalid filtered "an inverted interval is rejected without changing UI or match state"
+                  let cleared = MatchSlice.update (LiveMsg.SelectPlayer None) filtered
+                  Expect.isNone cleared.Live.Value.Ui.EvidenceQuery.Actor "all players resets the causal actor filter"
+
+                  Expect.equal
+                      cleared.Live.Value.Ui.EvidenceQuery.Action
+                      filter.Action
+                      "changing player preserves independent action selection")
+
+          testCase "diagnostic archive reconstructs sporting frontier and pending commands"
+          <| fun _ ->
+              let matchId, gs = scheduledCareer ()
+              let clock = WorldClockOps.init gs.Season
+
+              let unwrap =
+                  function
+                  | Ok value -> value
+                  | Error error -> failtestf "Unexpected diagnostic error: %A" error
+
+              let job =
+                  WorldRunner.prepareUserMatchJobWithBalance BalanceConfig.defaultConfig clock gs matchId
+                  |> unwrap
+
+              let session =
+                  MatchSession.create Scheduler.systems job.Input MatchRunMode.Fast |> unwrap
+
+              let command =
+                  { EffectiveTick = 1200<subtick>
+                    Sequence = 1UL
+                    Revision = job.Input.EffectiveConfig.Revision
+                    Manager = job.Input.Context.HomeClub.Id
+                    Action = ChangeTactics job.Input.Context.HomeClub.BaseTactics }
+
+              MatchSession.receive command session |> unwrap
+              MatchSession.advanceTo 800<subtick> session |> unwrap |> ignore
+              let archive = MatchObservationArchive.capture session
+
+              let decoded =
+                  archive
+                  |> MatchObservationArchive.encode
+                  |> MatchObservationArchive.decode
+                  |> unwrap
+
+              let restored = MatchObservationArchive.restore decoded |> unwrap
+              Expect.equal restored.Input session.Input "input config lineups rules and seed restored"
+              Expect.equal restored.Rng session.Rng "same RNG frontier"
+              Expect.equal restored.World.State session.World.State "same sporting state"
+              Expect.equal restored.Pending session.Pending "pending manager commands preserved"
+              Expect.equal (List.ofSeq restored.Events) (List.ofSeq session.Events) "same authoritative events"
+              Expect.equal decoded.Evidence archive.Evidence "original typed causal evidence preserved"
+              Expect.isError (MatchObservationArchive.decode "{\"FormatVersion\":0}") "unsupported format rejected"
+              let captured = MatchObservationArchive.snapshot session
+              let original = MatchObservationArchive.materialize captured
+              MatchSession.advanceTo 1400<subtick> session |> unwrap |> ignore
+              let delayed = MatchObservationArchive.materialize captured
+              Expect.equal delayed original "serialization after subsequent ticks preserves the captured frontier"
+
+              Expect.equal
+                  (MatchObservationArchive.restore delayed |> unwrap).Pending
+                  restored.Pending
+                  "later command application cannot mutate the captured command queue"
+
+          testCase "diagnostic queue rejects overflow and resolves every retained request on close"
+          <| fun _ ->
+              let matchId, gs = scheduledCareer ()
+              let host = MatchRuntimeHost()
+
+              let runtime =
+                  host.CreateUserMatch(matchId, gs, WorldClockOps.init gs.Season, None, MatchRunMode.Live policy)
+
+              let retained = [| for _ in 1..4 -> host.CaptureObservation runtime |]
+              let overflow = host.CaptureObservation runtime
+              Expect.isTrue (overflow.Wait 1000) "overflow is rejected without waiting for the worker"
+              Expect.isError overflow.Result "bounded diagnostic queue reports overflow"
+              Expect.isError (host.SelectObservation(runtime, None)) "selection also reports the full shared queue"
+              host.Close runtime
+
+              for pending in retained do
+                  Expect.isTrue (pending.Wait 1000) "close resolves every retained request"
+                  Expect.isError pending.Result "closure is explicit, not silent loss"
+
+          testCase "closing an unstarted runtime resolves queued diagnostic exports"
+          <| fun _ ->
+              let matchId, gs = scheduledCareer ()
+              let host = MatchRuntimeHost()
+
+              let runtime =
+                  host.CreateUserMatch(matchId, gs, WorldClockOps.init gs.Season, None, MatchRunMode.Live policy)
+
+              let pending = host.CaptureObservation runtime
+              host.Close runtime
+              Expect.isTrue (pending.Wait 1000) "no stranded export task"
+              Expect.isError pending.Result "close reports unavailable capture"
+              Expect.isError (host.SelectObservation(runtime, None)) "closed runtime rejects selection"
+
           testCase "full-time confirmation commits exactly once"
           <| fun _ ->
               let matchId, gs = scheduledCareer ()

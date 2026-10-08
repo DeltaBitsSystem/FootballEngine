@@ -41,6 +41,7 @@ module Shots =
           VideoStep: int
           VideoFrames: int
           MatchIndex: int
+          InspectMatch: bool
           MatchSeed: uint64 option }
 
     type Context = { Opts: Options; Demo: State }
@@ -157,6 +158,7 @@ module Shots =
                   VideoStep = positiveValue "--video-step" 4
                   VideoFrames = positiveValue "--video-frames" 3600
                   MatchIndex = nonNegativeValue "--match-index" 0
+                  InspectMatch = args |> Array.contains "--match-evidence"
                   MatchSeed = matchSeed }
 
     // Sync replica of UpdateTransfer.buildCacheAsync: the async Load races the screenshot
@@ -229,7 +231,9 @@ module Shots =
             fixtures
             |> Array.tryItem opts.MatchIndex
             |> Option.orElseWith (fun () -> fixtures |> Array.tryHead)
-            |> Option.map (fun (_, fixture) -> { gs with CurrentDate = fixture.ScheduledDate.Date })
+            |> Option.map (fun (_, fixture) ->
+                { gs with
+                    CurrentDate = fixture.ScheduledDate.Date })
             |> Option.defaultValue gs
 
         let cachedPlayers, clubNames = transferCacheOf gs
@@ -359,11 +363,14 @@ module Shots =
                         |> Map.toSeq
                         |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
                         |> Seq.tryPick (fun (matchId, fixture) ->
-                            if fixture.ScheduledDate.Date = gs.CurrentDate.Date
-                               && MatchFixture.isPending fixture
-                               && MatchFixture.involves gs.UserClubId fixture then
+                            if
+                                fixture.ScheduledDate.Date = gs.CurrentDate.Date
+                                && MatchFixture.isPending fixture
+                                && MatchFixture.involves gs.UserClubId fixture
+                            then
                                 Some(Route.Match(matchId, MatchPhase.Live))
-                            else None)
+                            else
+                                None)
                     | _ -> None)
                 |> Option.defaultValue fallback
 
@@ -404,9 +411,32 @@ module Shots =
                     match getDispatch () with
                     | None -> eprintfn $"[shots] no dispatch yet, skipping %A{page}"
                     | Some dispatch ->
-                        let route = match page with Route.Match _ -> liveRoute page | _ -> page
+                        let route =
+                            match page with
+                            | Route.Match _ -> liveRoute page
+                            | _ -> page
+
                         Dispatcher.UIThread.Invoke(fun () -> dispatch (Navigate route))
-                        do! Async.Sleep ctx.Opts.SettleMs
+
+                        do!
+                            Async.Sleep(
+                                if ctx.Opts.InspectMatch then
+                                    min ctx.Opts.SettleMs 4500
+                                else
+                                    ctx.Opts.SettleMs
+                            )
+
+                        if ctx.Opts.InspectMatch then
+                            match page with
+                            | Route.Match _ ->
+                                Dispatcher.UIThread.Invoke(fun () ->
+                                    dispatch (
+                                        LiveMsg(LiveMsg.SelectIntelligenceWorkspace FootballEngine.LiveMatch.Events)
+                                    ))
+
+                                do! Async.Sleep(max 250 (ctx.Opts.SettleMs - 4500))
+                            | _ -> ()
+
                         let file = Path.Combine(ctx.Opts.Dir, $"%02d{idx}_{page}.png")
                         Dispatcher.UIThread.Invoke(fun () -> captureTo window file)
                         printfn $"[shots] %A{page} -> {file}"

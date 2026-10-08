@@ -15,19 +15,35 @@ module MatchSlice =
 
     let private applyCore (message: FootballEngine.LiveMatch.LiveMatchMsg) (state: AppTypes.MatchState) =
         let live, _ = LiveMatchUpdate.update message state.Live
-        { state with Live = live }
+
+        match live, state.Live with
+        | Some updated, Some previous when obj.ReferenceEquals(updated, previous) -> state
+        | None, None -> state
+        | _ -> { state with Live = live }
 
     let applySemantic (semantic: LiveRuntimeSemantic) (state: AppTypes.MatchState) =
-        applyCore
-            (FootballEngine.LiveMatch.SemanticReceived(
-                semantic.Revision,
-                semantic.Clock,
-                semantic.Score,
-                fst semantic.Stats,
-                snd semantic.Stats,
-                Array.toList semantic.Events
-            ))
-            state
+        let updated =
+            applyCore
+                (FootballEngine.LiveMatch.SemanticReceived(
+                    semantic.Revision,
+                    semantic.Clock,
+                    semantic.Score,
+                    fst semantic.Stats,
+                    snd semantic.Stats,
+                    Array.toList semantic.Events
+                ))
+                state
+
+        match updated.Live with
+        | Some live when semantic.Revision >= live.Revision ->
+            let evidence =
+                match semantic.Evidence with
+                | Some publication -> Some(Observation.merge live.Evidence publication)
+                | None -> live.Evidence
+
+            { updated with
+                Live = Some { live with Evidence = evidence } }
+        | _ -> updated
 
     let applyFinished (_runtimeId: MatchRuntimeId) (_result: MatchJobResult) (state: AppTypes.MatchState) =
         match state.Live with
@@ -73,6 +89,7 @@ module MatchSlice =
         | LiveMsg.SelectIntelligenceWorkspace workspace ->
             applyCore (FootballEngine.LiveMatch.SelectIntelligenceWorkspace workspace) state
         | LiveMsg.SelectPlayer playerId -> applyCore (FootballEngine.LiveMatch.SelectPlayer playerId) state
+        | LiveMsg.SetEvidenceQuery query -> applyCore (FootballEngine.LiveMatch.SetEvidenceQuery query) state
         | LiveMsg.SetDraftSubstitutions changes ->
             applyCore (FootballEngine.LiveMatch.SetDraftSubstitutions changes) state
         | LiveMsg.SubmitDraftSubstitutions -> applyCore FootballEngine.LiveMatch.SubmitDraftSubstitutions state

@@ -17,4 +17,5 @@ let main argv =
               routingTests
               tacticsTests
               ModEditorTests.tests
-              LiveMatchTests.tests ])
+              LiveMatchTests.tests
+              MatchDiagnosticsTests.tests ])

@@ -158,6 +158,7 @@ module AppTypes =
         { RuntimeId: MatchRuntimeId
           Revision: uint64
           Frontier: int<subtick>
+          Evidence: ObservationSnapshot option
           Events: MatchEvent array
           Clock: FootballEngine.LiveMatch.LiveClock
           Score: int * int

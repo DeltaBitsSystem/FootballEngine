@@ -10,11 +10,13 @@
     <Compile Include="TacticsDraftTests.fs" />
     <Compile Include="ModEditorTests.fs" />
     <Compile Include="LiveMatchTests.fs" />
+    <Compile Include="MatchDiagnosticsTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FootballEngine.Client\FootballEngine.Client.fsproj" />
     <ProjectReference Include="..\FootballEngine.Core\FootballEngine.Core.fsproj" />
+    <ProjectReference Include="..\Tools\MatchDiagnostics\MatchDiagnostics.fsproj" />
     <PackageReference Include="Expecto" />
     <PackageReference Include="sqlite-net-pcl" />
   </ItemGroup>

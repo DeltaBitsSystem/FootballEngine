@@ -17,6 +17,7 @@
         <Compile Include="AppState\Types.fs"/>
         <Compile Include="AppState\Msg.fs"/>
         <Compile Include="AppState\MatchPresentation.fs"/>
+        <Compile Include="AppState\MatchObservationArchive.fs"/>
         <Compile Include="AppState\MatchRuntime.fs"/>
         <Compile Include="AppState\ModEditorPackage.fs"/>
         <Compile Include="Shots\Shots.fs"/>
@@ -57,6 +58,7 @@
         <Compile Include="Views\Components\EventTimeline.fs"/>
         <Compile Include="Views\Components\StatsPanel.fs"/>
         <Compile Include="Views\Components\CommentaryOverlay.fs"/>
+        <Compile Include="Views\Components\MatchEvidenceInspector.fs"/>
         <Compile Include="Views\Components\MatchViewer.fs"/>
         <Compile Include="Views\Pages\Loading.fs"/>
         <Compile Include="Views\Pages\Setup.fs"/>

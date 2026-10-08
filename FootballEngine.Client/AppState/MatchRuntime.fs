@@ -26,6 +26,11 @@ type MatchRuntimePublication =
     | Finished of MatchJobResult
     | Failed of string
 
+type private MatchObservationRequest =
+    | SelectDetail of ObservationSelection option
+    | SelectUpcoming of FootballEngine.Core.Match.PlayerId * int<tickDelta>
+    | CaptureArchive of TaskCompletionSource<Result<MatchObservationCapture, string>>
+
 type private MatchRuntime
     (
         runtimeId: MatchRuntimeId,
@@ -37,6 +42,7 @@ type private MatchRuntime
     ) =
     let cancellation = new CancellationTokenSource()
     let commandQueue = Channel.CreateUnbounded<LiveMatchCommand>()
+    let observationRequests = Channel.CreateBounded<MatchObservationRequest>(4)
 
     let policy =
         match runMode with
@@ -253,6 +259,7 @@ type private MatchRuntime
                         let mutable revision = 0UL
                         let mutable lastCommandId = 0UL
                         let mutable lastSemanticTick = 0<subtick>
+                        let mutable lastEvidence = 0UL
                         let mutable lastSemanticScore = 0, 0
                         let mutable pendingEvents: MatchEvent list = []
 
@@ -280,12 +287,18 @@ type private MatchRuntime
                                         { RuntimeId = runtimeId
                                           Revision = revision
                                           Frontier = frontier
+                                          Evidence =
+                                            if lastEvidence < session.World.Observation.Total then
+                                                Some(session.World.Observation.SnapshotSince lastEvidence)
+                                            else
+                                                None
                                           Events = events |> List.toArray
                                           Clock = liveClock session
                                           Score = score
                                           Stats = session.World.Home.Stats, session.World.Away.Stats })
 
                                 lastSemanticTick <- frontier
+                                lastEvidence <- session.World.Observation.Total
                                 lastSemanticScore <- score
                                 pendingEvents <- []
 
@@ -377,6 +390,27 @@ type private MatchRuntime
                             | _ -> ()
 
                         while not finished && not cancellation.IsCancellationRequested do
+                            let mutable takeObservation = true
+
+                            while takeObservation do
+                                match observationRequests.Reader.TryRead() with
+                                | true, SelectDetail selection ->
+                                    session.World.Observation.SelectDetail selection |> ignore
+                                | true, SelectUpcoming(actor, duration) ->
+                                    session.World.Observation.SelectDetail(
+                                        Some
+                                            { Actor = actor
+                                              FromTick = session.World.State.Tick
+                                              UntilTick = session.World.State.Tick + int duration * 1<subtick> }
+                                    )
+                                    |> ignore
+                                | true, CaptureArchive completion ->
+                                    try
+                                        completion.TrySetResult(Ok(MatchObservationArchive.snapshot session)) |> ignore
+                                    with error ->
+                                        completion.TrySetResult(Error error.Message) |> ignore
+                                | _ -> takeObservation <- false
+
                             drainCommands ()
 
                             if paused || Stopwatch.GetTimestamp() < nextAdvance then
@@ -505,6 +539,16 @@ type private MatchRuntime
             with :? OperationCanceledException ->
                 ()
 
+        observationRequests.Writer.TryComplete() |> ignore
+        let mutable drainObservation = true
+
+        while drainObservation do
+            match observationRequests.Reader.TryRead() with
+            | true, CaptureArchive completion -> completion.TrySetResult(Error "Match worker stopped.") |> ignore
+            | true, SelectDetail _ -> ()
+            | true, SelectUpcoming _ -> ()
+            | _ -> drainObservation <- false
+
     member _.RuntimeId = runtimeId
     member _.MatchId = matchId
     member _.PresentationStream = presentation
@@ -520,11 +564,65 @@ type private MatchRuntime
     member _.Submit(command: LiveMatchCommand) =
         commandQueue.Writer.TryWrite command |> ignore
 
+    member _.SelectObservation(selection: ObservationSelection option) =
+        match selection with
+        | Some value when value.FromTick < 0<subtick> || value.UntilTick < value.FromTick ->
+            Error "Capture interval must be non-negative and ordered."
+        | _ when worker |> Option.exists (fun task -> task.IsCompleted) -> Error "Match worker has finished."
+        | _ ->
+            if observationRequests.Writer.TryWrite(SelectDetail selection) then
+                Ok()
+            else
+                Error "Diagnostic request queue is full."
+
+    member _.CaptureObservation() =
+        let completion =
+            TaskCompletionSource<Result<MatchObservationCapture, string>>(
+                TaskCreationOptions.RunContinuationsAsynchronously
+            )
+
+        if worker |> Option.exists (fun task -> task.IsCompleted) then
+            completion.SetResult(Error "Match worker has finished.")
+        elif not (observationRequests.Writer.TryWrite(CaptureArchive completion)) then
+            completion.SetResult(Error "Diagnostic request queue is full.")
+
+        task {
+            let! captured = completion.Task
+
+            match captured with
+            | Error error -> return Error error
+            | Ok snapshot ->
+                return!
+                    Task.Run(fun () ->
+                        try
+                            Ok(MatchObservationArchive.materialize snapshot)
+                        with error ->
+                            Error error.Message)
+        }
+
+    member _.SelectUpcoming(actor: FootballEngine.Core.Match.PlayerId, duration: int<tickDelta>) =
+        if duration <= 0<tickDelta> then
+            Error "Capture duration must be positive."
+        elif observationRequests.Writer.TryWrite(SelectUpcoming(actor, duration)) then
+            Ok()
+        else
+            Error "Diagnostic request queue is unavailable or full."
+
     member _.Dispose() =
         if not cancellation.IsCancellationRequested then
             cancellation.Cancel()
 
         queue.Writer.TryComplete() |> ignore
+        observationRequests.Writer.TryComplete() |> ignore
+        let mutable drainObservation = true
+
+        while drainObservation do
+            match observationRequests.Reader.TryRead() with
+            | true, CaptureArchive completion -> completion.TrySetResult(Error "Match runtime closed.") |> ignore
+            | true, SelectDetail _ -> ()
+            | true, SelectUpcoming _ -> ()
+            | _ -> drainObservation <- false
+
         presentation.Close()
 
         match worker with
@@ -576,6 +674,26 @@ type MatchRuntimeHost() =
             | true, runtime -> Some runtime.PresentationStream
             | _ -> None)
 
+    member _.SelectObservation(runtimeId: MatchRuntimeId, selection: ObservationSelection option) =
+        lock syncRoot (fun () ->
+            match runtimes.TryGetValue runtimeId with
+            | true, runtime -> runtime.SelectObservation selection
+            | _ -> Error "Match runtime is unavailable.")
+
+    member _.CaptureObservation(runtimeId: MatchRuntimeId) =
+        lock syncRoot (fun () ->
+            match runtimes.TryGetValue runtimeId with
+            | true, runtime -> runtime.CaptureObservation()
+            | _ -> Task.FromResult(Error "Match runtime is unavailable."))
+
+    member _.SelectUpcoming
+        (runtimeId: MatchRuntimeId, actor: FootballEngine.Core.Match.PlayerId, duration: int<tickDelta>)
+        =
+        lock syncRoot (fun () ->
+            match runtimes.TryGetValue runtimeId with
+            | true, runtime -> runtime.SelectUpcoming(actor, duration)
+            | _ -> Error "Match runtime is unavailable.")
+
     member _.Close(runtimeId: MatchRuntimeId) =
         lock syncRoot (fun () ->
             match runtimes.TryGetValue runtimeId with
@@ -606,6 +724,14 @@ module MatchRuntime =
     let tryTake runtimeId = host.TryTake runtimeId
 
     let submit runtimeId command = host.Submit(runtimeId, command)
+
+    let selectObservation runtimeId selection =
+        host.SelectObservation(runtimeId, selection)
+
+    let captureObservation runtimeId = host.CaptureObservation runtimeId
+
+    let selectUpcoming runtimeId actor duration =
+        host.SelectUpcoming(runtimeId, actor, duration)
 
     let presentationStream runtimeId = host.PresentationStream runtimeId
 

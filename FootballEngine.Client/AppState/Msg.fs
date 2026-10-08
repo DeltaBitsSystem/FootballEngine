@@ -138,6 +138,7 @@ module AppMsgs =
         | SelectManagerWorkspace of MatchDayWorkspace
         | SelectIntelligenceWorkspace of IntelligenceWorkspace
         | SelectPlayer of FootballEngine.Domain.PlayerId option
+        | SetEvidenceQuery of FootballEngine.Core.Match.ObservationQuery
         | SetDraftSubstitutions of SubstitutionChange list
         | SubmitDraftSubstitutions
         | DismissError
