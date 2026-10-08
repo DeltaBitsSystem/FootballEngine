@@ -77,6 +77,11 @@ then becomes a no-op. A failed edit leaves the original replacement eligible.
 Ordinary saves refuse to create a new primary when only an older `.bak` remains;
 loading first restores that backup, while an explicit career replacement may
 create a fresh primary and matching backup.
+The desktop window waits for already-started SQLite writes before closing. If
+one fails, closing is cancelled and a notification remains visible so the
+player can retry; forced process termination or power loss cannot run this
+graceful-shutdown path. Each command captures its slot file path before the
+background task starts, rather than depending on later ambient directory state.
 
 ## Verification
 

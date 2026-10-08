@@ -6,6 +6,7 @@ open System.IO.Compression
 open System.Security.Cryptography
 open System.Text
 open System.Text.Json.Nodes
+open System.Threading
 open System.Threading.Tasks
 open Expecto
 open SQLite
@@ -129,6 +130,12 @@ let private load root slot =
     Db.configureStorageDirectoryForTests root
     Db.loadEnvelope slot |> Async.AwaitTask |> Async.RunSynchronously
 
+type private NonPumpingSynchronizationContext() =
+    inherit SynchronizationContext()
+
+    override _.Post(_, _) =
+        failtest "a save continuation tried to resume on the closing UI thread"
+
 let isolationTests =
     testCase "slots keep envelopes and entities isolated"
     <| fun _ ->
@@ -148,6 +155,54 @@ let isolationTests =
             Expect.equal a.ResolvedData.DataLock first.DataLock "slot A resolved snapshot"
             Expect.equal b.ResolvedData.DataLock second.DataLock "slot B resolved snapshot"
         | left, right -> failtestf "slot load failed: %A / %A" left right
+
+let shutdownWriteTests =
+    testCase "shutdown waits for a save without relying on the UI synchronization context"
+    <| fun _ ->
+        let root = tempRoot ()
+        Db.configureStorageDirectoryForTests root
+        Db.initTablesForSlot "closing" |> Async.AwaitTask |> Async.RunSynchronously
+        let game = state (DateTime(2027, 1, 1)) (dataLock None)
+        let original = SynchronizationContext.Current
+        SynchronizationContext.SetSynchronizationContext(NonPumpingSynchronizationContext())
+
+        try
+            Db.configureStorageDirectoryForTests root
+            let writing = Db.saveGameInSlotAsync "closing" game (clock 1UL 1) saveSettings
+
+            Db.waitForSlotWrites "closing"
+            |> fun pending -> pending.WaitAsync(TimeSpan.FromSeconds 15.0).GetAwaiter().GetResult()
+
+            writing.GetAwaiter().GetResult()
+        finally
+            SynchronizationContext.SetSynchronizationContext(original)
+
+        match load root "closing" with
+        | Ok loaded -> Expect.equal loaded.State game "the in-flight write finished before shutdown"
+        | Error error -> failtestf "shutdown lost the new save: %A" error
+
+let capturedSlotPathTests =
+    testCase "a delayed save uses the slot directory from command creation, not its execution context"
+    <| fun _ ->
+        let originalRoot = tempRoot ()
+        let otherRoot = tempRoot ()
+        let game = state (DateTime(2027, 1, 1)) (dataLock None)
+        Db.configureStorageDirectoryForTests originalRoot
+        let save = Db.prepareSaveInSlot "captured" game (clock 1UL 1) saveSettings false
+        Db.configureStorageDirectoryForTests otherRoot
+        save () |> Async.AwaitTask |> Async.RunSynchronously
+
+        Expect.isTrue
+            (File.Exists(Path.Combine(originalRoot, "career-captured.db3")))
+            "the confirmed snapshot went to its original directory"
+
+        Expect.isFalse
+            (File.Exists(Path.Combine(otherRoot, "career-captured.db3")))
+            "the worker did not use an unrelated ambient directory"
+
+        match load originalRoot "captured" with
+        | Ok loaded -> Expect.equal loaded.State game "the captured-path save is loadable"
+        | Error error -> failtestf "captured path could not be loaded: %A" error
 
 let foreignSlotWriteTests =
     testCase "a copied save from another slot cannot be overwritten under a new filename"
@@ -1436,6 +1491,8 @@ let tests =
     testList
         "Persistence"
         [ isolationTests
+          shutdownWriteTests
+          capturedSlotPathTests
           foreignSlotWriteTests
           unknownSchemaWriteTests
           incompleteSchemaWriteTests

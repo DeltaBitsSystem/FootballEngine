@@ -140,6 +140,20 @@ module Db =
             lock sync (fun () -> replacementIssued > committed && replacementIssued <= sequence)
 
     let private gates = ConcurrentDictionary<string, SlotWriteGate>()
+    let private inFlightWrites = ConcurrentDictionary<int64, string * Task>()
+    let mutable private nextWriteId = 0L
+
+    let waitForInFlightWrites () : Task =
+        inFlightWrites.Values |> Seq.map snd |> Seq.toArray |> Task.WhenAll :> Task
+
+    let waitForSlotWrites slot : Task =
+        let path = slotPath slot
+
+        inFlightWrites.Values
+        |> Seq.choose (fun (writePath, pending) -> if writePath = path then Some pending else None)
+        |> Seq.toArray
+        |> Task.WhenAll
+        :> Task
 
     let private gateFor slot =
         gates.GetOrAdd(slotPath slot, fun _ -> SlotWriteGate())
@@ -313,20 +327,21 @@ module Db =
 
     let private saveCore
         (slot: string)
+        (path: string)
         (state: GameState)
         (clock: WorldClock)
         (settings: SaveSettings)
         (replace: bool)
         =
-        let path = slotPath slot
-        Directory.CreateDirectory(storageDirectory ()) |> ignore
+        Directory.CreateDirectory(Path.GetDirectoryName path) |> ignore
 
         if not replace && not (File.Exists path) && File.Exists(path + ".bak") then
             invalidOp "Cannot save over an orphaned backup; load the slot to recover it first."
 
         if File.Exists path then
             match incompatibleSchema path with
-            | Some version -> invalidOp $"Save schema {version} is incompatible with schema {CurrentSchema}."
+            | Some version ->
+                invalidOp $"Save schema {version} is incompatible with schema {CurrentSchema} in '{path}'."
             | None -> ()
 
         match SaveSettings.validate settings with
@@ -470,8 +485,7 @@ module Db =
             with error ->
                 raise (CommittedBackupFailure error)
 
-    let private replaceLegacy slot state clock settings =
-        let path = slotPath slot
+    let private replaceLegacy slot path state clock settings =
 
         let oldFormat =
             if File.Exists path then
@@ -484,7 +498,7 @@ module Db =
                 None
 
         match oldFormat with
-        | None -> saveCore slot state clock settings true
+        | None -> saveCore slot path state clock settings true
         | Some _ ->
             let archived = path + ".legacy-" + Guid.NewGuid().ToString("N")
             let backup = path + ".bak"
@@ -498,7 +512,7 @@ module Db =
                 if File.Exists backup then
                     File.Move(backup, archivedBackup)
 
-                saveCore slot state clock settings true
+                saveCore slot path state clock settings true
             with error ->
                 if movedPrimary then
                     let failed = path + ".failed-" + Guid.NewGuid().ToString("N")
@@ -519,33 +533,52 @@ module Db =
                 | _ -> raise error
 
     let prepareSaveInSlot (slot: string) (state: GameState) (clock: WorldClock) (settings: SaveSettings) replace =
-        let writer = gateFor slot
+        let path = slotPath slot
+        let writer = gates.GetOrAdd(path, fun _ -> SlotWriteGate())
         let sequence = writer.Issue(replace)
 
         fun () ->
-            task {
-                do! writer.Semaphore.WaitAsync()
+            let started =
+                task {
+                    do! writer.Semaphore.WaitAsync().ConfigureAwait(false)
 
-                try
-                    if not (writer.Superseded sequence) then
-                        // Later changes to a new career may run before its initial replacement command.
-                        let effectiveReplace = replace || writer.NeedsReplacement sequence
+                    try
+                        if not (writer.Superseded sequence) then
+                            // Later changes to a new career may run before its initial replacement command.
+                            let effectiveReplace = replace || writer.NeedsReplacement sequence
 
-                        try
-                            do!
-                                Task.Run(fun () ->
-                                    if effectiveReplace then
-                                        replaceLegacy slot state clock settings
-                                    else
-                                        saveCore slot state clock settings false)
+                            try
+                                do!
+                                    Task
+                                        .Run(fun () ->
+                                            if effectiveReplace then
+                                                replaceLegacy slot path state clock settings
+                                            else
+                                                saveCore slot path state clock settings false)
+                                        .ConfigureAwait(false)
 
-                            writer.Commit sequence
-                        with CommittedBackupFailure cause ->
-                            writer.Commit sequence
-                            raise cause
-                finally
-                    writer.Semaphore.Release() |> ignore
-            }
+                                writer.Commit sequence
+                            with CommittedBackupFailure cause ->
+                                writer.Commit sequence
+                                raise cause
+                    finally
+                        writer.Semaphore.Release() |> ignore
+                }
+
+            let id = Interlocked.Increment(&nextWriteId)
+            inFlightWrites[id] <- path, started
+
+            started.ContinueWith(
+                Action<Task>(fun _ ->
+                    let mutable removed: string * Task = path, Task.CompletedTask
+                    inFlightWrites.TryRemove(id, &removed) |> ignore),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default
+            )
+            |> ignore
+
+            started
 
     let saveGameInSlotAsync slot state clock settings =
         (prepareSaveInSlot slot state clock settings false) ()

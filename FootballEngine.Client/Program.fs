@@ -192,6 +192,27 @@ type MainWindow(initialGlobal: GlobalSettings, resolvedData: Data.ResolvedDataSe
         let mutable dispatchCell: (Msg -> unit) option = None
         let mutable stateCell: State option = None
 
+        this.Closing.Add(fun args ->
+            if shots.IsNone then
+                try
+                    // Closing must wait for SQLite writes, not for their UI completion messages.
+                    Db.waitForInFlightWrites().GetAwaiter().GetResult()
+                with error ->
+                    args.Cancel <- true
+
+                    dispatchCell
+                    |> Option.iter (fun dispatch ->
+                        dispatch (
+                            NotificationMsg(
+                                PushNotification
+                                    { Id = 0
+                                      Icon = Material.Icons.MaterialIconKind.AlertCircleOutline
+                                      Title = "Save failed"
+                                      Body = "The window stayed open because a save failed: " + error.Message
+                                      IsRead = false }
+                            )
+                        )))
+
         let initFn () =
             match shots with
             | Some s ->
@@ -201,6 +222,7 @@ type MainWindow(initialGlobal: GlobalSettings, resolvedData: Data.ResolvedDataSe
             | None -> AppState.initWithGlobal initialGlobal resolvedData ()
 
         let viewFn state dispatch =
+            dispatchCell <- Some dispatch
             stateCell <- Some state
             Views.mainView state dispatch
 
