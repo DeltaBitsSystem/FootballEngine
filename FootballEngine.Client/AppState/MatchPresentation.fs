@@ -6,6 +6,7 @@ open System.Threading
 open FootballEngine.AppTypes
 open FootballEngine.Core.Match
 open FootballEngine.LiveMatch
+open FootballEngine.Client.Animation
 
 type PresentationDiscontinuity =
     | MatchFlowChanged of previous: byte * current: byte
@@ -33,6 +34,13 @@ type PresentationEvent =
 /// A latest-window visual timeline. Rendering never waits for the simulation.
 type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPolicy) =
     let gate = obj ()
+
+    let mutable motion: MotionRuntime option = None
+    let motionArchive = MotionCheckpointArchive.Writer()
+    let mutable motionRecoveryRequest = ValueNone
+    let mutable motionRecoveryInFlight = ValueNone
+    let mutable motionRecoveryError: string option = None
+
     let slots: PresentationPose option[] = Array.zeroCreate policy.BufferCapacity
     let events = ResizeArray<PresentationEvent>()
     let mutable writeIndex = 0
@@ -91,6 +99,119 @@ type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPol
     member _.IsClosed = lock gate (fun () -> closed)
     member _.DroppedPoseCount = lock gate (fun () -> droppedPoseCount)
     member _.UnderrunCount = lock gate (fun () -> underrunCount)
+
+    member _.ConfigureMotion(identity: MotionCheckpointIdentity) =
+        lock gate (fun () ->
+            if closed then
+                Error RuntimeClosed
+            elif
+                identity.PlannerVersion <> MotionIdentity.plannerVersion
+                || identity.ConfigHash <> MotionIdentity.configHash AnimationConfig.defaultConfig
+            then
+                Error IncompatibleCheckpoint
+            else
+                match motion with
+                | Some runtime when runtime.Identity = identity -> Ok()
+                | Some _ -> Error IncompatibleCheckpoint
+                | None ->
+                    motion <- Some(MotionRuntime(AnimationConfig.defaultConfig, identity))
+                    Ok())
+
+    member _.PublishMotion(boundaries: MotionBoundary[]) =
+        lock gate (fun () ->
+            let mutable error = None
+
+            for boundary in boundaries do
+                if error.IsNone then
+                    match motion with
+                    | None -> error <- Some MotionIdentityNotConfigured
+                    | Some runtime ->
+                        let previous = runtime.Frontier
+
+                        match runtime.Ingest boundary with
+                        | Error value -> error <- Some value
+                        | Ok() when
+                            int boundary.Tick > previous
+                            && int boundary.Tick % MotionTrack.checkpointInterval = 0
+                            ->
+                            match motionArchive.Append(runtime.Checkpoint()) with
+                            | Ok() -> ()
+                            | Error _ -> error <- Some IncompatibleCheckpoint
+                        | Ok() -> ()
+
+            match error with
+            | Some value -> Error value
+            | None -> Ok())
+
+    member _.MotionPlan(actor: FootballEngine.Core.Match.PlayerId, time: MotionTime) =
+        lock gate (fun () ->
+            match motion with
+            | Some runtime -> runtime.TryPlan(actor, time)
+            | None -> Error MotionIdentityNotConfigured)
+
+    member _.MotionCheckpoint() =
+        lock gate (fun () -> motion |> Option.map _.Checkpoint())
+
+    member _.MotionArchiveSection() : Replay.ReplaySection =
+        lock gate (fun () ->
+            { Kind = 2u
+              Version = 1
+              Payload = motionArchive.Complete() })
+
+    member _.MotionRigMatches(hash: string) =
+        lock gate (fun () -> motion |> Option.exists (fun runtime -> runtime.Identity.RigHash = hash))
+
+    member _.MotionRecoveryError = lock gate (fun () -> motionRecoveryError)
+
+    /// The simulation/archive owner supplies a block; reconstruction never runs on the render thread.
+    member _.RecoverMotion(readBlock, cancellation: CancellationToken) =
+        let request =
+            lock gate (fun () ->
+                match motion, motionRecoveryRequest with
+                | Some runtime, ValueSome tick when not closed ->
+                    motionRecoveryRequest <- ValueNone
+
+                    match motionArchive.Preceding(runtime.Config, runtime.Identity, tick) with
+                    | Error message ->
+                        motionRecoveryError <- Some message
+                        Error message
+                    | Ok checkpoint ->
+                        let epoch = runtime.BeginSeek()
+                        motionRecoveryInFlight <- ValueSome epoch
+
+                        let target =
+                            min
+                                runtime.Frontier
+                                (min
+                                    (checkpoint.Tick + MotionTrack.checkpointInterval - 1)
+                                    (tick + runtime.Config.RecoveryWindowTicks - 1))
+
+                        Ok(Some(runtime.Config, runtime.Identity, checkpoint, target, epoch))
+                | _ -> Ok None)
+
+        match request with
+        | Error message -> Error message
+        | Ok None -> Ok false
+        | Ok(Some(config, identity, checkpoint, target, epoch)) ->
+            let rebuilt =
+                MotionReconstruction.rebuild config identity checkpoint target readBlock cancellation
+
+            lock gate (fun () ->
+                match motion with
+                | Some runtime when not closed && runtime.Epoch = epoch && not cancellation.IsCancellationRequested ->
+                    motionRecoveryInFlight <- ValueNone
+
+                    match rebuilt with
+                    | Error message ->
+                        motionRecoveryError <- Some message
+                        Error message
+                    | Ok work ->
+                        runtime.PublishRecovery(work, epoch)
+                        |> Result.map (fun () ->
+                            motionRecoveryError <- None
+                            true)
+                        |> Result.mapError (sprintf "%A")
+                | _ -> Error "motion recovery publication was cancelled or superseded")
 
     member _.Publish(tick: int<subtick>, snapshot: Replay.ReplaySnapshot, capturedAt: int64) =
         lock gate (fun () ->
@@ -270,6 +391,9 @@ type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPol
     member _.Close() =
         lock gate (fun () ->
             closed <- true
+            motion |> Option.iter _.Close()
+            motionRecoveryRequest <- ValueNone
+            motionRecoveryInFlight <- ValueNone
 
             for index = 0 to slots.Length - 1 do
                 slots[index] <- None
@@ -279,3 +403,28 @@ type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPol
 
     interface IDisposable with
         member this.Dispose() = this.Close()
+
+    interface IMotionPlanSource with
+        member _.TryCopyPlan(actor, time, plan) =
+            Monitor.Enter gate
+
+            try
+                match motion with
+                | Some runtime when not closed ->
+                    let ready = (runtime :> IMotionPlanSource).TryCopyPlan(actor, time, &plan)
+
+                    if
+                        not ready
+                        && time.Tick >= 0
+                        && time.Tick < runtime.Frontier - runtime.Config.WindowTicks + 1
+                        && motionRecoveryRequest.IsNone
+                        && motionRecoveryInFlight.IsNone
+                        && motionRecoveryError.IsNone
+                    then
+                        motionRecoveryRequest <- ValueSome time.Tick
+
+                    ready
+                | Some _ -> false
+                | None -> false
+            finally
+                Monitor.Exit gate

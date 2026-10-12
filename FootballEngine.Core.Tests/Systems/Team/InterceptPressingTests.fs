@@ -4,10 +4,7 @@ open Expecto
 open FootballEngine.Core.Match
 open FootballEngine.Core.Tests.Infrastructure
 
-/// F2 — pressing by RoboCup intercept steps instead of euclidean distance: the
-/// best-of-team slot chases the loose ball, with a role-dependent allowance
-/// (Gliders: defenders 13, midfielders 7, full backs 23) versus the rival's
-/// best interceptor.
+/// The ordinary loose-ball race and the physical arrival estimate must remain deterministic.
 module InterceptPressingTests =
 
     let private sctx (ctx: MatchContext) =
@@ -18,20 +15,6 @@ module InterceptPressingTests =
         { Events = ResizeArray()
           Flags = { EventFlags.Bits = 0UL }
           Applied = ResizeArray() }
-
-    let private pressCfg: PressConfig =
-        { BaseAllowance = 13
-          MidfieldAllowance = 7
-          FullBackAllowance = 23
-          MaxPressStep = 30 }
-
-    let private interceptWith (selfStep: int) (oppStep: int) : InterceptState =
-        { ComputedAt = 0<subtick>
-          SelfStep = selfStep
-          TeammateStep = selfStep + 5
-          OpponentStep = oppStep
-          BallStep = min selfStep oppStep
-          SlotSteps = Array.empty }
 
     /// Home attacks +X. Ball loose at the origin; Home striker (slot 9) is by
     /// far the closest Home player; every Away outfielder sits beyond the
@@ -166,36 +149,23 @@ module InterceptPressingTests =
                       before
                       "the first defender physically closes down the carrier")
 
-              testCase "high pressing allowance chases even if rival arrives earlier" (fun _ ->
-                  let intercept = interceptWith 18 10
-
-                  Expect.isTrue
-                      (Pressing.shouldPress pressCfg intercept SlotRole.FullBack 18)
-                      "full back presses despite a losing step race")
-
-              testCase "midfielder needs smaller margin" (fun _ ->
-                  let intercept = interceptWith 18 10
-
-                  Expect.isFalse
-                      (Pressing.shouldPress pressCfg intercept SlotRole.CenterMid 18)
-                      "midfielder needs a 7-step margin, 18 vs 10 is not enough")
-
-              testCase "no chase when beaten by a lot" (fun _ ->
-                  let intercept = interceptWith 29 10
-
-                  Expect.isFalse
-                      (Pressing.shouldPress pressCfg intercept SlotRole.CenterMid 29)
-                      "a step gap beyond the allowance stops the chase")
-
-              testCase "allowance maps roles" (fun _ ->
-                  Expect.equal (Pressing.allowance pressCfg SlotRole.FullBack) 23 "full back allowance"
-                  Expect.equal (Pressing.allowance pressCfg SlotRole.CenterMid) 7 "central midfielder allowance"
-                  Expect.equal (Pressing.allowance pressCfg SlotRole.DefensiveMid) 7 "defensive midfielder allowance"
-                  Expect.equal (Pressing.allowance pressCfg SlotRole.AttackingMid) 7 "attacking midfielder allowance"
-                  Expect.equal (Pressing.allowance pressCfg SlotRole.Winger) 7 "winger allowance"
-                  Expect.equal (Pressing.allowance pressCfg SlotRole.Defender) 13 "defender allowance"
-                  Expect.equal (Pressing.allowance pressCfg SlotRole.Goalkeeper) 13 "goalkeeper allowance"
-                  Expect.equal (Pressing.allowance pressCfg SlotRole.Striker) 13 "striker allowance")
+              testCase "arrival estimate includes acceleration" (fun _ ->
+                  let world, ctx = pressWorld ()
+                  let time = TransitionGeometry.arrivalTime ctx world.Home.Frame 9 (Vec2.create 0.0<meter> 0.0<meter>)
+                  Expect.isGreaterThan time ((3.0<meter> - ctx.Config.Ball.FootReach) / ctx.Config.Movement.SprintSpeed) "cannot instantly sprint")
+              testCase "motion toward the contact reduces arrival time" (fun _ ->
+                  let world, ctx = pressWorld ()
+                  let target = Vec2.create 0.0<meter> 0.0<meter>
+                  let before = TransitionGeometry.arrivalTime ctx world.Home.Frame 9 target
+                  world.Home.Frame.VelX[9] <- -3.0f
+                  Expect.isLessThan (TransitionGeometry.arrivalTime ctx world.Home.Frame 9 target) before "current sporting velocity matters")
+              testCase "distant candidate cannot arrive within the loss window" (fun _ ->
+                  let world, ctx = pressWorld ()
+                  let time = TransitionGeometry.arrivalTime ctx world.Home.Frame 2 (Vec2.create 0.0<meter> 0.0<meter>)
+                  Expect.isGreaterThan time ctx.Config.DefensiveTransition.BaseArrivalWindow "finite arrival horizon")
+              testCase "keeper responsibilities do not participate in outfield arrival selection" (fun _ ->
+                  let world, _ = pressWorld ()
+                  Expect.isFalse (TransitionGeometry.outfielder world.Home.Frame 0) "goalkeeper excluded by sporting role")
 
               testCase "GK never presses" (fun _ ->
                   let world, ctx = pressWorld ()

@@ -49,21 +49,6 @@ module PlayerIntent =
 
             frame.Intent.ExitTrigger.[slot] <- ExitTrigger.None
 
-    let private pressSpot (ctx: MatchContext) (world: World) (side: ClubSide) : float32 * float32 =
-        let ball = world.State.Ball.Position
-        let team = MatchWorld.team world side
-
-        let pressZone =
-            14.0 * float team.Blackboard.OpponentPressure / 6.0 |> MatchMath.clamp 8.0 16.0
-
-        let tx =
-            MatchMath.clamp
-                (-(float Pitch.HalfLength))
-                (float Pitch.HalfLength)
-                (float ball.X + pressZone * float (MatchMath.goalDirection side))
-
-        float32 tx, float32 ball.Y
-
     let private insetTarget (ctx: MatchContext) (x: float) (y: float) : float32 * float32 =
         let inset = float ctx.Config.Positioning.TargetInset
         let halfLength = float Pitch.HalfLength - inset
@@ -195,8 +180,6 @@ module PlayerIntent =
         (side: ClubSide)
         (carrierSlot: int)
         (support: (float32 * float32) option)
-        (pressX: float32)
-        (pressY: float32)
         (looseBallChaser: int option)
         (looseBall: bool)
         (slot: int)
@@ -210,7 +193,6 @@ module PlayerIntent =
         let by = float ball.Y
         let shapeX = float team.Shape.TargetsX.[slot]
         let shapeY = float team.Shape.TargetsY.[slot]
-        let phase = team.Blackboard.OurPhase
         let dir = MatchMath.goalDirection side
 
         let setRoleIntent frame slot kind tx ty tick =
@@ -221,7 +203,42 @@ module PlayerIntent =
             | Some(carrierSide, _, _) -> carrierSide <> side
             | None -> false
 
-        if looseBall then
+        let transitionTask =
+            match team.Defense.Episode with
+            | Some episode when episode.EndedAt.IsNone -> team.Defense.Tasks[slot]
+            | _ -> None
+
+        let attackDuty =
+            let ownFlight =
+                match world.State.Ball.Trajectory with
+                | Some(TrajectoryIntent.Aimed(passer, _, _)) -> MatchWorld.teamOfPlayer ctx passer = Some side
+                | Some(TrajectoryIntent.Struck(shooter, _, _, _)) -> MatchWorld.teamOfPlayer ctx shooter = Some side
+                | _ -> false
+            CollectiveAttackState.duty team.Attack p.Id
+            |> Option.filter (fun duty -> duty.Slot = slot && slot <> carrierSlot && not opponentControlsBall && (carrierSlot >= 0 || ownFlight))
+
+        if p.IsGK && carrierSlot <> slot then
+            setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
+        elif transitionTask.IsSome then
+            let task = transitionTask.Value
+            let kind =
+                match task.Role with
+                | DefensiveRole.FirstDefender -> IntentCode.Press
+                | DefensiveRole.Cover -> IntentCode.Cover
+                | DefensiveRole.Screen -> IntentCode.Mark
+                | DefensiveRole.ProtectDepth
+                | DefensiveRole.RecoverShape -> IntentCode.Regroup
+                | DefensiveRole.Marker -> IntentCode.Mark
+                | DefensiveRole.Unassigned -> IntentCode.HoldPosition
+            // An attacking commitment cannot outlive the sporting loss that invalidated its purpose.
+            if not (IntentCode.isContinuous frame.Intent.Kind[slot]) then frame.Intent.Phase[slot] <- IntentPhase.Completed
+            frame.RunLookup.Remove slot |> ignore
+            setRoleIntent frame slot kind (float32 task.Target.X) (float32 task.Target.Y) tick
+        elif attackDuty.IsSome then
+            let duty = attackDuty.Value
+            // Receive runs are authoritative; continuous support can otherwise be redirected without locking autonomy.
+            setRoleIntent frame slot IntentCode.Support (float32 duty.Target.X) (float32 duty.Target.Y) tick
+        elif looseBall then
             match frame.DefensiveRoles.[slot] with
             | _ when p.Role = SlotRole.Goalkeeper ->
                 setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
@@ -257,6 +274,9 @@ module PlayerIntent =
                 let coverX = bx - dir * float ctx.Config.Team.LooseBallCoverDistance
                 setRoleIntent frame slot IntentCode.Cover (float32 coverX) (float32 shapeY) tick
             | DefensiveRole.Marker -> setRoleIntent frame slot IntentCode.Recover (float32 shapeX) (float32 shapeY) tick
+            | DefensiveRole.Screen
+            | DefensiveRole.ProtectDepth
+            | DefensiveRole.RecoverShape
             | DefensiveRole.Unassigned ->
                 setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
         elif slot = carrierSlot then
@@ -270,59 +290,7 @@ module PlayerIntent =
         elif carrierSlot >= 0 then
             setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
         else
-            let ballDist =
-                MatchMath.distF32 team.Shape.TargetsX.[slot] team.Shape.TargetsY.[slot] (float32 bx) (float32 by)
-
-            let myStep = team.Intercept.SlotSteps.[slot]
-
-            let press =
-                looseBallChaser = Some slot
-                || Pressing.shouldPress ctx.Config.Press team.Intercept p.Role myStep
-
-            if looseBallChaser = Some slot then
-                setRoleIntent frame slot IntentCode.Press pressX pressY tick
-            else
-                match p.Role with
-                | SlotRole.Goalkeeper ->
-                    setRoleIntent frame slot IntentCode.HoldPosition (float32 (MatchMath.ownGoalX side)) 0.0f tick
-                | SlotRole.Defender
-                | SlotRole.FullBack
-                | SlotRole.DefensiveMid ->
-                    if phase = PhaseKind.Defending || phase = PhaseKind.TransitionDefend then
-                        if press then
-                            setRoleIntent frame slot IntentCode.Press pressX pressY tick
-                        else
-                            let goalX = MatchMath.ownGoalX side
-                            let mx = float shapeX + (float shapeX - float goalX) * 0.35
-                            setRoleIntent frame slot IntentCode.HoldPosition (float32 mx) (float32 shapeY) tick
-                    elif ballDist < 22.0 && phase = PhaseKind.TransitionAttack then
-                        setRoleIntent frame slot IntentCode.Press pressX pressY tick
-                    else
-                        setRoleIntent frame slot IntentCode.Support (float32 shapeX) (float32 shapeY) tick
-                | SlotRole.Striker ->
-                    if phase = PhaseKind.Attacking || phase = PhaseKind.TransitionAttack then
-                        let goalX = float (MatchMath.goalX side)
-                        let pushX = shapeX + 6.0 * dir
-
-                        let tx =
-                            min pushX goalX
-                            |> MatchMath.clamp (-(float Pitch.HalfLength)) (float Pitch.HalfLength)
-
-                        setRoleIntent frame slot IntentCode.ExecuteRun (float32 tx) (float32 shapeY) tick
-                    elif press then
-                        setRoleIntent frame slot IntentCode.Press pressX pressY tick
-                    else
-                        setRoleIntent frame slot IntentCode.Support (float32 shapeX) (float32 shapeY) tick
-                | _ ->
-                    if (phase = PhaseKind.Defending || phase = PhaseKind.TransitionDefend) && press then
-                        setRoleIntent frame slot IntentCode.Press pressX pressY tick
-                    elif phase = PhaseKind.Attacking && ballDist < 25.0 then
-                        setRoleIntent frame slot IntentCode.Support (float32 shapeX) (float32 shapeY) tick
-                    elif press then
-                        let sx, sy = pressSpot ctx world side
-                        setRoleIntent frame slot IntentCode.Press sx sy tick
-                    else
-                        setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
+            setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
 
     let private receiveIntent
         (ctx: MatchContext)
@@ -391,9 +359,6 @@ module PlayerIntent =
                             frame.Intent.Phase.[activeSlot] <- IntentPhase.Completed
                             frame.Intent.ExitTrigger.[activeSlot] <- ExitTrigger.BallNearby
 
-                    if team.LastCarrierSlot <> -1 then
-                        team.ActivePlan <- None
-
                     team.LastCarrierSlot <- carrierSlot
 
                 if incomingPass then
@@ -408,8 +373,6 @@ module PlayerIntent =
                                 frame.Intent.Phase.[activeSlot] <- IntentPhase.Completed
                                 frame.Intent.ExitTrigger.[activeSlot] <- ExitTrigger.BallNearby
                                 cancelledByReplacement.[activeSlot] <- true
-
-                let pressX, pressY = pressSpot ctx.Ctx world side
 
                 let supportFor slot =
                     supportTarget ctx.Ctx world side carrierSlot slot
@@ -434,41 +397,18 @@ module PlayerIntent =
                     // normal role policy would erase the legal restart shape.
                     ()
                 | _ ->
-                    // Plan-override: before roleIntent, steer planned receivers
-                    // toward their designated positions.
-                    match team.ActivePlan with
-                    | Some plan when plan.ExpiresAt > tick ->
-                        for (slot, px, py) in plan.FutureReceivers do
-                            if
-                                slot >= 0
-                                && slot < frame.Intent.Kind.Length
-                                && frame.SlotRoles.[slot] <> SlotRole.Goalkeeper
-                                && frame.Intent.Kind.[slot] = IntentCode.None
-                            then
-                                setIntent
-                                    frame
-                                    slot
-                                    IntentCode.ExecuteRun
-                                    (float32 px)
-                                    (float32 py)
-                                    tick
-                                    ctx.Ctx.Config.Movement.CommittedRunDuration
-                    | _ -> ()
-
                     match receiveTarget with
                     | Some(receiverSide, slot) when receiverSide = side -> receiveIntent ctx.Ctx world frame slot tick
                     | _ -> ()
 
                     for slot in MatchWorld.activeSlots frame do
-                        if not cancelledByReplacement.[slot] then
+                        if not cancelledByReplacement.[slot] || team.Defense.Tasks[slot].IsSome then
                             roleIntent
                                 ctx.Ctx
                                 world
                                 side
                                 carrierSlot
                                 (supportFor slot)
-                                pressX
-                                pressY
                                 looseBallChaser
                                 looseBall
                                 slot

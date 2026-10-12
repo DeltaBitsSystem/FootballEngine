@@ -1,0 +1,4715 @@
+{
+  "Format": 2,
+  "IllustrativeScenarios": [
+    {
+      "ActiveEpisodeTicks": 0,
+      "Closed": false,
+      "CollapsedDutyTicks": 0,
+      "CompletedPasses": 26,
+      "ElapsedMs": 21.5341,
+      "Enabled": false,
+      "ExposedOwnedTicks": 0,
+      "Hash": 6466752006533727585,
+      "Milestones": 0,
+      "PassFootContacts": 32,
+      "Samples": 0,
+      "Seed": 42,
+      "Starts": [],
+      "TeamDisplacement": 212.61097591563856,
+      "Tired": false
+    },
+    {
+      "ActiveEpisodeTicks": 353,
+      "Closed": false,
+      "CollapsedDutyTicks": 0,
+      "CompletedPasses": 12,
+      "ElapsedMs": 19.1901,
+      "Enabled": true,
+      "ExposedOwnedTicks": 1,
+      "Hash": 13607769083895727657,
+      "Milestones": 2,
+      "PassFootContacts": 17,
+      "Samples": 4,
+      "Seed": 42,
+      "Starts": [
+        "ThirdMan",
+        "AttractSwitch",
+        "AttractSwitch",
+        "ExploitDepth",
+        "SecureProgression",
+        "AttractSwitch"
+      ],
+      "TeamDisplacement": 139.20370483246498,
+      "Tired": false
+    },
+    {
+      "ActiveEpisodeTicks": 0,
+      "Closed": false,
+      "CollapsedDutyTicks": 0,
+      "CompletedPasses": 39,
+      "ElapsedMs": 22.4012,
+      "Enabled": false,
+      "ExposedOwnedTicks": 0,
+      "Hash": 16227799921854002815,
+      "Milestones": 0,
+      "PassFootContacts": 40,
+      "Samples": 0,
+      "Seed": 42,
+      "Starts": [],
+      "TeamDisplacement": 212.31502997950577,
+      "Tired": true
+    },
+    {
+      "ActiveEpisodeTicks": 338,
+      "Closed": false,
+      "CollapsedDutyTicks": 0,
+      "CompletedPasses": 29,
+      "ElapsedMs": 20.8551,
+      "Enabled": true,
+      "ExposedOwnedTicks": 66,
+      "Hash": 15683304457441171866,
+      "Milestones": 0,
+      "PassFootContacts": 31,
+      "Samples": 7,
+      "Seed": 42,
+      "Starts": [
+        "ThirdMan",
+        "ThirdMan",
+        "ExploitDepth",
+        "AttractSwitch",
+        "AttractSwitch",
+        "AttractSwitch",
+        "ExploitDepth"
+      ],
+      "TeamDisplacement": 263.29159958376925,
+      "Tired": true
+    },
+    {
+      "ActiveEpisodeTicks": 0,
+      "Closed": true,
+      "CollapsedDutyTicks": 0,
+      "CompletedPasses": 24,
+      "ElapsedMs": 21.2349,
+      "Enabled": false,
+      "ExposedOwnedTicks": 0,
+      "Hash": 12118202568687828920,
+      "Milestones": 0,
+      "PassFootContacts": 25,
+      "Samples": 0,
+      "Seed": 42,
+      "Starts": [],
+      "TeamDisplacement": 169.86312413868654,
+      "Tired": false
+    },
+    {
+      "ActiveEpisodeTicks": 135,
+      "Closed": true,
+      "CollapsedDutyTicks": 0,
+      "CompletedPasses": 10,
+      "ElapsedMs": 23.7306,
+      "Enabled": true,
+      "ExposedOwnedTicks": 20,
+      "Hash": 9217192030621048162,
+      "Milestones": 3,
+      "PassFootContacts": 46,
+      "Samples": 3,
+      "Seed": 42,
+      "Starts": [
+        "AttractSwitch",
+        "ExploitDepth",
+        "ThirdMan",
+        "ThirdMan",
+        "AttractSwitch",
+        "ThirdMan",
+        "ExploitDepth",
+        "SecureProgression",
+        "AttractSwitch",
+        "ExploitDepth",
+        "ThirdMan"
+      ],
+      "TeamDisplacement": 179.8362200567299,
+      "Tired": false
+    },
+    {
+      "ActiveEpisodeTicks": 0,
+      "Closed": true,
+      "CollapsedDutyTicks": 0,
+      "CompletedPasses": 10,
+      "ElapsedMs": 16.1295,
+      "Enabled": false,
+      "ExposedOwnedTicks": 0,
+      "Hash": 7245490608569877265,
+      "Milestones": 0,
+      "PassFootContacts": 17,
+      "Samples": 0,
+      "Seed": 42,
+      "Starts": [],
+      "TeamDisplacement": 126.03000581346528,
+      "Tired": true
+    },
+    {
+      "ActiveEpisodeTicks": 403,
+      "Closed": true,
+      "CollapsedDutyTicks": 0,
+      "CompletedPasses": 28,
+      "ElapsedMs": 21.4344,
+      "Enabled": true,
+      "ExposedOwnedTicks": 52,
+      "Hash": 12876788001397266024,
+      "Milestones": 5,
+      "PassFootContacts": 32,
+      "Samples": 8,
+      "Seed": 42,
+      "Starts": [
+        "AttractSwitch",
+        "AttractSwitch",
+        "AttractSwitch",
+        "ExploitDepth",
+        "SecureProgression",
+        "ThirdMan",
+        "SecureProgression",
+        "ExploitDepth",
+        "ExploitDepth"
+      ],
+      "TeamDisplacement": 286.51912626007424,
+      "Tired": true
+    }
+  ],
+  "Matches": [
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1446,
+      "Directness": 0.2,
+      "ElapsedMs": 7059.7758,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 13554251792388315549,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 360,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 1731,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 1,
+      "Shots": 51,
+      "Terminal": true,
+      "Ticks": 259282,
+      "Treatment": "collective-off",
+      "Xg": 5.233902601689772
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1345,
+      "Directness": 0.2,
+      "ElapsedMs": 7573.8084,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 349,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 77,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 151,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 38,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 3,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 3,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 621,
+      "Failure": "",
+      "Hash": 14207042380361970835,
+      "Learning": true,
+      "LearningCells": 37,
+      "LearningSamples": 470,
+      "LiveRestartContacts": 440,
+      "MeanReward": -0.22714815400282976,
+      "Milestones": 124,
+      "Passes": 1602,
+      "Patterns": [
+        {
+          "Count": 268,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 89,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 187,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 77,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 22,
+      "RetainedExposureSum": 4,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 1,
+      "Shots": 44,
+      "Terminal": true,
+      "Ticks": 260242,
+      "Treatment": "full",
+      "Xg": 4.207710039664167
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1062,
+      "Directness": 0.2,
+      "ElapsedMs": 5574.7955,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 274,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 58,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 68,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 18,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 1,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 1,
+          "Reason": "Completed"
+        }
+      ],
+      "Episodes": 420,
+      "Failure": "",
+      "Hash": 12565865252000012384,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 251,
+      "MeanReward": 0,
+      "Milestones": 89,
+      "Passes": 1232,
+      "Patterns": [
+        {
+          "Count": 200,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 49,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 139,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 32,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 35,
+      "RetainedExposureSum": 3,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 1,
+      "Shots": 32,
+      "Terminal": true,
+      "Ticks": 260122,
+      "Treatment": "learning-off",
+      "Xg": 3.214883057050132
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1752,
+      "Directness": 0.2,
+      "ElapsedMs": 6357.0802,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 461,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 94,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 81,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 3,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 28,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 2,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 669,
+      "Failure": "",
+      "Hash": 1872976130157949583,
+      "Learning": true,
+      "LearningCells": 38,
+      "LearningSamples": 588,
+      "LiveRestartContacts": 329,
+      "MeanReward": -0.2134884020192918,
+      "Milestones": 153,
+      "Passes": 2031,
+      "Patterns": [
+        {
+          "Count": 253,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 106,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 96,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 214,
+          "Pattern": "AttractSwitch"
+        }
+      ],
+      "RetainedExposureSamples": 32,
+      "RetainedExposureSum": 2,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 1,
+      "Shots": 44,
+      "Terminal": true,
+      "Ticks": 263122,
+      "Treatment": "anticipation-off",
+      "Xg": 5.306787345278266
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1053,
+      "Directness": 0.2,
+      "ElapsedMs": 5975.8828,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 15232748469489301476,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 304,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 1270,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.9,
+      "Score": [
+        1,
+        1
+      ],
+      "Seed": 2,
+      "Shots": 42,
+      "Terminal": true,
+      "Ticks": 266202,
+      "Treatment": "collective-off",
+      "Xg": 4.196389381781687
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1606,
+      "Directness": 0.2,
+      "ElapsedMs": 7888.8504,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 453,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 101,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 43,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 77,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 2,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 2,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 678,
+      "Failure": "",
+      "Hash": 13715984748930029196,
+      "Learning": true,
+      "LearningCells": 39,
+      "LearningSamples": 577,
+      "LiveRestartContacts": 400,
+      "MeanReward": -0.20662625759097086,
+      "Milestones": 143,
+      "Passes": 1868,
+      "Patterns": [
+        {
+          "Count": 282,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 199,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 116,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 81,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "RetainedExposureSamples": 35,
+      "RetainedExposureSum": 4,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 2,
+      "Shots": 54,
+      "Terminal": true,
+      "Ticks": 259882,
+      "Treatment": "full",
+      "Xg": 5.5060798342551625
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1540,
+      "Directness": 0.2,
+      "ElapsedMs": 7548.4965,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 412,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 106,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 82,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 39,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 2,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 2,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 643,
+      "Failure": "",
+      "Hash": 6403965630374653042,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 425,
+      "MeanReward": 0,
+      "Milestones": 128,
+      "Passes": 1793,
+      "Patterns": [
+        {
+          "Count": 319,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 202,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 65,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 57,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "RetainedExposureSamples": 26,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 2,
+      "Shots": 43,
+      "Terminal": true,
+      "Ticks": 258442,
+      "Treatment": "learning-off",
+      "Xg": 4.523476090176271
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1698,
+      "Directness": 0.2,
+      "ElapsedMs": 6937.9282,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 463,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 100,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 80,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 34,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 1,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 678,
+      "Failure": "",
+      "Hash": 2557907497999703178,
+      "Learning": true,
+      "LearningCells": 37,
+      "LearningSamples": 578,
+      "LiveRestartContacts": 390,
+      "MeanReward": -0.21530198683172835,
+      "Milestones": 132,
+      "Passes": 1985,
+      "Patterns": [
+        {
+          "Count": 317,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 192,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 96,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 73,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "RetainedExposureSamples": 30,
+      "RetainedExposureSum": 3,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 2,
+      "Shots": 46,
+      "Terminal": true,
+      "Ticks": 261562,
+      "Treatment": "anticipation-off",
+      "Xg": 4.417939042836624
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1291,
+      "Directness": 0.8,
+      "ElapsedMs": 6884.8638,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 1235419400018368436,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 416,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 1583,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 3,
+      "Shots": 44,
+      "Terminal": true,
+      "Ticks": 264082,
+      "Treatment": "collective-off",
+      "Xg": 4.352004896242238
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1394,
+      "Directness": 0.8,
+      "ElapsedMs": 7370.9303,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 385,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 124,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 91,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 2,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 44,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 1,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 1,
+          "Reason": "ParticipantLeft"
+        }
+      ],
+      "Episodes": 648,
+      "Failure": "",
+      "Hash": 11901329798155551846,
+      "Learning": true,
+      "LearningCells": 37,
+      "LearningSamples": 523,
+      "LiveRestartContacts": 458,
+      "MeanReward": -0.2354481439375296,
+      "Milestones": 109,
+      "Passes": 1643,
+      "Patterns": [
+        {
+          "Count": 190,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 187,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 129,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 142,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 31,
+      "RetainedExposureSum": 1,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 3,
+      "Shots": 46,
+      "Terminal": true,
+      "Ticks": 261922,
+      "Treatment": "full",
+      "Xg": 4.574867922213716
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1441,
+      "Directness": 0.8,
+      "ElapsedMs": 7399.8027,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 374,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 114,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 89,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 29,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 5,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 5,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 1,
+          "Reason": "ParticipantLeft"
+        }
+      ],
+      "Episodes": 617,
+      "Failure": "",
+      "Hash": 709869421128847668,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 441,
+      "MeanReward": 0,
+      "Milestones": 145,
+      "Passes": 1723,
+      "Patterns": [
+        {
+          "Count": 216,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 227,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 95,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 79,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 10,
+      "RetainedExposureSum": 1,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 3,
+      "Shots": 62,
+      "Terminal": true,
+      "Ticks": 264202,
+      "Treatment": "learning-off",
+      "Xg": 6.030990453934451
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1710,
+      "Directness": 0.8,
+      "ElapsedMs": 6943.7413,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 448,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 106,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 75,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 27,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 7,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 4,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 667,
+      "Failure": "",
+      "Hash": 11657850672422334832,
+      "Learning": true,
+      "LearningCells": 41,
+      "LearningSamples": 561,
+      "LiveRestartContacts": 392,
+      "MeanReward": -0.2044633875087874,
+      "Milestones": 128,
+      "Passes": 2007,
+      "Patterns": [
+        {
+          "Count": 254,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 219,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 101,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 93,
+          "Pattern": "ThirdMan"
+        }
+      ],
+      "RetainedExposureSamples": 33,
+      "RetainedExposureSum": 3,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 3,
+      "Shots": 56,
+      "Terminal": true,
+      "Ticks": 258922,
+      "Treatment": "anticipation-off",
+      "Xg": 5.494538549753487
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1590,
+      "Directness": 0.2,
+      "ElapsedMs": 7270.04,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 11416213105125431793,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 392,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 1878,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        1
+      ],
+      "Seed": 4,
+      "Shots": 42,
+      "Terminal": true,
+      "Ticks": 260282,
+      "Treatment": "collective-off",
+      "Xg": 4.4004215382779055
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1435,
+      "Directness": 0.2,
+      "ElapsedMs": 7464.6425,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 395,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 88,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 106,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 37,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 4,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 2,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 632,
+      "Failure": "",
+      "Hash": 10632769433510104075,
+      "Learning": true,
+      "LearningCells": 38,
+      "LearningSamples": 526,
+      "LiveRestartContacts": 422,
+      "MeanReward": -0.21994539805463778,
+      "Milestones": 125,
+      "Passes": 1713,
+      "Patterns": [
+        {
+          "Count": 238,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 203,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 79,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 112,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 33,
+      "RetainedExposureSum": 2,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 4,
+      "Shots": 49,
+      "Terminal": true,
+      "Ticks": 262642,
+      "Treatment": "full",
+      "Xg": 4.308027845708041
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1400,
+      "Directness": 0.2,
+      "ElapsedMs": 7479.7395,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 367,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 101,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 5,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 115,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 38,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 4,
+          "Reason": "Completed"
+        }
+      ],
+      "Episodes": 630,
+      "Failure": "",
+      "Hash": 6982470957419796554,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 418,
+      "MeanReward": 0,
+      "Milestones": 131,
+      "Passes": 1652,
+      "Patterns": [
+        {
+          "Count": 234,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 255,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 61,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 80,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "RetainedExposureSamples": 26,
+      "RetainedExposureSum": 1,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        1
+      ],
+      "Seed": 4,
+      "Shots": 52,
+      "Terminal": true,
+      "Ticks": 264962,
+      "Treatment": "learning-off",
+      "Xg": 6.238447060642286
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1588,
+      "Directness": 0.2,
+      "ElapsedMs": 6936.2051,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 430,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 78,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 104,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 42,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 3,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 3,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 660,
+      "Failure": "",
+      "Hash": 12355891719270405096,
+      "Learning": true,
+      "LearningCells": 38,
+      "LearningSamples": 556,
+      "LiveRestartContacts": 424,
+      "MeanReward": -0.20729103363274684,
+      "Milestones": 147,
+      "Passes": 1916,
+      "Patterns": [
+        {
+          "Count": 224,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 242,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 89,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 105,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 41,
+      "RetainedExposureSum": 2,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        1
+      ],
+      "Seed": 4,
+      "Shots": 38,
+      "Terminal": true,
+      "Ticks": 265202,
+      "Treatment": "anticipation-off",
+      "Xg": 3.580103338026059
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1424,
+      "Directness": 0.2,
+      "ElapsedMs": 7271.4611,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 14325013637693191961,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 413,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 1695,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 5,
+      "Shots": 53,
+      "Terminal": true,
+      "Ticks": 263242,
+      "Treatment": "collective-off",
+      "Xg": 5.372952279080136
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1066,
+      "Directness": 0.2,
+      "ElapsedMs": 5909.7506,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 282,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 63,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 89,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 20,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 2,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 456,
+      "Failure": "",
+      "Hash": 11778332549708861212,
+      "Learning": true,
+      "LearningCells": 35,
+      "LearningSamples": 367,
+      "LiveRestartContacts": 277,
+      "MeanReward": -0.23248798437928153,
+      "Milestones": 92,
+      "Passes": 1262,
+      "Patterns": [
+        {
+          "Count": 158,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 88,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 147,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 63,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "RetainedExposureSamples": 24,
+      "RetainedExposureSum": 1,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 5,
+      "Shots": 35,
+      "Terminal": true,
+      "Ticks": 256642,
+      "Treatment": "full",
+      "Xg": 3.50410218803174
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1496,
+      "Directness": 0.2,
+      "ElapsedMs": 7779.4328,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 381,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 120,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 55,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 45,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 6,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 4,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 2,
+          "Reason": "ParticipantLeft"
+        }
+      ],
+      "Episodes": 613,
+      "Failure": "",
+      "Hash": 13372768438236029756,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 408,
+      "MeanReward": 0,
+      "Milestones": 126,
+      "Passes": 1745,
+      "Patterns": [
+        {
+          "Count": 241,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 41,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 271,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 60,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "RetainedExposureSamples": 38,
+      "RetainedExposureSum": 2,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        1
+      ],
+      "Seed": 5,
+      "Shots": 43,
+      "Terminal": true,
+      "Ticks": 264602,
+      "Treatment": "learning-off",
+      "Xg": 4.030849656968111
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1639,
+      "Directness": 0.2,
+      "ElapsedMs": 7157.1149,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 443,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 75,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 98,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 35,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 1,
+          "Reason": "ParticipantLeft"
+        },
+        {
+          "Count": 3,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 3,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 658,
+      "Failure": "",
+      "Hash": 17657113490572727517,
+      "Learning": true,
+      "LearningCells": 40,
+      "LearningSamples": 559,
+      "LiveRestartContacts": 415,
+      "MeanReward": -0.20778949658849635,
+      "Milestones": 134,
+      "Passes": 1962,
+      "Patterns": [
+        {
+          "Count": 250,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 218,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 86,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 104,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "RetainedExposureSamples": 44,
+      "RetainedExposureSum": 5,
+      "RivalPress": 0.2,
+      "Score": [
+        1,
+        0
+      ],
+      "Seed": 5,
+      "Shots": 71,
+      "Terminal": true,
+      "Ticks": 262442,
+      "Treatment": "anticipation-off",
+      "Xg": 8.335677069243923
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1626,
+      "Directness": 0.8,
+      "ElapsedMs": 7152.6137,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 3428199383103497723,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 418,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 1929,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 6,
+      "Shots": 47,
+      "Terminal": true,
+      "Ticks": 264202,
+      "Treatment": "collective-off",
+      "Xg": 5.247146679073403
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1502,
+      "Directness": 0.8,
+      "ElapsedMs": 7683.3159,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 412,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 95,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 40,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 129,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 2,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 5,
+          "Reason": "Completed"
+        }
+      ],
+      "Episodes": 683,
+      "Failure": "",
+      "Hash": 6522790389843769903,
+      "Learning": true,
+      "LearningCells": 39,
+      "LearningSamples": 554,
+      "LiveRestartContacts": 420,
+      "MeanReward": -0.22268618573871296,
+      "Milestones": 105,
+      "Passes": 1801,
+      "Patterns": [
+        {
+          "Count": 233,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 136,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 118,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 196,
+          "Pattern": "AttractSwitch"
+        }
+      ],
+      "RetainedExposureSamples": 39,
+      "RetainedExposureSum": 3,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 6,
+      "Shots": 38,
+      "Terminal": true,
+      "Ticks": 262282,
+      "Treatment": "full",
+      "Xg": 3.981564831346061
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1579,
+      "Directness": 0.8,
+      "ElapsedMs": 7384.3778,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 426,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 83,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 116,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 4,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 39,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 5,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 673,
+      "Failure": "",
+      "Hash": 11144368633318722356,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 417,
+      "MeanReward": 0,
+      "Milestones": 111,
+      "Passes": 1851,
+      "Patterns": [
+        {
+          "Count": 313,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 83,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 78,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 199,
+          "Pattern": "AttractSwitch"
+        }
+      ],
+      "RetainedExposureSamples": 39,
+      "RetainedExposureSum": 5,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 6,
+      "Shots": 39,
+      "Terminal": true,
+      "Ticks": 262162,
+      "Treatment": "learning-off",
+      "Xg": 3.32815654647177
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1553,
+      "Directness": 0.8,
+      "ElapsedMs": 6728.5098,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 415,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 109,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 71,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 34,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 4,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 3,
+          "Reason": "Completed"
+        }
+      ],
+      "Episodes": 636,
+      "Failure": "",
+      "Hash": 14785261794707719551,
+      "Learning": true,
+      "LearningCells": 35,
+      "LearningSamples": 527,
+      "LiveRestartContacts": 423,
+      "MeanReward": -0.20373259873831462,
+      "Milestones": 124,
+      "Passes": 1851,
+      "Patterns": [
+        {
+          "Count": 231,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 221,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 91,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 93,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 33,
+      "RetainedExposureSum": 2,
+      "RivalPress": 0.9,
+      "Score": [
+        1,
+        0
+      ],
+      "Seed": 6,
+      "Shots": 49,
+      "Terminal": true,
+      "Ticks": 265202,
+      "Treatment": "anticipation-off",
+      "Xg": 4.541523350120741
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1419,
+      "Directness": 0.2,
+      "ElapsedMs": 7430.7862,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 18227921156694466951,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 423,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 1697,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        1
+      ],
+      "Seed": 7,
+      "Shots": 41,
+      "Terminal": true,
+      "Ticks": 264482,
+      "Treatment": "collective-off",
+      "Xg": 3.629546814308239
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1456,
+      "Directness": 0.2,
+      "ElapsedMs": 7529.9391,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 363,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 94,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 119,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 29,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 2,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 2,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 609,
+      "Failure": "",
+      "Hash": 4067358841223069600,
+      "Learning": true,
+      "LearningCells": 38,
+      "LearningSamples": 490,
+      "LiveRestartContacts": 415,
+      "MeanReward": -0.2382189572000614,
+      "Milestones": 118,
+      "Passes": 1687,
+      "Patterns": [
+        {
+          "Count": 216,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 92,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 87,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 214,
+          "Pattern": "AttractSwitch"
+        }
+      ],
+      "RetainedExposureSamples": 24,
+      "RetainedExposureSum": 1,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 7,
+      "Shots": 39,
+      "Terminal": true,
+      "Ticks": 263002,
+      "Treatment": "full",
+      "Xg": 3.8114669495692772
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1413,
+      "Directness": 0.2,
+      "ElapsedMs": 7501.1813,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 345,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 85,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 103,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 41,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 4,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 2,
+          "Reason": "Completed"
+        }
+      ],
+      "Episodes": 580,
+      "Failure": "",
+      "Hash": 6294575303860581561,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 430,
+      "MeanReward": 0,
+      "Milestones": 116,
+      "Passes": 1699,
+      "Patterns": [
+        {
+          "Count": 264,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 67,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 48,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 201,
+          "Pattern": "AttractSwitch"
+        }
+      ],
+      "RetainedExposureSamples": 26,
+      "RetainedExposureSum": 3,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 7,
+      "Shots": 40,
+      "Terminal": true,
+      "Ticks": 258922,
+      "Treatment": "learning-off",
+      "Xg": 3.88760843285953
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1755,
+      "Directness": 0.2,
+      "ElapsedMs": 6489.9666,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 468,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 68,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 93,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 29,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 1,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 1,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 660,
+      "Failure": "",
+      "Hash": 9011514681978817803,
+      "Learning": true,
+      "LearningCells": 38,
+      "LearningSamples": 567,
+      "LiveRestartContacts": 379,
+      "MeanReward": -0.20190180683847933,
+      "Milestones": 141,
+      "Passes": 2039,
+      "Patterns": [
+        {
+          "Count": 309,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 170,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 71,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 110,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 26,
+      "RetainedExposureSum": 1,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 7,
+      "Shots": 32,
+      "Terminal": true,
+      "Ticks": 259882,
+      "Treatment": "anticipation-off",
+      "Xg": 3.3938208221879664
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1588,
+      "Directness": 0.2,
+      "ElapsedMs": 7231.7022,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 11537332792823046624,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 385,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 1842,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 8,
+      "Shots": 48,
+      "Terminal": true,
+      "Ticks": 261202,
+      "Treatment": "collective-off",
+      "Xg": 4.917094613425614
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 844,
+      "Directness": 0.2,
+      "ElapsedMs": 5567.6419,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 219,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 51,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 60,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 2,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 17,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 3,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 352,
+      "Failure": "",
+      "Hash": 11994163400676645621,
+      "Learning": true,
+      "LearningCells": 32,
+      "LearningSamples": 292,
+      "LiveRestartContacts": 218,
+      "MeanReward": -0.21725048660751883,
+      "Milestones": 77,
+      "Passes": 1006,
+      "Patterns": [
+        {
+          "Count": 123,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 124,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 53,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 52,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "RetainedExposureSamples": 30,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 8,
+      "Shots": 23,
+      "Terminal": true,
+      "Ticks": 261922,
+      "Treatment": "full",
+      "Xg": 1.982245894502297
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1544,
+      "Directness": 0.2,
+      "ElapsedMs": 8441.5694,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 403,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 103,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 97,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 32,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 2,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 3,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 2,
+          "Reason": "ParticipantLeft"
+        }
+      ],
+      "Episodes": 642,
+      "Failure": "",
+      "Hash": 12801080196167810398,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 407,
+      "MeanReward": 0,
+      "Milestones": 117,
+      "Passes": 1820,
+      "Patterns": [
+        {
+          "Count": 262,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 260,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 69,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 51,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 25,
+      "RetainedExposureSum": 3,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 8,
+      "Shots": 34,
+      "Terminal": true,
+      "Ticks": 261322,
+      "Treatment": "learning-off",
+      "Xg": 3.5724598510555055
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1301,
+      "Directness": 0.2,
+      "ElapsedMs": 6548.3032,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 362,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 65,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 29,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 82,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 2,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 1,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 541,
+      "Failure": "",
+      "Hash": 3744945542994777746,
+      "Learning": true,
+      "LearningCells": 33,
+      "LearningSamples": 459,
+      "LiveRestartContacts": 302,
+      "MeanReward": -0.21960816332890623,
+      "Milestones": 94,
+      "Passes": 1538,
+      "Patterns": [
+        {
+          "Count": 188,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 172,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 91,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 90,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 33,
+      "RetainedExposureSum": 3,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 8,
+      "Shots": 44,
+      "Terminal": true,
+      "Ticks": 260362,
+      "Treatment": "anticipation-off",
+      "Xg": 4.206619322915378
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1615,
+      "Directness": 0.8,
+      "ElapsedMs": 7786.5598,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 7783855366552613232,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 414,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 1925,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        2
+      ],
+      "Seed": 9,
+      "Shots": 48,
+      "Terminal": true,
+      "Ticks": 266202,
+      "Treatment": "collective-off",
+      "Xg": 4.89714865813902
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1481,
+      "Directness": 0.8,
+      "ElapsedMs": 7148.1227,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 383,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 114,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 43,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 81,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 2,
+          "Reason": "ParticipantLeft"
+        },
+        {
+          "Count": 3,
+          "Reason": "Completed"
+        }
+      ],
+      "Episodes": 626,
+      "Failure": "",
+      "Hash": 18301517833060893042,
+      "Learning": true,
+      "LearningCells": 37,
+      "LearningSamples": 510,
+      "LiveRestartContacts": 441,
+      "MeanReward": -0.22377527779604736,
+      "Milestones": 110,
+      "Passes": 1752,
+      "Patterns": [
+        {
+          "Count": 210,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 215,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 93,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 108,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 31,
+      "RetainedExposureSum": 4,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 9,
+      "Shots": 64,
+      "Terminal": true,
+      "Ticks": 259042,
+      "Treatment": "full",
+      "Xg": 6.24695729228373
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1540,
+      "Directness": 0.8,
+      "ElapsedMs": 7742.6154,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 428,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 126,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 90,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 43,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 1,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 2,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 1,
+          "Reason": "ParticipantLeft"
+        }
+      ],
+      "Episodes": 691,
+      "Failure": "",
+      "Hash": 2765777768551132178,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 407,
+      "MeanReward": 0,
+      "Milestones": 120,
+      "Passes": 1812,
+      "Patterns": [
+        {
+          "Count": 277,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 257,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 81,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 76,
+          "Pattern": "ThirdMan"
+        }
+      ],
+      "RetainedExposureSamples": 22,
+      "RetainedExposureSum": 2,
+      "RivalPress": 0.2,
+      "Score": [
+        1,
+        0
+      ],
+      "Seed": 9,
+      "Shots": 35,
+      "Terminal": true,
+      "Ticks": 264842,
+      "Treatment": "learning-off",
+      "Xg": 2.8878288982463505
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1582,
+      "Directness": 0.8,
+      "ElapsedMs": 5893.4337,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 448,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 71,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 21,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 72,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 4,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 616,
+      "Failure": "",
+      "Hash": 18433282725257058353,
+      "Learning": true,
+      "LearningCells": 40,
+      "LearningSamples": 545,
+      "LiveRestartContacts": 331,
+      "MeanReward": -0.20654444813832556,
+      "Milestones": 124,
+      "Passes": 1842,
+      "Patterns": [
+        {
+          "Count": 210,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 140,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 205,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 61,
+          "Pattern": "ThirdMan"
+        }
+      ],
+      "RetainedExposureSamples": 49,
+      "RetainedExposureSum": 5,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        1
+      ],
+      "Seed": 9,
+      "Shots": 49,
+      "Terminal": true,
+      "Ticks": 264002,
+      "Treatment": "anticipation-off",
+      "Xg": 5.298357881675314
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1591,
+      "Directness": 0.2,
+      "ElapsedMs": 7491.21,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 6023641580234562953,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 374,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 1867,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.9,
+      "Score": [
+        2,
+        0
+      ],
+      "Seed": 10,
+      "Shots": 48,
+      "Terminal": true,
+      "Ticks": 263082,
+      "Treatment": "collective-off",
+      "Xg": 4.965201652968149
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1420,
+      "Directness": 0.2,
+      "ElapsedMs": 7669.6868,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 381,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 128,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 92,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 3,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 7,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 38,
+          "Reason": "Countered"
+        }
+      ],
+      "Episodes": 649,
+      "Failure": "",
+      "Hash": 1160984705177337351,
+      "Learning": true,
+      "LearningCells": 41,
+      "LearningSamples": 521,
+      "LiveRestartContacts": 441,
+      "MeanReward": -0.23065636791280897,
+      "Milestones": 130,
+      "Passes": 1708,
+      "Patterns": [
+        {
+          "Count": 216,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 73,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 276,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 84,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 36,
+      "RetainedExposureSum": 6,
+      "RivalPress": 0.9,
+      "Score": [
+        1,
+        0
+      ],
+      "Seed": 10,
+      "Shots": 40,
+      "Terminal": true,
+      "Ticks": 265202,
+      "Treatment": "full",
+      "Xg": 4.88507715667022
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1422,
+      "Directness": 0.2,
+      "ElapsedMs": 7939.1958,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 360,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 127,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 90,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 35,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 5,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 4,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 1,
+          "Reason": "ParticipantLeft"
+        }
+      ],
+      "Episodes": 622,
+      "Failure": "",
+      "Hash": 7503244925270314611,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 396,
+      "MeanReward": 0,
+      "Milestones": 119,
+      "Passes": 1672,
+      "Patterns": [
+        {
+          "Count": 274,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 71,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 219,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 58,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 29,
+      "RetainedExposureSum": 2,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 10,
+      "Shots": 58,
+      "Terminal": true,
+      "Ticks": 259162,
+      "Treatment": "learning-off",
+      "Xg": 5.51369980918155
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1838,
+      "Directness": 0.2,
+      "ElapsedMs": 7071.9261,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 493,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 102,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 35,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 100,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 2,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 1,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 733,
+      "Failure": "",
+      "Hash": 10317760257238497606,
+      "Learning": true,
+      "LearningCells": 40,
+      "LearningSamples": 631,
+      "LiveRestartContacts": 379,
+      "MeanReward": -0.22072017477182865,
+      "Milestones": 163,
+      "Passes": 2134,
+      "Patterns": [
+        {
+          "Count": 279,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 122,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 244,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 88,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "RetainedExposureSamples": 42,
+      "RetainedExposureSum": 1,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 10,
+      "Shots": 51,
+      "Terminal": true,
+      "Ticks": 261802,
+      "Treatment": "anticipation-off",
+      "Xg": 4.676447681469943
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 842,
+      "Directness": 0.2,
+      "ElapsedMs": 4520.5377,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 17304355217473996548,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 154,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 976,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 11,
+      "Shots": 15,
+      "Terminal": true,
+      "Ticks": 262762,
+      "Treatment": "collective-off",
+      "Xg": 1.331537019353398
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1623,
+      "Directness": 0.2,
+      "ElapsedMs": 7314.3451,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 438,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 124,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 83,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 4,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 24,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 3,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 676,
+      "Failure": "",
+      "Hash": 7977883705834644845,
+      "Learning": true,
+      "LearningCells": 35,
+      "LearningSamples": 552,
+      "LiveRestartContacts": 414,
+      "MeanReward": -0.21357593014550214,
+      "Milestones": 136,
+      "Passes": 1898,
+      "Patterns": [
+        {
+          "Count": 258,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 200,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 88,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 130,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 33,
+      "RetainedExposureSum": 3,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        1
+      ],
+      "Seed": 11,
+      "Shots": 50,
+      "Terminal": true,
+      "Ticks": 263522,
+      "Treatment": "full",
+      "Xg": 5.036277641750244
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 821,
+      "Directness": 0.2,
+      "ElapsedMs": 5110.4418,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 222,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 71,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 46,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 31,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 2,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 1,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 373,
+      "Failure": "",
+      "Hash": 18076322846173608214,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 256,
+      "MeanReward": 0,
+      "Milestones": 78,
+      "Passes": 1010,
+      "Patterns": [
+        {
+          "Count": 160,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 146,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 26,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 41,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "RetainedExposureSamples": 30,
+      "RetainedExposureSum": 2,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 11,
+      "Shots": 33,
+      "Terminal": true,
+      "Ticks": 258322,
+      "Treatment": "learning-off",
+      "Xg": 3.80794442356628
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1754,
+      "Directness": 0.2,
+      "ElapsedMs": 6889.0918,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 469,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 107,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 92,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 24,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 1,
+          "Reason": "Completed"
+        }
+      ],
+      "Episodes": 693,
+      "Failure": "",
+      "Hash": 9280278431234837958,
+      "Learning": true,
+      "LearningCells": 36,
+      "LearningSamples": 586,
+      "LiveRestartContacts": 410,
+      "MeanReward": -0.21720711121027497,
+      "Milestones": 145,
+      "Passes": 2050,
+      "Patterns": [
+        {
+          "Count": 260,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 99,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 209,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 125,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 22,
+      "RetainedExposureSum": 3,
+      "RivalPress": 0.2,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 11,
+      "Shots": 48,
+      "Terminal": true,
+      "Ticks": 262402,
+      "Treatment": "anticipation-off",
+      "Xg": 4.567860021332809
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1610,
+      "Directness": 0.8,
+      "ElapsedMs": 7713.2099,
+      "Enabled": false,
+      "Ends": [],
+      "Episodes": 0,
+      "Failure": "",
+      "Hash": 11900438911686699651,
+      "Learning": true,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 410,
+      "MeanReward": 0,
+      "Milestones": 0,
+      "Passes": 1935,
+      "Patterns": [],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 12,
+      "Shots": 52,
+      "Terminal": true,
+      "Ticks": 264202,
+      "Treatment": "collective-off",
+      "Xg": 4.916122063529249
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1404,
+      "Directness": 0.8,
+      "ElapsedMs": 7410.3183,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 384,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 88,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 129,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 42,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 2,
+          "Reason": "TimedOut"
+        },
+        {
+          "Count": 1,
+          "Reason": "Completed"
+        }
+      ],
+      "Episodes": 646,
+      "Failure": "",
+      "Hash": 9859492145962308103,
+      "Learning": true,
+      "LearningCells": 37,
+      "LearningSamples": 517,
+      "LiveRestartContacts": 429,
+      "MeanReward": -0.2300274051012431,
+      "Milestones": 97,
+      "Passes": 1670,
+      "Patterns": [
+        {
+          "Count": 246,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 193,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 78,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 129,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 42,
+      "RetainedExposureSum": 4,
+      "RivalPress": 0.9,
+      "Score": [
+        1,
+        0
+      ],
+      "Seed": 12,
+      "Shots": 41,
+      "Terminal": true,
+      "Ticks": 261002,
+      "Treatment": "full",
+      "Xg": 4.4452813409028575
+    },
+    {
+      "Anticipation": true,
+      "CompletedPasses": 1605,
+      "Directness": 0.8,
+      "ElapsedMs": 7418.4253,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 460,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 82,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 122,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 34,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 6,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 4,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 708,
+      "Failure": "",
+      "Hash": 1919804214899067146,
+      "Learning": false,
+      "LearningCells": 0,
+      "LearningSamples": 0,
+      "LiveRestartContacts": 408,
+      "MeanReward": 0,
+      "Milestones": 124,
+      "Passes": 1894,
+      "Patterns": [
+        {
+          "Count": 330,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 222,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 71,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 85,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 33,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.9,
+      "Score": [
+        1,
+        0
+      ],
+      "Seed": 12,
+      "Shots": 50,
+      "Terminal": true,
+      "Ticks": 262922,
+      "Treatment": "learning-off",
+      "Xg": 5.095372259208347
+    },
+    {
+      "Anticipation": false,
+      "CompletedPasses": 1592,
+      "Directness": 0.8,
+      "ElapsedMs": 6766.4334,
+      "Enabled": true,
+      "Ends": [
+        {
+          "Count": 376,
+          "Reason": "Deviated"
+        },
+        {
+          "Count": 95,
+          "Reason": "Stopped"
+        },
+        {
+          "Count": 71,
+          "Reason": "LostBall"
+        },
+        {
+          "Count": 30,
+          "Reason": "Countered"
+        },
+        {
+          "Count": 1,
+          "Reason": "Completed"
+        },
+        {
+          "Count": 2,
+          "Reason": "TimedOut"
+        }
+      ],
+      "Episodes": 575,
+      "Failure": "",
+      "Hash": 13457882406010802461,
+      "Learning": true,
+      "LearningCells": 37,
+      "LearningSamples": 480,
+      "LiveRestartContacts": 427,
+      "MeanReward": -0.203250288655316,
+      "Milestones": 131,
+      "Passes": 1876,
+      "Patterns": [
+        {
+          "Count": 181,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 183,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 125,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 86,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "RetainedExposureSamples": 0,
+      "RetainedExposureSum": 0,
+      "RivalPress": 0.9,
+      "Score": [
+        0,
+        0
+      ],
+      "Seed": 12,
+      "Shots": 47,
+      "Terminal": true,
+      "Ticks": 262522,
+      "Treatment": "anticipation-off",
+      "Xg": 4.692777731076006
+    }
+  ],
+  "Provenance": "Rebuilt Release; full production scheduler/actions/physics; consecutive seeds 1..12; same original opponents/scenarios/limits; independent collective, learning and anticipation ablations. Six sequential matches carry exact chronological memory; retention after match3; memory-only disk roundtrip and original-input replay. Actual career database/season persistence separately tested in Client suite. Illustrative40second scenarios unchanged. No injected passes/rewards/goals.",
+  "RepeatedMatches": [
+    {
+      "Away": [
+        {
+          "Key": 0,
+          "Samples": 36,
+          "RewardSum": -6.920759845339085
+        },
+        {
+          "Key": 1,
+          "Samples": 29,
+          "RewardSum": -7.612566772861449
+        },
+        {
+          "Key": 2,
+          "Samples": 16,
+          "RewardSum": -3.8286263435041166
+        },
+        {
+          "Key": 3,
+          "Samples": 16,
+          "RewardSum": -3.061110273906872
+        },
+        {
+          "Key": 4,
+          "Samples": 20,
+          "RewardSum": -4.73628075756739
+        },
+        {
+          "Key": 5,
+          "Samples": 21,
+          "RewardSum": -6.918395852676124
+        },
+        {
+          "Key": 6,
+          "Samples": 15,
+          "RewardSum": -4.109999999999999
+        },
+        {
+          "Key": 7,
+          "Samples": 20,
+          "RewardSum": -4.108151146196647
+        },
+        {
+          "Key": 8,
+          "Samples": 2,
+          "RewardSum": -0.36
+        },
+        {
+          "Key": 9,
+          "Samples": 6,
+          "RewardSum": -0.3948358444491557
+        },
+        {
+          "Key": 10,
+          "Samples": 1,
+          "RewardSum": -0.18
+        },
+        {
+          "Key": 11,
+          "Samples": 3,
+          "RewardSum": -1.0478113740045198
+        },
+        {
+          "Key": 13,
+          "Samples": 2,
+          "RewardSum": -0.36
+        },
+        {
+          "Key": 16,
+          "Samples": 3,
+          "RewardSum": -1.01
+        },
+        {
+          "Key": 17,
+          "Samples": 2,
+          "RewardSum": -1.3
+        },
+        {
+          "Key": 18,
+          "Samples": 1,
+          "RewardSum": -0.18
+        },
+        {
+          "Key": 21,
+          "Samples": 1,
+          "RewardSum": -0.65
+        },
+        {
+          "Key": 23,
+          "Samples": 1,
+          "RewardSum": -0.18
+        }
+      ],
+      "ChronologicalCommitExact": true,
+      "DiskRoundtripExact": true,
+      "Home": [
+        {
+          "Key": 0,
+          "Samples": 48,
+          "RewardSum": -9.316913072892032
+        },
+        {
+          "Key": 1,
+          "Samples": 31,
+          "RewardSum": -5.985379299591571
+        },
+        {
+          "Key": 2,
+          "Samples": 16,
+          "RewardSum": -2.6146811669479013
+        },
+        {
+          "Key": 3,
+          "Samples": 9,
+          "RewardSum": -2.0981712551589293
+        },
+        {
+          "Key": 4,
+          "Samples": 48,
+          "RewardSum": -10.414829218559207
+        },
+        {
+          "Key": 5,
+          "Samples": 34,
+          "RewardSum": -9.39194505789591
+        },
+        {
+          "Key": 6,
+          "Samples": 16,
+          "RewardSum": -3.7715606113686198
+        },
+        {
+          "Key": 7,
+          "Samples": 12,
+          "RewardSum": -2.955432850958389
+        },
+        {
+          "Key": 8,
+          "Samples": 9,
+          "RewardSum": -0.9873000043425839
+        },
+        {
+          "Key": 9,
+          "Samples": 1,
+          "RewardSum": -0.18
+        },
+        {
+          "Key": 11,
+          "Samples": 1,
+          "RewardSum": -0.18
+        },
+        {
+          "Key": 12,
+          "Samples": 1,
+          "RewardSum": -0.18
+        },
+        {
+          "Key": 14,
+          "Samples": 1,
+          "RewardSum": -0.18
+        },
+        {
+          "Key": 16,
+          "Samples": 5,
+          "RewardSum": -2.2074713100813277
+        },
+        {
+          "Key": 17,
+          "Samples": 2,
+          "RewardSum": -0.36
+        },
+        {
+          "Key": 18,
+          "Samples": 1,
+          "RewardSum": -0.65
+        },
+        {
+          "Key": 19,
+          "Samples": 1,
+          "RewardSum": -0.65
+        },
+        {
+          "Key": 20,
+          "Samples": 1,
+          "RewardSum": -0.18
+        },
+        {
+          "Key": 21,
+          "Samples": 1,
+          "RewardSum": -0.18
+        }
+      ],
+      "Match": 1,
+      "OriginalKickoffHash": 16660938029958333347,
+      "Patterns": [
+        {
+          "Count": 185,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 46,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 96,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 32,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "ReplayExact": true,
+      "ReplayHash": 14207042380361970835,
+      "RivalPress": 0.2,
+      "SeasonRetentionApplied": false
+    },
+    {
+      "Away": [
+        {
+          "Key": 0,
+          "Samples": 48,
+          "RewardSum": -8.418028641545003
+        },
+        {
+          "Key": 1,
+          "Samples": 48,
+          "RewardSum": -11.558902692571152
+        },
+        {
+          "Key": 2,
+          "Samples": 21,
+          "RewardSum": -4.8786263435041155
+        },
+        {
+          "Key": 3,
+          "Samples": 25,
+          "RewardSum": -5.305899669636254
+        },
+        {
+          "Key": 4,
+          "Samples": 34,
+          "RewardSum": -7.143829965327459
+        },
+        {
+          "Key": 5,
+          "Samples": 42,
+          "RewardSum": -11.756078236614908
+        },
+        {
+          "Key": 6,
+          "Samples": 22,
+          "RewardSum": -5.581528244289808
+        },
+        {
+          "Key": 7,
+          "Samples": 29,
+          "RewardSum": -7.733102901253285
+        },
+        {
+          "Key": 8,
+          "Samples": 4,
+          "RewardSum": -0.72
+        },
+        {
+          "Key": 9,
+          "Samples": 12,
+          "RewardSum": -1.7346537211456128
+        },
+        {
+          "Key": 10,
+          "Samples": 1,
+          "RewardSum": -0.18
+        },
+        {
+          "Key": 11,
+          "Samples": 4,
+          "RewardSum": -0.46663415819794785
+        },
+        {
+          "Key": 12,
+          "Samples": 1,
+          "RewardSum": -0.18
+        },
+        {
+          "Key": 13,
+          "Samples": 2,
+          "RewardSum": -0.36
+        },
+        {
+          "Key": 16,
+          "Samples": 4,
+          "RewardSum": -1.19
+        },
+        {
+          "Key": 17,
+          "Samples": 8,
+          "RewardSum": -4.260000000000001
+        },
+        {
+          "Key": 18,
+          "Samples": 3,
+          "RewardSum": -1.48
+        },
+        {
+          "Key": 19,
+          "Samples": 2,
+          "RewardSum": -1.3
+        },
+        {
+          "Key": 21,
+          "Samples": 1,
+          "RewardSum": -0.65
+        },
+        {
+          "Key": 23,
+          "Samples": 1,
+          "RewardSum": -0.18
+        }
+      ],
+      "ChronologicalCommitExact": true,
+      "DiskRoundtripExact": true,
+      "Home": [
+        {
+          "Key": 0,
+          "Samples": 48,
+          "RewardSum": -7.973126338400239
+        },
+        {
+          "Key": 1,
+          "Samples": 48,
+          "RewardSum": -10.646490232475122
+        },
+        {
+          "Key": 2,
+          "Samples": 43,
+          "RewardSum": -5.879920242887405
+        },
+        {
+          "Key": 3,
+          "Samples": 22,
+          "RewardSum": -3.0280494363553236
+        },
+        {
+          "Key": 4,
+          "Samples": 48,
+          "RewardSum": -9.028159271672815
+        },
+        {
+          "Key": 5,
+          "Samples": 48,
+          "RewardSum": -12.183642188708092
+        },
+        {
+          "Key": 6,
+          "Samples": 29,
+          "RewardSum": -9.40156061136862
+        },
+        {
+          "Key": 7,
+          "Samples": 27,
+          "RewardSum": -6.106592347069013
+        },
+        {
+          "Key": 8,
+          "Samples": 13,
+          "RewardSum": -1.7073000043425837
+        },
+        {
+          "Key": 9,
+          "Samples": 4,
+          "RewardSum": -1.6600000000000001
+        },
+        {
+          "Key": 10,
+          "Samples": 2,
+          "RewardSum": -0.36
+        },
+        {
+          "Key": 11,
+          "Samples": 2,
+          "RewardSum": -0.36
+        },
+        {
+          "Key": 12,
+          "Samples": 2,
+          "RewardSum": -0.8300000000000001
+        },
+        {
+          "Key": 13,
+          "Samples": 1,
+          "RewardSum": -0.0870900692144174
+        },
+        {
+          "Key": 14,
+          "Samples": 1,
+          "RewardSum": -0.18
+        },
+        {
+          "Key": 16,
+          "Samples": 6,
+          "RewardSum": -2.8574713100813276
+        },
+        {
+          "Key": 17,
+          "Samples": 2,
+          "RewardSum": -0.36
+        },
+        {
+          "Key": 18,
+          "Samples": 2,
+          "RewardSum": -1.3
+        },
+        {
+          "Key": 19,
+          "Samples": 2,
+          "RewardSum": -1.3
+        },
+        {
+          "Key": 20,
+          "Samples": 1,
+          "RewardSum": -0.18
+        },
+        {
+          "Key": 21,
+          "Samples": 1,
+          "RewardSum": -0.18
+        }
+      ],
+      "Match": 2,
+      "OriginalKickoffHash": 4898332035216829033,
+      "Patterns": [
+        {
+          "Count": 218,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 113,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 42,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 50,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "ReplayExact": true,
+      "ReplayHash": 8152873814019640934,
+      "RivalPress": 0.2,
+      "SeasonRetentionApplied": false
+    },
+    {
+      "Away": [
+        {
+          "Key": 0,
+          "Samples": 31.200000000000003,
+          "RewardSum": -5.847092064336174
+        },
+        {
+          "Key": 1,
+          "Samples": 31.200000000000003,
+          "RewardSum": -7.235465604154983
+        },
+        {
+          "Key": 2,
+          "Samples": 24.05,
+          "RewardSum": -5.706107123277674
+        },
+        {
+          "Key": 3,
+          "Samples": 25.35,
+          "RewardSum": -4.535473108749708
+        },
+        {
+          "Key": 4,
+          "Samples": 31.200000000000003,
+          "RewardSum": -6.954355869358404
+        },
+        {
+          "Key": 5,
+          "Samples": 31.200000000000003,
+          "RewardSum": -7.863277388310863
+        },
+        {
+          "Key": 6,
+          "Samples": 19.5,
+          "RewardSum": -6.091493358788377
+        },
+        {
+          "Key": 7,
+          "Samples": 31.200000000000003,
+          "RewardSum": -7.2098215629292275
+        },
+        {
+          "Key": 8,
+          "Samples": 5.8500000000000005,
+          "RewardSum": -1.6640000000000001
+        },
+        {
+          "Key": 9,
+          "Samples": 15.600000000000001,
+          "RewardSum": -2.8008201492818587
+        },
+        {
+          "Key": 10,
+          "Samples": 3.25,
+          "RewardSum": -1.1960000000000002
+        },
+        {
+          "Key": 11,
+          "Samples": 10.4,
+          "RewardSum": -1.6901680962418797
+        },
+        {
+          "Key": 12,
+          "Samples": 0.65,
+          "RewardSum": -0.11699999999999999
+        },
+        {
+          "Key": 13,
+          "Samples": 1.3,
+          "RewardSum": -0.23399999999999999
+        },
+        {
+          "Key": 16,
+          "Samples": 5.2,
+          "RewardSum": -1.8525
+        },
+        {
+          "Key": 17,
+          "Samples": 7.800000000000001,
+          "RewardSum": -3.840916555727946
+        },
+        {
+          "Key": 18,
+          "Samples": 3.9000000000000004,
+          "RewardSum": -2.2295
+        },
+        {
+          "Key": 19,
+          "Samples": 2.6,
+          "RewardSum": -1.3845
+        },
+        {
+          "Key": 20,
+          "Samples": 1.3,
+          "RewardSum": -0.5395000000000001
+        },
+        {
+          "Key": 21,
+          "Samples": 0.65,
+          "RewardSum": -0.42250000000000004
+        },
+        {
+          "Key": 22,
+          "Samples": 0.65,
+          "RewardSum": -0.42250000000000004
+        },
+        {
+          "Key": 23,
+          "Samples": 1.3,
+          "RewardSum": -0.5395000000000001
+        }
+      ],
+      "ChronologicalCommitExact": true,
+      "DiskRoundtripExact": true,
+      "Home": [
+        {
+          "Key": 0,
+          "Samples": 31.200000000000003,
+          "RewardSum": -4.808080610874842
+        },
+        {
+          "Key": 1,
+          "Samples": 31.200000000000003,
+          "RewardSum": -6.886736844513033
+        },
+        {
+          "Key": 2,
+          "Samples": 31.200000000000003,
+          "RewardSum": -5.426661806470641
+        },
+        {
+          "Key": 3,
+          "Samples": 26.650000000000002,
+          "RewardSum": -4.615327956399743
+        },
+        {
+          "Key": 4,
+          "Samples": 31.200000000000003,
+          "RewardSum": -6.933700505657775
+        },
+        {
+          "Key": 5,
+          "Samples": 31.200000000000003,
+          "RewardSum": -8.187830068046269
+        },
+        {
+          "Key": 6,
+          "Samples": 22.75,
+          "RewardSum": -6.910514397389602
+        },
+        {
+          "Key": 7,
+          "Samples": 31.200000000000003,
+          "RewardSum": -6.729626615019924
+        },
+        {
+          "Key": 8,
+          "Samples": 10.4,
+          "RewardSum": -2.0717450028226794
+        },
+        {
+          "Key": 9,
+          "Samples": 7.800000000000001,
+          "RewardSum": -2.6820174528563845
+        },
+        {
+          "Key": 10,
+          "Samples": 2.6,
+          "RewardSum": -1.0790000000000002
+        },
+        {
+          "Key": 11,
+          "Samples": 3.9000000000000004,
+          "RewardSum": -0.702
+        },
+        {
+          "Key": 12,
+          "Samples": 1.9500000000000002,
+          "RewardSum": -0.29824184587818753
+        },
+        {
+          "Key": 13,
+          "Samples": 1.9500000000000002,
+          "RewardSum": -0.6936085449893713
+        },
+        {
+          "Key": 14,
+          "Samples": 1.3,
+          "RewardSum": -0.3315
+        },
+        {
+          "Key": 15,
+          "Samples": 0.65,
+          "RewardSum": -0.11699999999999999
+        },
+        {
+          "Key": 16,
+          "Samples": 5.2,
+          "RewardSum": -2.396856351552863
+        },
+        {
+          "Key": 17,
+          "Samples": 6.5,
+          "RewardSum": -2.6627338718671987
+        },
+        {
+          "Key": 18,
+          "Samples": 1.9500000000000002,
+          "RewardSum": -0.962
+        },
+        {
+          "Key": 19,
+          "Samples": 1.3,
+          "RewardSum": -0.8450000000000001
+        },
+        {
+          "Key": 20,
+          "Samples": 0.65,
+          "RewardSum": -0.11699999999999999
+        },
+        {
+          "Key": 21,
+          "Samples": 1.3,
+          "RewardSum": -0.23399999999999999
+        }
+      ],
+      "Match": 3,
+      "OriginalKickoffHash": 5671467397289761221,
+      "Patterns": [
+        {
+          "Count": 173,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 26,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 59,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 130,
+          "Pattern": "AttractSwitch"
+        }
+      ],
+      "ReplayExact": true,
+      "ReplayHash": 7304903997127392892,
+      "RivalPress": 0.2,
+      "SeasonRetentionApplied": true
+    },
+    {
+      "Away": [
+        {
+          "Key": 0,
+          "Samples": 48,
+          "RewardSum": -11.212905936573486
+        },
+        {
+          "Key": 1,
+          "Samples": 48,
+          "RewardSum": -9.871858526357492
+        },
+        {
+          "Key": 2,
+          "Samples": 41.05,
+          "RewardSum": -9.910615233753417
+        },
+        {
+          "Key": 3,
+          "Samples": 43.35,
+          "RewardSum": -8.661076613771554
+        },
+        {
+          "Key": 4,
+          "Samples": 48,
+          "RewardSum": -8.072301081631778
+        },
+        {
+          "Key": 5,
+          "Samples": 48,
+          "RewardSum": -12.361376171772214
+        },
+        {
+          "Key": 6,
+          "Samples": 29.5,
+          "RewardSum": -8.511493358788375
+        },
+        {
+          "Key": 7,
+          "Samples": 39.2,
+          "RewardSum": -8.718033858247885
+        },
+        {
+          "Key": 8,
+          "Samples": 7.8500000000000005,
+          "RewardSum": -2.494
+        },
+        {
+          "Key": 9,
+          "Samples": 31.6,
+          "RewardSum": -5.340283284803222
+        },
+        {
+          "Key": 10,
+          "Samples": 8.25,
+          "RewardSum": -1.3386195742862126
+        },
+        {
+          "Key": 11,
+          "Samples": 13.4,
+          "RewardSum": -2.071768073582019
+        },
+        {
+          "Key": 12,
+          "Samples": 0.65,
+          "RewardSum": -0.11699999999999999
+        },
+        {
+          "Key": 13,
+          "Samples": 1.3,
+          "RewardSum": -0.23399999999999999
+        },
+        {
+          "Key": 16,
+          "Samples": 6.2,
+          "RewardSum": -1.5885744919660376
+        },
+        {
+          "Key": 17,
+          "Samples": 11.8,
+          "RewardSum": -5.569089980546243
+        },
+        {
+          "Key": 18,
+          "Samples": 5.9,
+          "RewardSum": -3.5294999999999996
+        },
+        {
+          "Key": 19,
+          "Samples": 3.6,
+          "RewardSum": -2.0345
+        },
+        {
+          "Key": 20,
+          "Samples": 2.3,
+          "RewardSum": -1.1895000000000002
+        },
+        {
+          "Key": 21,
+          "Samples": 2.65,
+          "RewardSum": -1.2525
+        },
+        {
+          "Key": 22,
+          "Samples": 0.65,
+          "RewardSum": -0.42250000000000004
+        },
+        {
+          "Key": 23,
+          "Samples": 1.3,
+          "RewardSum": -0.5395000000000001
+        }
+      ],
+      "ChronologicalCommitExact": true,
+      "DiskRoundtripExact": true,
+      "Home": [
+        {
+          "Key": 0,
+          "Samples": 48,
+          "RewardSum": -8.487908320342406
+        },
+        {
+          "Key": 1,
+          "Samples": 48,
+          "RewardSum": -9.761498416201443
+        },
+        {
+          "Key": 2,
+          "Samples": 41.2,
+          "RewardSum": -8.092318953586718
+        },
+        {
+          "Key": 3,
+          "Samples": 36.650000000000006,
+          "RewardSum": -6.56444642733791
+        },
+        {
+          "Key": 4,
+          "Samples": 48,
+          "RewardSum": -11.856790310703424
+        },
+        {
+          "Key": 5,
+          "Samples": 48,
+          "RewardSum": -13.192291798092654
+        },
+        {
+          "Key": 6,
+          "Samples": 25.75,
+          "RewardSum": -7.790482770704798
+        },
+        {
+          "Key": 7,
+          "Samples": 42.2,
+          "RewardSum": -8.98917182165779
+        },
+        {
+          "Key": 8,
+          "Samples": 16.4,
+          "RewardSum": -3.1517450028226803
+        },
+        {
+          "Key": 9,
+          "Samples": 12.8,
+          "RewardSum": -3.6154398653375317
+        },
+        {
+          "Key": 10,
+          "Samples": 2.6,
+          "RewardSum": -1.0790000000000002
+        },
+        {
+          "Key": 11,
+          "Samples": 4.9,
+          "RewardSum": -0.8819999999999999
+        },
+        {
+          "Key": 12,
+          "Samples": 2.95,
+          "RewardSum": -0.558651810955267
+        },
+        {
+          "Key": 13,
+          "Samples": 1.9500000000000002,
+          "RewardSum": -0.6936085449893713
+        },
+        {
+          "Key": 14,
+          "Samples": 1.3,
+          "RewardSum": -0.3315
+        },
+        {
+          "Key": 15,
+          "Samples": 0.65,
+          "RewardSum": -0.11699999999999999
+        },
+        {
+          "Key": 16,
+          "Samples": 9.2,
+          "RewardSum": -3.4382871996271027
+        },
+        {
+          "Key": 17,
+          "Samples": 7.5,
+          "RewardSum": -2.842733871867199
+        },
+        {
+          "Key": 18,
+          "Samples": 2.95,
+          "RewardSum": -1.612
+        },
+        {
+          "Key": 19,
+          "Samples": 3.3,
+          "RewardSum": -1.3049962227559373
+        },
+        {
+          "Key": 20,
+          "Samples": 0.65,
+          "RewardSum": -0.11699999999999999
+        },
+        {
+          "Key": 21,
+          "Samples": 2.3,
+          "RewardSum": -0.414
+        }
+      ],
+      "Match": 4,
+      "OriginalKickoffHash": 574901402934008329,
+      "Patterns": [
+        {
+          "Count": 123,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 86,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 33,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 21,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "ReplayExact": true,
+      "ReplayHash": 17784989289659681229,
+      "RivalPress": 0.9,
+      "SeasonRetentionApplied": false
+    },
+    {
+      "Away": [
+        {
+          "Key": 0,
+          "Samples": 48,
+          "RewardSum": -11.481907084172931
+        },
+        {
+          "Key": 1,
+          "Samples": 48,
+          "RewardSum": -10.551384538589673
+        },
+        {
+          "Key": 2,
+          "Samples": 48,
+          "RewardSum": -11.928190035799458
+        },
+        {
+          "Key": 3,
+          "Samples": 48,
+          "RewardSum": -8.80027876508163
+        },
+        {
+          "Key": 4,
+          "Samples": 48,
+          "RewardSum": -10.130136819003749
+        },
+        {
+          "Key": 5,
+          "Samples": 48,
+          "RewardSum": -15.152592622351456
+        },
+        {
+          "Key": 6,
+          "Samples": 39.5,
+          "RewardSum": -12.191493358788374
+        },
+        {
+          "Key": 7,
+          "Samples": 48,
+          "RewardSum": -10.870131079504672
+        },
+        {
+          "Key": 8,
+          "Samples": 11.850000000000001,
+          "RewardSum": -3.214000000000001
+        },
+        {
+          "Key": 9,
+          "Samples": 48,
+          "RewardSum": -7.322695921766102
+        },
+        {
+          "Key": 10,
+          "Samples": 13.25,
+          "RewardSum": -2.7086195742862125
+        },
+        {
+          "Key": 11,
+          "Samples": 21.4,
+          "RewardSum": -3.9666237790866514
+        },
+        {
+          "Key": 12,
+          "Samples": 1.65,
+          "RewardSum": -0.767
+        },
+        {
+          "Key": 13,
+          "Samples": 1.3,
+          "RewardSum": -0.23399999999999999
+        },
+        {
+          "Key": 16,
+          "Samples": 11.2,
+          "RewardSum": -2.958574491966038
+        },
+        {
+          "Key": 17,
+          "Samples": 13.8,
+          "RewardSum": -6.869089980546244
+        },
+        {
+          "Key": 18,
+          "Samples": 8.9,
+          "RewardSum": -5.479500000000001
+        },
+        {
+          "Key": 19,
+          "Samples": 5.6,
+          "RewardSum": -2.624531953397578
+        },
+        {
+          "Key": 20,
+          "Samples": 2.3,
+          "RewardSum": -1.1895000000000002
+        },
+        {
+          "Key": 21,
+          "Samples": 4.65,
+          "RewardSum": -1.6124999999999998
+        },
+        {
+          "Key": 22,
+          "Samples": 1.65,
+          "RewardSum": -1.0725
+        },
+        {
+          "Key": 23,
+          "Samples": 1.3,
+          "RewardSum": -0.5395000000000001
+        }
+      ],
+      "ChronologicalCommitExact": true,
+      "DiskRoundtripExact": true,
+      "Home": [
+        {
+          "Key": 0,
+          "Samples": 48,
+          "RewardSum": -8.918923061084255
+        },
+        {
+          "Key": 1,
+          "Samples": 48,
+          "RewardSum": -10.787505306010154
+        },
+        {
+          "Key": 2,
+          "Samples": 48,
+          "RewardSum": -8.860482514705707
+        },
+        {
+          "Key": 3,
+          "Samples": 48,
+          "RewardSum": -8.555227825372654
+        },
+        {
+          "Key": 4,
+          "Samples": 48,
+          "RewardSum": -11.404765287854762
+        },
+        {
+          "Key": 5,
+          "Samples": 48,
+          "RewardSum": -12.616281974595026
+        },
+        {
+          "Key": 6,
+          "Samples": 36.75,
+          "RewardSum": -11.650482770704798
+        },
+        {
+          "Key": 7,
+          "Samples": 48,
+          "RewardSum": -8.789929608037856
+        },
+        {
+          "Key": 8,
+          "Samples": 25.4,
+          "RewardSum": -5.391840564641321
+        },
+        {
+          "Key": 9,
+          "Samples": 22.8,
+          "RewardSum": -4.544644257029074
+        },
+        {
+          "Key": 10,
+          "Samples": 4.6,
+          "RewardSum": -1.439
+        },
+        {
+          "Key": 11,
+          "Samples": 6.9,
+          "RewardSum": -1.2419999999999998
+        },
+        {
+          "Key": 12,
+          "Samples": 5.95,
+          "RewardSum": -1.568651810955267
+        },
+        {
+          "Key": 13,
+          "Samples": 4.95,
+          "RewardSum": -1.3836085449893714
+        },
+        {
+          "Key": 14,
+          "Samples": 1.3,
+          "RewardSum": -0.3315
+        },
+        {
+          "Key": 15,
+          "Samples": 0.65,
+          "RewardSum": -0.11699999999999999
+        },
+        {
+          "Key": 16,
+          "Samples": 14.2,
+          "RewardSum": -5.278287199627103
+        },
+        {
+          "Key": 17,
+          "Samples": 11.5,
+          "RewardSum": -4.9727338718672
+        },
+        {
+          "Key": 18,
+          "Samples": 2.95,
+          "RewardSum": -1.612
+        },
+        {
+          "Key": 19,
+          "Samples": 3.3,
+          "RewardSum": -1.3049962227559373
+        },
+        {
+          "Key": 20,
+          "Samples": 2.65,
+          "RewardSum": -0.477
+        },
+        {
+          "Key": 21,
+          "Samples": 4.3,
+          "RewardSum": -0.774
+        },
+        {
+          "Key": 22,
+          "Samples": 1,
+          "RewardSum": -0.65
+        }
+      ],
+      "Match": 5,
+      "OriginalKickoffHash": 17006274714977474084,
+      "Patterns": [
+        {
+          "Count": 201,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 45,
+          "Pattern": "SecureProgression"
+        },
+        {
+          "Count": 136,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 34,
+          "Pattern": "ExploitDepth"
+        }
+      ],
+      "ReplayExact": true,
+      "ReplayHash": 661475125531195747,
+      "RivalPress": 0.9,
+      "SeasonRetentionApplied": false
+    },
+    {
+      "Away": [
+        {
+          "Key": 0,
+          "Samples": 48,
+          "RewardSum": -11.865235161728496
+        },
+        {
+          "Key": 1,
+          "Samples": 48,
+          "RewardSum": -8.85603787574551
+        },
+        {
+          "Key": 2,
+          "Samples": 48,
+          "RewardSum": -11.670280592154453
+        },
+        {
+          "Key": 3,
+          "Samples": 48,
+          "RewardSum": -9.576653550230905
+        },
+        {
+          "Key": 4,
+          "Samples": 48,
+          "RewardSum": -10.818121875508924
+        },
+        {
+          "Key": 5,
+          "Samples": 48,
+          "RewardSum": -14.16705411221821
+        },
+        {
+          "Key": 6,
+          "Samples": 47.5,
+          "RewardSum": -13.631493358788372
+        },
+        {
+          "Key": 7,
+          "Samples": 48,
+          "RewardSum": -10.902168886574087
+        },
+        {
+          "Key": 8,
+          "Samples": 14.850000000000001,
+          "RewardSum": -3.7540000000000013
+        },
+        {
+          "Key": 9,
+          "Samples": 48,
+          "RewardSum": -8.627815351528955
+        },
+        {
+          "Key": 10,
+          "Samples": 13.25,
+          "RewardSum": -2.7086195742862125
+        },
+        {
+          "Key": 11,
+          "Samples": 21.4,
+          "RewardSum": -3.9666237790866514
+        },
+        {
+          "Key": 12,
+          "Samples": 1.65,
+          "RewardSum": -0.767
+        },
+        {
+          "Key": 13,
+          "Samples": 2.3,
+          "RewardSum": -0.3079546715977226
+        },
+        {
+          "Key": 16,
+          "Samples": 15.2,
+          "RewardSum": -5.558574491966039
+        },
+        {
+          "Key": 17,
+          "Samples": 14.8,
+          "RewardSum": -7.519089980546244
+        },
+        {
+          "Key": 18,
+          "Samples": 8.9,
+          "RewardSum": -5.479500000000001
+        },
+        {
+          "Key": 19,
+          "Samples": 5.6,
+          "RewardSum": -2.624531953397578
+        },
+        {
+          "Key": 20,
+          "Samples": 2.3,
+          "RewardSum": -1.1895000000000002
+        },
+        {
+          "Key": 21,
+          "Samples": 5.65,
+          "RewardSum": -2.2624999999999997
+        },
+        {
+          "Key": 22,
+          "Samples": 2.65,
+          "RewardSum": -1.2525
+        },
+        {
+          "Key": 23,
+          "Samples": 1.3,
+          "RewardSum": -0.5395000000000001
+        }
+      ],
+      "ChronologicalCommitExact": true,
+      "DiskRoundtripExact": true,
+      "Home": [
+        {
+          "Key": 0,
+          "Samples": 48,
+          "RewardSum": -8.399207237389541
+        },
+        {
+          "Key": 1,
+          "Samples": 48,
+          "RewardSum": -10.709939233987583
+        },
+        {
+          "Key": 2,
+          "Samples": 48,
+          "RewardSum": -7.605214148143096
+        },
+        {
+          "Key": 3,
+          "Samples": 48,
+          "RewardSum": -8.318700204963884
+        },
+        {
+          "Key": 4,
+          "Samples": 48,
+          "RewardSum": -11.618983642306103
+        },
+        {
+          "Key": 5,
+          "Samples": 48,
+          "RewardSum": -12.648238474446618
+        },
+        {
+          "Key": 6,
+          "Samples": 41.75,
+          "RewardSum": -12.550482770704797
+        },
+        {
+          "Key": 7,
+          "Samples": 48,
+          "RewardSum": -8.543509345196586
+        },
+        {
+          "Key": 8,
+          "Samples": 30.4,
+          "RewardSum": -7.554039430731055
+        },
+        {
+          "Key": 9,
+          "Samples": 29.8,
+          "RewardSum": -6.738114885534126
+        },
+        {
+          "Key": 10,
+          "Samples": 5.6,
+          "RewardSum": -1.6392719605717965
+        },
+        {
+          "Key": 11,
+          "Samples": 8.9,
+          "RewardSum": -1.6019999999999996
+        },
+        {
+          "Key": 12,
+          "Samples": 6.95,
+          "RewardSum": -2.218651810955267
+        },
+        {
+          "Key": 13,
+          "Samples": 4.95,
+          "RewardSum": -1.3836085449893714
+        },
+        {
+          "Key": 14,
+          "Samples": 2.3,
+          "RewardSum": -0.5115000000000001
+        },
+        {
+          "Key": 15,
+          "Samples": 2.65,
+          "RewardSum": -0.477
+        },
+        {
+          "Key": 16,
+          "Samples": 17.2,
+          "RewardSum": -6.7582871996271034
+        },
+        {
+          "Key": 17,
+          "Samples": 15.5,
+          "RewardSum": -7.1027338718672
+        },
+        {
+          "Key": 18,
+          "Samples": 2.95,
+          "RewardSum": -1.612
+        },
+        {
+          "Key": 19,
+          "Samples": 3.3,
+          "RewardSum": -1.3049962227559373
+        },
+        {
+          "Key": 20,
+          "Samples": 2.65,
+          "RewardSum": -0.477
+        },
+        {
+          "Key": 21,
+          "Samples": 4.3,
+          "RewardSum": -0.774
+        },
+        {
+          "Key": 22,
+          "Samples": 1,
+          "RewardSum": -0.65
+        }
+      ],
+      "Match": 6,
+      "OriginalKickoffHash": 15579778702108406673,
+      "Patterns": [
+        {
+          "Count": 205,
+          "Pattern": "ThirdMan"
+        },
+        {
+          "Count": 87,
+          "Pattern": "AttractSwitch"
+        },
+        {
+          "Count": 25,
+          "Pattern": "ExploitDepth"
+        },
+        {
+          "Count": 40,
+          "Pattern": "SecureProgression"
+        }
+      ],
+      "ReplayExact": true,
+      "ReplayHash": 5066134991919368426,
+      "RivalPress": 0.9,
+      "SeasonRetentionApplied": false
+    }
+  ]
+}

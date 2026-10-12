@@ -108,6 +108,11 @@ let parseOptions arguments =
 
 let private category (entry: ObservationEntry) =
     match entry.Data with
+    | AttackEvaluated _ -> "collective opportunity evaluation"
+    | AttackResolved _ -> "realized collective learning sample"
+    | AttackCooperation _ -> "individual cooperation"
+    | TransitionEvaluated _ -> "defensive transition evaluation"
+    | TransitionEnded _ -> "defensive transition outcome"
     | DecisionChosen _ -> "chosen decision"
     | DecisionAlternatives _ -> "selective alternatives"
     | ImpulseApplied _ -> "applied impulse"

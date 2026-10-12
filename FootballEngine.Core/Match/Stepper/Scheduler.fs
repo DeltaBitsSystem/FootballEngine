@@ -19,6 +19,7 @@ type Trigger =
     | EveryMinute of period: int<matchMin> * offset: int<matchMin>
     | OnEvent of EventFlags
     | OnEventOrEveryN of EventFlags * int<tickDelta>
+    | OnTransitionOrGeometry of EventFlags
     | WhenLive of Trigger
     | WhenMovementAllowed of Trigger
 
@@ -35,6 +36,7 @@ type CompiledTrigger =
     | EveryMinute of period: int<matchMin> * offset: int<matchMin>
     | OnEvent of EventFlags
     | OnEventOrEveryN of EventFlags * int<tickDelta>
+    | OnTransitionOrGeometry of EventFlags
     | WhenLive of CompiledTrigger
     | WhenMovementAllowed of CompiledTrigger
 
@@ -54,6 +56,7 @@ module ScheduleCompiler =
         | Trigger.EveryMinute(period, offset) -> CompiledTrigger.EveryMinute(period, offset)
         | Trigger.OnEvent flags -> CompiledTrigger.OnEvent flags
         | Trigger.OnEventOrEveryN(flags, period) -> CompiledTrigger.OnEventOrEveryN(flags, period)
+        | Trigger.OnTransitionOrGeometry flags -> CompiledTrigger.OnTransitionOrGeometry flags
         | Trigger.WhenLive nested -> CompiledTrigger.WhenLive(compileTrigger nested)
         | Trigger.WhenMovementAllowed nested -> CompiledTrigger.WhenMovementAllowed(compileTrigger nested)
 

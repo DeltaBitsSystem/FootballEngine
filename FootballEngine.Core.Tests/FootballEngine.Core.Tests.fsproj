@@ -12,6 +12,7 @@
     <Compile Include="Diagnostics\Gate0Tests.fs"/>
     <Compile Include="Contracts\RngTests.fs"/>
     <Compile Include="Contracts\ClockTests.fs"/>
+    <Compile Include="Contracts\MotionEvidenceTests.fs"/>
     <Compile Include="Contracts\EventFlagTests.fs"/>
     <Compile Include="Contracts\ConfigTests.fs"/>
     <Compile Include="Systems\Ball\PhysicsTests.fs"/>
@@ -47,6 +48,10 @@
     <Compile Include="Systems\Team\InterceptTableTests.fs"/>
     <Compile Include="Systems\Team\InterceptPressingTests.fs"/>
     <Compile Include="Systems\Team\PositionTests.fs"/>
+    <Compile Include="Systems\Team\DefensiveTransitionFixtures.fs"/>
+    <Compile Include="Systems\Team\DefensiveTransitionTests.fs"/>
+    <Compile Include="Systems\Team\CollectiveAttackFixtures.fs"/>
+    <Compile Include="Systems\Team\CollectiveAttackTests.fs"/>
     <Compile Include="Systems\Team\PositioningTests.fs"/>
     <Compile Include="Systems\Team\DecideTests.fs"/>
     <Compile Include="Systems\Team\PassInterceptTests.fs"/>

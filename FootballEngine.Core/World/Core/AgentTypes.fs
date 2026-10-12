@@ -87,7 +87,8 @@ and WorldClock =
       Revision: uint64
       ScheduledWork: ScheduledWork list
       ConsumedWork: Set<ScheduledWorkId>
-      PhaseHistory: WorldPhaseTrace list }
+      PhaseHistory: WorldPhaseTrace list
+      MatchExecutions: Map<MatchId, FootballEngine.Core.Match.MatchInput * FootballEngine.Core.Match.MatchCommand list> }
 
 and PendingEvent =
     { At: WorldTime

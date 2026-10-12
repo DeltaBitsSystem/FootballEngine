@@ -1,0 +1,67 @@
+{
+  "Actors": 22,
+  "CheckpointArchiveBytes": 278153,
+  "Configuration": "Release, synthetic sporting roots; no artistic/contact-quality approval",
+  "Cpu": "model name\t: AMD Ryzen 5 5600X 6-Core Processor",
+  "EndToEnd": {
+    "Samples": 2048,
+    "MedianMilliseconds": 0.0513,
+    "P95Milliseconds": 0.0535,
+    "P99Milliseconds": 0.0544,
+    "MaxMilliseconds": 0.3009,
+    "AllocatedBytes": 0,
+    "Gen0": 0,
+    "Gen1": 0,
+    "Gen2": 0
+  },
+  "GeneratedUtc": "2026-10-08T03:31:09.0222063Z",
+  "HistoryConstructionBytes": 247416,
+  "Identity": {
+    "PlannerVersion": 1,
+    "ConfigHash": "34F678B0E8431E56E339A40A264E06AD96CEA3D5F64F363E51CBBF2381DF5DC4",
+    "RigHash": "661E4F664B105C4741B4A4C9E483FE23FE6614ABA902A08E03D9B088EF3DD510",
+    "ProfileHash": "headless-synthetic-standard-morphology",
+    "TrackId": 17
+  },
+  "Ingest": {
+    "Samples": 2048,
+    "MedianMilliseconds": 0.0061,
+    "P95Milliseconds": 0.0065,
+    "P99Milliseconds": 0.0067,
+    "MaxMilliseconds": 0.4189,
+    "AllocatedBytes": 0,
+    "Gen0": 0,
+    "Gen1": 0,
+    "Gen2": 0
+  },
+  "JointsPerActor": 22,
+  "MotionTrackBytes": 325700,
+  "Pose": {
+    "Samples": 4096,
+    "MedianMilliseconds": 0.0452,
+    "P95Milliseconds": 0.0457,
+    "P99Milliseconds": 0.0482,
+    "MaxMilliseconds": 0.1158,
+    "AllocatedBytes": 0,
+    "Gen0": 0,
+    "Gen1": 0,
+    "Gen2": 0
+  },
+  "Runtime": "10.0.10",
+  "RuntimeConstructionBytes": 1707872,
+  "SchemaVersion": 1,
+  "Seek127Boundaries": {
+    "Samples": 64,
+    "MedianMilliseconds": 5.4172,
+    "P95Milliseconds": 5.5841,
+    "P99Milliseconds": 21.4865,
+    "MaxMilliseconds": 21.4865,
+    "AllocatedBytes": 36645768,
+    "Gen0": 2,
+    "Gen1": 0,
+    "Gen2": 0
+  },
+  "TieredCompilation": "0",
+  "WarmupBoundaries": 257,
+  "WarmupPoses": 1000
+}

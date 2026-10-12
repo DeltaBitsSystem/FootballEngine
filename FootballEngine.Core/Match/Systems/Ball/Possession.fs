@@ -182,6 +182,7 @@ module BallPossession =
                     kind
                     (nextX - float ball.Position.Vx)
                     (nextY - float ball.Position.Vy)
+                    (float ball.Position.Vz)
                 // A finite touch changes momentum once; the position and spin subsequently evolve in BallDynamics.
                 MatchWorld.updateBall world (fun ball ->
                     { ball with

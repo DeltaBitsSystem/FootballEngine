@@ -74,6 +74,7 @@ let main argv =
             "FootballEngine.Core"
             [ FootballEngine.Core.Tests.Diagnostics.Gate0Tests.tests
               rngTests
+              FootballEngine.Core.Tests.Contracts.MotionEvidenceTests.tests
               FootballEngine.Core.Tests.Contracts.ObservationTests.tests
               FootballEngine.Core.Tests.Contracts.ClockTests.clockTests
               eventFlagTests
@@ -111,6 +112,9 @@ let main argv =
               interceptTableTests
               interceptPressingTests
               positionTests
+              FootballEngine.Core.Tests.Systems.Team.DefensiveTransitionTests.tests
+              FootballEngine.Core.Tests.Systems.Team.CollectiveAttackTests.tests
+              FootballEngine.Core.Tests.Systems.Players.PlannerTests.temporalTests
               positioningTests
               decideTests
               passInterceptTests

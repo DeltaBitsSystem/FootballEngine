@@ -19,6 +19,8 @@ let main argv =
               ModEditorTests.tests
               LiveMatchTests.tests
               CharacterAnimationTests.tests
+              Animation.MotionRuntimeTests.tests
+              Animation.MotionTimelineTests.tests
               HdrLightingTests.tests
               PitchMarkingsTests.tests
               MatchDiagnosticsTests.tests

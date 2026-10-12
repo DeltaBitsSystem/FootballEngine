@@ -68,7 +68,25 @@ type DuelEvidence =
       Foul: bool
       Won: bool }
 
+[<Struct>]
+type TransitionDecisionEvidence =
+    { Side: ClubSide
+      Episode: EventId
+      Mode: TransitionMode
+      Reason: TransitionReason
+      Primary: PlayerId option
+      Cover: PlayerId option
+      Arrival: float<second>
+      ArrivalWindow: float<second>
+      CoverArrival: float<second>
+      LocalPlayers: int
+      Opponents: int
+      DepthRunners: int }
+
 type ObservationData =
+    | AttackEvaluated of ClubSide * uint64 * AttackPattern * context: int * geometry: float * learned: float * uncertainty: float
+    | AttackResolved of ClubSide * uint64 * AttackEnd * reward: float * connections: int * progress: float * exposure: float
+    | AttackCooperation of actor: PlayerId * episode: uint64 * target: int * bias: float
     | DecisionChosen of DecisionEvidence
     | DecisionAlternatives of actor: PlayerId * ObservationOption list
     | ImpulseApplied of BallImpulse
@@ -84,6 +102,8 @@ type ObservationData =
     | CommandEffective of manager: uint64 * sequence: uint64
     | TacticsEffective of manager: uint64 * sequence: uint64 * TacticsConfig
     | DuelResolved of DuelEvidence
+    | TransitionEvaluated of TransitionDecisionEvidence
+    | TransitionEnded of ClubSide * EventId * TransitionEnd * TransitionReason
 
 [<Struct>]
 type ObservationEntry =
@@ -299,6 +319,18 @@ module Observation =
     /// Text is deliberately built by consumers, never by the physical tick.
     let explain (entry: ObservationEntry) =
         match entry.Data with
+        | AttackEvaluated(side, episode, pattern, context, geometry, learned, uncertainty) ->
+            sprintf "Attack %A #%d %A context %d: geometry %.3f, learned value %.3f, uncertainty %.3f. A feasible opportunity, not a promised pass." side episode pattern context geometry learned uncertainty
+        | AttackResolved(side, episode, reason, reward, connections, progress, exposure) ->
+            sprintf "Attack %A #%d ended %A: realized reward %.3f, connections %d, progress %.2fm, exposure %.3f. One bounded learning sample." side episode reason reward connections progress exposure
+        | AttackCooperation(actor, episode, target, bias) ->
+            sprintf "%A cooperates with attack #%d: feasible target slot %d receives bounded utility %.3f; autonomous alternatives remain." actor episode target bias
+        | TransitionEvaluated decision ->
+            sprintf "Transition %A (%A): %A because %A. Arrival %.2fs/window %.2fs; cover %.2fs; ready local players %d versus %d opponents; unprotected depth runners %d. First %A, cover %A. Viability is a commitment, not a promised recovery."
+                decision.Episode decision.Side decision.Mode decision.Reason (float decision.Arrival) (float decision.ArrivalWindow)
+                (float decision.CoverArrival) decision.LocalPlayers decision.Opponents decision.DepthRunners decision.Primary decision.Cover
+        | TransitionEnded(side, episode, outcome, reason) ->
+            sprintf "Transition %A (%A) finished: %A; last mode rationale %A. Recovery requires committed possession; stabilization requires actual goal-side arrival held over successive evaluations." episode side outcome reason
         | DecisionChosen decision ->
             let action =
                 match decision.ActionCode with
@@ -412,6 +444,7 @@ module Observation =
 
     let actor (entry: ObservationEntry) =
         match entry.Data with
+        | AttackCooperation(actor, _, _, _) -> Some actor
         | DecisionChosen decision -> Some decision.Actor
         | DecisionAlternatives(actor, _) -> Some actor
         | ImpulseApplied impulse -> Some impulse.ActorId
@@ -701,6 +734,9 @@ module Observation =
             |> Array.filter (fun entry -> entry.Cause = ValueNone)
             |> Array.countBy (fun entry ->
                 match entry.Data with
+                | AttackEvaluated _ -> "attack-evaluation"
+                | AttackResolved _ -> "attack-resolution"
+                | AttackCooperation _ -> "attack-cooperation"
                 | DecisionChosen _ -> "decision"
                 | DecisionAlternatives _ -> "alternatives"
                 | ImpulseApplied _ -> "impulse"
@@ -711,7 +747,9 @@ module Observation =
                 | EventCommitted event -> "event:" + string (MatchEvent.kind event)
                 | CommandEffective _ -> "command"
                 | TacticsEffective _ -> "tactics"
-                | DuelResolved _ -> "duel-resolution")
+                | DuelResolved _ -> "duel-resolution"
+                | TransitionEvaluated _ -> "transition-decision"
+                | TransitionEnded _ -> "transition-end")
             |> Array.sortBy fst
             |> Array.map (fun (kind, count) -> {| Kind = kind; Count = count |})
 

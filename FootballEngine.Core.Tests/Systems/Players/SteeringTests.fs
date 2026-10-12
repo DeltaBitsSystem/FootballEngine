@@ -26,7 +26,44 @@ module SteeringTests =
     let steeringTests =
         testList
             "FootballEngine.Core.Systems.Players.SteeringTests"
-            [ testCase "continuous intent refreshes its target" (fun _ ->
+            [ testCase "settled players attend the ball instead of orbiting small shape corrections" (fun _ ->
+                  let world = TestBuilders.formationWorld ()
+                  let frame = world.Home.Frame
+                  let slot = 5
+                  frame.PosX[slot] <- 0.0f
+                  frame.PosY[slot] <- 0.0f
+                  frame.BodyFacing[slot] <- -1.0f
+                  frame.Intent.Kind[slot] <- IntentCode.HoldPosition
+                  frame.Intent.Phase[slot] <- IntentPhase.Executing
+
+                  world.State <-
+                      { world.State with
+                          Flow = MatchFlow.Live
+                          Ball =
+                              { world.State.Ball with
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          X = 15.0<meter>
+                                          Y = 0.0<meter> } } }
+
+                  for teammate = 0 to frame.PosX.Length - 1 do
+                      if teammate <> slot then
+                          frame.PosX[teammate] <- float32 (10 + teammate)
+                          frame.PosY[teammate] <- 15.0f
+
+                  for tick = 0 to 159 do
+                      let angle = float tick * 0.1
+                      frame.Intent.TargetX[slot] <- frame.PosX[slot] + float32 (cos angle * 0.1)
+                      frame.Intent.TargetY[slot] <- frame.PosY[slot] + float32 (sin angle * 0.1)
+                      stepSteering world
+
+                  let expected = atan2 (-float frame.PosY[slot]) (15.0 - float frame.PosX[slot])
+
+                  Expect.isLessThan
+                      (abs (float frame.BodyFacing[slot] - expected))
+                      0.03
+                      "body settles toward play, not the rotating micro target")
+              testCase "continuous intent refreshes its target" (fun _ ->
                   let world = TestBuilders.formationWorld ()
                   let intent = world.Home.Frame.Intent
                   world.State <- { world.State with Tick = 100<subtick> }

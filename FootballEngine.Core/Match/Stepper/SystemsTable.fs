@@ -13,7 +13,13 @@ module Scheduler =
             (EventFlags.union (EventFlags.ofKind EventKind.SetPieceAwarded) (EventFlags.ofKind EventKind.Corner))
             (EventFlags.union
                 (EventFlags.ofKind EventKind.GoalKick)
-                (EventFlags.union (EventFlags.ofKind EventKind.ThrowIn) (EventFlags.ofKind EventKind.KickOff)))
+                 (EventFlags.union (EventFlags.ofKind EventKind.ThrowIn) (EventFlags.ofKind EventKind.KickOff)))
+
+    let private transitionFlags =
+         [ EventKind.PossessionGained; EventKind.BallLoose; EventKind.PassLaunched; EventKind.Interception; EventKind.ShotLaunched
+           EventKind.RedCard; EventKind.Injury; EventKind.Substitution; EventKind.SubstitutionApplied
+           EventKind.Goal; EventKind.HalfTime; EventKind.FullTime; EventKind.SetPieceAwarded; EventKind.TeamInstruction ]
+        |> List.fold (fun flags kind -> EventFlags.union flags (EventFlags.ofKind kind)) setPieceFlags
 
     let systems: SystemSpec list =
         [ { Name = "PlayerBodyPhysics"
@@ -35,22 +41,28 @@ module Scheduler =
             Triggers = [ Trigger.WhenLive Trigger.EveryTick ]
             Step = BallPossession.step }
           { Name = "TeamPerceive"
-            Triggers = [ Trigger.WhenLive(Trigger.EveryN 4<tickDelta>) ]
+            Triggers = [ Trigger.WhenLive(Trigger.OnTransitionOrGeometry transitionFlags) ]
             Step = TeamPerceive.step }
+          { Name = "TeamTransition"
+            Triggers = [ Trigger.OnTransitionOrGeometry transitionFlags ]
+            Step = TeamTransition.step }
           { Name = "TeamDecide"
             Triggers = [ Trigger.WhenLive(Trigger.EveryMinute(1<matchMin>, 0<matchMin>)) ]
             Step = TeamDecide.step }
           { Name = "TeamPosition"
-            Triggers = [ Trigger.WhenMovementAllowed(Trigger.EveryN 4<tickDelta>) ]
+            Triggers = [ Trigger.WhenMovementAllowed(Trigger.OnTransitionOrGeometry transitionFlags) ]
             Step = TeamPosition.step }
           { Name = "TeamEmergent"
             Triggers = [ Trigger.WhenLive(Trigger.EveryN 8<tickDelta>) ]
             Step = TeamEmergent.step }
+          { Name = "TeamAttack"
+            Triggers = [ Trigger.OnTransitionOrGeometry transitionFlags ]
+            Step = TeamAttack.step }
           { Name = "PlayerPerception"
             Triggers = [ Trigger.WhenLive(Trigger.EveryN 8<tickDelta>) ]
             Step = PlayerPerception.step }
           { Name = "PlayerIntent"
-            Triggers = [ Trigger.WhenMovementAllowed(Trigger.EveryN 4<tickDelta>) ]
+            Triggers = [ Trigger.WhenMovementAllowed(Trigger.OnTransitionOrGeometry transitionFlags) ]
             Step = PlayerIntent.step }
           { Name = "PlayerSteering"
             Triggers = [ Trigger.WhenMovementAllowed(Trigger.EveryN 2<tickDelta>) ]

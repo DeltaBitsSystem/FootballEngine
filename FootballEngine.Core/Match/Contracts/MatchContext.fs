@@ -11,6 +11,7 @@ type ClubRef =
       Name: string
       BaseTactics: TacticsConfig
       Chemistry: float
+      AttackPrior: Map<int, FootballEngine.Domain.AttackEstimate>
       Familiarity: float32
       HomeAdvantage: HomeAdvantageConfig }
 

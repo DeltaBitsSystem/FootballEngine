@@ -15,9 +15,7 @@ module PlannerTests =
           PossessionSecurityWeight = 0.8 }
 
     let private cfg: PlannerConfig =
-        { MaxChainLength = 4
-          MaxEvaluateLimit = 500
-          PlanTTL = 480<subtick> }
+        { BalanceConfig.defaultPlanner with MaxChainLength = 4; MaxEvaluateLimit = 500 }
 
     /// The same intercept model the production path uses, built from the same
     /// defaults: the planner and the tests must never hardcode a second,
@@ -46,7 +44,17 @@ module PlannerTests =
             |> List.toArray
             |> Array.map (fun (s, x, y) -> struct (s, x * 1.0<meter>, y * 1.0<meter>))
           OffsideLine = 45.0<meter>
-          Dir = 1.0 }
+          Dir = 1.0
+          OurMotion = [||]
+          OppMotion = [||]
+          Horizon = 1.5<second>
+          Confidence = 1.0
+          GoalkeeperSlots = Set.singleton 0
+          OurGoalkeeperSlots = Set.singleton 0
+          PassSpeed = BalanceConfig.defaultConfig.Actions.PassLaunchSpeed
+          DistanceSpeedGain = BalanceConfig.defaultConfig.Actions.PassDistanceSpeedGain
+          MaxPassDistance = BalanceConfig.defaultConfig.Actions.MaxPassExecutionDistance
+          CarrySpeed = 4.0<meterPerSecond> }
 
     let private farOpps =
         [ 1, -40.0, 25.0
@@ -74,6 +82,37 @@ module PlannerTests =
             | Planner.Pass(s, _, _) -> s = slot
             | _ -> false)
 
+    let temporalTests = testList "PlannerTemporal" [
+        testCase "each evaluated candidate consumes the work budget and roots receive first consideration" (fun _ ->
+            let options = [| for slot in [6; 9] do yield 1, slot, 0.6 |]
+            let limited = Planner.search { cfg with MaxEvaluateLimit = 5 } weights pparams s options
+            Expect.isLessThanOrEqual (limited |> Array.sumBy _.CandidateEvaluations) 5 "rejected and terminal branches count too"
+            for ev in limited do Expect.isGreaterThan ev.CandidateEvaluations 0 "early continuation cannot starve a later initial option")
+        testCase "offside uses ball halfway and projected actual defenders" (fun _ ->
+            let behindBall = { s with BallX = 30.0<meter>; OffsideLine = 20.0<meter> }
+            Expect.isFalse (Planner.isOffside behindBall 25.0<meter>) "behind the ball is legal"
+            Expect.isFalse (Planner.isOffside { s with BallX = -20.0<meter>; OffsideLine = -10.0<meter> } -5.0<meter>) "own half is legal"
+            let moving = { s with OppPos = [|struct(1, 20.0<meter>, 20.0<meter>); struct(2, 22.0<meter>, -20.0<meter>)|]; OppMotion = [|struct(1, -3.0<meterPerSecond>, 0.0<meterPerSecond>); struct(2, -3.0<meterPerSecond>, 0.0<meterPerSecond>)|]; OffsideLine = 20.0<meter> }
+            let next = Planner.simulatePass moving 6 12.0<meter> 8.0<meter>
+            Expect.isLessThan next.OffsideLine moving.OffsideLine "observed retreat changes legality at the next touch")
+        testCase "horizon bounds all legs configured launch speed and uncertainty bounds dribble value" (fun _ ->
+            let first = Planner.simulatePass s 6 12.0<meter> 8.0<meter>
+            let second = Planner.simulatePass first 9 26.0<meter> 0.0<meter>
+            Expect.isLessThan second.Horizon first.Horizon "future legs cannot restart the horizon"
+            let slow = Planner.simulatePass { s with PassSpeed = 10.0<meterPerSecond> } 6 12.0<meter> 8.0<meter>
+            Expect.isLessThan slow.Horizon first.Horizon "configured physics speed, not 22m/s fiction"
+            let result = Planner.search cfg weights pparams { s with Confidence = 0.0 } [|3, -1, 0.6|]
+            Expect.equal result[0].Value 0.6 "uncertain dribble forecast cannot manufacture value")
+        testCase "delayed moving receiver changes anticipation without consulting rival choices" (fun _ ->
+            let moving = { s with OurMotion = [|struct(9, 5.0<meterPerSecond>, 0.0<meterPerSecond>)|] }
+            let original = search s [1, 6, 0.6]
+            let forecast = search moving [1, 6, 0.6]
+            Expect.notEqual forecast[0].Value original[0].Value "observed future advantage matters"
+            Expect.isLessThanOrEqual forecast[0].Chain.Length cfg.MaxChainLength "bounded nontrivial search"
+            let slots = forecast[0].Chain |> Array.choose (function Planner.Pass(slot, _, _) -> Some slot | _ -> None)
+            Expect.equal (Array.distinct slots).Length slots.Length "no profitable endless return-pass cycles")
+    ]
+
     let plannerTests =
         testList
             "FootballEngine.Core.Systems.Planner.PlannerTests"
@@ -87,6 +126,13 @@ module PlannerTests =
                   Expect.equal r.[1].TargetSlot 9 "second target"
                   Expect.equal r.[2].ActionCode 3 "third code"
                   Expect.equal r.[2].TargetSlot -1 "third target")
+
+              testCase "received forecast co-locates ball and receiver and spends cumulative time" (fun _ ->
+                  let moving = { s with OurMotion = [| struct(6, 3.0<meterPerSecond>, 1.0<meterPerSecond>) |] }
+                  let received = Planner.simulatePass moving 6 12.0<meter> 8.0<meter>
+                  let struct(_, x, y) = received.OurPos |> Array.find (fun struct(slot, _, _) -> slot = 6)
+                  Expect.equal (received.BallX, received.BallY) (x, y) "ball belongs to the predicted carrier, not his abandoned launch position"
+                  Expect.isLessThan received.Horizon moving.Horizon "one temporal budget across the entire chain")
 
               testCase "a two-pass chain extends past level-1 and adds continuation value" (fun _ ->
                   let r = search s [ (1, 6, 0.6) ]

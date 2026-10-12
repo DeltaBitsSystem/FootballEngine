@@ -16,6 +16,7 @@ type PlayerProfile =
     { Id: PlayerId
       Role: SlotRole
       IsGK: bool
+      Morphology: PhysicalMorphology
       Pace: float32
       Strength: float32
       Stamina: float32
@@ -82,6 +83,14 @@ module Projection =
         { Id = PlayerId p.Id
           Role = roleOf p.Position
           IsGK = p.Position = FootballEngine.Domain.Position.GK
+          Morphology =
+            PhysicalMorphology.ofStature
+                (float32 p.Height / 100.0f)
+                (float32 p.Weight)
+                (if p.PreferredFoot = FootballEngine.Domain.PreferredFoot.Left then
+                     ContactFoot.Left
+                 else
+                     ContactFoot.Right)
           Pace = norm phys.Pace
           Strength = norm phys.Strength
           Stamina = norm phys.Stamina

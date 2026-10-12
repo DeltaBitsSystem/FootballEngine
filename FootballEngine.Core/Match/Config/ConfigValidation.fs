@@ -1,17 +1,15 @@
 namespace FootballEngine.Core.Match
 
 /// Config sanity checks. The engine must never run with a self-contradictory
-/// config: a negative budget or TTL would silently corrupt every decision,
+/// config: an invalid search budget would silently corrupt every decision,
 /// and an invalid weights file should be loud, not silently ignored.
 module ConfigValidation =
 
     let validatePlanner (p: PlannerConfig) : string list =
-        [ if p.MaxChainLength < 1 then
-              yield "Planner.MaxChainLength must be >= 1"
-          if p.MaxEvaluateLimit < 1 then
-              yield "Planner.MaxEvaluateLimit must be >= 1"
-          if p.PlanTTL <= 0<subtick> then
-              yield "Planner.PlanTTL must be > 0" ]
+        [ if p.MaxChainLength < 1 || p.MaxChainLength > 16 then
+              yield "Planner.MaxChainLength must be in [1, 16]"
+          if p.MaxEvaluateLimit < 1 || p.MaxEvaluateLimit > 4096 then
+              yield "Planner.MaxEvaluateLimit must be in [1, 4096]" ]
 
     let validateScout (c: ScoutConfig) : string list =
         [ if c.MemoryHalfLifeDays <= 0.0 then
@@ -270,6 +268,12 @@ module ConfigValidation =
               || m.TurningAcceleration > 100.0<radianPerSecondSquared>
           then
               yield "Movement.TurningAcceleration must be in [1, 100] rad/s²"
+          if
+              not (System.Double.IsFinite(float m.FacingIntentDistance))
+              || m.FacingIntentDistance < 0.05<meter>
+              || m.FacingIntentDistance > 2.0<meter>
+          then
+              yield "Movement.FacingIntentDistance must be finite and in [0.05, 2] metres"
           if
               not (System.Double.IsFinite(float m.StandingHeight))
               || m.StandingHeight < 1.0<meter>
@@ -555,23 +559,6 @@ module ConfigValidation =
           if c.MaxSteps < 1 || c.MaxSteps > 200 then
               yield "Intercept.MaxSteps must be in [1, 200]" ]
 
-    let validatePress (c: PressConfig) : string list =
-        [ if c.BaseAllowance < 1 || c.BaseAllowance > 50 then
-              yield "Press.BaseAllowance must be in [1, 50]"
-          if c.MidfieldAllowance < 1 || c.MidfieldAllowance > 50 then
-              yield "Press.MidfieldAllowance must be in [1, 50]"
-          if c.FullBackAllowance < 1 || c.FullBackAllowance > 50 then
-              yield "Press.FullBackAllowance must be in [1, 50]"
-          if c.MaxPressStep < 1 || c.MaxPressStep > 100 then
-              yield "Press.MaxPressStep must be in [1, 100]"
-          // Max must dominate allowances — otherwise allowance never used
-          if c.MaxPressStep < c.BaseAllowance then
-              yield "Press.MaxPressStep must be >= BaseAllowance"
-          if c.MaxPressStep < c.MidfieldAllowance then
-              yield "Press.MaxPressStep must be >= MidfieldAllowance"
-          if c.MaxPressStep < c.FullBackAllowance then
-              yield "Press.MaxPressStep must be >= FullBackAllowance" ]
-
     let validateSituation (c: SituationConfig) : string list =
         [ // LeadSteps negative would invert who leads, >10 would delay phase forever
           if c.LeadSteps < 0 || c.LeadSteps > 10 then
@@ -699,15 +686,102 @@ module ConfigValidation =
               yield "Match.ShootoutRounds must be in [3, 10]" ]
 
     let validateAll (config: BalanceConfig) : Result<unit, string list> =
+        let attack = config.CollectiveAttack
+        let attackErrors =
+            [ if not (System.Double.IsFinite config.Actions.PassDistanceSpeedGain) || config.Actions.PassDistanceSpeedGain < 0.0 || config.Actions.PassDistanceSpeedGain > 1.0 then
+                  yield "Actions.PassDistanceSpeedGain must be finite and in [0, 1]"
+              for name, value, maximum in
+                  [ "SupportDepth", float attack.SupportDepth, 25.0
+                    "SupportWidth", float attack.SupportWidth, 25.0
+                    "RunDepth", float attack.RunDepth, 30.0
+                    "SwitchWidth", float attack.SwitchWidth, float Pitch.HalfWidth
+                    "SecurityDepth", float attack.SecurityDepth, 25.0
+                    "OffsideMargin", float attack.OffsideMargin, 5.0
+                    "MaxArrival", float attack.MaxArrival, 10.0
+                    "LaneRadius", float attack.LaneRadius, 5.0
+                    "SpaceScale", float attack.SpaceScale, 30.0
+                    "PriorStrength", attack.PriorStrength, 100.0
+                    "EvidenceCap", attack.EvidenceCap, 1000.0
+                    "TerritoryBoundary", float attack.TerritoryBoundary, float Pitch.HalfLength
+                    "AnticipationHorizon", float attack.AnticipationHorizon, 10.0
+                    "MinimumDutySeparation", float attack.MinimumDutySeparation, 10.0
+                    "PressureRadius", float attack.PressureRadius, 30.0 ] do
+                  if not (System.Double.IsFinite value) || value <= 0.0 || value > maximum then
+                      yield sprintf "CollectiveAttack.%s must be finite and in (0, %.2f]" name maximum
+              for name, value in
+                  [ "MinimumCondition", attack.MinimumCondition; "MinimumScore", attack.MinimumScore
+                    "LearningWeight", attack.LearningWeight; "Exploration", attack.Exploration
+                    "SeasonalRetention", attack.SeasonalRetention; "CooperationWeight", attack.CooperationWeight
+                    "ProgressReward", attack.ProgressReward; "SpaceReward", attack.SpaceReward
+                    "ConnectionReward", attack.ConnectionReward; "ThreatReward", attack.ThreatReward
+                    "LossPenalty", attack.LossPenalty; "IdlePenalty", attack.IdlePenalty
+                    "ExposurePenalty", attack.ExposurePenalty; "AnticipationConfidence", attack.AnticipationConfidence ] do
+                  if not (System.Double.IsFinite value) || value < 0.0 || value > 1.0 then
+                      yield sprintf "CollectiveAttack.%s must be finite and in [0, 1]" name
+              for name, value in [ "Duration", attack.Duration; "Recovery", attack.Recovery; "CounterHold", attack.CounterHold ] do
+                  if value < 1<subtick> || value > 2400<subtick> then
+                      yield sprintf "CollectiveAttack.%s must be in [1, 2400]" name
+              if attack.CounterHold >= attack.Duration then
+                  yield "CollectiveAttack.CounterHold must be shorter than Duration"
+              if attack.PressureCount < 1 || attack.PressureCount > 10 then
+                  yield "CollectiveAttack.PressureCount must be in [1, 10]"
+              if config.Planner.BeamWidth < 1 || config.Planner.BeamWidth > 8 then
+                  yield "Planner.BeamWidth must be in [1, 8]"
+              for name, value, maximum in ["DribbleDuration", float config.Planner.DribbleDuration, 3.0; "MinimumPassDistance", float config.Planner.MinimumPassDistance, 5.0; "ShootingRange", float config.Planner.ShootingRange, float Pitch.HalfLength] do
+                  if not (System.Double.IsFinite value) || value <= 0.0 || value > maximum then
+                      yield sprintf "Planner.%s must be finite and in (0, %.2f]" name maximum ]
+        let transition = config.DefensiveTransition
+        let transitionErrors =
+            [ for name, value, maximum in
+                  [ "BaseArrivalWindow", float transition.BaseArrivalWindow, 10.0
+                    "PressArrivalExtension", float transition.PressArrivalExtension, 10.0
+                    "LocalArrivalWindow", float transition.LocalArrivalWindow, 10.0
+                    "CoverArrivalWindow", float transition.CoverArrivalWindow, 10.0
+                    "HandoffAdvantage", float transition.HandoffAdvantage, 5.0
+                    "ApproachOffset", float transition.ApproachOffset, float config.Ball.FootReach
+                    "CarrierPrediction", float transition.CarrierPrediction, 2.0
+                    "CoverDepth", float transition.CoverDepth, 20.0
+                    "BeatenMargin", float transition.BeatenMargin, 10.0
+                    "EscapeProgress", float transition.EscapeProgress, 30.0
+                    "ThreatGoalDistance", float transition.ThreatGoalDistance, 60.0
+                    "CentralHalfWidth", float transition.CentralHalfWidth, float Pitch.HalfWidth
+                    "DepthSafety", float transition.DepthSafety, 10.0
+                    "RetreatBallGap", float transition.RetreatBallGap, 25.0
+                    "SettledTolerance", float transition.SettledTolerance, 10.0 ] do
+                  if not (System.Double.IsFinite value) || value <= 0.0 || value > maximum then
+                      yield sprintf "DefensiveTransition.%s must be finite and in (0, %.2f]" name maximum
+              for name, value in
+                  [ "MinimumPressIntensity", transition.MinimumPressIntensity
+                    "MinimumPressCondition", transition.MinimumPressCondition
+                    "ScreenFraction", transition.ScreenFraction
+                    "RetreatWidthScale", transition.RetreatWidthScale ] do
+                  if not (System.Double.IsFinite value) || value <= 0.0 || value > 1.0 then
+                      yield sprintf "DefensiveTransition.%s must be finite and in (0, 1]" name
+              for name, value in [ "CoverEffort", transition.CoverEffort; "ScreenEffort", transition.ScreenEffort; "RecoveryEffort", transition.RecoveryEffort ] do
+                  if not (System.Double.IsFinite value) || value <= 0.0 || value > 1.0 then
+                      yield sprintf "DefensiveTransition.%s must be finite and in (0, 1]" name
+              if transition.MaximumScreens < 0 || transition.MaximumScreens > 3 then
+                  yield "DefensiveTransition.MaximumScreens must be in [0, 3]"
+              if transition.ReevaluateTicks < 1<tickDelta> || transition.ReevaluateTicks > 40<tickDelta> then
+                  yield "DefensiveTransition.ReevaluateTicks must be in [1, 40]"
+              if transition.Commitment < 1<subtick> || transition.Commitment > transition.MaxPressDuration then
+                  yield "DefensiveTransition.Commitment must be positive and <= MaxPressDuration"
+              if transition.MaxPressDuration < 1<subtick> || transition.MaxPressDuration > 1200<subtick> then
+                  yield "DefensiveTransition.MaxPressDuration must be in [1, 1200]"
+              if transition.StabilizationHold < 1<subtick> || transition.StabilizationHold > 400<subtick> then
+                  yield "DefensiveTransition.StabilizationHold must be in [1, 400]"
+              if transition.MinimumLocalPlayers < 3 || transition.MinimumLocalPlayers > 10 then
+                  yield "DefensiveTransition.MinimumLocalPlayers must be in [3, 10]"
+              if transition.LocalSurplus < 0 || transition.LocalSurplus > 5 then
+                  yield "DefensiveTransition.LocalSurplus must be in [0, 5]" ]
         let errs =
-            validateBall config.Ball
+            attackErrors @ transitionErrors @ validateBall config.Ball
             @ validateMovement config.Movement
             @ validateActions config.Actions
             @ validateSetPiece config.SetPiece
             @ validateTeam config.Team
             @ validatePositioning config.Positioning
             @ validateIntercept config.Intercept
-            @ validatePress config.Press
             @ validateSituation config.Situation
             @ validatePassIntercept config.PassIntercept
             @ validateReferee config.Referee

@@ -13,6 +13,7 @@ open FootballEngine.Client.Views.Components
 open FootballEngine.Client.Match3D
 open FootballEngine.Core.Match
 open FootballEngine.LiveMatch
+open FootballEngine.Client.Animation
 
 type private PitchBindingState =
     { Binding: MatchPitchBinding
@@ -99,12 +100,21 @@ type MatchPitchControl() as this =
     let currentFrame (cache: PitchProjectionCache) state =
         match state.Stream.Sample(Stopwatch.GetTimestamp()) with
         | None -> None
-        | Some(Hold pose) -> Some(cache.Project(state, pose.Snapshot))
+        | Some(Hold pose) ->
+            Some(
+                cache.Project(state, pose.Snapshot),
+                { Tick = int pose.Tick
+                  Fraction = 0.0f }
+            )
         | Some(Between(first, second, t)) ->
             let left = cache.Project(state, first.Snapshot)
             let right = cache.Project(state, second.Snapshot)
             let dt = right.TimeSeconds - left.TimeSeconds
-            Some(MatchInterp.hermite left right t dt)
+
+            let time =
+                MotionTime.ofTicks (float first.Tick + float (second.Tick - first.Tick) * t)
+
+            Some(MatchInterp.hermite left right t dt, time)
 
     let publishLayout () =
         let visibleState = if this.IsEffectivelyVisible then state else None
@@ -151,11 +161,25 @@ type MatchPitchControl() as this =
             | topLevel, Some create ->
                 let cache = PitchProjectionCache()
 
+                let characterPath =
+                    IO.Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "player.glb")
+
+                let evaluator =
+                    match CharacterAsset.load characterPath with
+                    | Ok character -> Some(MotionPaletteEvaluator(character.Rig, AnimationConfig.defaultConfig))
+                    | Error message ->
+                        Diagnostics.Trace.WriteLine($"Procedural rig load failed: {message}")
+                        None
+
                 let render (renderer: WebGpuStadiumRenderer) ((bounds: PixelRect), state) =
                     match state with
                     | Some state when bounds.Width > 0 && bounds.Height > 0 ->
                         match currentFrame cache state with
-                        | Some frame -> renderer.Render(bounds, frame, [||], state.HudStats)
+                        | Some(frame, time) ->
+                            match evaluator with
+                            | Some evaluator when state.Stream.MotionRigMatches evaluator.RigHash && evaluator.Evaluate(state.Stream, frame, time) ->
+                                renderer.Render(bounds, frame, evaluator.Palettes, [||], state.HudStats)
+                            | _ -> false
                         | None -> false
                     | _ -> false
 

@@ -11,6 +11,8 @@
     <Compile Include="ModEditorTests.fs" />
     <Compile Include="LiveMatchTests.fs" />
     <Compile Include="CharacterAnimationTests.fs" />
+    <Compile Include="Animation\MotionRuntimeTests.fs" />
+    <Compile Include="Animation\MotionTimelineTests.fs" />
     <Compile Include="HdrLightingTests.fs" />
     <Compile Include="PitchMarkingsTests.fs" />
     <Compile Include="MatchDiagnosticsTests.fs" />

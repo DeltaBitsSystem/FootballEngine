@@ -221,6 +221,7 @@ module MatchContextBuilder =
           // specific rival; no memory means the club's own tactics stand.
           BaseTactics = adjustTactics counter club.ScoutingMemory rivalId rivalSignature (tacticsOf lu)
           Chemistry = club.CoordinationMemory.PressingCoordination
+          AttackPrior = club.CoordinationMemory.AttackLearning
           // Unfamiliar shapes execute the plan sloppily; drilled shapes snap.
           // New shapes start at 0.5, never zero — eleven professionals still know football.
           Familiarity =
@@ -274,9 +275,9 @@ module MatchContextBuilder =
         let balance = WeightMergeSettings.mergeWithOverridesSave saveOpt
         build gs fixture balance
 
-    /// Deterministic per-fixture seed: stable replays across sessions.
-    let seedOf (fixtureId: MatchId) : uint64 =
-        uint64 fixtureId * 2654435761UL + 1013904223UL
+    // Fixture identity splits one execution's stream without depending on worker order.
+    let seedOf (executionSeed: uint64) (fixtureId: MatchId) : uint64 =
+        MatchSeed.ofMatch (uint64 fixtureId) 0UL executionSeed
 
     let unwrapPid (FootballEngine.Core.Match.PlayerId n) = n
 

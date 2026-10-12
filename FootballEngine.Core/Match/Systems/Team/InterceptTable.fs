@@ -106,7 +106,7 @@ module InterceptTable =
             let mutable found = false
 
             for slot in MatchWorld.activeSlots frame do
-                if slot <> 0 then
+                if frame.SlotRoles[slot] <> SlotRole.Goalkeeper then
                     let s =
                         stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
 
@@ -146,7 +146,7 @@ module InterceptTable =
             let mutable secondStep = maxSteps
 
             for slot in MatchWorld.activeSlots frame do
-                if slot <> 0 then
+                if frame.SlotRoles[slot] <> SlotRole.Goalkeeper then
                     let step =
                         stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
 
@@ -185,7 +185,7 @@ module InterceptTable =
             let mutable secondStep = maxSteps
 
             for slot in MatchWorld.activeSlots frame do
-                if slot <> 0 then
+                if frame.SlotRoles[slot] <> SlotRole.Goalkeeper then
                     let step =
                         stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
 

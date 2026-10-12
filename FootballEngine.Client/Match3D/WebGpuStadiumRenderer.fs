@@ -262,7 +262,6 @@ type WebGpuStadiumRenderer
         | Error message -> invalidOp $"Cannot load the first-party animated character: {message}"
 
     let jointMatrices = Array.create (22 * character.JointCount) Matrix4x4.Identity
-    let jointScratch = CharacterPose.createScratch character
 
     let nullVoid = NativePtr.toVoidPtr (NativePtr.nullPtr<byte>)
 
@@ -1432,7 +1431,11 @@ struct VertexOutput {
         cameraUniformData[14] <- matrix.M43
         cameraUniformData[15] <- matrix.M44
 
-    let updatePlayersAndBall (frame: RenderFrame) =
+    let updatePlayersAndBall (frame: RenderFrame) (palettes: Matrix4x4[]) =
+        if palettes.Length <> jointMatrices.Length then
+            invalidArg "palettes" "procedural palette cardinality does not match the canonical rig"
+
+        Array.Copy(palettes, jointMatrices, palettes.Length)
         let states: RenderPlayer option array = Array.create 22 None
         let mutable carrier = None
 
@@ -1464,97 +1467,11 @@ struct VertexOutput {
                 | Some player ->
                     let yaw = float32 player.BodyFacing + MathF.PI / 2.0f
 
-                    let contactMotion =
-                        frame.Ball.FootMotion
-                        |> Option.filter (fun motion ->
-                            let (FootballEngine.Core.Match.PlayerId actor) = motion.Actor
-
-                            actor = player.Id
-                            && frame.TimeSeconds >= float motion.StartedAt / 40.0
-                            && frame.TimeSeconds <= float motion.EndsAt / 40.0)
-
-                    let clipId =
-                        match contactMotion with
-                        | Some motion ->
-                            let family =
-                                match motion.Kind with
-                                | FootballEngine.Core.Match.FootTouchKind.Kick FootballEngine.Core.Match.StrikeKind.Shot
-                                | FootballEngine.Core.Match.FootTouchKind.Kick FootballEngine.Core.Match.StrikeKind.Clearance ->
-                                    "shot"
-                                | FootballEngine.Core.Match.FootTouchKind.Kick _ -> "pass"
-                                | _ -> "receive"
-
-                            family
-                            + (if motion.Foot = FootballEngine.Core.Match.ContactFoot.Left then
-                                   "_left"
-                               else
-                                   "_right")
-                        | None ->
-                            match player.State with
-                            | PlayerVisualState.Idle -> "idle"
-                            | PlayerVisualState.Walking -> "walk"
-                            | PlayerVisualState.Running -> "run"
-                            | PlayerVisualState.Sprinting -> "sprint"
-                            | PlayerVisualState.Kicking
-                            | PlayerVisualState.Tackling -> "idle"
-
-                    let clip = character.Clips[clipId]
-
-                    let time =
-                        match contactMotion with
-                        | Some motion ->
-                            CharacterPose.contactSampleTime
-                                clip
-                                (float motion.StartedAt / 40.0)
-                                (float motion.ContactAt / 40.0)
-                                (float motion.EndsAt / 40.0)
-                                frame.TimeSeconds
-                        | None ->
-                            if clip.NominalSpeed > 0.0 then
-                                player.TravelDistance / clip.NominalSpeed
-                            else
-                                frame.TimeSeconds
-
-                    CharacterPose.sampleInto
-                        character
-                        clip
-                        time
-                        jointScratch
-                        jointMatrices
-                        (root * character.JointCount)
-
                     let position =
                         Vector3(float32 player.Position.X, float32 player.Height, -float32 player.Position.Y)
 
                     let transform =
                         Matrix4x4.CreateRotationY(yaw) * Matrix4x4.CreateTranslation(position)
-
-                    match contactMotion with
-                    | Some motion ->
-                        let contact = float motion.ContactAt / 40.0
-
-                        let halfWindow =
-                            max
-                                0.025
-                                (min (contact - float motion.StartedAt / 40.0) (float motion.EndsAt / 40.0 - contact))
-
-                        let weight =
-                            float32 (max 0.0 (1.0 - abs (frame.TimeSeconds - contact) / halfWindow))
-
-                        let target =
-                            Vector3(float32 motion.Point.X, float32 motion.Point.Z, -float32 motion.Point.Y)
-
-                        let local = Vector3.Transform(target - position, Matrix4x4.CreateRotationY(-yaw))
-
-                        CharacterPose.alignFootInto
-                            character
-                            (motion.Foot = FootballEngine.Core.Match.ContactFoot.Left)
-                            local
-                            weight
-                            jointScratch
-                            jointMatrices
-                            (root * character.JointCount)
-                    | None -> ()
 
                     transform
                 | None -> hidden
@@ -1971,13 +1888,15 @@ struct VertexOutput {
         if not disposed then
             devicePoll.Invoke(NativePtr.toNativeInt device, 1uy, 0n) |> ignore
 
-    member _.Render(bounds: PixelRect, frame: RenderFrame, cutouts: PixelRect array, stats: MatchHudStats) =
+    member _.Render
+        (bounds: PixelRect, frame: RenderFrame, palettes: Matrix4x4[], cutouts: PixelRect array, stats: MatchHudStats)
+        =
         let mutable presented = false
 
         if not disposed && bounds.Width > 0 && bounds.Height > 0 then
             updateWindow bounds
             updateWindowShape bounds cutouts
-            updatePlayersAndBall frame
+            updatePlayersAndBall frame palettes
 
             let hud = retainedHud.Value
 

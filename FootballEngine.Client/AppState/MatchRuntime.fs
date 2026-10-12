@@ -65,14 +65,21 @@ type private MatchRuntime
         dispatch (Msg.LiveMsg(LiveMsg.RuntimePublicationAvailable runtimeId))
 
     let buildJob () : Result<MatchJob, string> =
-        let balance = WeightMergeSettings.mergeWithOverridesSave saveOpt
-
         match runMode with
-        | MatchRunMode.Replay _ -> prepareReplayJobWithBalance balance clock gs matchId
+        | MatchRunMode.Replay _ -> prepareReplayJob clock gs matchId
         | MatchRunMode.Fast
-        | MatchRunMode.Live _ -> prepareUserMatchJobWithBalance balance clock gs matchId
+        | MatchRunMode.Live _ ->
+            let balance = WeightMergeSettings.mergeWithOverridesSave saveOpt
+            prepareUserMatchJobWithBalance balance clock gs matchId
 
-    let compactResult (job: MatchJob) (outcome: MatchOutcome) : MatchJobResult = matchJobResult job outcome
+    let compactResult (job: MatchJob) (session: MatchSession) (outcome: MatchOutcome) : MatchJobResult =
+        let replay =
+            outcome.Replay
+            |> Option.map (fun replay ->
+                { replay with
+                    Sections = Array.append replay.Sections [| presentation.MotionArchiveSection() |] })
+
+        matchJobResult job session.Commands { outcome with Replay = replay }
 
     let liveClock (session: MatchSession) : LiveClock =
         let clock = session.World.State.Clock
@@ -245,6 +252,46 @@ type private MatchRuntime
                     match sessionResult with
                     | Error error -> enqueue dispatch (Failed(sprintf "%A" error))
                     | Ok session ->
+                        let mutable replayCommands =
+                            match runMode with
+                            | MatchRunMode.Replay _ -> clock.MatchExecutions[matchId] |> snd
+                            | _ -> []
+
+                        // A later outgoing player may have entered through an earlier substitution.
+                        // Validate recorded actions at their original frontier, not against kickoff occupancy.
+                        let rec receiveRecordedCommands () =
+                            match replayCommands with
+                            | command :: rest when command.EffectiveTick <= session.World.State.Tick ->
+                                MatchSession.receive command session
+                                |> Result.bind (fun () ->
+                                    replayCommands <- rest
+                                    receiveRecordedCommands ())
+                            | _ -> Ok()
+
+                        let rigPath =
+                            IO.Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "player.glb")
+
+                        let motionConfiguration =
+                            match
+                                FootballEngine.Client.Animation.MotionIdentity.forMatch
+                                    FootballEngine.Client.Animation.AnimationConfig.defaultConfig
+                                    rigPath
+                                    job.Input
+                            with
+                            | Error message -> Error message
+                            | Ok identity ->
+                                match presentation.ConfigureMotion identity with
+                                | Error error -> Error(sprintf "%A" error)
+                                | Ok() ->
+                                    match MatchSession.initialMotion session with
+                                    | Error error -> Error(sprintf "%A" error)
+                                    | Ok initial ->
+                                        presentation.PublishMotion [| initial |] |> Result.mapError (sprintf "%A")
+
+                        match motionConfiguration with
+                        | Ok() -> ()
+                        | Error message -> enqueue dispatch (Failed($"Motion identity configuration failed: {message}"))
+
                         let ticksPerSlice =
                             match runMode with
                             | MatchRunMode.Live _ -> int policy.WorkerSlice
@@ -253,7 +300,7 @@ type private MatchRuntime
 
                         let mutable speed = Normal
                         let mutable nextAdvance = Stopwatch.GetTimestamp()
-                        let mutable finished = false
+                        let mutable finished = Result.isError motionConfiguration
                         let mutable paused = false
                         let mutable accepted: LiveMatchCommand list = []
                         let mutable revision = 0UL
@@ -413,18 +460,42 @@ type private MatchRuntime
 
                             drainCommands ()
 
+                            match
+                                presentation.RecoverMotion(
+                                    (fun tick -> MatchSession.motionBlock tick session),
+                                    cancellation.Token
+                                )
+                            with
+                            | Error message when not cancellation.IsCancellationRequested ->
+                                Diagnostics.Trace.WriteLine($"Motion recovery held presentation: {message}")
+                            | _ -> ()
+
                             if paused || Stopwatch.GetTimestamp() < nextAdvance then
                                 cancellation.Token.WaitHandle.WaitOne 5 |> ignore
                             else
                                 let current = session.World.State.Tick
                                 let previousFlow = session.World.State.Flow
-                                let target = min MatchSession.maxTicks (current + ticksPerSlice * 1<subtick>)
+                                let advanceResult =
+                                    receiveRecordedCommands ()
+                                    |> Result.bind (fun () ->
+                                        let target = min MatchSession.maxTicks (current + ticksPerSlice * 1<subtick>)
+                                        let target =
+                                            match replayCommands with
+                                            | command :: _ -> min target command.EffectiveTick
+                                            | [] -> target
+                                        MatchSession.advanceTo target session)
 
-                                match MatchSession.advanceTo target session with
+                                match advanceResult with
                                 | Error error ->
                                     enqueue dispatch (Failed(sprintf "%A" error))
                                     finished <- true
                                 | Ok advance ->
+                                    match presentation.PublishMotion advance.Motion with
+                                    | Ok() -> ()
+                                    | Error error ->
+                                        enqueue dispatch (Failed(sprintf "Motion continuity failed: %A" error))
+                                        finished <- true
+
                                     let pending = ResizeArray<LiveMatchCommand>()
 
                                     for command in accepted do
@@ -503,9 +574,19 @@ type private MatchRuntime
 
                                         match MatchSession.finish session with
                                         | Error error -> enqueue dispatch (Failed(sprintf "%A" error))
-                                        | Ok outcome ->
-                                            let result = compactResult job outcome
-                                            enqueue dispatch (Finished result)
+                                         | Ok outcome ->
+                                            let recordedEvents =
+                                                gs.Competitions
+                                                |> Map.toSeq
+                                                |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
+                                                |> Seq.tryFind (fun (id, _) -> id = matchId)
+                                                |> Option.map (fun (_, fixture) -> MatchOutcomeHash.eventsHash fixture.Events)
+
+                                            if source = RecordedReplay && recordedEvents <> Some outcome.EventsHash then
+                                                enqueue dispatch (Failed "Recorded execution differs from the committed sporting events.")
+                                            else
+                                                let result = compactResult job session outcome
+                                                enqueue dispatch (Finished result)
 
                                         finished <- true
                                     elif advance.ReachedTick >= MatchSession.maxTicks then

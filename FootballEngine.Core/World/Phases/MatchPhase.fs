@@ -313,6 +313,7 @@ module MatchOutcome =
         |> Map.ofList
 
     let applyOutcomes
+        (attackConfig: CollectiveAttackConfig)
         (fixtureToComp: Map<MatchId, CompetitionId>)
         (outcomes: FixtureOutcome[])
         (gs: GameState)
@@ -368,13 +369,26 @@ module MatchOutcome =
                                     | _ -> comp.Standings })
 
         let withUpdatedMorale =
-            ({ gs with Competitions = updatedComps }, outcomes)
+            ({ gs with
+                Competitions = updatedComps
+                MatchSeeds =
+                    outcomes
+                    |> Array.fold
+                        (fun seeds outcome ->
+                            seeds |> Map.add outcome.FixtureId (MatchContextBuilder.seedOf gs.ExecutionSeed outcome.FixtureId))
+                        gs.MatchSeeds }, outcomes)
             ||> Array.fold (fun acc o ->
                 updateAfterMatch o.HomeScore o.AwayScore o.Fixture.HomeClubId o.Fixture.AwayClubId acc)
 
         let withUpdatedExperiences =
             outcomes
-            |> Array.fold (fun acc outcome -> updatePlayerExperiences acc outcome) withUpdatedMorale
+            |> Array.fold (fun acc outcome ->
+                let updated = updatePlayerExperiences acc outcome
+                let merge clubId side (state: GameState) =
+                    { state with Clubs = state.Clubs |> Map.change clubId (Option.map (fun club ->
+                                { club with CoordinationMemory =
+                                                { club.CoordinationMemory with AttackLearning = AttackLearning.applyEvents attackConfig side club.CoordinationMemory.AttackLearning outcome.Fixture.Events } })) }
+                updated |> merge outcome.Fixture.HomeClubId ClubSide.Home |> merge outcome.Fixture.AwayClubId ClubSide.Away) withUpdatedMorale
 
         let injuredPlayers =
             outcomes
@@ -558,12 +572,12 @@ module MatchPhase =
 
     /// Simulates a fixture with the Core engine. Returns the outcome or None
     /// when the fixture cannot be lined up (missing coach/lineup).
-    let simulateFixtureWithBalance
+    let simulateFixtureExecutionWithBalance
         (balance: BalanceConfig)
         (fixtureId: MatchId)
         (fixture: MatchFixture)
         (gs: GameState)
-        : FixtureOutcome option =
+        : (FixtureOutcome * MatchInput) option =
         match EffectiveConfig.fromBalance balance, MatchContextBuilder.build gs fixture balance with
         | Error _, _
         | _, None -> None
@@ -571,7 +585,7 @@ module MatchPhase =
             let input =
                 { MatchId = uint64 fixtureId
                   Context = ctx
-                  Seed = MatchContextBuilder.seedOf fixtureId
+                  Seed = MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId
                   EffectiveConfig = effective
                   EngineVersion = "football-engine-core-01" }
 
@@ -599,7 +613,10 @@ module MatchPhase =
                       HomePlayerStats = homePlayerStats
                       AwayPlayerStats = awayPlayerStats }
 
-                Some outcome
+                Some(outcome, input)
+
+    let simulateFixtureWithBalance balance fixtureId fixture gs : FixtureOutcome option =
+        simulateFixtureExecutionWithBalance balance fixtureId fixture gs |> Option.map fst
 
     let simulateFixture (fixtureId: MatchId) (fixture: MatchFixture) (gs: GameState) : FixtureOutcome option =
         let balance = WeightMergeSettings.mergeWithOverridesSave None
@@ -615,21 +632,21 @@ module MatchPhase =
         let balance = WeightMergeSettings.mergeWithOverridesSave saveOpt
         simulateFixtureWithBalance balance fixtureId fixture gs
 
-    let runFixturesWithBalance (balance: BalanceConfig) (fixtures: (MatchId * MatchFixture) list) (state: GameState) =
+    let runFixtureExecutionsWithBalance (balance: BalanceConfig) (fixtures: (MatchId * MatchFixture) list) (state: GameState) =
         let config = balance
         let gsReady = LineupOps.ensureForFixtures fixtures state
 
-        let simulatedOutcomes =
+        let executions =
             fixtures
             |> Array.ofList
-            |> parallelMapLimited (fun (id, fixture) -> simulateFixtureWithBalance balance id fixture gsReady)
+            |> parallelMapLimited (fun (id, fixture) -> simulateFixtureExecutionWithBalance balance id fixture gsReady)
             |> Array.choose id
 
-        let outcomes = freshOutcomes (fixtureToCompMap gsReady) simulatedOutcomes gsReady
+        let outcomes = freshOutcomes (fixtureToCompMap gsReady) (executions |> Array.map fst) gsReady
 
         let afterOutcomes =
             applyPostMatchLoad balance.Training outcomes gsReady
-            |> applyOutcomes (fixtureToCompMap gsReady) outcomes
+            |> applyOutcomes balance.CollectiveAttack (fixtureToCompMap gsReady) outcomes
 
         let clubOfPlayer =
             fun pid -> gsReady.Players |> Map.tryFind pid |> Option.bind Player.clubOf
@@ -750,8 +767,23 @@ module MatchPhase =
             |> Array.collect (fun o -> [| o.Fixture.HomeClubId; o.Fixture.AwayClubId |])
             |> Set.ofArray
 
-        affectedClubs
-        |> Seq.fold (fun gs clubId -> gs |> updateClubCoord clubId |> updateScouting clubId) afterOutcomes
+        let nextState =
+            affectedClubs
+            |> Seq.fold (fun gs clubId -> gs |> updateClubCoord clubId |> updateScouting clubId) afterOutcomes
+
+        let acceptedIds = outcomes |> Array.map _.FixtureId |> Set.ofArray
+        let acceptedInputs =
+            executions
+            |> Array.choose (fun (outcome, input) ->
+                if Set.contains outcome.FixtureId acceptedIds && MatchFixture.involves state.UserClubId outcome.Fixture then
+                    Some(outcome.FixtureId, (MatchInput.snapshot input, []))
+                else
+                    None)
+
+        nextState, acceptedInputs
+
+    let runFixturesWithBalance balance fixtures state =
+        runFixtureExecutionsWithBalance balance fixtures state |> fst
 
     let runFixtures (fixtures: (MatchId * MatchFixture) list) (state: GameState) =
         let balance = WeightMergeSettings.mergeWithOverridesSave None

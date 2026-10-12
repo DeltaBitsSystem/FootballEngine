@@ -196,6 +196,10 @@ module SeasonPhase =
         |> resetConditions
         |> refreshAiLineups
         |> fun s ->
+            { s with Clubs = s.Clubs |> Map.map (fun _ club ->
+                    { club with CoordinationMemory =
+                                    { club.CoordinationMemory with AttackLearning = FootballEngine.Core.Match.AttackLearning.retain balance.CollectiveAttack club.CoordinationMemory.AttackLearning } }) }
+        |> fun s ->
             { s with
                 Season = s.Season + 1
                 CurrentDate = DateTime(s.Season + 1, 7, 1)

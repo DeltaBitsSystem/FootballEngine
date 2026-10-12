@@ -97,7 +97,7 @@ module UpdateSetup =
                     match
                         generateNewGame
                             resolved
-                            state.Setup.Seed
+                            (ExecutionRandomness.newSeed ())
                             (DateTime(2026, 7, 1))
                             countryCode
                             managerName

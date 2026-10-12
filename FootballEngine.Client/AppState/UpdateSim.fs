@@ -229,13 +229,15 @@ module UpdateSim =
         | Advance days ->
 
 
-            if state.IsProcessing then
+            if days <= 0 || state.IsProcessing || state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome then
 
                 state, Cmd.none
             else
                 match tryGetGs () with
                 | None -> state, Cmd.none
                 | Some gs ->
+
+                    let gs = ExecutionRandomness.beginAttempt gs
 
                     let prevSkills =
                         GameState.getUserSquad gs
@@ -246,6 +248,7 @@ module UpdateSim =
                         GameState.getUserSquad gs |> List.map (fun p -> p.Id, p.Status) |> Map.ofList
 
                     { state with
+                        Mode = InGame(gs, managerEmployment gs)
                         IsProcessing = true
                         PrevUserClubSkills = Some prevSkills
                         PrevUserClubStatus = Some prevStatus },
@@ -294,6 +297,8 @@ module UpdateSim =
                         | Route.Match(requested, _) -> requested = matchId
                         | _ -> false
                         ->
+                        let gs = ExecutionRandomness.beginAttempt gs
+
                         let runtimeId =
                             MatchRuntime.createUserMatch matchId gs state.WorldClock (Some state.SaveSettings)
 
@@ -306,6 +311,7 @@ module UpdateSim =
                                 Live = None }
 
                         { state with
+                            Mode = InGame(gs, managerEmployment gs)
                             IsProcessing = false
                             Match = matchState },
                         Cmd.ofEffect (fun dispatch -> MatchRuntime.start runtimeId dispatch)
@@ -359,20 +365,28 @@ module UpdateSim =
 
             match tryGetGs () with
             | None -> state, Cmd.none
+            | Some _ when state.IsProcessing || state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome ->
+                state, Cmd.none
             | Some gs ->
-                state,
-                Cmd.OfTask.perform
+                { state with IsProcessing = true },
+                Cmd.OfTask.either
                     (fun () -> Task.Run(fun () -> runAiFixturesWithSave (Some state.SaveSettings) state.WorldClock gs))
                     ()
                     (SimMsg << AiMatchesDone)
+                    (fun _ -> SetProcessing false)
 
         | AiMatchesDone result ->
             match state.Mode with
             | InGame(currentGs, employment) ->
-                if result.GameState.CurrentDate.Date = currentGs.CurrentDate.Date then
+                if
+                    result.GameState.CurrentDate.Date = currentGs.CurrentDate.Date
+                    && result.GameState.ExecutionSeed = currentGs.ExecutionSeed
+                    && result.WorldClock.Revision = state.WorldClock.Revision
+                then
                     let nextState =
                         { state with
                             Mode = InGame(result.GameState, employment)
+                            IsProcessing = false
                             WorldClock = result.WorldClock }
                         |> applyMatchNotifs result.GameState result.PlayedMatches
 
@@ -384,7 +398,7 @@ module UpdateSim =
         | SimulateSeason ->
 
 
-            if state.IsProcessing then
+            if state.IsProcessing || state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome then
 
                 state, Cmd.none
             else
@@ -392,6 +406,8 @@ module UpdateSim =
                 | None -> state, Cmd.none
                 | Some gs ->
 
+
+                    let gs = ExecutionRandomness.beginAttempt gs
 
                     let prevSkills =
                         GameState.getUserSquad gs
@@ -402,6 +418,7 @@ module UpdateSim =
                         GameState.getUserSquad gs |> List.map (fun p -> p.Id, p.Status) |> Map.ofList
 
                     { state with
+                        Mode = InGame(gs, managerEmployment gs)
                         IsProcessing = true
                         PrevUserClubSkills = Some prevSkills
                         PrevUserClubStatus = Some prevStatus },

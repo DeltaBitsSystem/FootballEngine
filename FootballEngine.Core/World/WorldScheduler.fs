@@ -127,8 +127,13 @@ module WorldScheduler =
                 else
                     run ResolveFixtures s c (fun c s ->
                         disjointBatches fixtures
-                        |> List.fold (fun acc batch -> MatchPhase.runFixturesWithBalance balance batch acc) s
-                        |> fun next -> next, c)
+                        |> List.fold
+                            (fun (state, clock: WorldClock) batch ->
+                                let next, executions = MatchPhase.runFixtureExecutionsWithBalance balance batch state
+                                let recorded =
+                                    executions |> Array.fold (fun records (id, execution) -> Map.add id execution records) clock.MatchExecutions
+                                next, { clock with MatchExecutions = recorded })
+                            (s, c))
                     |> Result.map (fun (s2, c2, t) -> s2, c2, traces @ [ t ], fixtures))
             |> Result.bind (fun (s, c, traces, fixtures) ->
                 run ConfirmResults s c (fun c s -> s, c)

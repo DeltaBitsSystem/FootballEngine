@@ -1,13 +1,5 @@
 namespace FootballEngine.Core.Match
 
-/// A multi-step plan: the carrier's mind maps out future receivers after the
-/// current pass, so the team moves as one coordinated unit. The plan is
-/// written once by Decision, consumed by Intent, and cleared on possession
-/// change, carrier change, or expiry.
-type ChainPlan =
-    { FutureReceivers: (int * float<meter> * float<meter>)[]
-      ExpiresAt: int<subtick> }
-
 type ParticipationInterval =
     { PlayerId: PlayerId
       Role: SlotRole
@@ -85,6 +77,7 @@ type TeamWorld =
       mutable Shape: ShapeTargets
       mutable Directive: TeamDirective
       mutable Blackboard: Blackboard
+      Defense: DefensiveTransitionState
       mutable Emergent: EmergentState
       mutable Intercept: InterceptState
       mutable Stats: TeamStats
@@ -93,7 +86,7 @@ type TeamWorld =
       mutable Substitution: SubstitutionState
       Participation: ParticipationBook
       PendingActions: System.Collections.Generic.Dictionary<int, PendingPlayerAction>
-      mutable ActivePlan: ChainPlan option
+      Attack: CollectiveAttackState
       mutable LastCarrierSlot: int
       mutable LastRoleAssignmentTick: int<subtick>
       mutable FormationCache: FormationModel option
@@ -128,5 +121,6 @@ type World =
       Away: TeamWorld
       AppliedEventIds: System.Collections.Generic.HashSet<EventId>
       Observation: ObservationBuffer
+      Motion: MotionEvidenceJournal
       Reviews: RefereeReviewBook
       mutable NextRestartId: uint64 }

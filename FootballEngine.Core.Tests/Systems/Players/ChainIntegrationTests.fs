@@ -85,7 +85,7 @@ module ChainIntegrationTests =
                   let a = Rng.ofSeed 42UL
                   let _ = PlayerDecision.choose ctx world ClubSide.Home 5 100<subtick> a
                   let mA = world.Home.PendingActions[5]
-                  let pA = world.Home.ActivePlan
+                  let pA = CollectiveAttackState.snapshot world.Home.Attack
 
                   let world2 = chainWorld ()
 
@@ -98,7 +98,7 @@ module ChainIntegrationTests =
                   let b = Rng.ofSeed 42UL
                   let _ = PlayerDecision.choose ctx world2 ClubSide.Home 5 100<subtick> b
                   let mB = world2.Home.PendingActions[5]
-                  let pB = world2.Home.ActivePlan
+                  let pB = CollectiveAttackState.snapshot world2.Home.Attack
 
                   Expect.equal mA mB "markers identical"
                   Expect.equal pA pB "plans identical")
@@ -136,8 +136,5 @@ module ChainIntegrationTests =
                   let rng = Rng.ofSeed 42UL
                   let _ = PlayerDecision.choose ctx world ClubSide.Home 5 100<subtick> rng
 
-                  match world.Home.ActivePlan with
-                  | None -> ()
-                  | Some plan ->
-                      for (slot, _, _) in plan.FutureReceivers do
-                          Expect.notEqual slot 5 "the carrier steers no one and no one steers him") ]
+                  Expect.isNone world.Home.Attack.Episode "individual Decision cannot invent or overwrite a collective episode"
+                  Expect.equal world.Home.Attack.NextId 1UL "team owner alone allocates commitments") ]

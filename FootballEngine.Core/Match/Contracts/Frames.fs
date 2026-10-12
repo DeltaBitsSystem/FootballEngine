@@ -22,6 +22,9 @@ type DefensiveRole =
     | FirstDefender
     | Cover
     | Marker
+    | Screen
+    | ProtectDepth
+    | RecoverShape
 
 [<Struct>]
 type CollectiveIntent =
@@ -61,6 +64,10 @@ module IntentCode =
     [<Literal>]
     let SetPieceRun = 9uy
 
+    // Regaining shape must not claim the loose-ball intent bonuses attached to Recover.
+    [<Literal>]
+    let Regroup = 10uy
+
     let inline isContinuous kind =
         kind = BallCarry
         || kind = Support
@@ -70,6 +77,7 @@ module IntentCode =
         || kind = Cover
         || kind = HoldPosition
         || kind = SetPieceRun
+        || kind = Regroup
 
 module IntentPhase =
     [<Literal>]
@@ -291,8 +299,7 @@ type Blackboard =
       mutable ThreatZone: float32
       mutable WeaknessZone: float32
       mutable Urgency: float32
-      mutable MomentumStreak: int
-      mutable TransitionSince: int<subtick> }
+      mutable MomentumStreak: int }
 
 [<Struct>]
 type EmergentState =

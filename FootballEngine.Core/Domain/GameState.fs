@@ -4,7 +4,9 @@ open System
 open Inbox
 
 type GameState =
-    { CurrentDate: DateTime
+    { ExecutionSeed: uint64
+      MatchSeeds: Map<MatchId, uint64>
+      CurrentDate: DateTime
       Season: int
       TrainingWeeksApplied: int
       Clubs: Map<ClubId, Club>

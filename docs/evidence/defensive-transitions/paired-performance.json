@@ -1,0 +1,18 @@
+{
+  "timeUnit": "microseconds",
+  "warmupCalls": 8000,
+  "measuredCalls": 20000,
+  "runtime": "10.0.10",
+  "runs": [
+    {"build": "before", "run": 1, "fullTicks": {"p50": 7.655, "p95": 120.081, "p99": 201.267, "max": 1132.897, "bytesPerCall": 5549.0248, "retainedManagedDelta": 283696}, "shape": {"p50": 15.019, "p95": 15.75, "p99": 19.437, "max": 106.064, "bytesPerCall": 8975.618, "retainedManagedDelta": -1192}, "tacticalOwner": null},
+    {"build": "before", "run": 2, "fullTicks": {"p50": 14.318, "p95": 120.241, "p99": 219.823, "max": 1152.745, "bytesPerCall": 5551.426, "retainedManagedDelta": 283696}, "shape": {"p50": 15.299, "p95": 15.881, "p99": 18.606, "max": 108.999, "bytesPerCall": 8964.272, "retainedManagedDelta": -7336}, "tacticalOwner": null},
+    {"build": "before", "run": 3, "fullTicks": {"p50": 7.735, "p95": 122.715, "p99": 352.267, "max": 1149.699, "bytesPerCall": 5553.5896, "retainedManagedDelta": 283696}, "shape": {"p50": 15.139, "p95": 15.59, "p99": 18.245, "max": 108.309, "bytesPerCall": 8964.2456, "retainedManagedDelta": -7336}, "tacticalOwner": null},
+    {"build": "after", "run": 1, "fullTicks": {"p50": 17.414, "p95": 132.806, "p99": 388.567, "max": 1882.787, "bytesPerCall": 5786.0068, "retainedManagedDelta": 293176}, "shape": {"p50": 19.798, "p95": 20.549, "p99": 25.199, "max": 164.506, "bytesPerCall": 17328, "retainedManagedDelta": -7120}, "tacticalOwner": {"p50": 2.996, "p95": 3.487, "p99": 6.262, "max": 91.846, "bytesPerCall": 1488, "retainedManagedDelta": -7336}},
+    {"build": "after", "run": 2, "fullTicks": {"p50": 9.418, "p95": 117.767, "p99": 307.231, "max": 1905.782, "bytesPerCall": 5522.6196, "retainedManagedDelta": 293176}, "shape": {"p50": 19.968, "p95": 20.5, "p99": 23.205, "max": 120.101, "bytesPerCall": 17328, "retainedManagedDelta": -7120}, "tacticalOwner": {"p50": 2.956, "p95": 3.387, "p99": 3.546, "max": 78.521, "bytesPerCall": 1488, "retainedManagedDelta": -7336}},
+    {"build": "after", "run": 3, "fullTicks": {"p50": 9.137, "p95": 117.536, "p99": 308.031, "max": 1877.096, "bytesPerCall": 5267.9404, "retainedManagedDelta": 287032}, "shape": {"p50": 19.798, "p95": 20.369, "p99": 23.104, "max": 536.571, "bytesPerCall": 17328, "retainedManagedDelta": -7120}, "tacticalOwner": {"p50": 2.936, "p95": 3.336, "p99": 3.506, "max": 82.889, "bytesPerCall": 1488, "retainedManagedDelta": -7336}}
+  ],
+  "retention": {
+    "before": {"fullTicksRetainedObservations": 4096, "fullTicksTotalObservations": 6062, "frozenRetainedObservations": 2, "frozenBufferedEvents": 1},
+    "after": {"fullTicksRetainedObservations": 4096, "fullTicksTotalObservations": 4507, "frozenRetainedObservations": 3, "frozenBufferedEvents": 4, "ownerInvocations": 5392, "ownerInvocationsPerTick": 0.2696}
+  }
+}

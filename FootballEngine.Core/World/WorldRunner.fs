@@ -222,6 +222,7 @@ module WorldRunner =
         else
             let sortedDates = fixturesByDate |> Map.keys |> Seq.sort |> Array.ofSeq
             let mutable currentGs = gs
+            let mutable executions = clock.MatchExecutions
             let mutable errors: string list = []
 
             for date in sortedDates do
@@ -233,8 +234,8 @@ module WorldRunner =
                         dayFixtures
                         |> Array.ofList
                         |> parallelMapLimited (fun (id, fixture) ->
-                            match MatchPhase.simulateFixtureWithBalance balance id fixture gsReady with
-                            | Some o -> Some o
+                            match MatchPhase.simulateFixtureExecutionWithBalance balance id fixture gsReady with
+                            | Some(o, input) -> Some(o, input)
                             | None -> None)
                         |> Array.fold
                             (fun (outs, errs) o ->
@@ -244,9 +245,14 @@ module WorldRunner =
                             ([], [])
 
                     if errs.IsEmpty then
+                        for outcome, input in outcomes do
+                            if MatchFixture.involves gs.UserClubId outcome.Fixture then
+                                executions <- executions |> Map.add outcome.FixtureId (MatchInput.snapshot input, [])
+
+                        let outcomes = outcomes |> List.map fst
                         currentGs <-
                             applyPostMatchLoad balance.Training (Array.ofList outcomes) gsReady
-                            |> applyOutcomes (fixtureToCompMap gsReady) (Array.ofList outcomes)
+                            |> applyOutcomes balance.CollectiveAttack (fixtureToCompMap gsReady) (Array.ofList outcomes)
 
                         currentGs <- { currentGs with CurrentDate = date }
                     else
@@ -257,7 +263,8 @@ module WorldRunner =
             | [] ->
                 let summary = SeasonPhase.computeSeasonSummary currentGs
                 let nextGs = SeasonPhase.runEndOfSeason balance currentGs
-                let nextClock = WorldClockOps.init nextGs.Season
+                let nextClock =
+                    { WorldClockOps.init nextGs.Season with MatchExecutions = executions }
 
                 Ok
                     { Summary = summary
@@ -288,7 +295,8 @@ module WorldRunner =
         : SeasonResult =
         let summary = SeasonPhase.computeSeasonSummary gs
         let nextGs = SeasonPhase.runEndOfSeason balance gs
-        let nextClock = WorldClockOps.init nextGs.Season
+        let nextClock =
+            { WorldClockOps.init nextGs.Season with MatchExecutions = clock.MatchExecutions }
 
         { Summary = summary
           SeasonFinalGs = gs
@@ -342,51 +350,39 @@ module WorldRunner =
                 let input =
                     { MatchId = uint64 fixtureId
                       Context = context
-                      Seed = MatchContextBuilder.seedOf fixtureId
+                      Seed = MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId
                       EffectiveConfig = effective
                       EngineVersion = "football-engine-core-01" }
 
                 Ok(MatchJob.create fixtureId fixture.ScheduledDate clock.Revision input)
 
-    let prepareReplayJobWithBalance
-        (balance: FootballEngine.Core.Match.BalanceConfig)
+    let prepareReplayJob
         (clock: WorldClock)
         (gs: GameState)
         (matchId: MatchId)
         : Result<MatchJob, string> =
-        let fixtureOpt =
-            gs.Competitions
-            |> Map.toSeq
-            |> Seq.collect (fun (_, comp) -> comp.Fixtures |> Map.toSeq)
-            |> Seq.tryFind (fun (fixtureId, fixture) ->
-                fixtureId = matchId && MatchFixture.involves gs.UserClubId fixture)
+        match Map.tryFind matchId clock.MatchExecutions with
+        | None -> Error "The requested match has no recorded execution"
+        | Some(input, _) ->
+            let fixtureOpt =
+                gs.Competitions
+                |> Map.toSeq
+                |> Seq.collect (fun (_, comp) -> comp.Fixtures |> Map.toSeq)
+                |> Seq.tryFind (fun (fixtureId, fixture) ->
+                    fixtureId = matchId && MatchFixture.isPlayed fixture && MatchFixture.involves gs.UserClubId fixture)
 
-        match fixtureOpt with
-        | None -> Error "The requested replay fixture could not be found"
-        | Some(fixtureId, fixture) ->
-            let gsReady =
-                gs
-                |> LineupOps.ensureForClub fixture.HomeClubId
-                |> LineupOps.ensureForClub fixture.AwayClubId
+            match fixtureOpt with
+            | None -> Error "The requested replay fixture could not be found"
+            | Some(_, fixture) ->
+                Ok(MatchJob.create matchId fixture.ScheduledDate clock.Revision input)
 
-            match EffectiveConfig.fromBalance balance, MatchContextBuilder.build gsReady fixture balance with
-            | Error error, _ -> Error(sprintf "Invalid match configuration: %A" error)
-            | _, None -> Error "Replay preparation failed: missing lineup"
-            | Ok effective, Some context ->
-                let input =
-                    { MatchId = uint64 fixtureId
-                      Context = context
-                      Seed = MatchContextBuilder.seedOf fixtureId
-                      EffectiveConfig = effective
-                      EngineVersion = "football-engine-core-01" }
-
-                Ok(MatchJob.create fixtureId fixture.ScheduledDate clock.Revision input)
-
-    let matchJobResult (job: MatchJob) (outcome: MatchOutcome) : MatchJobResult =
+    let matchJobResult (job: MatchJob) (commands: MatchCommand list) (outcome: MatchOutcome) : MatchJobResult =
         let homePlayerStats, awayPlayerStats =
             MatchOutcome.extractPlayerStatsFromWorld job.Input.Context outcome.Final outcome.Events
 
-        { MatchId = job.MatchId
+        { Input = job.Input
+          Commands = commands
+          MatchId = job.MatchId
           SourceRevision = job.SourceRevision
           InputHash = job.InputHash
           ResultHash = MatchJob.resultHash job outcome
@@ -434,14 +430,16 @@ module WorldRunner =
                     let input =
                         { MatchId = uint64 fixtureId
                           Context = ctx
-                          Seed = MatchContextBuilder.seedOf fixtureId
+                          Seed = MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId
                           EffectiveConfig = effective
                           EngineVersion = "football-engine-core-01" }
 
                     let job =
                         MatchJob.create fixtureId fixture.ScheduledDate result.SourceRevision input
 
-                    if job.InputHash <> result.InputHash then
+                    let recordedJob = MatchJob.create fixtureId fixture.ScheduledDate result.SourceRevision result.Input
+
+                    if recordedJob.InputHash <> result.InputHash || job.InputHash <> result.InputHash then
                         Error "Match result input hash does not match the current fixture input"
                     elif
                         MatchJob.resultHashFromFacts job result.HomeScore result.AwayScore result.EventsHash
@@ -469,7 +467,7 @@ module WorldRunner =
 
                         let finalGs =
                             applyPostMatchLoad balance.Training [| outcome |] gsReady
-                            |> applyOutcomes (fixtureToCompMap gsReady) [| outcome |]
+                            |> applyOutcomes balance.CollectiveAttack (fixtureToCompMap gsReady) [| outcome |]
 
                         let clubOfPlayer =
                             fun pid -> gsReady.Players |> Map.tryFind pid |> Option.bind Player.clubOf
@@ -552,7 +550,9 @@ module WorldRunner =
                             |> updateScouting fixture.HomeClubId true
                             |> updateScouting fixture.AwayClubId false
 
-                        let clock1 = WorldClockOps.advance clock
+                        let clock1 =
+                            { WorldClockOps.advance clock with
+                                MatchExecutions = clock.MatchExecutions |> Map.add fixtureId (MatchInput.snapshot result.Input, result.Commands) }
 
                         Ok
                             { DayResult =
@@ -595,7 +595,7 @@ module WorldRunner =
                     match MatchSession.finish session with
                     | Error error -> Error(sprintf "%A" error)
                     | Ok outcome ->
-                        match commitUserMatchJobWithBalance balance clock gs (matchJobResult job outcome) with
+                        match commitUserMatchJobWithBalance balance clock gs (matchJobResult job session.Commands outcome) with
                         | Error error -> Error error
                         | Ok result -> Ok result
 

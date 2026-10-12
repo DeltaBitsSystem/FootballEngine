@@ -94,6 +94,31 @@ module EventApply =
         | Some b -> b.Events.Add event
         | None -> ()
 
+    let private finishTransition (world: World) buffer side tick outcome =
+        let team = MatchWorld.team world side
+        match team.Defense.Episode with
+        | Some episode when episode.EndedAt.IsNone ->
+            team.Defense.Episode <- Some { episode with EndedAt = Some tick; Outcome = Some outcome }
+            DefensiveTransitionState.clearTasks team.Frame team.Defense
+            let cause =
+                match world.Observation.CurrentEvent with
+                | ValueSome(EventCause trigger) -> ValueSome(PairedEvents(episode.Id, trigger))
+                | _ -> ValueSome(EventCause episode.Id)
+            let evidence = world.Observation.Record(tick, cause, TransitionEnded(side, episode.Id, outcome, episode.Reason))
+            let ev = { Tick = tick; Data = EventData.DefensiveTransition(side, episode.Id, Finished outcome) }
+            evidence |> ValueOption.iter (fun id -> world.Observation.Associate(ev, ResolutionCause id))
+            emit buffer ev
+        | _ -> ()
+
+    let private releaseSlot (team: TeamWorld) slot =
+        team.Frame.DefensiveRoles[slot] <- DefensiveRole.Unassigned
+        team.Frame.RoleBias[slot] <- 1.0f
+        team.Frame.Intent.Kind[slot] <- IntentCode.None
+        team.Frame.Intent.Phase[slot] <- IntentPhase.Completed
+        team.Defense.Tasks[slot] <- None
+        team.Frame.RunLookup.Remove slot |> ignore
+        team.PendingActions.Remove slot |> ignore
+
     let private teamForPair (ctx: MatchContext) outgoing incoming =
         match MatchWorld.teamOfPlayer ctx outgoing, MatchWorld.teamOfPlayer ctx incoming with
         | Some side, Some incomingSide when side = incomingSide -> Some side
@@ -145,6 +170,8 @@ module EventApply =
                       Reason = PlayerOutReason.Substituted }
 
             team.Frame.Occupancy.[inSlot] <- OccupancyKind.Active inSlot
+            releaseSlot team outSlot
+            releaseSlot team inSlot
             team.Frame.PosX.[inSlot] <- outX
             team.Frame.PosY.[inSlot] <- outY
             team.Frame.VelX.[inSlot] <- 0.0f
@@ -264,11 +291,40 @@ module EventApply =
 
         award
 
-    let private applyPossession (ctx: MatchContext) (world: World) side pid tick =
+    let private applyPossession (ctx: MatchContext) (world: World) buffer side pid tick =
         let pendingAdvantage =
             match world.State.Advantage with
             | AdvantageState.AdvantagePending(incident, _) -> Some incident
             | _ -> None
+
+        let previous = world.State.Possession.LastGainer
+        if world.State.Flow = MatchFlow.Live && previous <> Some side then
+            finishTransition world buffer side tick TransitionEnd.Recovered
+            match previous with
+            | Some losingSide ->
+                let losingTeam = MatchWorld.team world losingSide
+                let source = world.Observation.CurrentEvent
+                let id =
+                    match source with
+                    | ValueSome(EventCause id) -> id
+                    | _ -> MatchEvent.id { Tick = tick; Data = EventData.Possession(side, pid) }
+                DefensiveTransitionState.clearTasks losingTeam.Frame losingTeam.Defense
+                losingTeam.Defense.ControlChangedAt <- Some tick
+                (MatchWorld.team world side).Defense.ControlChangedAt <- Some tick
+                losingTeam.Frame.RunLookup.Clear()
+                losingTeam.PendingActions.Clear()
+                losingTeam.Defense.Episode <-
+                    Some
+                        { Id = id; LostAt = tick
+                          Origin = { X = world.State.Ball.Position.X; Y = world.State.Ball.Position.Y }
+                          Mode = Assessing; Reason = AwaitingAssessment; ModeSince = tick; CommitUntil = tick
+                          Primary = None; Cover = None; EvaluatedAt = tick
+                          Tactics = losingTeam.Tactics; ParticipationRevision = losingTeam.Frame.ActiveCache.Revision
+                          StabilizingSince = None; EndedAt = None; Outcome = None }
+                let ev = { Tick = tick; Data = EventData.DefensiveTransition(losingSide, id, Lost) }
+                world.Observation.Associate(ev, EventCause id)
+                emit buffer ev
+            | None -> ()
 
         MatchWorld.updateBall world (fun b ->
             { b with
@@ -519,9 +575,14 @@ module EventApply =
             false
         else
             let tick = ev.Tick
+            let attackBuffer = buffer |> Option.defaultWith (fun () -> { Events = ResizeArray(); Flags = { Bits = 0UL }; Applied = ResizeArray() })
+            AttackLifecycle.observe ctx world attackBuffer ev
 
             match ev.Data with
-            | EventData.Possession(side, pid) -> applyPossession ctx world side pid tick
+            | EventData.Possession(side, pid) -> applyPossession ctx world buffer side pid tick
+            | EventData.DefensiveTransition _ -> ()
+            | EventData.CollectiveAttack _ -> ()
+            | EventData.TeamInstruction _ -> ()
             | EventData.BallLoose(x, y) ->
                 let side = world.State.Possession.LastGainer |> Option.defaultValue ClubSide.Home
 
@@ -533,7 +594,7 @@ module EventApply =
                         StationarySince = Some tick
                         Impulse = None
                         Position = { b.Position with X = x; Y = y } })
-            | EventData.Pass(passer, _, _, _, completed, _, _, _, _) ->
+            | EventData.Pass(passer, receiver, _, _, completed, _, _, _, _) ->
                 match MatchWorld.teamOfPlayer ctx passer with
                 | Some side ->
                     let team = MatchWorld.team world side
@@ -677,6 +738,7 @@ module EventApply =
                                       Reason = PlayerOutReason.Injury }
 
                             team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
+                            releaseSlot team slot
                             let mutable frame = team.Frame
                             frame.ActiveCount <- max 0 (frame.ActiveCount - 1)
                             team.Frame <- frame
@@ -851,6 +913,7 @@ module EventApply =
                                       Reason = PlayerOutReason.RedCard }
 
                             team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
+                            releaseSlot team slot
                             let mutable frame = team.Frame
                             frame.ActiveCount <- max 0 (frame.ActiveCount - 1)
                             team.Frame <- frame
@@ -990,6 +1053,23 @@ module EventApply =
             // Contact systems own momentum; the reducer must not apply the same impulse twice.
             | EventData.FootContact _
             | EventData.FootStrikeCancelled _ -> ()
+
+            if world.State.Flow <> MatchFlow.Live then
+                // An interrupted advantage cannot later overwrite halftime, a review, or an already-awarded restart.
+                match world.State.Advantage with
+                | AdvantageState.AdvantagePending _ -> world.State <- {world.State with Advantage = AdvantageState.NoAdvantage}
+                | _ -> ()
+                for side in [ ClubSide.Home; ClubSide.Away ] do
+                    let attack = (MatchWorld.team world side).Attack
+                    match attack.Episode with
+                    | Some _ -> AttackLifecycle.finish ctx world attackBuffer side AttackEnd.Stopped (Some(MatchEvent.id ev))
+                    | _ -> ()
+                finishTransition world buffer ClubSide.Home tick TransitionEnd.Interrupted
+                finishTransition world buffer ClubSide.Away tick TransitionEnd.Interrupted
+                // The first live control after a restart is acquisition, not an inferred loss of dead-ball possession.
+                world.State <- { world.State with Possession = { world.State.Possession with LastGainer = None } }
+                world.Home.Defense.ControlChangedAt <- None
+                world.Away.Defense.ControlChangedAt <- None
 
             true
 

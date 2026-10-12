@@ -40,6 +40,7 @@ module Stepper =
               Signal = signal }
 
     let rec private evalTrigger
+        (transitionCadence: int<tickDelta>)
         (simTick: SimTick)
         (playClock: PlayClock)
         (flow: MatchFlow)
@@ -62,17 +63,20 @@ module Stepper =
         | CompiledTrigger.OnEventOrEveryN(f, d) ->
             let dT = int d * 1<subtick>
             EventFlags.intersects flags f || tick % dT = 0<subtick>
+        | CompiledTrigger.OnTransitionOrGeometry f ->
+            EventFlags.intersects flags f || tick % (int transitionCadence * 1<subtick>) = 0<subtick>
         | CompiledTrigger.WhenLive inner ->
             match flow with
-            | MatchFlow.Live -> evalTrigger simTick playClock flow flags inner
+            | MatchFlow.Live -> evalTrigger transitionCadence simTick playClock flow flags inner
             | _ -> false
         | CompiledTrigger.WhenMovementAllowed inner ->
             match flow with
             | MatchFlow.Live
-            | MatchFlow.Restart _ -> evalTrigger simTick playClock flow flags inner
+            | MatchFlow.Restart _ -> evalTrigger transitionCadence simTick playClock flow flags inner
             | _ -> false
 
     let private fire
+        (transitionCadence: int<tickDelta>)
         (simTick: SimTick)
         (playClock: PlayClock)
         (flow: MatchFlow)
@@ -83,7 +87,7 @@ module Stepper =
         let mutable matched = false
 
         while index < triggers.Length && not matched do
-            matched <- evalTrigger simTick playClock flow flags triggers[index]
+            matched <- evalTrigger transitionCadence simTick playClock flow flags triggers[index]
             index <- index + 1
 
         matched
@@ -281,7 +285,7 @@ module Stepper =
         // Systems run strictly in scheduler order: each may read what earlier systems
         // wrote this same tick — order is part of determinism.
         for spec in schedule.Systems do
-            if fire simTick playClock world.State.Flow flags spec.Triggers then
+            if fire ctx.Ctx.Config.DefensiveTransition.ReevaluateTicks simTick playClock world.State.Flow flags spec.Triggers then
                 rng <- spec.Step ctx rng world buffer
 
         // Stoppage must be computed before boundary checks: the half ends at

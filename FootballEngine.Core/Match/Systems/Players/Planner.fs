@@ -10,7 +10,17 @@ type ChainState =
       OurPos: struct (int * float<meter> * float<meter>)[]
       OppPos: struct (int * float<meter> * float<meter>)[]
       OffsideLine: float<meter>
-      Dir: float }
+      Dir: float
+      OurMotion: struct (int * float<meterPerSecond> * float<meterPerSecond>)[]
+      OppMotion: struct (int * float<meterPerSecond> * float<meterPerSecond>)[]
+      Horizon: float<second>
+      Confidence: float
+      GoalkeeperSlots: Set<int>
+      OurGoalkeeperSlots: Set<int>
+      PassSpeed: float<meterPerSecond>
+      DistanceSpeedGain: float
+      MaxPassDistance: float<meter>
+      CarrySpeed: float<meterPerSecond> }
 
 /// Action-chain planner: given the level-1 options from Decision, simulate
 /// multi-step continuations (pass → pass → shoot, etc.) and score each chain
@@ -30,7 +40,8 @@ module Planner =
         { ActionCode: int
           TargetSlot: int
           Chain: ChainAction[]
-          Value: float }
+          Value: float
+          CandidateEvaluations: int }
 
     /// Value a chain state: progression + shoot bonus + danger penalty +
     /// possession security, all on a 0–1-ish scale matching single-step
@@ -38,10 +49,10 @@ module Planner =
     /// neutral finishing assumption — the plan evaluates where the ball should
     /// go; the option utility already carries the shooter's actual ability.
     let value (w: WeightSectionsPlanner) (s: ChainState) : float =
-        let pitchHalf = 52.5
+        let pitchHalf = float Pitch.HalfLength
 
         let progression =
-            w.ProgressionWeight * (float s.BallX + pitchHalf) / (2.0 * pitchHalf)
+            w.ProgressionWeight * (float s.BallX * s.Dir + pitchHalf) / (2.0 * pitchHalf)
 
         let shootBonus =
             let d = MatchMath.distanceToGoal s.Side s.BallX s.BallY
@@ -69,8 +80,8 @@ module Planner =
 
         let mutable hasTeammateNear = false
 
-        for struct (_, tx, ty) in s.OurPos do
-            if not hasTeammateNear && MatchMath.dist s.BallX s.BallY tx ty < 10.0 then
+        for struct (slot, tx, ty) in s.OurPos do
+            if slot <> s.CarrierSlot && not hasTeammateNear && MatchMath.dist s.BallX s.BallY tx ty < 10.0 then
                 hasTeammateNear <- true
 
         let possessionSecurity =
@@ -78,20 +89,37 @@ module Planner =
 
         progression + shootBonus + dangerPenalty + possessionSecurity
 
-    /// Simulate a pass from (bx,by) to receiver at (rx,ry) and return the
-    /// resulting ChainState (ball at receiver, receiver becomes carrier).
-    let private simulatePass (s: ChainState) (receiverSlot: int) (rx: float<meter>) (ry: float<meter>) : ChainState =
+    let private advance (s: ChainState) (flight: float<second>) =
+        let advance motions positions =
+            positions |> Array.map (fun struct (slot, x, y) ->
+                match motions |> Array.tryFind (fun struct (movingSlot, _, _) -> movingSlot = slot) with
+                | Some(struct (_, vx, vy)) ->
+                    let x, y = MatchMath.pitchClamp (float (x + vx * flight)) (float (y + vy * flight))
+                    struct (slot, x * 1.0<meter>, y * 1.0<meter>)
+                | None -> struct (slot, x, y))
+        let ours, opponents = advance s.OurMotion s.OurPos, advance s.OppMotion s.OppPos
+        let line =
+            if s.OppMotion.Length = 0 then s.OffsideLine
+            else
+                opponents |> Array.filter (fun struct(slot, _, _) -> not (Set.contains slot s.GoalkeeperSlots))
+                |> Array.map (fun struct(_, x, _) -> x * s.Dir) |> Array.sortDescending
+                |> fun positions -> if positions.Length >= 2 then positions[1] * s.Dir else MatchMath.goalX s.Side
         { s with
-            BallX = rx
-            BallY = ry
-            CarrierSlot = receiverSlot }
+            OurPos = ours
+            OppPos = opponents
+            OffsideLine = line
+            Horizon = max 0.0<second> (s.Horizon - flight) }
+
+    let simulatePass (s: ChainState) (receiverSlot: int) (rx: float<meter>) (ry: float<meter>) : ChainState =
+        let distance = MatchMath.dist s.BallX s.BallY rx ry
+        let flight = min s.Horizon (distance / (float s.PassSpeed + distance * s.DistanceSpeedGain) * 1.0<second>)
+        let next = advance s flight
+        let struct(_, x, y) = next.OurPos |> Array.find (fun struct(slot, _, _) -> slot = receiverSlot)
+        { next with BallX = x; BallY = y; CarrierSlot = receiverSlot }
 
     /// Check if a receiver is offside given the current state.
-    let private isOffside (s: ChainState) (rx: float<meter>) : bool =
-        if s.Dir > 0.0 then
-            float rx > float s.OffsideLine
-        else
-            float rx < float s.OffsideLine
+    let isOffside (s: ChainState) (rx: float<meter>) : bool =
+        rx * s.Dir > max 0.0<meter> (max (s.BallX * s.Dir) (s.OffsideLine * s.Dir))
 
     /// Find the receiver slot and position from the current state.
     let private findReceiver (s: ChainState) (slot: int) : struct (int * float<meter> * float<meter>) voption =
@@ -114,15 +142,15 @@ module Planner =
         : bool =
         let d = MatchMath.dist s.BallX s.BallY rx ry
 
-        if d < 0.5 || d > 60.0 then
+        if d <= 0.0 || d > float s.MaxPassDistance then
             false
         else
             let ball =
                 { X = s.BallX
                   Y = s.BallY
                   Z = 0.0<meter>
-                  Vx = (float (rx - s.BallX) / max (float d) 0.5) * 22.0<meterPerSecond>
-                  Vy = (float (ry - s.BallY) / max (float d) 0.5) * 22.0<meterPerSecond>
+                  Vx = (float (rx - s.BallX) / d) * (s.PassSpeed + d * s.DistanceSpeedGain * 1.0<meterPerSecond>)
+                  Vy = (float (ry - s.BallY) / d) * (s.PassSpeed + d * s.DistanceSpeedGain * 1.0<meterPerSecond>)
                   Vz = 0.0<meterPerSecond> }
 
             let receiverSteps = InterceptTable.stepsToReach pparams ball rx ry
@@ -130,7 +158,7 @@ module Planner =
             let mutable bestOpponent = pparams.MaxSteps
 
             for struct (oslot, ox, oy) in s.OppPos do
-                if oslot <> 0 then
+                if not (Set.contains oslot s.GoalkeeperSlots) then
                     let steps = InterceptTable.stepsToReach pparams ball ox oy
 
                     if steps < bestOpponent then
@@ -151,108 +179,85 @@ module Planner =
         (s: ChainState)
         (options: (int * int * float)[])
         : ChainEvaluation[] =
-        let baseValue = value w s
-        let evaluations = ResizeArray<ChainEvaluation>()
-        let mutable budgetUsed = 0
-
-        for (code, target, utility) in options do
-            let chainActions = ResizeArray<ChainAction>()
-            let mutable currentState = s
-            let mutable finalValue = utility
-            let mutable depth = 0
-
-            while depth < cfg.MaxChainLength && budgetUsed < cfg.MaxEvaluateLimit do
-                if depth = 0 then
-                    // Level 1: simulate the first action.
+        let baseline = value w s
+        let mutable used = 0
+        let mutable frontierLimit = cfg.MaxEvaluateLimit
+        let evaluate cost =
+            if used < min cfg.MaxEvaluateLimit frontierLimit then used <- used + 1; cost () else None
+        let pass state slot =
+            match findReceiver state slot with
+            | ValueSome(struct(_, x, y)) when slot <> state.CarrierSlot && not (Set.contains slot state.OurGoalkeeperSlots) && not (isOffside state x) ->
+                let distance = MatchMath.dist state.BallX state.BallY x y
+                let flight = distance / (float state.PassSpeed + distance * state.DistanceSpeedGain) * 1.0<second>
+                if distance >= float cfg.MinimumPassDistance && flight <= state.Horizon && isPassFeasible pparams state x y then
+                    let next = simulatePass state slot x y
+                    Some(next, Pass(slot, next.BallX, next.BallY))
+                else None
+            | _ -> None
+        let carry state =
+            let duration = min cfg.DribbleDuration state.Horizon
+            if duration <= 0.0<second> then None else
+            let x, y = MatchMath.pitchClamp (float (state.BallX + state.Dir * state.CarrySpeed * duration)) (float state.BallY)
+            let point = Vec2.create (x * 1.0<meter>) (y * 1.0<meter>)
+            let advanced = advance state duration
+            let ours = advanced.OurPos |> Array.map (fun struct(slot, px, py) -> if slot = state.CarrierSlot then struct(slot, point.X, point.Y) else struct(slot, px, py))
+            Some({ advanced with BallX = point.X; BallY = point.Y; OurPos = ours; Horizon = state.Horizon - duration; PassSpeed = state.PassSpeed; DistanceSpeedGain = state.DistanceSpeedGain }, Dribble)
+        let count = options.Length
+        let chains = Array.init count (fun _ -> [||])
+        let states = Array.create count None
+        let scores = options |> Array.map (fun (_, _, utility) -> utility)
+        let work = Array.zeroCreate<int> count
+        // First actions are considered for every root before any continuation; later input options cannot be starved by an early tree.
+        for index in 0 .. count - 1 do
+            let code, target, utility = options[index]
+            let before = used
+            if cfg.Enabled then
+                let result = evaluate (fun () ->
                     match code with
-                    | 1 when target >= 0 ->
-                        match findReceiver currentState target with
-                        | ValueSome(struct (_, rx, ry)) ->
-                            if isPassFeasible pparams currentState rx ry then
-                                chainActions.Add(Pass(target, rx, ry))
-                                currentState <- simulatePass currentState target rx ry
-                                budgetUsed <- budgetUsed + 1
-                                finalValue <- utility + (value w currentState - baseValue)
-                                depth <- depth + 1
-                            else
-                                depth <- cfg.MaxChainLength
-                        | ValueNone -> depth <- cfg.MaxChainLength
-                    | 2 ->
-                        chainActions.Add(Shoot)
-                        finalValue <- utility + w.ShootValueWeight * 0.5
-                        depth <- cfg.MaxChainLength
-                    | 3 ->
-                        chainActions.Add(Dribble)
-                        budgetUsed <- budgetUsed + 1
-                        depth <- depth + 1
-                    | 4 ->
-                        chainActions.Add(Clear)
-                        depth <- cfg.MaxChainLength
-                    | 5 ->
-                        chainActions.Add(Cross(target, currentState.BallX, currentState.BallY))
-                        depth <- cfg.MaxChainLength
-                    | _ -> depth <- cfg.MaxChainLength
-                else
-                    // Levels 2+: expand best continuation greedily.
-                    let lastAction = chainActions.[chainActions.Count - 1]
-
-                    match lastAction with
-                    | Pass(_, _, _) ->
-                        let mutable bestNext = None
-                        let mutable bestVal = -1e9
-
-                        for struct (slot, tx, ty) in currentState.OurPos do
-                            if
-                                slot <> currentState.CarrierSlot
-                                && slot <> 0
-                                && not (isOffside currentState tx)
-                                && isPassFeasible pparams currentState tx ty
-                            then
-                                let next = simulatePass currentState slot tx ty
-                                let v = value w next
-
-                                if v > bestVal then
-                                    bestVal <- v
-                                    bestNext <- Some(slot, tx, ty)
-
-                        match bestNext with
-                        | Some(slot, tx, ty) ->
-                            chainActions.Add(Pass(slot, tx, ty))
-                            currentState <- simulatePass currentState slot tx ty
-                            budgetUsed <- budgetUsed + 1
-                            finalValue <- utility + (value w currentState - baseValue)
-                            depth <- depth + 1
-                        | None ->
-                            let goalDist = abs (float currentState.BallX - 52.5 * currentState.Dir)
-
-                            if goalDist < 32.0 then
-                                chainActions.Add(Shoot)
-                                finalValue <- finalValue + w.ShootValueWeight * 0.5
-
-                            depth <- cfg.MaxChainLength
-                    | Shoot -> depth <- cfg.MaxChainLength
-                    | Dribble ->
-                        let dir = currentState.Dir
-                        let dribbleDist = 8.0<meter>
-                        let nextX = currentState.BallX + dribbleDist * dir
-
-                        let next = { currentState with BallX = nextX }
-
-                        chainActions.Add(Dribble)
-                        currentState <- next
-                        budgetUsed <- budgetUsed + 1
-                        finalValue <- utility + (value w currentState - baseValue)
-                        depth <- depth + 1
-                    | _ -> depth <- cfg.MaxChainLength
-
-            evaluations.Add(
-                { ActionCode = code
-                  TargetSlot = target
-                  Chain = chainActions.ToArray()
-                  Value = finalValue }
-            )
-
-        evaluations.ToArray()
+                    | 1 -> pass s target
+                    | 3 -> carry s
+                    | 2 -> Some(s, Shoot)
+                    | 4 -> Some(s, Clear)
+                    | 5 -> Some(s, Cross(target, s.BallX, s.BallY))
+                    | _ -> None)
+                result |> Option.iter (fun (state, action) ->
+                    chains[index] <- [|action|]
+                    scores[index] <- utility + s.Confidence * (value w state - baseline)
+                    if code = 1 || code = 3 then states[index] <- Some [|(state, [|action|], Set.ofList [s.CarrierSlot; state.CarrierSlot])|])
+            work[index] <- used - before
+        for _ in 2 .. cfg.MaxChainLength do
+            for index in 0 .. count - 1 do
+                match states[index] with
+                | Some beam ->
+                    let before = used
+                    let remainingRoots = states[index..] |> Array.filter Option.isSome |> Array.length
+                    frontierLimit <- used + (cfg.MaxEvaluateLimit - used + remainingRoots - 1) / max 1 remainingRoots
+                    let branches = ResizeArray<ChainState * ChainAction[] * Set<int> * float>()
+                    for state, path, visited in beam do
+                        // Stop and shoot competes with passing; it is not postponed until every pass fails.
+                        if MatchMath.distanceToGoal state.Side state.BallX state.BallY < float cfg.ShootingRange then
+                            evaluate (fun () ->
+                                let _, _, utility = options[index]
+                                let score = utility + s.Confidence * (value w state - baseline + w.ShootValueWeight * MatchMath.xGFrom (MatchMath.distanceToGoal state.Side state.BallX state.BallY) w.ShootFinishingAssumption 1.0)
+                                if score > scores[index] then chains[index] <- Array.append path [|Shoot|]; scores[index] <- score
+                                Some ()) |> ignore
+                        for struct(slot, _, _) in state.OurPos do
+                            if not (Set.contains slot visited) && not (Set.contains slot state.OurGoalkeeperSlots) then
+                                evaluate (fun () -> pass state slot) |> Option.iter (fun (next, action) ->
+                                    let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value w next - baseline)
+                                    branches.Add(next, Array.append path [|action|], Set.add slot visited, score))
+                        evaluate (fun () -> carry state) |> Option.iter (fun (next, action) ->
+                            let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value w next - baseline)
+                            branches.Add(next, Array.append path [|action|], visited, score))
+                    let best = branches |> Seq.sortByDescending (fun (_, _, _, score) -> score) |> Seq.truncate cfg.BeamWidth |> Seq.toArray
+                    for _, path, _, score in best do
+                        if score > scores[index] then scores[index] <- score; chains[index] <- path
+                    states[index] <- if best.Length = 0 then None else Some(best |> Array.map (fun (state, path, visited, _) -> state, path, visited))
+                    frontierLimit <- cfg.MaxEvaluateLimit
+                    work[index] <- work[index] + used - before
+                | None -> ()
+        options |> Array.mapi (fun index (code, target, _) ->
+            { ActionCode = code; TargetSlot = target; Chain = chains[index]; Value = scores[index]; CandidateEvaluations = work[index] })
 
     /// Build a ChainState from the live world.
     let project (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : ChainState =
@@ -273,7 +278,16 @@ module Planner =
 
         let oppPos =
             [| for s in MatchWorld.activeSlots oppFrame do
-                   struct (s, MatchWorld.posX oppFrame s, MatchWorld.posY oppFrame s) |]
+                    struct (s, MatchWorld.posX oppFrame s, MatchWorld.posY oppFrame s) |]
+
+        let motion (f: TeamFrame) =
+            [| for s in MatchWorld.activeSlots f do
+                   let speed = sqrt (float f.VelX[s] ** 2.0 + float f.VelY[s] ** 2.0)
+                   let cap = float ctx.Config.Movement.SprintSpeed * (1.0 - (1.0 - float f.Condition[s]) * ctx.Config.Movement.FatigueSpeedDecay)
+                   let scale = if speed > cap && speed > 0.0 then cap / speed else 1.0
+                   struct (s, float f.VelX[s] * scale * 1.0<meterPerSecond>, float f.VelY[s] * scale * 1.0<meterPerSecond>) |]
+        let profile = MatchWorld.profileOf ctx side slot
+        let confidence = ctx.Config.CollectiveAttack.AnticipationConfidence * float profile.Anticipation / 100.0 * float frame.Cognitive[slot] * float frame.Condition[slot]
 
         { BallX = ballX
           BallY = ballY
@@ -282,4 +296,14 @@ module Planner =
           OurPos = ourPos
           OppPos = oppPos
           OffsideLine = offsideLine
-          Dir = dir }
+          Dir = dir
+          OurMotion = motion frame
+          OppMotion = motion oppFrame
+          Horizon = ctx.Config.CollectiveAttack.AnticipationHorizon
+          Confidence = confidence
+          GoalkeeperSlots = MatchWorld.activeSlots oppFrame |> Array.filter (fun slot -> oppFrame.SlotRoles[slot] = SlotRole.Goalkeeper) |> Set.ofArray
+          OurGoalkeeperSlots = MatchWorld.activeSlots frame |> Array.filter (fun slot -> frame.SlotRoles[slot] = SlotRole.Goalkeeper) |> Set.ofArray
+          PassSpeed = ctx.Config.Actions.PassLaunchSpeed
+          DistanceSpeedGain = ctx.Config.Actions.PassDistanceSpeedGain
+          MaxPassDistance = ctx.Config.Actions.MaxPassExecutionDistance
+          CarrySpeed = ctx.Config.Movement.SprintSpeed * float profile.Dribbling / 100.0 * float frame.Condition[slot] }

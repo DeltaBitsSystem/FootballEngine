@@ -105,6 +105,8 @@ let private state date dataLock =
       TeamEmphasis = EmRecovery
       SeasonHistory = []
       CareerHistory = []
+      ExecutionSeed = 1UL
+      MatchSeeds = Map.empty
       Market = MarketState.empty }
 
 let private saveSettings = SaveSettings.defaults
@@ -1411,14 +1413,67 @@ let generatedCareerTests =
             | Error error -> failtestf "could not generate test world: %A" error
 
         Expect.isGreaterThan gs.Players.Count 0 "the fixture is a populated world"
+        let prior = Map.ofList [ for key in 0 .. 23 -> key, ({ Samples = 48.0; RewardSum = 36.0 }: AttackEstimate) ]
+        let gs =
+            { gs with
+                Clubs = gs.Clubs |> Map.map (fun _ club ->
+                    { club with CoordinationMemory = { club.CoordinationMemory with AttackLearning = prior } }) }
         let root = tempRoot ()
-        let worldClock = WorldClockOps.init gs.Season
+        let matchId, fixture =
+            gs.Competitions
+            |> Map.toSeq
+            |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
+            |> Seq.find (fun (_, fixture) -> MatchFixture.involves gs.UserClubId fixture)
+        let job =
+            WorldRunner.prepareUserMatchJobWithBalance
+                BalanceConfig.defaultConfig
+                (WorldClockOps.init gs.Season)
+                { gs with CurrentDate = fixture.ScheduledDate }
+                matchId
+            |> function
+                | Ok job -> job
+                | Error error -> failtest error
+        let command =
+            { EffectiveTick = 80<subtick>
+              Sequence = 0UL
+              Revision = job.Input.EffectiveConfig.Revision
+              Manager = job.Input.Context.HomeClub.Id
+              Action = ChangeTactics { job.Input.Context.HomeClub.BaseTactics with Tempo = 0.8f } }
+        let worldClock =
+            { WorldClockOps.init gs.Season with
+                MatchExecutions = Map.ofList [ matchId, (job.Input, [ command ]) ] }
         save root "generated" gs worldClock
+
+        use db = new SQLiteConnection(Path.Combine(root, "career-generated.db3"), true)
+        let executionRowId () =
+            db.ExecuteScalar<int64>("SELECT rowid FROM CareerChunk WHERE Key = ?", $"match-execution:{matchId}")
+        let originalExecutionRowId = executionRowId ()
+        Expect.isGreaterThan originalExecutionRowId 0L "the execution has an independent immutable chunk"
+        use rootPayload = new MemoryStream(db.Find<CareerSnapshot>(1).Payload)
+        use rootZip = new GZipStream(rootPayload, CompressionMode.Decompress)
+        use rootText = new StreamReader(rootZip)
+        Expect.isFalse
+            ((rootText.ReadToEnd()).Contains(job.Input.EngineVersion, StringComparison.Ordinal))
+            "the daily root does not duplicate historical football inputs"
 
         match load root "generated" with
         | Ok result ->
             Expect.equal result.State gs "all generated world entities survive"
             Expect.equal result.WorldClock worldClock "the full clock survives"
+            let input, commands = result.WorldClock.MatchExecutions[matchId]
+            Expect.equal (MatchJob.inputHash input) (MatchJob.inputHash job.Input) "recorded football input survives JSON without numerical drift"
+            Expect.equal commands [ command ] "managerial journal survives save/load"
+            let checkpointSession =
+                MatchSession.create Scheduler.systems input MatchRunMode.Fast
+                |> function
+                    | Ok session -> session
+                    | Error error -> failtestf "%A" error
+            MatchSession.receive command checkpointSession
+            |> function
+                | Ok() -> ()
+                | Error error -> failtestf "restored command was rejected: %A" error
+            save root "generated" { gs with ExecutionSeed = gs.ExecutionSeed + 1UL } worldClock
+            Expect.equal (executionRowId ()) originalExecutionRowId "new attempts do not rewrite immutable recordings"
             Expect.equal result.ResolvedData.DataLock gs.DataLock "resolved mod data is restored"
 
             let direct =
@@ -1484,13 +1539,113 @@ let generatedCareerTests =
 
                 Expect.equal resumed.GameState uninterrupted.GameState "continued career is identical after load"
                 Expect.equal resumed.WorldClock uninterrupted.WorldClock "continued clock is identical after load"
+                // This calendar window may contain no fixture; execute and accept a real pending match before claiming learned persistence.
+                let matchId, fixture = resumed.GameState.Competitions |> Map.toSeq |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq) |> Seq.find (fun (_, fixture) -> MatchFixture.isPending fixture && MatchFixture.involves resumed.GameState.UserClubId fixture)
+                let ready = {resumed.GameState with CurrentDate = fixture.ScheduledDate.Date}
+                let unwrap = function Ok value -> value | Error error -> failtestf "%A" error
+                let job = FootballEngine.World.WorldRunner.prepareUserMatchJobWithBalance BalanceConfig.defaultConfig resumed.WorldClock ready matchId |> unwrap
+                let session = MatchSession.create Scheduler.systems job.Input MatchRunMode.Fast |> unwrap
+                let outcome = MatchSession.finish session |> unwrap
+                let accepted = FootballEngine.World.WorldRunner.commitUserMatchJobWithBalance BalanceConfig.defaultConfig resumed.WorldClock ready (FootballEngine.World.WorldRunner.matchJobResult job [] outcome) |> unwrap
+                let resumed = accepted.DayResult
+                for side, club, final in [ClubSide.Home, job.Input.Context.HomeClub, outcome.Final.Home; ClubSide.Away, job.Input.Context.AwayClub, outcome.Final.Away] do
+                    Expect.equal resumed.GameState.Clubs[int club.Id].CoordinationMemory.AttackLearning final.Attack.Estimates "accepted saturated online updates survive into the career"
+                    Expect.equal final.Attack.Estimates (AttackLearning.applyEvents BalanceConfig.defaultConfig.CollectiveAttack side club.AttackPrior outcome.Events) "chronological events are sufficient to reconstruct the exact learned policy"
+                save root "learned-match" resumed.GameState resumed.WorldClock
+                match load root "learned-match" with
+                | Ok learned -> Expect.equal learned.State resumed.GameState "real accepted learning survives SQLite roundtrip"
+                | Error error -> failtestf "accepted learning failed to reload: %A" error
+                Expect.isTrue (resumed.GameState.Clubs |> Map.exists (fun _ club -> club.CoordinationMemory.AttackLearning <> prior)) "real matches update saturated memory before this save/load sequence"
+                let season = FootballEngine.World.WorldRunner.advanceToNextSeasonWithBalance BalanceConfig.defaultConfig resumed.WorldClock resumed.GameState
+                for KeyValue(id, club) in resumed.GameState.Clubs do
+                    Expect.equal season.NextSeasonGs.Clubs[id].CoordinationMemory.AttackLearning (AttackLearning.retain BalanceConfig.defaultConfig.CollectiveAttack club.CoordinationMemory.AttackLearning) "season turnover retains exactly learned samples, without replaying kickoff priors"
+                save root "learned-next-season" season.NextSeasonGs season.NextSeasonClock
+                match load root "learned-next-season" with
+                | Error error -> failtestf "learned seasonal save failed: %A" error
+                | Ok loadedSeason ->
+                    Expect.equal loadedSeason.State season.NextSeasonGs "seasonal policy and original recordings survive database roundtrip"
+                    let fixture = loadedSeason.State.Competitions |> Map.toSeq |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq) |> Seq.map snd |> Seq.find MatchFixture.isPending
+                    let next = FootballEngine.World.Phases.MatchContextBuilder.build loadedSeason.State fixture BalanceConfig.defaultConfig |> Option.get
+                    Expect.equal next.HomeClub.AttackPrior loadedSeason.State.Clubs[fixture.HomeClubId].CoordinationMemory.AttackLearning "new season's actual kickoff reads restored policy"
             | Error error -> failtestf "career after several days could not be loaded: %A" error
         | Error error -> failtestf "generated world round-trip failed: %A" error
+
+let executionRandomnessTests =
+    testCase "reloading the same pre-advance save rerolls at the application boundary"
+    <| fun _ ->
+        let root = tempRoot ()
+        let gs = state (DateTime(2026, 8, 1)) (dataLock None)
+        let clock = WorldClockOps.init gs.Season
+        save root "reroll" gs clock
+        let loaded =
+            load root "reroll"
+            |> function
+                | Ok loaded -> loaded
+                | Error error -> failtestf "%A" error
+        let state =
+            { AppTypes.initialState () with
+                Mode = AppTypes.InGame(loaded.State, AppTypes.managerEmployment loaded.State)
+                WorldClock = loaded.WorldClock
+                IsProcessing = false }
+        let first, _ = UpdateSim.handle (AppMsgs.Advance 1) state
+        let second, _ = UpdateSim.handle (AppMsgs.Advance 1) state
+        let gameState (state: AppTypes.State) =
+            match state.Mode with
+            | AppTypes.InGame(gs, _) -> gs
+            | _ -> failtest "advance lost the career"
+        let firstGs, secondGs = gameState first, gameState second
+        Expect.notEqual firstGs.ExecutionSeed secondGs.ExecutionSeed "save-scumming creates a new attempt"
+        Expect.equal { firstGs with ExecutionSeed = gs.ExecutionSeed } gs "only the boundary seed changes before the worker"
+        let busy, _ = UpdateSim.handle (AppMsgs.Advance 1) first
+        Expect.equal (gameState busy).ExecutionSeed firstGs.ExecutionSeed "duplicate clicks do not reroll an accepted execution"
+        let noOp, _ = UpdateSim.handle (AppMsgs.Advance 0) state
+        Expect.equal (gameState noOp).ExecutionSeed gs.ExecutionSeed "a no-op cannot consume a new execution"
+        let blocked = { state with Match = { state.Match with RuntimeId = Some(AppTypes.MatchRuntimeId 999UL) } }
+        let unchanged, _ = UpdateSim.handle (AppMsgs.Advance 1) blocked
+        Expect.equal (gameState unchanged).ExecutionSeed gs.ExecutionSeed "continuing a live match cannot replace its seed"
+        let staleAiResult: WorldRunner.DayResult =
+            { GameState = gs
+              WorldClock = clock
+              PlayedMatches = []
+              Logs = []
+              SeasonComplete = false }
+        let protected, _ = UpdateSim.handle (AppMsgs.AiMatchesDone staleAiResult) first
+        Expect.equal protected first "a same-day result from an older attempt cannot overwrite the accepted seed"
+
+let executionSchemaTests =
+    testCase "schema seven cannot silently acquire execution randomness defaults"
+    <| fun _ ->
+        let root = tempRoot ()
+        let gs = state (DateTime(2026, 8, 1)) (dataLock None)
+        save root "before-execution" gs (WorldClockOps.init gs.Season)
+        use db = new SQLiteConnection(Path.Combine(root, "career-before-execution.db3"), true)
+        db.Execute("UPDATE CareerSnapshot SET SchemaVersion = 7 WHERE Id = 1") |> ignore
+        match load root "before-execution" with
+        | Error(Incompatible(_, expected, actual)) -> Expect.equal (expected, actual) (Db.CurrentSchema, 7) "there is no compatibility facade"
+        | other -> failtestf "schema seven was not rejected: %A" other
+        Expect.equal (db.ExecuteScalar<int>("SELECT SchemaVersion FROM CareerSnapshot WHERE Id = 1")) 7 "load never migrates the file"
+
+let collectiveSchemaTests =
+    testCase "schema eight is rejected instead of inventing collective priors"
+    <| fun _ ->
+        let root = tempRoot ()
+        let gs = state (DateTime(2026, 8, 1)) (dataLock None)
+        save root "before-collective" gs (WorldClockOps.init gs.Season)
+        use db = new SQLiteConnection(Path.Combine(root, "career-before-collective.db3"), true)
+        for schema in [8; 9] do
+            db.Execute("UPDATE CareerSnapshot SET SchemaVersion = ? WHERE Id = 1", schema) |> ignore
+            match load root "before-collective" with
+            | Error(Incompatible(_, expected, actual)) -> Expect.equal (expected, actual) (10, schema) "obsolete contract rejected explicitly"
+            | other -> failtestf "obsolete schema was not rejected: %A" other
+            Expect.equal (db.ExecuteScalar<int>("SELECT SchemaVersion FROM CareerSnapshot WHERE Id = 1")) schema "read does not migrate or overwrite"
 
 let tests =
     testList
         "Persistence"
-        [ isolationTests
+        [ executionRandomnessTests
+          executionSchemaTests
+          collectiveSchemaTests
+          isolationTests
           shutdownWriteTests
           capturedSlotPathTests
           foreignSlotWriteTests

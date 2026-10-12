@@ -9,6 +9,8 @@ open Avalonia.Media
 open Avalonia.Threading
 open FootballEngine.Client.Match3D
 open FootballEngine.Client.Views.Components
+open FootballEngine.Client.Animation
+open FootballEngine.Core.Match
 
 module private ProbeLifecycle =
     let private configuredCycles =
@@ -164,24 +166,117 @@ type private ProbePitch() as this =
                 ShortName = if index = 9 then "ENZO FERNANDEZ" else player.ShortName
                 Condition = if index = 9 then 78 else player.Condition })
 
+    let samplePlayers at =
+        players
+        |> Array.mapi (fun index player ->
+            let t = max 0.0 (at - float index * 0.04)
+            let ramp = Math.Clamp(t - 1.0, 0.0, 2.0)
+            let cruise = Math.Clamp(t - 3.0, 0.0, 3.0)
+            let brake = Math.Clamp(t - 6.0, 0.0, 2.0)
+            let distance = 0.4 * ramp * ramp + 1.6 * cruise + 1.6 * brake - 0.4 * brake * brake
+
+            let speed =
+                if t < 3.0 then 0.8 * ramp
+                elif t < 6.0 then 1.6
+                elif t < 8.0 then 1.6 - 0.8 * brake
+                else 0.0
+
+            let pivot = Math.Clamp((t - 9.0) / 1.2, 0.0, 1.0)
+            let sign = if player.IsHome then 1.0 else -1.0
+
+            { player with
+                Position =
+                    { player.Position with
+                        X = player.Position.X + sign * distance }
+                Velocity = Vector2.create (sign * speed) 0.0
+                BodyFacing =
+                    (if player.IsHome then 0.0 else Math.PI)
+                    + pivot * pivot * (3.0 - 2.0 * pivot) * Math.PI * 0.5
+                TravelDistance = distance
+                State = if speed > 0.05 then Walking else Idle })
+
+    let motionConfig = AnimationConfig.defaultConfig
+
+    let motionRuntime =
+        MotionRuntime(
+            motionConfig,
+            { PlannerVersion = 1
+              ConfigHash = "probe-v1"
+              RigHash = "probe-rig"
+              ProfileHash = "probe-profile"
+              TrackId = 1UL }
+        )
+
+    let evaluator =
+        lazy
+            (let path =
+                IO.Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "player.glb")
+
+             match CharacterAsset.load path with
+             | Ok character -> MotionPaletteEvaluator(character.Rig, motionConfig)
+             | Error message -> invalidOp message)
+
+    let baseTime = (if secondHalf then 73.0 else 37.0) * 60.0 + 24.0
+
+    let preparePalette (frame: RenderFrame) =
+        let motionTime =
+            MotionTime.ofTicks ((frame.TimeSeconds - baseTime) / float motionConfig.TickSeconds)
+
+        let target = motionTime.Tick
+
+        let first =
+            if motionRuntime.Frontier < 0 then
+                0
+            else
+                motionRuntime.Frontier + 1
+
+        for tick = first to target do
+            let roots =
+                samplePlayers (float tick * float motionConfig.TickSeconds)
+                |> Array.map (fun player ->
+                    { Actor = PlayerId player.Id
+                      Generation = 1
+                      Position =
+                        System.Numerics.Vector3(
+                            float32 player.Position.X,
+                            float32 player.Position.Y,
+                            float32 player.Height
+                        )
+                      Velocity =
+                        System.Numerics.Vector3(
+                            float32 player.Velocity.X,
+                            float32 player.Velocity.Y,
+                            float32 player.VelocityZ
+                        )
+                      Facing = float32 player.BodyFacing
+                      AngularVelocity = float32 player.AngularVelocity
+                      Condition = float32 player.Condition / 100.0f
+                      AttentionTarget =
+                        ValueSome(
+                            System.Numerics.Vector3(
+                                float32 frame.Ball.Position.X,
+                                float32 frame.Ball.Position.Y,
+                                float32 (frame.Ball.Height + frame.Ball.Radius)
+                            )
+                        )
+                      Morphology = PhysicalMorphology.standard
+                      Active = true })
+
+            match
+                motionRuntime.Ingest
+                    { Tick = tick * 1<subtick>
+                      Roots = roots
+                      Evidence = [||] }
+            with
+            | Ok() -> ()
+            | Error error -> invalidOp (sprintf "%A" error)
+
+        evaluator.Value.Evaluate(motionRuntime, frame, motionTime) |> ignore
+        evaluator.Value.Palettes
+
     let frame () =
         time <- if fixedPose then 2.0 else time + 1.0 / 30.0
-
-        let movingPlayers =
-            players
-            |> Array.mapi (fun index player ->
-                let phase = time * 0.55 + float index * 0.63
-
-                { player with
-                    Position =
-                        { X = player.Position.X + sin phase * 2.0
-                          Y = player.Position.Y + cos phase * 1.5 }
-                    Velocity =
-                        { X = cos phase * 1.1
-                          Y = -sin phase * 0.825 }
-                    BodyFacing = atan2 (-sin phase * 0.825) (cos phase * 1.1)
-                    TravelDistance = time
-                    State = Walking })
+        let movingPlayers = samplePlayers time
 
         let carrier = movingPlayers |> Array.find _.HasBall
         let timeSeconds = (if secondHalf then 73.0 else 37.0) * 60.0 + 24.0 + time
@@ -258,9 +353,12 @@ type private ProbePitch() as this =
             let uploaded = active.HudUploadBytes
 
             let presented =
+                let frame = frame ()
+
                 active.Render(
                     nativeBounds,
-                    frame (),
+                    frame,
+                    preparePalette frame,
                     [||],
                     { HomeShortName = "RIV"
                       AwayShortName = "BOC"
@@ -570,8 +668,7 @@ module Program =
 
         override this.WriteLine(message: string) = this.Write(message)
 
-    [<EntryPoint>]
-    let main args =
+    let private runNative args =
         use validation = new ValidationTraceListener()
         Diagnostics.Trace.Listeners.Add(validation) |> ignore
 
@@ -585,3 +682,9 @@ module Program =
 
         Diagnostics.Trace.Listeners.Remove(validation)
         if validation.ErrorCount = 0 then exitCode else 1
+
+    [<EntryPoint>]
+    let main args =
+        match args with
+        | [| "--motion-bench"; output |] -> ProceduralMotionBench.run output
+        | _ -> runNative args

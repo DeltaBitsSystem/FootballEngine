@@ -12,8 +12,12 @@ module ChainLifetimeTests =
     let private awaySlot5Id = ctx.AwayLineup.Profiles.[5].Id
 
     let private planNow (tick: int<subtick>) =
-        { FutureReceivers = [| (9, 26.0<meter>, 0.0<meter>) |]
-          ExpiresAt = tick + 480<subtick> }
+        let duty slot x y = { Player = ctx.HomeLineup.Profiles[slot].Id; Slot = slot; Target = Vec2.create (x * 1.0<meter>) (y * 1.0<meter>) }
+        { Id = 1UL; Pattern = ThirdMan; Context = 1; StartedAt = tick; Deadline = tick + 480<subtick>
+          Stage = Preparing; Carrier = homeSlot5Id; Owner = homeSlot5Id; Link = duty 6 25.0 -8.0; Runner = duty 9 26.0 8.0; Security = duty 4 -9.0 8.0
+          Origin = Vec2.create 0.0<meter> 0.0<meter>; BaselineSpace = 0.5; Connections = 0; LastFact = None; Threat = 0.0
+          OwnedPoint = Vec2.create 0.0<meter> 0.0<meter>; OwnedSpace = 0.5; OwnedExposure = 0.0; FactTick = tick
+          Tactics = ctx.HomeClub.BaseTactics; BlockedSince = None }
 
     let private stepBoth (world: World) =
         let buf =
@@ -25,13 +29,11 @@ module ChainLifetimeTests =
             { Ctx = ctx
               Clock = SimulationClock.defaultClock }
 
+        let _ = TeamAttack.step sctx (Rng.ofSeed 1UL) world buf
         let _ = PlayerDecision.step sctx (Rng.ofSeed 1UL) world buf
         let _ = PlayerIntent.step sctx (Rng.ofSeed 1UL) world buf
         ()
 
-    /// Intent is the system that turns a plan into movement. Decision rewrites
-    /// plans every tick, so intent-behaviour tests run it alone: they assert
-    /// how the plan is READ, not how the plan is WRITTEN.
     let private stepIntent (world: World) =
         let buf =
             { Events = ResizeArray()
@@ -51,7 +53,7 @@ module ChainLifetimeTests =
             [ testCase "possession loss clears the plan" (fun _ ->
                   let world = TestBuilders.formationWorld ()
                   world.State <- { world.State with Tick = 100<subtick> }
-                  world.Home.ActivePlan <- Some(planNow 100<subtick>)
+                  world.Home.Attack.Episode <- Some(planNow 100<subtick>)
 
                   world.State <-
                       { world.State with
@@ -60,20 +62,19 @@ module ChainLifetimeTests =
                                   Control = BallControl.Controlled(ClubSide.Away, awaySlot5Id) } }
 
                   stepBoth world
-                  Expect.isNone world.Home.ActivePlan "plan cleared on possession loss")
+                  Expect.isNone world.Home.Attack.Episode "plan cleared on possession loss"
+                  Expect.equal (world.Home.Attack.Evidence |> Map.toSeq |> Seq.sumBy (fun (_, value) -> value.Samples)) 1.0 "loss is learned once")
 
-              testCase "carrier change clears the old plan's intent" (fun _ ->
+              testCase "completed connection retains the collective episode across carrier change" (fun _ ->
                   let world = TestBuilders.formationWorld ()
                   world.State <- { world.State with Tick = 100<subtick> }
 
-                  world.Home.ActivePlan <-
-                      Some
-                          { FutureReceivers = [| (6, 25.0<meter>, -8.0<meter>) |]
-                            ExpiresAt = 580<subtick> }
+                  world.Home.Attack.Episode <- Some(planNow 100<subtick>)
 
                   // The previous carrier must be recorded, or the clear is
                   // skipped: a plan born on this very tick stays alive.
                   world.Home.LastCarrierSlot <- 5
+                  EventApply.apply ctx world { Tick = 100<subtick>; Data = EventData.Pass(homeSlot5Id, Some homeSlot6Id, 12.0<meter>, 1.0, true, 0.0<meter>, 0.0<meter>, 12.0<meter>, 8.0<meter>) }
 
                   world.State <-
                       { world.State with
@@ -82,6 +83,10 @@ module ChainLifetimeTests =
                                   Control = BallControl.Controlled(ClubSide.Home, homeSlot6Id) } }
 
                   stepBoth world
+
+                  Expect.equal (world.Home.Attack.Episode |> Option.map _.Id) (Some 1UL) "expected teammate connection retains identity"
+                  Expect.equal (world.Home.Attack.Episode |> Option.map _.Stage) (Some Connected) "real pass advances one milestone"
+                  Expect.equal world.Home.Attack.Evidence Map.empty "an intermediate connection is not terminal reward"
 
                   Expect.notEqual
                       world.Home.Frame.Intent.Kind.[6]
@@ -116,10 +121,7 @@ module ChainLifetimeTests =
                   let world = TestBuilders.formationWorld ()
                   world.State <- { world.State with Tick = 100<subtick> }
 
-                  world.Home.ActivePlan <-
-                      Some
-                          { FutureReceivers = [| (6, 25.0<meter>, -8.0<meter>) |]
-                            ExpiresAt = 50<subtick> }
+                  world.Home.Attack.Episode <- Some { planNow 0<subtick> with Deadline = 50<subtick> }
 
                   world.State <-
                       { world.State with
@@ -127,7 +129,7 @@ module ChainLifetimeTests =
                               { world.State.Ball with
                                   Control = BallControl.Controlled(ClubSide.Home, homeSlot5Id) } }
 
-                  stepIntent world
+                  stepBoth world
 
                   Expect.notEqual
                       world.Home.Frame.Intent.Kind.[6]
@@ -138,10 +140,7 @@ module ChainLifetimeTests =
                   let world = TestBuilders.formationWorld ()
                   world.State <- { world.State with Tick = 100<subtick> }
 
-                  world.Home.ActivePlan <-
-                      Some
-                          { FutureReceivers = [| (6, 25.0<meter>, -8.0<meter>) |]
-                            ExpiresAt = 580<subtick> }
+                  world.Home.Attack.Episode <- Some(planNow 100<subtick>)
 
                   world.State <-
                       { world.State with
@@ -150,7 +149,7 @@ module ChainLifetimeTests =
                                   Control = BallControl.Controlled(ClubSide.Home, homeSlot5Id) } }
 
                   stepIntent world
-                  Expect.equal world.Home.Frame.Intent.Kind.[6] (byte IntentCode.ExecuteRun) "ExecuteRun set"
+                  Expect.equal world.Home.Frame.Intent.Kind.[6] (byte IntentCode.Support) "coordinated support set"
                   Expect.equal world.Home.Frame.Intent.TargetX.[6] 25.0f "TargetX"
                   Expect.equal world.Home.Frame.Intent.TargetY.[6] -8.0f "TargetY")
 
@@ -158,10 +157,7 @@ module ChainLifetimeTests =
                   let world = TestBuilders.formationWorld ()
                   world.State <- { world.State with Tick = 100<subtick> }
 
-                  world.Home.ActivePlan <-
-                      Some
-                          { FutureReceivers = [| (6, 25.0<meter>, -8.0<meter>) |]
-                            ExpiresAt = 580<subtick> }
+                  world.Home.Attack.Episode <- Some(planNow 100<subtick>)
 
                   world.State <-
                       { world.State with

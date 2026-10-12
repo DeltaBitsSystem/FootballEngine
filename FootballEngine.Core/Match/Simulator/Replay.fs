@@ -11,7 +11,7 @@ module Replay =
     let private magic = 0x33525046
 
     [<Literal>]
-    let private formatVersion = 10
+    let formatVersion = 11
 
     [<Literal>]
     let blockSize = 32
@@ -73,6 +73,11 @@ module Replay =
           AwayIntent: byte[]
           AwayActive: bool[] }
 
+    type ReplaySection =
+        { Kind: uint32
+          Version: int
+          Payload: byte[] }
+
     type ReplayData =
         { Snapshots: byte[]
           Count: int
@@ -81,7 +86,8 @@ module Replay =
           AwaySlotCount: int
           HomePlayerIds: PlayerId[]
           AwayPlayerIds: PlayerId[]
-          BlockOffsets: int[] }
+          BlockOffsets: int[]
+          Sections: ReplaySection[] }
 
     module Quantization =
         [<Literal>]
@@ -436,6 +442,7 @@ module Replay =
         let awaySlotCount = awayPlayerIds.Length
         let frames = new MemoryStream()
         let blockOffsets = ResizeArray<int>()
+        let motion = new MotionTrack.Writer()
         let mutable count = 0
         let mutable completed: ReplayData option = None
 
@@ -463,6 +470,9 @@ module Replay =
             writeSnapshot writer homeSlotCount awaySlotCount snapshot
             writer.Flush()
             count <- count + 1
+
+        member _.AppendMotion(boundary: MotionBoundary) = motion.Append boundary
+        member _.ReadMotionBlock(tick: int<subtick>) = motion.ReadBlock tick
 
         member _.Complete() : ReplayData =
             match completed with
@@ -510,13 +520,16 @@ module Replay =
                       AwaySlotCount = awaySlotCount
                       HomePlayerIds = homePlayerIds
                       AwayPlayerIds = awayPlayerIds
-                      BlockOffsets = absoluteOffsets }
+                      BlockOffsets = absoluteOffsets
+                      Sections = [| { Kind = 1u; Version = 1; Payload = motion.Complete() } |] }
 
                 completed <- Some data
                 data
 
         interface IDisposable with
-            member _.Dispose() = frames.Dispose()
+            member _.Dispose() =
+                frames.Dispose()
+                (motion :> IDisposable).Dispose()
 
     let write (snapshots: ReplaySnapshot list) : ReplayData =
         let homeCount =

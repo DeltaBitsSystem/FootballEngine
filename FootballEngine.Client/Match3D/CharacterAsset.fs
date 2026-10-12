@@ -8,6 +8,7 @@ open System.Security.Cryptography
 open System.Text.Json
 open SharpGLTF.Schema2
 open SkiaSharp
+open FootballEngine.Client.Animation
 
 type CharacterTextureData =
     { Width: int
@@ -38,6 +39,7 @@ type CharacterAssetData =
       JointNodes: int[]
       InverseBind: Matrix4x4[]
       Clips: Map<string, CharacterClip>
+      Rig: RigDefinition
       JointCount: int }
 
 module CharacterAsset =
@@ -161,6 +163,69 @@ module CharacterAsset =
                 |> Option.defaultWith (fun () -> invalidData $"Required contact joint '{name}.{suffix}' is missing.")
 
             struct (node "thigh", node "shin", node "foot", node "toe")
+
+        let semantic name =
+            nodes |> Array.findIndex (fun node -> node.Name = name)
+
+        let bind: RigLocalPose[] =
+            nodes
+            |> Array.map (fun node ->
+                let pose = node.LocalTransform
+
+                { Translation = pose.Translation
+                  Rotation = pose.Rotation
+                  Scale = pose.Scale })
+
+        let bindWorld = Array.create nodes.Length Matrix4x4.Identity
+
+        for node = 0 to nodes.Length - 1 do
+            let pose = bind[node]
+
+            let matrix =
+                Matrix4x4.CreateFromQuaternion(pose.Rotation)
+                * Matrix4x4.CreateTranslation(pose.Translation)
+
+            bindWorld[node] <-
+                if parents[node] < 0 then
+                    matrix
+                else
+                    matrix * bindWorld[parents[node]]
+
+        let limb upper lower ending sole =
+            let endpoint = semantic ending
+            let mutable inverse = Matrix4x4.Identity
+
+            if not (Matrix4x4.Invert(bindWorld[endpoint], &inverse)) then
+                invalidData "Singular contact socket transform."
+
+            { Upper = semantic upper
+              Lower = semantic lower
+              End = endpoint
+              Socket = Vector3.TransformNormal(sole, inverse)
+              SocketNormal = Vector3.TransformNormal(Vector3.UnitY, inverse)
+              SocketForward = Vector3.TransformNormal(Vector3.UnitZ, inverse)
+              Pole = Vector3.UnitZ
+              MinimumFlex = 0.025f
+              MaximumFlex = 2.60f }
+
+        let rig =
+            { Hash = actualHash
+              Parents = parents
+              DescendantEnds = RigDefinition.descendantEnds parents
+              Bind = bind
+              JointNodes = jointNodes
+              InverseBind = inverseBind
+              LeftLeg = limb "thigh.L" "shin.L" "foot.L" (Vector3(0.0f, -0.095f, 0.10f))
+              RightLeg = limb "thigh.R" "shin.R" "foot.R" (Vector3(0.0f, -0.095f, 0.10f))
+              LeftArm = limb "upper_arm.L" "forearm.L" "hand.L" Vector3.Zero
+              RightArm = limb "upper_arm.R" "forearm.R" "hand.R" Vector3.Zero
+              Pelvis = semantic "pelvis"
+              Torso = semantic "chest"
+              Head = semantic "head" }
+
+        match RigDefinition.validate rig with
+        | Ok() -> ()
+        | Error message -> invalidData message
 
         let clips =
             manifest.GetProperty("clips").EnumerateArray()
@@ -299,6 +364,7 @@ module CharacterAsset =
           JointNodes = jointNodes
           InverseBind = inverseBind
           Clips = clips
+          Rig = rig
           JointCount = skin.JointsCount }
 
     let load path =

@@ -201,10 +201,10 @@ module ConfigTests =
                   | Ok _ -> failtest "MaxChainLength 0 must error"
 
                   match
-                      WeightMerge.mergeWithDefaults """{ "Planner": { "PlanTTL": -10 } }""" BalanceConfig.defaultConfig
+                      WeightMerge.mergeWithDefaults """{ "CollectiveAttack": { "Duration": -10 } }""" BalanceConfig.defaultConfig
                   with
-                  | Error msg -> Expect.stringContains msg "PlanTTL" "error must name the invalid field"
-                  | Ok _ -> failtest "negative PlanTTL must error"
+                  | Error msg -> Expect.stringContains msg "Duration" "error must name the invalid field"
+                  | Ok _ -> failtest "negative collective Duration must error"
 
                   match
                       WeightMerge.mergeWithDefaults

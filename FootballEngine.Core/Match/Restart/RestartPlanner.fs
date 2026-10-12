@@ -165,11 +165,15 @@ module RestartPlanner =
                                 RestartRole.Goalkeeper, target
                             else
                                 RestartRole.Wall, target
-                        elif currentSide = opponent && kind = SetPieceKind.Penalty then
-                            if slot = 0 then
+                        elif kind = SetPieceKind.Penalty then
+                            if currentSide = opponent && currentFrame.SlotRoles[slot] = SlotRole.Goalkeeper then
                                 RestartRole.Goalkeeper, clampPoint (float (MatchMath.goalX side)) 0.0
                             else
-                                RestartRole.Support, awayFrom spot current (float Pitch.PenaltyAreaDepth)
+                                let dir = MatchMath.goalDirection side
+                                // A radial exclusion cannot guarantee leaving the rectangular area or staying behind the spot.
+                                let boundary = float (MatchMath.goalX side) * dir - float Pitch.PenaltyAreaDepth - float ctx.Config.SetPiece.TargetTolerance
+                                let behindArea = clampPoint (min (float current.X * dir) boundary * dir) (float current.Y)
+                                RestartRole.Support, awayFrom spot behindArea (float ctx.Config.SetPiece.WallDistance + float ctx.Config.SetPiece.TargetTolerance)
                         elif
                             currentSide = side
                             && (match actionFor ctx world kind side executorSlot spot with

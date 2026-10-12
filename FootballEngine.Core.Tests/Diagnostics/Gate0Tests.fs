@@ -68,7 +68,7 @@ module Gate0Tests =
          team.EventWindow.Ticks,
          team.EventWindow.Kinds,
          team.EventWindow.Counts,
-         team.ActivePlan,
+         CollectiveAttackState.snapshot team.Attack,
          team.LastCarrierSlot,
          team.PendingActions
          |> Seq.map (fun entry -> entry.Key, entry.Value)

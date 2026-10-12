@@ -31,7 +31,7 @@ module Pass =
         let ry = MatchWorld.posY frame targetSlot
 
         let d = MatchMath.dist x y rx ry
-        let speed = float ctx.Ctx.Config.Actions.PassLaunchSpeed + float d * 0.1
+        let speed = float cfg.Actions.PassLaunchSpeed + float d * cfg.Actions.PassDistanceSpeedGain
         let originX = world.State.Ball.Position.X
         let originY = world.State.Ball.Position.Y
         let flightDistance = MatchMath.dist originX originY rx ry

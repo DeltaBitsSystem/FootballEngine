@@ -918,7 +918,7 @@ let tests =
                       | Ok session ->
                           MatchSession.finish session
                           |> function
-                              | Ok outcome -> WorldRunner.matchJobResult job outcome
+                              | Ok outcome -> WorldRunner.matchJobResult job session.Commands outcome
                               | Error error -> failtestf "Cannot finish match: %A" error
 
               let initial, _ = AppState.initWithGlobal GlobalSettings.defaults None ()

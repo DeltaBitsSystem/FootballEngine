@@ -52,6 +52,7 @@ type MovementConfig =
       SeparationStrength: float
       TurningRate: float<radianPerSecond>
       TurningAcceleration: float<radianPerSecondSquared>
+      FacingIntentDistance: float<meter>
       StandingHeight: float<meter>
       JumpSpeed: float<meterPerSecond>
       AerialIntentRadius: float<meter>
@@ -78,6 +79,7 @@ type ActionsConfig =
       PassJitterBase: float
       PassHeavyTouchChance: float
       PassLaunchSpeed: float<meterPerSecond>
+      PassDistanceSpeedGain: float
       MaxPassExecutionDistance: float<meter>
       ShotQualityGate: float
       ShotAngleSpread: float
@@ -171,6 +173,38 @@ type TeamConfig =
 /// Referee behaviour — foul severity, cards, VAR, advantage, home-card bias.
 /// (was FoulAnalysis consts + RefereeWeights + HomeAdvantage card parts)
 [<Struct>]
+type DefensiveTransitionConfig =
+    { ReevaluateTicks: int<tickDelta>
+      Commitment: int<subtick>
+      MaxPressDuration: int<subtick>
+      StabilizationHold: int<subtick>
+      BaseArrivalWindow: float<second>
+      PressArrivalExtension: float<second>
+      LocalArrivalWindow: float<second>
+      CoverArrivalWindow: float<second>
+      HandoffAdvantage: float<second>
+      MinimumPressIntensity: float
+      MinimumPressCondition: float
+      MinimumLocalPlayers: int
+      LocalSurplus: int
+      ApproachOffset: float<meter>
+      CarrierPrediction: float<second>
+      CoverDepth: float<meter>
+      BeatenMargin: float<meter>
+      EscapeProgress: float<meter>
+      ThreatGoalDistance: float<meter>
+      CentralHalfWidth: float<meter>
+      DepthSafety: float<meter>
+      ScreenFraction: float
+      RetreatBallGap: float<meter>
+      RetreatWidthScale: float
+      SettledTolerance: float<meter>
+      MaximumScreens: int
+      CoverEffort: float
+      ScreenEffort: float
+      RecoveryEffort: float }
+
+[<Struct>]
 type RefereeConfig =
     { FoulMinorChance: float
       FoulTacticalChance: float
@@ -228,11 +262,52 @@ type MatchConfig =
       ExtraTimePeriodDuration: float<second>
       ShootoutRounds: int }
 
-/// Action chain planner — controls chain depth, evaluation budget, and plan TTL.
+/// Bounds individual continuation search independently of collective commitments.
 type PlannerConfig =
-    { MaxChainLength: int
+    { Enabled: bool
+      MaxChainLength: int
       MaxEvaluateLimit: int
-      PlanTTL: int<subtick> }
+      BeamWidth: int
+      DribbleDuration: float<second>
+      MinimumPassDistance: float<meter>
+      ShootingRange: float<meter> }
+
+type CollectiveAttackConfig =
+    { Enabled: bool
+      Duration: int<subtick>
+      Recovery: int<subtick>
+      CounterHold: int<subtick>
+      SupportDepth: float<meter>
+      SupportWidth: float<meter>
+      RunDepth: float<meter>
+      SwitchWidth: float<meter>
+      SecurityDepth: float<meter>
+      OffsideMargin: float<meter>
+      MaxArrival: float<second>
+      LaneRadius: float<meter>
+      SpaceScale: float<meter>
+      MinimumCondition: float
+      MinimumScore: float
+      MinimumDutySeparation: float<meter>
+      PressureRadius: float<meter>
+      PressureCount: int
+      LearningEnabled: bool
+      LearningWeight: float
+      Exploration: float
+      PriorStrength: float
+      EvidenceCap: float
+      SeasonalRetention: float
+      CooperationWeight: float
+      ProgressReward: float
+      SpaceReward: float
+      ConnectionReward: float
+      ThreatReward: float
+      LossPenalty: float
+      IdlePenalty: float
+      ExposurePenalty: float
+      TerritoryBoundary: float<meter>
+      AnticipationHorizon: float<second>
+      AnticipationConfidence: float }
 
 // ScoutConfig/CounterConfig live in ScoutingConfig.fs: Domain/Scouting.fs must
 // compile before Domain/Club.fs (Club carries ScoutingMemory), and this file
@@ -265,15 +340,6 @@ type PositioningConfig =
 type InterceptConfig =
     { ControlRadius: float<meter>
       MaxSteps: int }
-
-/// Gliders-style pressing: the step allowance per role before chasing a loose
-/// ball, and the horizon beyond which nobody chases.
-[<Struct>]
-type PressConfig =
-    { BaseAllowance: int
-      MidfieldAllowance: int
-      FullBackAllowance: int
-      MaxPressStep: int }
 
 /// HELIOS updateSituation: the intercept-step lead that commits the team to a
 /// phase.
@@ -388,9 +454,9 @@ type BalanceConfig =
       Actions: ActionsConfig
       SetPiece: SetPieceConfig
       Team: TeamConfig
+      DefensiveTransition: DefensiveTransitionConfig
       Positioning: PositioningConfig
       Intercept: InterceptConfig
-      Press: PressConfig
       Situation: SituationConfig
       PassIntercept: PassInterceptConfig
       Referee: RefereeConfig
@@ -398,6 +464,7 @@ type BalanceConfig =
       Environment: EnvironmentConfig
       Match: MatchConfig
       Planner: PlannerConfig
+      CollectiveAttack: CollectiveAttackConfig
       Scout: ScoutConfig
       Counter: CounterConfig
       Transfer: TransferConfig
@@ -407,6 +474,32 @@ type BalanceConfig =
       Weights: WeightSections }
 
 module BalanceConfig =
+
+    let defaultCollectiveAttack: CollectiveAttackConfig =
+        // Episodes last several deliveries, but stale geometry and unsupported runs remain costly.
+        { Enabled = true; Duration = 480<subtick>; Recovery = 80<subtick>; CounterHold = 60<subtick>
+          LearningEnabled = true; MinimumDutySeparation = 3.0<meter>; PressureRadius = 8.0<meter>; PressureCount = 2
+          SupportDepth = 6.0<meter>; SupportWidth = 8.0<meter>; RunDepth = 13.0<meter>
+          SwitchWidth = 24.0<meter>; SecurityDepth = 9.0<meter>; OffsideMargin = 1.5<meter>
+          MaxArrival = 4.0<second>; LaneRadius = 2.0<meter>; SpaceScale = 12.0<meter>
+          MinimumCondition = 0.3; MinimumScore = 0.1; LearningWeight = 0.45; Exploration = 0.18
+          PriorStrength = 3.0; EvidenceCap = 48.0; SeasonalRetention = 0.65; CooperationWeight = 0.22
+          ProgressReward = 0.4; SpaceReward = 0.15; ConnectionReward = 0.12; ThreatReward = 0.5
+          LossPenalty = 0.65; IdlePenalty = 0.18; ExposurePenalty = 0.15
+          TerritoryBoundary = 20.0<meter>; AnticipationHorizon = 1.5<second>; AnticipationConfidence = 0.65 }
+
+    let defaultDefensiveTransition: DefensiveTransitionConfig =
+        // A short commitment tolerates geometry noise; depth danger still overrides it immediately.
+        { ReevaluateTicks = 4<tickDelta>; Commitment = 24<subtick>; MaxPressDuration = 240<subtick>
+          StabilizationHold = 24<subtick>
+          BaseArrivalWindow = 1.2<second>; PressArrivalExtension = 0.8<second>
+          LocalArrivalWindow = 2.0<second>; CoverArrivalWindow = 1.8<second>; HandoffAdvantage = 0.25<second>
+          MinimumPressIntensity = 0.3; MinimumPressCondition = 0.55; MinimumLocalPlayers = 3; LocalSurplus = 1
+          ApproachOffset = 0.75<meter>; CarrierPrediction = 0.15<second>; CoverDepth = 6.0<meter>
+          BeatenMargin = 2.5<meter>; EscapeProgress = 10.0<meter>; ThreatGoalDistance = 28.0<meter>
+          CentralHalfWidth = 18.0<meter>; DepthSafety = 3.0<meter>; ScreenFraction = 0.45
+          RetreatBallGap = 8.0<meter>; RetreatWidthScale = 0.6; SettledTolerance = 3.0<meter>
+          MaximumScreens = 2; CoverEffort = 0.85; ScreenEffort = 0.85; RecoveryEffort = 1.0 }
 
     let defaultBall: BallConfig =
         { Gravity = 9.81<meterPerSecondSquared>
@@ -456,6 +549,7 @@ module BalanceConfig =
           SeparationStrength = 0.5
           TurningRate = 3.0<radianPerSecond>
           TurningAcceleration = 12.0<radianPerSecondSquared>
+          FacingIntentDistance = 0.60<meter>
           StandingHeight = 1.85<meter>
           JumpSpeed = 3.6<meterPerSecond>
           AerialIntentRadius = 1.6<meter>
@@ -478,6 +572,7 @@ module BalanceConfig =
           PassJitterBase = 0.2
           PassHeavyTouchChance = 0.05
           PassLaunchSpeed = 22.0<meterPerSecond>
+          PassDistanceSpeedGain = 0.1
           MaxPassExecutionDistance = 65.0<meter>
           ShotQualityGate = 0.5
           ShotAngleSpread = 0.3
@@ -582,12 +677,6 @@ module BalanceConfig =
         { ControlRadius = 2.5<meter>
           MaxSteps = 50 }
 
-    let defaultPress: PressConfig =
-        { BaseAllowance = 13
-          MidfieldAllowance = 7
-          FullBackAllowance = 23
-          MaxPressStep = 30 }
-
     let defaultSituation: SituationConfig = { LeadSteps = 2 }
 
     let defaultPassIntercept: PassInterceptConfig =
@@ -643,9 +732,13 @@ module BalanceConfig =
           ShootoutRounds = 5 }
 
     let defaultPlanner: PlannerConfig =
-        { MaxChainLength = 4
+        { Enabled = true
+          MaxChainLength = 4
           MaxEvaluateLimit = 500
-          PlanTTL = 480<subtick> }
+          BeamWidth = 3
+          DribbleDuration = 0.5<second>
+          MinimumPassDistance = 0.5<meter>
+          ShootingRange = 32.0<meter> }
 
     let defaultScout: ScoutConfig =
         { MemoryHalfLifeDays = 30.0
@@ -747,9 +840,9 @@ module BalanceConfig =
           Actions = defaultActions
           SetPiece = defaultSetPiece
           Team = defaultTeam
+          DefensiveTransition = defaultDefensiveTransition
           Positioning = defaultPositioning
           Intercept = defaultIntercept
-          Press = defaultPress
           Situation = defaultSituation
           PassIntercept = defaultPassIntercept
           Referee = defaultReferee
@@ -757,6 +850,7 @@ module BalanceConfig =
           Environment = defaultEnvironment
           Match = defaultMatch
           Planner = defaultPlanner
+          CollectiveAttack = defaultCollectiveAttack
           Scout = defaultScout
           Counter = defaultCounter
           Transfer = defaultTransfer

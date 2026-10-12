@@ -55,7 +55,84 @@ module FootMotionTests =
     let tests =
         testList
             "FootMotion"
-            [ testCase "steady motion integration allocates no managed memory" (fun _ ->
+            [ testCase "strike evidence captures exact system and published boundary with pre post velocity" (fun _ ->
+                  let world, events = controlled (), buffer ()
+                  request world events
+                  let pending = world.State.Ball.PendingStrike.Value
+                  let preparation = Array.zeroCreate<MotionEvidence> 4
+
+                  Expect.equal
+                      (world.Motion.Read(1UL, 0<subtick>, preparation))
+                      (Ok(struct (1UL, 0)))
+                      "request is not published in its producing tick"
+
+                  world.Motion.Read(1UL, 1<subtick>, preparation) |> ignore
+                  let planned = preparation[0]
+                  let contact = SimTick.value pending.Impulse.ContactTick
+                  Expect.equal planned.CommitAt (contact + 1<subtick>) "commit is the post step boundary"
+                  world.State <- { world.State with Tick = contact }
+                  let incoming = world.State.Ball.Position
+                  BallFootContact.step sctx (Rng.ofSeed 1UL) world events |> ignore
+
+                  Expect.equal
+                      (world.Motion.Read(2UL, contact, preparation))
+                      (Ok(struct (2UL, 0)))
+                      "confirmation unavailable until boundary"
+
+                  Expect.equal
+                      (world.Motion.Read(2UL, contact + 1<subtick>, preparation))
+                      (Ok(struct (3UL, 1)))
+                      "exact boundary, no one tick tolerance"
+
+                  let confirmed = preparation[0]
+                  Expect.equal confirmed.TaskId planned.TaskId "confirmation belongs to preparation"
+                  Expect.equal confirmed.OccurredAt contact "impulse producing tick"
+                  Expect.equal confirmed.CommitAt (contact + 1<subtick>) "envelope and commit agree"
+                  Expect.equal confirmed.PredictedPoint planned.PredictedPoint "prediction is not overwritten"
+
+                  Expect.equal
+                      confirmed.IncomingVelocity
+                      (ValueSome(Vector3(float32 incoming.Vx, float32 incoming.Vy, float32 incoming.Vz)))
+                      "captured before impulse"
+
+                  let outgoing = world.State.Ball.Position
+
+                  Expect.equal
+                      confirmed.OutgoingVelocity
+                      (ValueSome(Vector3(float32 outgoing.Vx, float32 outgoing.Vy, float32 outgoing.Vz)))
+                      "captured after impulse"
+
+                  Expect.isTrue confirmed.ConfirmedPoint.IsSome "real surface point captured")
+              testCase "reception evidence is reactive and available only after momentum absorption" (fun _ ->
+                  let world, events = controlled (), buffer ()
+
+                  world.State <-
+                      { world.State with
+                          Tick = 8<subtick>
+                          Ball =
+                              { world.State.Ball with
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          Vx = 12.0<meterPerSecond> } } }
+
+                  BallFootContact.receive sctx world events ClubSide.Home 5
+                  let output = Array.zeroCreate<MotionEvidence> 2
+
+                  Expect.equal
+                      (world.Motion.Read(1UL, 8<subtick>, output))
+                      (Ok(struct (1UL, 0)))
+                      "no invented anticipation"
+
+                  world.Motion.Read(1UL, 9<subtick>, output) |> ignore
+                  Expect.equal output[0].Family MotionFamily.Reception "explicit receiving producer"
+                  Expect.equal output[0].CommitAt 9<subtick> "exact touch boundary"
+                  Expect.equal output[0].IncomingVelocity.Value.X 12.0f "incoming velocity preserved"
+
+                  Expect.equal
+                      output[0].OutgoingVelocity.Value.X
+                      (float32 world.State.Ball.Position.Vx)
+                      "outgoing is absorption result")
+              testCase "steady motion integration allocates no managed memory" (fun _ ->
                   let ball =
                       { TestBuilders.emptyBall with
                           Position =

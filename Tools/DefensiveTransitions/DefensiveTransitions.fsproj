@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../FootballEngine.Core/FootballEngine.Core.fsproj" />
+    <Compile Include="../../FootballEngine.Core.Tests/Infrastructure/TestBuilders.fs" Link="TestBuilders.fs" />
+    <Compile Include="../../FootballEngine.Core.Tests/Systems/Team/DefensiveTransitionFixtures.fs" Link="Fixtures.fs" />
+    <Compile Include="PairedProbe.fs" />
+  </ItemGroup>
+</Project>

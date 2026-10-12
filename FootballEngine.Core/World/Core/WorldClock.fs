@@ -14,7 +14,8 @@ module WorldClockOps =
           Revision = 0UL
           ScheduledWork = []
           ConsumedWork = Set.empty
-          PhaseHistory = [] }
+          PhaseHistory = []
+          MatchExecutions = Map.empty }
 
     let advance (clock: WorldClock) : WorldClock =
         let d = clock.Current.Day + 1

@@ -46,7 +46,9 @@ module EventFlagTests =
           EventKind.SubstitutionApplied
           EventKind.ShootoutStarted
           EventKind.ShootoutKick
-          EventKind.ShootoutFinished ]
+          EventKind.ShootoutFinished
+          EventKind.DefensiveTransition
+          EventKind.TeamInstruction ]
 
     /// Runtime-exhaustive: one event value per EventData constructor.
     let private sampleEvents () : MatchEvent list =
@@ -138,7 +140,11 @@ module EventFlagTests =
           { Tick = 0<subtick>
             Data = EventData.ShootoutKick(ClubSide.Home, p, true) }
           { Tick = 0<subtick>
-            Data = EventData.ShootoutFinished } ]
+            Data = EventData.ShootoutFinished }
+          { Tick = 0<subtick>
+            Data = EventData.DefensiveTransition(ClubSide.Home, EventId 1UL, ModeSelected(Counterpress, LocalAdvantage)) }
+          { Tick = 0<subtick>
+            Data = EventData.TeamInstruction ClubSide.Home } ]
 
     let eventFlagTests =
         testList
@@ -214,7 +220,9 @@ module EventFlagTests =
                         EventKind.SubstitutionApplied
                         EventKind.ShootoutStarted
                         EventKind.ShootoutKick
-                        EventKind.ShootoutFinished ]
+                        EventKind.ShootoutFinished
+                        EventKind.DefensiveTransition
+                        EventKind.TeamInstruction ]
 
                   let actual = sampleEvents () |> List.map MatchEvent.kind
                   Expect.equal actual expected "kind must map every EventData constructor"
@@ -222,8 +230,6 @@ module EventFlagTests =
 
               test "MatchEvent.kind matches its own flag" {
                   for ev in sampleEvents () do
-                      let flag = EventFlags.ofKind (MatchEvent.kind ev)
-
                       let bits = EventFlags.ofKind (MatchEvent.kind ev)
                       Expect.isTrue (bits.Bits <> 0UL) "every event kind must produce a valid flag"
               }
@@ -242,8 +248,8 @@ module EventFlagTests =
                       "each kind owns one scheduler bit"
 
                   let combined =
-                      allKinds
-                      |> List.fold (fun acc k -> EventFlags.union acc (EventFlags.ofKind k)) { Bits = 0UL }
+                      runtimeKinds
+                      |> Array.fold (fun acc k -> EventFlags.union acc (EventFlags.ofKind k)) { Bits = 0UL }
 
                   Expect.equal combined EventFlags.all "all must be the union of every kind"
               } ]

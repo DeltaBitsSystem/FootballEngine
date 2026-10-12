@@ -15,12 +15,83 @@ type MatchSession =
       Events: ResizeArray<MatchEvent>
       ReplayWriter: Replay.ReplayWriter option
       AppliedOutput: MatchEvent[]
+      MotionScratch: MotionEvidence[]
+      mutable MotionCursor: uint64
       mutable Finished: MatchOutcome option }
 
 module MatchSession =
 
+    let private captureMotion (session: MatchSession) =
+        let captureTeam side (team: TeamWorld) =
+            let frame = team.Frame
+            let mutable activeCount = 0
+
+            for slot = 0 to team.RosterIds.Length - 1 do
+                if MatchWorld.isActiveSlot frame.Occupancy[slot] then
+                    activeCount <- activeCount + 1
+
+            let mutable slot = -1
+
+            Array.init activeCount (fun _ ->
+                slot <- slot + 1
+
+                while not (MatchWorld.isActiveSlot frame.Occupancy[slot]) do
+                    slot <- slot + 1
+
+                let actor = team.RosterIds[slot]
+                let mutable generation = 0
+
+                for index = 0 to team.Participation.Intervals.Count - 1 do
+                    if team.Participation.Intervals[index].PlayerId = actor then
+                        generation <- generation + 1
+
+                { Actor = actor
+                  Generation = generation
+                  Position = System.Numerics.Vector3(frame.PosX[slot], frame.PosY[slot], frame.PosZ[slot])
+                  Velocity = System.Numerics.Vector3(frame.VelX[slot], frame.VelY[slot], frame.VelZ[slot])
+                  Facing = frame.BodyFacing[slot]
+                  AngularVelocity = frame.BodyAngularVelocity[slot]
+                  Condition = frame.Condition[slot]
+                  AttentionTarget =
+                    ValueSome(
+                        System.Numerics.Vector3(
+                            float32 session.World.State.Ball.Position.X,
+                            float32 session.World.State.Ball.Position.Y,
+                            float32 (session.World.State.Ball.Position.Z + session.World.State.Ball.Radius)
+                        )
+                    )
+                  Morphology = (MatchWorld.profileOf session.Input.Context side slot).Morphology
+                  Active = MatchWorld.isActiveSlot frame.Occupancy[slot] })
+
+        match session.World.Motion.Read(session.MotionCursor, session.World.State.Tick, session.MotionScratch) with
+        | Error error -> Error(InvalidAdvanceBoundary(sprintf "motion journal recovery required: %A" error))
+        | Ok(struct (cursor, count)) ->
+            session.MotionCursor <- cursor
+
+            Ok
+                { Tick = session.World.State.Tick
+                  Roots =
+                    Array.append
+                        (captureTeam ClubSide.Home session.World.Home)
+                        (captureTeam ClubSide.Away session.World.Away)
+                  Evidence =
+                    if count = 0 then
+                        [||]
+                    else
+                        session.MotionScratch[0 .. count - 1] }
+
+    let initialMotion (session: MatchSession) =
+        if session.World.State.Tick <> 0<subtick> then
+            Error(InvalidAdvanceBoundary "initial motion is available only at session creation")
+        else captureMotion session
+
+    let motionBlock tick (session: MatchSession) =
+        match session.ReplayWriter with
+        | Some writer -> writer.ReadMotionBlock tick
+        | None -> Error "this session does not retain a motion archive"
+
     // Event identity hashing changed to a non-allocating structural form.
-    let private checkpointVersion = 3
+    let private checkpointVersion = 6
     let maxTicks = 400000<subtick>
     // A journal accepted by the session must fit the same bounded checkpoint reader.
     let maxCommands = 100000
@@ -160,6 +231,10 @@ module MatchSession =
         writeCommands writer checkpoint.Pending
         writer.Write checkpoint.EventsHash
         writer.Write checkpoint.TraceCount
+        DefensiveCheckpoint.write writer checkpoint.HomeDefense
+        DefensiveCheckpoint.write writer checkpoint.AwayDefense
+        AttackCheckpoint.write writer checkpoint.HomeAttack
+        AttackCheckpoint.write writer checkpoint.AwayAttack
         writer.Flush()
         stream.ToArray()
 
@@ -198,7 +273,11 @@ module MatchSession =
                               Commands = readCommands reader
                               Pending = readCommands reader
                               EventsHash = reader.ReadUInt64()
-                              TraceCount = reader.ReadInt32() }
+                              TraceCount = reader.ReadInt32()
+                              HomeDefense = DefensiveCheckpoint.read reader
+                              AwayDefense = DefensiveCheckpoint.read reader
+                              HomeAttack = AttackCheckpoint.read reader
+                              AwayAttack = AttackCheckpoint.read reader }
 
                         if checkpoint.Frontier < 0<subtick> || checkpoint.TraceCount < 0 then
                             Error(InvalidCheckpoint "checkpoint contains a negative frontier or trace count")
@@ -224,7 +303,11 @@ module MatchSession =
           Commands = session.Commands
           Pending = session.Pending
           EventsHash = MatchOutcomeHash.eventsHash (List.ofSeq session.Events)
-          TraceCount = session.World.Observation.Count }
+          TraceCount = session.World.Observation.Count
+          HomeDefense = DefensiveCheckpoint.snapshot session.World.Home
+          AwayDefense = DefensiveCheckpoint.snapshot session.World.Away
+          HomeAttack = CollectiveAttackState.snapshot session.World.Home.Attack
+          AwayAttack = CollectiveAttackState.snapshot session.World.Away.Attack }
 
     let observations (session: MatchSession) = session.World.Observation.Snapshot()
 
@@ -353,7 +436,9 @@ module MatchSession =
         let side = sideForManager session.Input command.Manager |> Option.get
 
         match command.Action with
-        | ChangeTactics tactics -> applyTactics (MatchWorld.team session.World side) session.World.State.Tick tactics
+        | ChangeTactics tactics ->
+            applyTactics (MatchWorld.team session.World side) session.World.State.Tick tactics
+            session.Buffer.Events.Add { Tick = session.World.State.Tick; Data = EventData.TeamInstruction side }
         | RequestSubstitution(outgoing, incoming) ->
             session.Buffer.Events.Add
                 { Tick = session.World.State.Tick
@@ -365,8 +450,11 @@ module MatchSession =
                 | ChangeTactics tactics -> TacticsEffective(command.Manager, command.Sequence, tactics)
                 | RequestSubstitution _ -> CommandEffective(command.Manager, command.Sequence)
 
-            session.World.Observation.Record(session.World.State.Tick, ValueNone, evidence)
-            |> ignore
+            let id = session.World.Observation.Record(session.World.State.Tick, ValueNone, evidence)
+            match command.Action, id with
+            | ChangeTactics _, ValueSome id ->
+                session.World.Observation.Associate({ Tick = session.World.State.Tick; Data = EventData.TeamInstruction side }, DecisionCause id)
+            | _ -> ()
 
     let private validateMode mode =
         match mode with
@@ -428,7 +516,16 @@ module MatchSession =
                   Events = ResizeArray<MatchEvent>()
                   ReplayWriter = replayWriter
                   AppliedOutput = Array.zeroCreate<MatchEvent> 256
+                  MotionScratch = Array.zeroCreate<MotionEvidence> 256
+                  MotionCursor = 1UL
                   Finished = None }
+
+            match session.ReplayWriter with
+            | Some writer ->
+                match captureMotion session with
+                | Ok boundary -> writer.AppendMotion boundary |> ignore
+                | Error _ -> ()
+            | None -> ()
 
             Ok session
 
@@ -455,6 +552,7 @@ module MatchSession =
         else
             let produced = ResizeArray<MatchEvent>()
             let producedFrames = ResizeArray<Replay.ReplaySnapshot>()
+            let producedMotion = ResizeArray<MotionBoundary>()
             let mutable failure = None
 
             while session.World.State.Tick < target
@@ -485,6 +583,18 @@ module MatchSession =
                             session.AppliedOutput
 
                     session.Rng <- rng
+
+                    match captureMotion session with
+                    | Ok boundary ->
+                        producedMotion.Add boundary
+
+                        match session.ReplayWriter with
+                        | Some writer ->
+                            match writer.AppendMotion boundary with
+                            | Ok() -> ()
+                            | Error message -> failure <- Some(InvalidAdvanceBoundary message)
+                        | None -> ()
+                    | Error error -> failure <- Some error
 
                     for index = 0 to appliedCount - 1 do
                         let applied = session.AppliedOutput[index]
@@ -517,7 +627,8 @@ module MatchSession =
                     { ReachedTick = session.World.State.Tick
                       Flow = session.World.State.Flow
                       Events = toArray produced
-                      Poses = toArray producedFrames }
+                      Poses = toArray producedFrames
+                      Motion = toArray producedMotion }
 
     let rec finish session : Result<MatchOutcome, MatchContractError> =
         match session.Finished with
@@ -571,6 +682,8 @@ module MatchSession =
             Error(InvalidCheckpoint "checkpoint configuration revision does not match")
         elif checkpoint.InputHash <> MatchJob.inputHash input then
             Error(InvalidCheckpoint "checkpoint resolved football input does not match")
+        elif not (AttackCheckpoint.validFor input.Context ClubSide.Home checkpoint.Frontier checkpoint.HomeAttack && AttackCheckpoint.validFor input.Context ClubSide.Away checkpoint.Frontier checkpoint.AwayAttack) then
+            Error(InvalidCheckpoint "checkpoint attacking state violates input identities or configured bounds")
         else
             match create systems input checkpoint.Mode with
             | Error error -> Error error
@@ -599,5 +712,11 @@ module MatchSession =
                             Error(InvalidCheckpoint "checkpoint pending command queue differs after replay")
                         elif session.Rng <> checkpoint.Rng then
                             Error(InvalidCheckpoint "checkpoint RNG differs after replay")
+                        elif DefensiveCheckpoint.snapshot session.World.Home <> checkpoint.HomeDefense
+                             || DefensiveCheckpoint.snapshot session.World.Away <> checkpoint.AwayDefense then
+                            Error(InvalidCheckpoint "checkpoint defensive commitments differ after replay")
+                        elif CollectiveAttackState.snapshot session.World.Home.Attack <> checkpoint.HomeAttack
+                             || CollectiveAttackState.snapshot session.World.Away.Attack <> checkpoint.AwayAttack then
+                            Error(InvalidCheckpoint "checkpoint attacking commitments or learner differ after replay")
                         else
                             Ok session

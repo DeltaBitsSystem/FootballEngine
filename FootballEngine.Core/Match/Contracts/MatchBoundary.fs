@@ -42,6 +42,8 @@ module MatchInput =
             else
                 if lineup.Profiles |> Array.distinctBy _.Id |> Array.length <> lineup.SlotCount then
                     errors.Add(sprintf "%s lineup contains duplicate sporting player identities." label)
+                if lineup.Profiles |> Array.exists (fun p -> let (PlayerId id) = p.Id in id <= 0) then
+                    errors.Add(sprintf "%s lineup contains nonpositive sporting player identities." label)
 
                 for position in lineup.BasePositions do
                     if
@@ -62,6 +64,13 @@ module MatchInput =
 
         if context.HomeClub.Id = context.AwayClub.Id then
             errors.Add "Home and away clubs must have distinct identities."
+
+        for club in [ context.HomeClub; context.AwayClub ] do
+            if club.AttackPrior.Count > 24 then errors.Add "Attack priors exceed the fixed contextual bound."
+            for KeyValue(key, estimate) in club.AttackPrior do
+                if key < 0 || key >= 24 || not (Double.IsFinite estimate.Samples && Double.IsFinite estimate.RewardSum)
+                   || estimate.Samples < 0.0 || estimate.Samples > context.Config.CollectiveAttack.EvidenceCap || abs estimate.RewardSum > estimate.Samples then
+                    errors.Add "Attack priors contain an invalid contextual estimate."
 
         validateLineup "Home" context.HomeLineup
         validateLineup "Away" context.AwayLineup
@@ -146,7 +155,9 @@ type MatchPlayerStats =
 
 /// A stale worker cannot overwrite the live world through this result.
 type MatchJobResult =
-    { MatchId: int
+    { Input: MatchInput
+      Commands: MatchCommand list
+      MatchId: int
       SourceRevision: uint64
       InputHash: uint64
       ResultHash: uint64
@@ -189,10 +200,15 @@ type MatchCheckpoint =
       Commands: MatchCommand list
       Pending: MatchCommand list
       EventsHash: uint64
-      TraceCount: int }
+      TraceCount: int
+      HomeDefense: DefensiveTransitionState
+      AwayDefense: DefensiveTransitionState
+      HomeAttack: CollectiveAttackState
+      AwayAttack: CollectiveAttackState }
 
 type SessionAdvance =
     { ReachedTick: int<subtick>
       Flow: MatchFlow
       Events: MatchEvent[]
-      Poses: Replay.ReplaySnapshot[] }
+      Poses: Replay.ReplaySnapshot[]
+      Motion: MotionBoundary[] }

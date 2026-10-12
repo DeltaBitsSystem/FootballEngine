@@ -277,6 +277,31 @@ module PlayerDecision =
 
         let options = options.ToArray()
 
+        let options =
+            match team.Attack.Episode with
+            | Some episode when episode.Stage <> Exploiting ->
+                let target =
+                    match episode.Stage, episode.Pattern with
+                    | Preparing, ExploitDepth -> episode.Runner
+                    | Preparing, _ -> episode.Link
+                    | _ -> episode.Runner
+                let actorExpected = episode.Owner
+                if actorExpected <> p.Id then options
+                else
+                    let key = CollectiveAttackState.key episode.Context episode.Pattern
+                    let estimate = team.Attack.Estimates |> Map.tryFind key
+                    let mean = estimate |> Option.map FootballEngine.Domain.AttackEstimate.mean |> Option.defaultValue 0.0
+                    let confidence = MatchMath.clamp01 ((1.0 + mean) / 2.0)
+                    let bias = ctx.Config.CollectiveAttack.CooperationWeight * confidence * cognitive * float frame.Condition[slot] * float p.Teamwork / 100.0
+                    // Bias only the existing, interceptor-filtered option; collective intent never creates an action.
+                    options |> Array.map (fun (utility, code, receiver) ->
+                        if code = 1 && int receiver = target.Slot then
+                            if world.Observation.WantsDetail(tick, p.Id) then
+                                world.Observation.Record(tick, ValueSome(EventCause(MatchEvent.id { Tick = episode.StartedAt; Data = EventData.CollectiveAttack(side, episode.Id, Started episode.Pattern) })), AttackCooperation(p.Id, episode.Id, target.Slot, bias)) |> ignore
+                            utility + bias, code, receiver
+                        else utility, code, receiver)
+            | _ -> options
+
         let chainState = Planner.project ctx world side slot
         let plannerOpts = options |> Array.map (fun (u, code, tgt) -> (code, int tgt, u))
 
@@ -297,14 +322,17 @@ module PlayerDecision =
                 let effTemp = effectiveTemperature ctx.Config cognitive
 
                 let mutable sum = 0.0
+                let maximum =
+                    if chainEvals.Length > 0 then chainEvals |> Array.maxBy _.Value |> _.Value
+                    else options |> Array.maxBy (fun (utility, _, _) -> utility) |> fun (utility, _, _) -> utility
 
                 if chainEvals.Length > 0 then
                     for index = 0 to chainEvals.Length - 1 do
-                        sum <- sum + exp (chainEvals.[index].Value / effTemp)
+                        sum <- sum + exp ((chainEvals.[index].Value - maximum) / effTemp)
                 else
                     for index = 0 to options.Length - 1 do
                         let utility, _, _ = options.[index]
-                        sum <- sum + exp (utility / effTemp)
+                        sum <- sum + exp ((utility - maximum) / effTemp)
 
                 let mutable acc = 0.0
                 let mutable picked = 3
@@ -316,7 +344,7 @@ module PlayerDecision =
                 if chainEvals.Length > 0 then
                     while not found && idx < chainEvals.Length do
                         let e = chainEvals[idx]
-                        acc <- acc + exp (e.Value / effTemp) / sum
+                        acc <- acc + exp ((e.Value - maximum) / effTemp) / sum
 
                         if d <= acc then
                             picked <- e.ActionCode
@@ -328,7 +356,7 @@ module PlayerDecision =
                 else
                     while not found && idx < options.Length do
                         let (u, code, tgt) = options[idx]
-                        acc <- acc + exp (u / effTemp) / sum
+                        acc <- acc + exp ((u - maximum) / effTemp) / sum
 
                         if d <= acc then
                             picked <- code
@@ -406,69 +434,15 @@ module PlayerDecision =
 
                 world.Observation.Alternatives(tick, p.Id, alternatives)
 
-        // The plan must support the action the softmax actually picked, or
-        // receivers would run for a move the carrier never makes. The chain
-        // that was chosen is the one whose first action matches the marker.
-        let chosenEval =
-            if chosenEvaluationIndex >= 0 then
-                ValueSome chainEvals.[chosenEvaluationIndex]
-            else
-                ValueNone
-
-        match chosenEval with
-        | ValueSome eval ->
-            let futureReceivers =
-                eval.Chain
-                |> Array.choose (fun action ->
-                    match action with
-                    | Planner.Pass(slot, x, y) -> Some(slot, x, y)
-                    | _ -> None)
-                // A plan never steers its own carrier: his movement is the
-                // shape system's job, and steering him would fight the receive
-                // logic when the ball comes back to him.
-                |> Array.filter (fun (s, _, _) -> s <> slot)
-
-            if futureReceivers.Length > 0 then
-                team.ActivePlan <-
-                    Some
-                        { FutureReceivers = futureReceivers
-                          ExpiresAt = tick + ctx.Config.Planner.PlanTTL }
-        | ValueNone -> ()
-
         rng'
 
     let step: SystemStep =
         fun ctx rng world _ ->
             let tick = world.State.Tick
 
-            // Clear expired plans
-            for side in [ ClubSide.Home; ClubSide.Away ] do
-                let team = MatchWorld.team world side
-
-                match team.ActivePlan with
-                | Some plan when plan.ExpiresAt <= tick -> team.ActivePlan <- None
-                | _ -> ()
-
-            // Plan bookkeeping happens BEFORE choose: possession loss and
-            // carrier changes invalidate whatever plan exists, and the new
-            // carrier's own plan (written below) is the only one that may
-            // survive. Wiping after choose would destroy the plan on the very
-            // tick it was born.
             match MatchWorld.ballCarrier ctx.Ctx world with
             | Some(side, slot, _) ->
-                (MatchWorld.team world (MatchWorld.oppOf side)).ActivePlan <- None
-
                 if (MatchWorld.profileOf ctx.Ctx side slot).Role <> SlotRole.Goalkeeper then
-                    let team = MatchWorld.team world side
-
-                    if
-                        team.ActivePlan.IsSome
-                        && team.LastCarrierSlot <> -1
-                        && team.LastCarrierSlot <> slot
-                    then
-                        team.ActivePlan <- None
-
-                    team.LastCarrierSlot <- slot
                     choose ctx.Ctx world side slot tick rng
                 else
                     rng

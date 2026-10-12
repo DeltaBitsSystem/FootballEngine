@@ -150,7 +150,6 @@ module MatchWorld =
         let mutable bestStep = System.Int32.MaxValue
         let mutable bestDistance = System.Double.MaxValue
         let mutable bestSlot = -1
-        let mutable tiedForBest = false
 
         for slot in activeSlots frame do
             if frame.SlotRoles.[slot] <> SlotRole.Goalkeeper then
@@ -161,21 +160,13 @@ module MatchWorld =
                     bestStep <- step
                     bestDistance <- distance
                     bestSlot <- slot
-                    tiedForBest <- false
                 elif step = bestStep then
-                    tiedForBest <- true
-
                     if distance < bestDistance || (distance = bestDistance && slot < bestSlot) then
                         bestDistance <- distance
                         bestSlot <- slot
 
         if bestSlot < 0 then
             None
-        elif tiedForBest then
-            activeSlots frame
-            |> Array.filter (fun slot -> frame.SlotRoles.[slot] <> SlotRole.Goalkeeper)
-            |> Array.sortBy (fun slot -> MatchMath.dist ball.X ball.Y (posX frame slot) (posY frame slot), slot)
-            |> Array.tryHead
         else
             Some bestSlot
 

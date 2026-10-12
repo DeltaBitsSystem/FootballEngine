@@ -2,6 +2,60 @@ namespace FootballEngine.Core.Match
 
 /// Requests prepare a reachable effector; only its contact tick can change the ball's momentum.
 module BallFootContact =
+    let private vector (point: Vec3) =
+        System.Numerics.Vector3(float32 point.X, float32 point.Y, float32 point.Z)
+
+    let private ballVelocity (ball: BallState) =
+        System.Numerics.Vector3(float32 ball.Position.Vx, float32 ball.Position.Vy, float32 ball.Position.Vz)
+
+    let private generationOf (book: ParticipationBook) actor =
+        let mutable generation = 0
+
+        for index = 0 to book.Intervals.Count - 1 do
+            if book.Intervals[index].PlayerId = actor then
+                generation <- generation + 1
+
+        generation
+
+    let private publish (world: World) taskId phase (motion: FootMotion) predicted incoming outgoing =
+        let generation =
+            generationOf world.Home.Participation motion.Actor
+            + generationOf world.Away.Participation motion.Actor
+
+        let family =
+            match motion.Kind with
+            | FootTouchKind.Kick _ -> MotionFamily.FootStrike
+            | FootTouchKind.Receive -> MotionFamily.Reception
+            | FootTouchKind.Carry -> MotionFamily.Dribble
+
+        world.Motion.Append
+            { Sequence = 0UL
+              TaskId = taskId
+              Actor = motion.Actor
+              Generation = generation
+              Family = family
+              Effector =
+                if motion.Foot = ContactFoot.Left then
+                    MotionEffector.LeftFoot
+                else
+                    MotionEffector.RightFoot
+              Phase = phase
+              OccurredAt = world.State.Tick
+              AvailableAt = world.State.Tick + 1<subtick>
+              StartedAt = motion.StartedAt
+              CommitAt = motion.ContactAt
+              EndsAt = motion.EndsAt
+              PredictedPoint = predicted
+              ConfirmedPoint =
+                if phase = MotionEvidencePhase.Confirmed then
+                    ValueSome(vector motion.Point)
+                else
+                    ValueNone
+              BallCenter = vector motion.BallCenter
+              IncomingVelocity = incoming
+              OutgoingVelocity = outgoing }
+        |> ignore
+
     let private centre (ball: BallState) : Vec3 =
         { X = ball.Position.X
           Y = ball.Position.Y
@@ -87,13 +141,23 @@ module BallFootContact =
                       BallCenter = centre world.State.Ball }
 
                 let pending =
-                    { Impulse =
+                    { MotionTaskId = world.Motion.NextSequence
+                      Impulse =
                         { impulse with
                             ContactTick = SimTick.ofSubTicks contact }
                       Trajectory = trajectory
                       ArrivalGate = arrival |> Option.map (fun gate -> gate + cfg.KickWindup)
                       Side = side
                       Slot = slot }
+
+                publish
+                    world
+                    pending.MotionTaskId
+                    MotionEvidencePhase.Prepared
+                    motion
+                    (vector motion.Point)
+                    ValueNone
+                    ValueNone
 
                 MatchWorld.updateBall world (fun ball ->
                     { ball with
@@ -110,7 +174,7 @@ module BallFootContact =
                 { Tick = world.State.Tick
                   Data = EventData.FootStrikeCancelled impulse.ActorId }
 
-    let recordTouch (ctx: SystemContext) (world: World) (buffer: EventBuffer) side slot kind vx vy =
+    let recordTouch (ctx: SystemContext) (world: World) (buffer: EventBuffer) side slot kind vx vy outgoingVz =
         let actor = (MatchWorld.profileOf ctx.Ctx side slot).Id
         let cfg = ctx.Ctx.Config.Ball
 
@@ -130,6 +194,24 @@ module BallFootContact =
                 LastTouch = Some actor })
 
         emit world.State.Tick buffer motion
+
+        let incoming = ballVelocity world.State.Ball
+
+        let outgoing =
+            System.Numerics.Vector3(
+                float32 (float world.State.Ball.Position.Vx + vx),
+                float32 (float world.State.Ball.Position.Vy + vy),
+                float32 outgoingVz
+            )
+
+        publish
+            world
+            world.Motion.NextSequence
+            MotionEvidencePhase.Confirmed
+            motion
+            (vector motion.Point)
+            (ValueSome incoming)
+            (ValueSome outgoing)
 
     let receive (ctx: SystemContext) (world: World) buffer side slot =
         let profile = MatchWorld.profileOf ctx.Ctx side slot
@@ -156,6 +238,7 @@ module BallFootContact =
                 FootTouchKind.Receive
                 (vx - float ball.Position.Vx)
                 (vy - float ball.Position.Vy)
+                (float ball.Position.Vz * retention)
             // The boot absorbs relative momentum at first touch, not on a later possession timer.
             MatchWorld.updateBall world (fun ball ->
                 { ball with
@@ -183,6 +266,15 @@ module BallFootContact =
                     | _ -> false
 
                 if not flowAllows || not (reachable ctx.Ctx world pending.Side pending.Slot) then
+                    publish
+                        world
+                        pending.MotionTaskId
+                        MotionEvidencePhase.Cancelled
+                        motion
+                        (vector motion.Point)
+                        ValueNone
+                        ValueNone
+
                     world.Observation.CancelImpulse()
 
                     MatchWorld.updateBall world (fun ball ->
@@ -194,6 +286,8 @@ module BallFootContact =
                         { Tick = tick
                           Data = EventData.FootStrikeCancelled motion.Actor }
                 elif tick >= SimTick.value pending.Impulse.ContactTick then
+                    let incoming = ballVelocity world.State.Ball
+                    let predicted = vector motion.Point
                     let old = pending.Impulse
                     let origin = world.State.Ball.Position
                     let speed = MatchMath.speedOf old.LinearVelocity.X old.LinearVelocity.Y
@@ -230,6 +324,15 @@ module BallFootContact =
                             BallCenter = centre world.State.Ball }
 
                     BallPhysics.applyImpulse world impulse pending.Trajectory pending.ArrivalGate
+
+                    publish
+                        world
+                        pending.MotionTaskId
+                        MotionEvidencePhase.Confirmed
+                        motion
+                        predicted
+                        (ValueSome incoming)
+                        (ValueSome(ballVelocity world.State.Ball))
 
                     MatchWorld.updateBall world (fun ball ->
                         { ball with

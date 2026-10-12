@@ -70,7 +70,6 @@ module AppTypes =
           ManagementStyle: TeamEmphasis option
           SelectedClubName: string option
           Difficulty: DifficultyPreset option
-          Seed: uint64
           SaveSlots: SaveSlotInfo list
           LoadState: SetupLoadState }
 
@@ -263,7 +262,6 @@ module AppTypes =
           ManagementStyle = None
           SelectedClubName = None
           Difficulty = None
-          Seed = 0x464F4F5442414C4CUL
           SaveSlots = []
           LoadState = LoadClosed }
 

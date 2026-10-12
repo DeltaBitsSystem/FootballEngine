@@ -28,7 +28,17 @@ module PlannerEvaluatorTests =
             |> List.toArray
             |> Array.map (fun (s, x, y) -> struct (s, x * 1.0<meter>, y * 1.0<meter>))
           OffsideLine = 45.0<meter>
-          Dir = 1.0 }
+          Dir = 1.0
+          OurMotion = [||]
+          OppMotion = [||]
+          Horizon = 1.5<second>
+          Confidence = 1.0
+          GoalkeeperSlots = Set.singleton 0
+          OurGoalkeeperSlots = Set.singleton 0
+          PassSpeed = BalanceConfig.defaultConfig.Actions.PassLaunchSpeed
+          DistanceSpeedGain = BalanceConfig.defaultConfig.Actions.PassDistanceSpeedGain
+          MaxPassDistance = BalanceConfig.defaultConfig.Actions.MaxPassExecutionDistance
+          CarrySpeed = 4.0<meterPerSecond> }
 
     let private farOpps =
         [ 1, -40.0, 25.0
@@ -62,6 +72,28 @@ module PlannerEvaluatorTests =
                   let a = Planner.value weights (state 20.0 [ 5, 20.0, 0.0 ] farOpps)
                   let b = Planner.value weights (state 20.0 [ 5, 20.0, 0.0 ] farOpps)
                   Expect.equal a b "same state yields same value")
+
+              testCase "mirrored teams value the same football advantage equally" (fun _ ->
+                  let home = state 25.0 [ 5, 25.0, 0.0; 7, 28.0, 4.0 ] farOpps
+                  let mirror positions =
+                      positions |> Array.map (fun struct (slot, x, y) -> struct (slot, -x, y))
+                  let away =
+                      { home with
+                          BallX = -home.BallX
+                          Side = ClubSide.Away
+                          Dir = -home.Dir
+                          OffsideLine = -home.OffsideLine
+                          OurPos = mirror home.OurPos
+                          OppPos = mirror home.OppPos }
+                  Expect.floatClose Accuracy.high (Planner.value weights home) (Planner.value weights away) "advantage is team-local, not a pitch-direction bonus")
+
+              testCase "an isolated carrier cannot count himself as supporting cover" (fun _ ->
+                  let isolated = state 20.0 [ 5, 20.0, 0.0 ] farOpps
+                  let supported = state 20.0 [ 5, 20.0, 0.0; 7, 18.0, 3.0 ] farOpps
+                  Expect.floatClose Accuracy.high
+                      weights.PossessionSecurityWeight
+                      (Planner.value weights supported - Planner.value weights isolated)
+                      "security comes from another player who can help")
 
               testCase "value is finite for on-pitch states" (fun _ ->
                   let states =

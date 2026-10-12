@@ -85,7 +85,8 @@ type FootMotion =
       BallCenter: Vec3 }
 
 type PendingFootStrike =
-    { Impulse: BallImpulse
+    { MotionTaskId: uint64
+      Impulse: BallImpulse
       Trajectory: TrajectoryIntent
       ArrivalGate: int<subtick> option
       Side: ClubSide

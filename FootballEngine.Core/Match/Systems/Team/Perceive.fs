@@ -23,14 +23,17 @@ module TeamPerceive =
 
         let pressure = MatchWorld.opponentsNear ctx world side ball.X ball.Y 12.0
 
-        let lastTransition = team.Blackboard.TransitionSince
-
         let situationPhase = Situation.resolve ctx.Config.Situation team.Intercept
 
         let phase =
-            if ours && tick - lastTransition < 240<subtick> then
+            let changedRecently =
+                team.Defense.ControlChangedAt
+                |> Option.exists (fun since -> tick - since < ctx.Config.Team.TransitionWindow)
+            let defendingTransition =
+                team.Defense.Episode |> Option.exists (fun episode -> episode.EndedAt.IsNone)
+            if ours && changedRecently then
                 PhaseKind.TransitionAttack
-            elif not ours && tick - lastTransition < 240<subtick> then
+            elif not ours && defendingTransition then
                 PhaseKind.TransitionDefend
             else
                 match MatchWorld.ballCarrier ctx world with
@@ -83,9 +86,6 @@ module TeamPerceive =
                 min 3 (window + (if world.State.Momentum > 0.3 then 1 else 0))
             else
                 0
-
-        if phase <> team.Blackboard.OurPhase && tick - lastTransition > 60<subtick> then
-            team.Blackboard.TransitionSince <- tick
 
         team.Blackboard.OurPhase <- phase
         team.Blackboard.OpponentPressure <- pressure

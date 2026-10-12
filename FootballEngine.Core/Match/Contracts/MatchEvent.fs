@@ -7,9 +7,43 @@ type EventFlags = { Bits: uint64 }
 [<Struct>]
 type EventId = EventId of uint64
 
+type AttackPattern = ThirdMan | AttractSwitch | ExploitDepth | SecureProgression
+type AttackStage = Preparing | Connected | Exploiting
+type AttackEnd = Completed | LostBall | TimedOut | Countered | ParticipantLeft | InstructionsChanged | Stopped | Deviated
+type AttackChange = Started of AttackPattern | Advanced of AttackStage * EventId | Ended of AttackEnd * float * learningKey: int option
+
 module EventId =
 
     let value (EventId id) = id
+
+type TransitionMode =
+    | Assessing
+    | Counterpress
+    | Retreat
+
+type TransitionReason =
+    | AwaitingAssessment
+    | LocalAdvantage
+    | ArrivalTooLate
+    | Outnumbered
+    | MissingCover
+    | DepthThreat
+    | TacticalRestraint
+    | PressureBroken
+    | PressWindowElapsed
+
+type TransitionEnd =
+    | Recovered
+    | PressureBeaten
+    | Retreated
+    | Interrupted
+    | Stabilized
+
+type TransitionChange =
+    | Lost
+    | ModeSelected of TransitionMode * TransitionReason
+    | Handoff of first: PlayerId option * cover: PlayerId option
+    | Finished of TransitionEnd
 
 [<Struct>]
 type AdvantageIncident =
@@ -64,6 +98,9 @@ type EventKind =
     | PlayerBodyFlight
     | FootContact
     | FootStrikeCancelled
+    | DefensiveTransition
+    | TeamInstruction
+    | CollectiveAttack
 
 module EventFlags =
 
@@ -113,6 +150,9 @@ module EventFlags =
             | EventKind.PlayerBodyFlight -> 38
             | EventKind.FootContact -> 39
             | EventKind.FootStrikeCancelled -> 40
+            | EventKind.DefensiveTransition -> 41
+            | EventKind.TeamInstruction -> 42
+            | EventKind.CollectiveAttack -> 43
 
         { Bits = 1UL <<< bit }
 
@@ -134,7 +174,10 @@ type ShotResult =
     | Post
 
 type EventData =
+    | CollectiveAttack of side: ClubSide * episode: uint64 * change: AttackChange
     | Possession of side: ClubSide * player: PlayerId
+    | DefensiveTransition of side: ClubSide * episode: EventId * change: TransitionChange
+    | TeamInstruction of ClubSide
     | FootContact of
         player: PlayerId *
         foot: ContactFoot *
@@ -272,6 +315,36 @@ module MatchEvent =
 
     let private hashEventData h data =
         match data with
+        | EventData.CollectiveAttack(side, episode, change) ->
+            let h = fnv (hashSide (fnv h 48UL) side) episode
+            match change with
+            | Started pattern ->
+                let tag = match pattern with ThirdMan -> 0UL | AttractSwitch -> 1UL | ExploitDepth -> 2UL | SecureProgression -> 3UL
+                fnv (fnv h 0UL) tag
+            | Advanced(stage, cause) ->
+                let tag = match stage with Preparing -> 0UL | Connected -> 1UL | Exploiting -> 2UL
+                fnv (fnv (fnv h 1UL) tag) (EventId.value cause)
+            | Ended(reason, reward, key) ->
+                let tag = match reason with Completed -> 0UL | LostBall -> 1UL | TimedOut -> 2UL | Countered -> 3UL | ParticipantLeft -> 4UL | InstructionsChanged -> 5UL | Stopped -> 6UL | Deviated -> 7UL
+                let h = hashFloat (fnv (fnv h 2UL) tag) reward
+                match key with None -> fnv h 0UL | Some key -> fnv (fnv h 1UL) (uint64 key)
+        | EventData.TeamInstruction side -> hashSide (fnv h 47UL) side
+        | EventData.DefensiveTransition(side, episode, change) ->
+            let h = fnv (hashSide (fnv h 46UL) side) (EventId.value episode)
+            match change with
+            | Lost -> fnv h 0UL
+            | ModeSelected(mode, reason) ->
+                let modeTag = match mode with Assessing -> 0UL | Counterpress -> 1UL | Retreat -> 2UL
+                let reasonTag =
+                    match reason with
+                    | AwaitingAssessment -> 0UL | LocalAdvantage -> 1UL | ArrivalTooLate -> 2UL
+                    | Outnumbered -> 3UL | MissingCover -> 4UL | DepthThreat -> 5UL
+                    | TacticalRestraint -> 6UL | PressureBroken -> 7UL | PressWindowElapsed -> 8UL
+                fnv (fnv (fnv h 1UL) modeTag) reasonTag
+            | Handoff(first, cover) -> hashPlayerOption (hashPlayerOption (fnv h 2UL) first) cover
+            | Finished outcome ->
+                let tag = match outcome with Recovered -> 0UL | PressureBeaten -> 1UL | Retreated -> 2UL | Interrupted -> 3UL | Stabilized -> 4UL
+                fnv (fnv h 3UL) tag
         | EventData.Possession(side, player) -> hashPlayer (hashSide (fnv h 0UL) side) player
         | EventData.Pass(passer, receiver, distance, quality, completed, fromX, fromY, toX, toY) ->
             let h = hashPlayer (fnv h 1UL) passer
@@ -405,6 +478,9 @@ module MatchEvent =
     /// and compiler-checked.
     let kind (ev: MatchEvent) : EventKind =
         match ev.Data with
+        | EventData.CollectiveAttack _ -> EventKind.CollectiveAttack
+        | EventData.TeamInstruction _ -> EventKind.TeamInstruction
+        | EventData.DefensiveTransition _ -> EventKind.DefensiveTransition
         | EventData.Possession _ -> EventKind.PossessionGained
         | EventData.Pass _ -> EventKind.PassLaunched
         | EventData.Shot _ -> EventKind.ShotLaunched
@@ -468,6 +544,9 @@ module MatchEvent =
     /// For tests/diagnostics only — the viewer derives its own text from EventData.
     let describe (ev: MatchEvent) : string =
         match ev.Data with
+        | EventData.CollectiveAttack(side, episode, change) -> sprintf "Collective attack %A #%d: %A" side episode change
+        | EventData.TeamInstruction side -> sprintf "Effective team instruction: %A" side
+        | EventData.DefensiveTransition(side, _, change) -> sprintf "Defensive transition %A: %A" side change
         | EventData.Possession(side, _) -> sprintf "Possession: %A" side
         | EventData.Pass(_, _, distance, _, completed, _, _, _, _) ->
             sprintf "Pass %.1fm completed=%b" distance completed

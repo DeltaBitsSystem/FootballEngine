@@ -470,4 +470,6 @@ module WorldGen =
                               PlayerExperiences = Map.empty
                               TeamEmphasis = EmPossession
                               SeasonHistory = []
-                              CareerHistory = [] })
+                              CareerHistory = []
+                              ExecutionSeed = seed
+                              MatchSeeds = Map.empty })

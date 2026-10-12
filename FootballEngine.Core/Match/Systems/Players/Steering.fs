@@ -50,10 +50,14 @@ module PlayerSteering =
             let targetDx = tx - px
             let targetDy = ty - py
 
-            if targetDx * targetDx + targetDy * targetDy > 0.0025 then
+            if targetDx * targetDx + targetDy * targetDy > float cfg.FacingIntentDistance ** 2.0 then
                 Some(atan2 targetDy targetDx)
             else
-                None
+                // Small shape corrections must not turn an otherwise settled player away from play.
+                let ballDx, ballDy = float world.State.Ball.Position.X - px, float world.State.Ball.Position.Y - py
+                if ballDx * ballDx + ballDy * ballDy > float cfg.FacingIntentDistance ** 2.0 then
+                    Some(atan2 ballDy ballDx)
+                else None
 
         let maxRate = float cfg.TurningRate
         let maxRateDelta = float cfg.TurningAcceleration * dt
@@ -100,7 +104,11 @@ module PlayerSteering =
                 | PhaseKind.TransitionDefend -> 0.2
 
             let speedMult =
+                let transition = team.Defense.Episode |> Option.exists (fun episode -> episode.EndedAt.IsNone)
                 match frame.Intent.Kind.[slot] with
+                | IntentCode.Cover when transition -> ctx.Config.DefensiveTransition.CoverEffort
+                | IntentCode.Mark when transition -> ctx.Config.DefensiveTransition.ScreenEffort
+                | IntentCode.Regroup when transition -> ctx.Config.DefensiveTransition.RecoveryEffort
                 | IntentCode.ExecuteRun
                 | IntentCode.Press
                 | IntentCode.BallCarry
