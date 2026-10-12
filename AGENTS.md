@@ -282,6 +282,16 @@ dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "
 
 ## Collaboration and UI Editing Rules
 
+### Development checkpoints and review workflow
+
+- Treat the current implementation as the authoritative development baseline, not disposable or legacy work. Build it first; fix compilation failures before starting the replacement, and report warnings separately from errors.
+- When the user authorizes committing their current work, preserve all tracked and untracked non-ignored project changes in a checkpoint commit before dispatching a replacement. Do not discard or silently reformat that baseline. An explicitly requested exact-state checkpoint may bypass a formatting hook for that one commit; report the bypass and do not disable hooks globally.
+- Build `FootballEngine.slnx`, `FootballEngine.Client.Tests/FootballEngine.Client.Tests.fsproj`, and `FootballEngine.Benchmarks/FootballEngine.Benchmarks.fsproj` to cover the solution and separately built projects. Building tests is not running them; state validation results accurately.
+- Start an authorized isolated implementation from the checkpoint branch/ref, including the user's latest committed work, not automatically from the default branch. Keep the checkpoint reachable in history; never reset it away or force-push it out of history.
+- The user prefers a complete end-to-end implementation delivered for manual review, not repeated approval requests for each internal gate. Validate incrementally, but do not stop at a cosmetic slice or planning document when a functional loop was requested.
+- Keep baseline, workflow/documentation changes, and replacement implementation distinguishable in commits. Record the starting commit, algorithms/contracts, validation commands/results, screenshots, and known limitations so the complete diff is easy to review and the baseline easy to recover.
+- This is an in-development project: backward compatibility is not required for explicitly authorized redesigns. Replace obsolete contracts coherently rather than adding compatibility shims; reject incompatible saves explicitly and never silently delete user data.
+
 - Be token-efficient in the process, never by reducing the requested scope, quality, depth, or completeness of the result. Inspect only the files and ranges needed, avoid duplicate audits and repeated explanations, reuse established context, and keep progress/results concise while still delivering the full objective.
 - Do not interpret requests for token efficiency as permission to choose a smaller, merely cosmetic, or partial implementation. If the objective requires substantial architecture or validation, complete that work while minimizing conversational and exploratory overhead.
 - Treat the existing worktree as shared. Record `git status --short`, preserve unrelated changes, and never revert work you did not create.
