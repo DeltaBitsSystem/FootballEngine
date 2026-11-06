@@ -77,19 +77,26 @@ fn shadePitch(world: vec3<f32>, surface: u32, dx: vec3<f32>, dy: vec3<f32>) -> v
     var base = grass.colour;
     let clumps = materialNoise(world.xz * 0.65);
     let broad = materialNoise(world.xz * 0.11);
-    base *= 0.91 + 0.13 * clumps + 0.07 * broad;
+    // Broadcast views resolve patches of growth, not individual blades; keep variation in metre-scale pigment.
+    let growth = materialNoise(world.xz * 0.37 + vec2<f32>(13.7, -8.1));
+    let fineGrowth = materialNoise(world.xz * 1.25 + vec2<f32>(-4.3, 23.6));
+    let growthBlend = smoothstep(0.25, 0.78, growth * 0.72 + fineGrowth * 0.28);
+    base *= 0.90 + 0.12 * clumps + 0.08 * broad;
+    base *= mix(vec3<f32>(0.93, 0.96, 0.87), vec3<f32>(1.05, 1.02, 0.95), growthBlend);
 
     let bandPosition = (world.x + PITCH_HALF_LENGTH) / PITCH_MOWING_BAND;
     let bend = smoothstep(-0.045, 0.045, sin(bandPosition * 3.14159265359)) * 2.0 - 1.0;
     let view = normalize(camera.position.xyz - world);
     // Bent blades change reflectance with viewing direction, not just with an alternating green vertex colour.
     let mowing = select(bend, 0.0, surface == 3u);
-    base *= 1.0 + mowing * (0.055 + 0.07 * view.z);
+    base *= 1.0 + mowing * (0.045 + 0.055 * view.z);
     normal = normalize(normal + vec3<f32>(0.0, 0.0, mowing * 0.032));
 
     let goalDistance = vec2<f32>((abs(world.x) - (PITCH_HALF_LENGTH - 1.5)) / 4.2, world.z / 5.0);
-    let goalWear = exp(-dot(goalDistance, goalDistance) * 1.8) * 0.12;
-    base = mix(base, base * vec3<f32>(1.17, 0.93, 1.05), goalWear);
+    let goalWear = exp(-dot(goalDistance, goalDistance) * 1.8);
+    let centreWear = exp(-dot(world.xz / vec2<f32>(7.0, 5.0), world.xz / vec2<f32>(7.0, 5.0)));
+    let wear = max(goalWear * 0.24, centreWear * 0.07) * (0.55 + 0.45 * growth);
+    base = mix(base, vec3<f32>(0.11, 0.085, 0.028), wear);
 
     let paintDistance = pitchPaintDistance(world.xz);
     let filterWidth = max(footprint * 0.65, 0.0005);
@@ -106,6 +113,6 @@ fn shadePitch(world: vec3<f32>, surface: u32, dx: vec3<f32>, dy: vec3<f32>) -> v
     // Paint coats blades: it retains the grass normal and local occlusion rather than becoming a floating white ribbon.
     let roughness = mix(clamp(grass.properties.g, 0.78, 1.0), 0.92, paint);
     let ao = mix(0.85, 1.0, grass.properties.r);
-    let visibility = pitchShadow(world, camera.sunAndEnvironment.xyz);
-    return shadeMaterial(base, normal, world, roughness, 0.0, ao * mix(0.82, 1.0, visibility), visibility);
+    let visibility = sunlightVisibility(world, vec3<f32>(0.0, 1.0, 0.0));
+    return shadeMaterial(base, normal, world, roughness, 0.0, ao, visibility);
 }

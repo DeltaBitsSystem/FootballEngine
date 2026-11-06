@@ -581,6 +581,13 @@ def build(output, previews):
         "qualityStatus": "first-party authoring corpus; gameplay/contact acceptance pending",
     }
     (output / "player-motion.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    # The runtime only uploads verified mips; colour-space and normal filtering belong to asset authoring.
+    import importlib.util
+    mip_builder_path = Path(__file__).resolve().parents[3] / "Tools/MatchViewer3D/build_athlete_mips.py"
+    spec = importlib.util.spec_from_file_location("athlete_mips", mip_builder_path)
+    mip_builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mip_builder)
+    mip_builder.build(output)
     if previews:
         for name in ["idle", "run", "shield_right", "pass_right", "shot_right"]:
             rig.animation_data.action = bpy.data.actions[name]

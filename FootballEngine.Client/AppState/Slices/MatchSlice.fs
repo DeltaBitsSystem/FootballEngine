@@ -8,6 +8,7 @@ open FootballEngine.LiveMatch
 module MatchSlice =
     let clearState =
         { RuntimeId = None
+          Camera = FootballEngine.Client.Match3D.ViewerCamera.Broadcast
           RequestedMatchId = None
           PendingResult = None
           Error = None
@@ -86,6 +87,7 @@ module MatchSlice =
         | LiveMsg.RuntimeStatusChanged status -> applyCore (FootballEngine.LiveMatch.RuntimeStatusChanged status) state
         | LiveMsg.SelectManagerWorkspace workspace ->
             applyCore (FootballEngine.LiveMatch.SelectManagerWorkspace workspace) state
+        | LiveMsg.SelectViewerCamera camera -> { state with Camera = camera }
         | LiveMsg.SelectIntelligenceWorkspace workspace ->
             applyCore (FootballEngine.LiveMatch.SelectIntelligenceWorkspace workspace) state
         | LiveMsg.SelectPlayer playerId -> applyCore (FootballEngine.LiveMatch.SelectPlayer playerId) state

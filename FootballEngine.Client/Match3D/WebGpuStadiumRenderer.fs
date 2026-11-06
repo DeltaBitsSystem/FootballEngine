@@ -145,20 +145,49 @@ module private BufferWriter =
 
 [<Sealed>]
 type WebGpuStadiumRenderer
-    (parentWindow: unativeint, initialBounds: PixelRect, assetPath: string, lighting: HdrLightingSettings) =
+    (
+        parentWindow: unativeint,
+        initialBounds: PixelRect,
+        assetPath: string,
+        ?camera: ViewerCamera,
+        ?exposureStops: float32
+    ) =
+    let startupClock = Diagnostics.Stopwatch.StartNew()
+
+    let timedLoad name load =
+        let started = Diagnostics.Stopwatch.GetTimestamp()
+        let value = load ()
+        let elapsed = Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds
+        Diagnostics.Trace.WriteLine($"Viewer startup {name}: {elapsed:F1} ms")
+        value
+
+    // Independent CPU packages can decode concurrently; all native/GPU ownership stays on the render thread.
+    let characterLoad =
+        System.Threading.Tasks.Task.Run(fun () ->
+            timedLoad "character" (fun () ->
+                CharacterAsset.load (Path.Combine(Path.GetDirectoryName assetPath, "player.glb"))))
+
+    let stadiumLoad =
+        System.Threading.Tasks.Task.Run(fun () -> timedLoad "stadium GLB" (fun () -> StadiumAsset.load assetPath))
+
+    let environmentPackage =
+        match timedLoad "environment" (fun () -> StadiumEnvironment.load assetPath) with
+        | Ok package -> package
+        | Error message -> invalidOp $"Cannot load authored stadium environment: {message}"
+
     let lighting =
-        match HdrLighting.validate lighting with
+        let settings =
+            { environmentPackage.Settings with
+                ExposureStops = defaultArg exposureStops environmentPackage.Settings.ExposureStops }
+
+        match HdrLighting.validate settings with
         | Ok settings -> settings
-        | Error message -> invalidArg (nameof lighting) message
+        | Error message -> invalidArg (nameof exposureStops) message
 
     let multisampleCount = 4u
     let rootTransformCount = 25
     let carrierMarkerRoot = 24u
-    // A tighter, lower sideline lens keeps players readable without the wide-angle overview distortion.
-    // A longer broadcast lens keeps distant players readable without stretching the near side of the pitch.
-    let carrierCameraDistance = 48.0f
-    let carrierCameraPitch = MathF.PI * 31.0f / 180.0f
-    let carrierCameraFov = MathF.PI * 30.0f / 180.0f
+    let mutable cameraMode = defaultArg camera ViewerCamera.Broadcast
     let api = SharedWebGpu.api
     let performanceClock = Diagnostics.Stopwatch.StartNew()
     let mutable lastPresentation: float option = None
@@ -202,9 +231,18 @@ type WebGpuStadiumRenderer
     let mutable cameraBuffer = NativePtr.nullPtr<Buffer>
     let mutable jointBuffer = NativePtr.nullPtr<Buffer>
     let mutable cameraBindGroup = NativePtr.nullPtr<BindGroup>
+    let mutable shadows: DirectionalShadowPass option = None
+    let mutable grassDetail: ProceduralScenePass option = None
+    let mutable skyBackground: ProceduralScenePass option = None
+    let mutable showGrassDetail = false
+    let mutable staticShadowsReady = false
+    let shadowSettings = DirectionalShadow.stadium
+
+    let shadowMatrixData =
+        DirectionalShadow.matrixData shadowSettings lighting.SunDirection
 
     let cameraUniformData =
-        Array.zeroCreate<float32> (16 + rootTransformCount * 16 + 12)
+        Array.zeroCreate<float32> (16 + rootTransformCount * 16 + 12 + 16 + 16)
 
     let mutable characterAlbedo = NativePtr.nullPtr<Texture>
     let mutable characterAlbedoView = NativePtr.nullPtr<TextureView>
@@ -214,18 +252,15 @@ type WebGpuStadiumRenderer
     let surfaceTextures = Array.create 3 (NativePtr.nullPtr<Texture>)
     let surfaceViews = Array.create 3 (NativePtr.nullPtr<TextureView>)
     let mutable surfaceSampler = NativePtr.nullPtr<Sampler>
-    let environmentTextures = Array.create 2 (NativePtr.nullPtr<Texture>)
-    let environmentViews = Array.create 2 (NativePtr.nullPtr<TextureView>)
+    let environmentTextures = Array.create 3 (NativePtr.nullPtr<Texture>)
+    let environmentViews = Array.create 3 (NativePtr.nullPtr<TextureView>)
     let mutable environmentSampler = NativePtr.nullPtr<Sampler>
     let mutable hdrOutput: HdrOutputPass option = None
 
-    let environment =
-        match HdrLighting.loadEnvironment (Path.Combine(Path.GetDirectoryName assetPath, "Lighting")) with
-        | Ok pack -> pack
-        | Error message -> invalidOp $"Cannot load HDR lighting: {message}"
+    let environment = environmentPackage.Environment
 
     let surfacePack =
-        match SurfaceTexturePack.load (Path.Combine(Path.GetDirectoryName assetPath, "Surfaces")) with
+        match timedLoad "surfaces" (fun () -> SurfaceTexturePack.load (Path.Combine(Path.GetDirectoryName assetPath, "Surfaces"))) with
         | Ok pack -> pack
         | Error message -> invalidOp $"Cannot load stadium surface materials: {message}"
 
@@ -254,10 +289,10 @@ type WebGpuStadiumRenderer
     let mutable lastCutouts: PixelRect array = [||]
     let mutable disposed = false
     let mutable frameCount = 0
-    let scene = StadiumAsset.load assetPath
+    let scene = stadiumLoad.GetAwaiter().GetResult()
 
     let character =
-        match CharacterAsset.load (Path.Combine(Path.GetDirectoryName assetPath, "player.glb")) with
+        match characterLoad.GetAwaiter().GetResult() with
         | Ok asset -> asset
         | Error message -> invalidOp $"Cannot load the first-party animated character: {message}"
 
@@ -445,10 +480,8 @@ type WebGpuStadiumRenderer
         let presentMode =
             if Array.contains PresentMode.Mailbox presentModes then
                 PresentMode.Mailbox
-            else if
-                // FIFO remains a supported presentation mode, not a legacy renderer or quality fallback.
-                Array.contains PresentMode.Fifo presentModes
-            then
+            // FIFO remains a supported presentation mode, not a legacy renderer or quality fallback.
+            else if Array.contains PresentMode.Fifo presentModes then
                 PresentMode.Fifo
             else
                 invalidOp "The WebGPU renderer requires tear-free mailbox or FIFO presentation."
@@ -530,50 +563,26 @@ type WebGpuStadiumRenderer
         checkPointer "a depth texture view" depthView
 
     let uploadCharacterTexture (texture: nativeptr<Texture>) (data: CharacterTextureData) =
-        let mutable width, height, pixels = data.Width, data.Height, data.Pixels
-
-        for level = 0 to 8 do
+        for level = 0 to data.Levels.Length - 1 do
+            let mip = data.Levels[level]
             let mutable destination = ImageCopyTexture()
             destination.Texture <- texture
             destination.MipLevel <- uint32 level
             destination.Aspect <- TextureAspect.All
             let mutable layout = TextureDataLayout()
-            layout.BytesPerRow <- uint32 (width * 4)
-            layout.RowsPerImage <- uint32 height
-            let extent = Extent3D(uint32 width, uint32 height, 1u)
-            use pointer = fixed pixels
+            layout.BytesPerRow <- uint32 (mip.Width * 4)
+            layout.RowsPerImage <- uint32 mip.Height
+            let extent = Extent3D(uint32 mip.Width, uint32 mip.Height, 1u)
+            use pointer = fixed mip.Pixels
 
             api.QueueWriteTexture(
                 queue,
                 &destination,
                 NativePtr.toVoidPtr pointer,
-                unativeint pixels.Length,
+                unativeint mip.Pixels.Length,
                 &layout,
                 &extent
             )
-
-            if level < 8 then
-                let nextWidth, nextHeight = width / 2, height / 2
-                let reduced = Array.zeroCreate<byte> (nextWidth * nextHeight * 4)
-
-                for y = 0 to nextHeight - 1 do
-                    for x = 0 to nextWidth - 1 do
-                        let source = (y * 2 * width + x * 2) * 4
-                        let target = (y * nextWidth + x) * 4
-
-                        for channel = 0 to 3 do
-                            reduced[target + channel] <-
-                                byte (
-                                    (int pixels[source + channel]
-                                     + int pixels[source + 4 + channel]
-                                     + int pixels[source + width * 4 + channel]
-                                     + int pixels[source + width * 4 + 4 + channel])
-                                    / 4
-                                )
-
-                width <- nextWidth
-                height <- nextHeight
-                pixels <- reduced
 
     let createShaderAndPipeline () =
         for index, pixels, width, height, layers, format, bytesPerPixel in
@@ -584,7 +593,8 @@ type WebGpuStadiumRenderer
               environment.Layers,
               TextureFormat.Rgba16float,
               8
-              1, environment.Brdf, environment.LutSize, environment.LutSize, 1, TextureFormat.RG16float, 4 ] do
+              1, environment.Brdf, environment.LutSize, environment.LutSize, 1, TextureFormat.RG16float, 4
+              2, environment.Sky, environment.SkyWidth, environment.SkyHeight, 1, TextureFormat.Rgba16float, 8 ] do
             let mutable descriptor = TextureDescriptor()
             descriptor.Dimension <- TextureDimension.Dimension2D
             descriptor.Size <- Extent3D(uint32 width, uint32 height, uint32 layers)
@@ -690,9 +700,11 @@ type WebGpuStadiumRenderer
         let mutable textureDescriptor = TextureDescriptor()
         textureDescriptor.Usage <- TextureUsage.TextureBinding ||| TextureUsage.CopyDst
         textureDescriptor.Dimension <- TextureDimension.Dimension2D
-        textureDescriptor.Size <- Extent3D(uint32 character.Albedo.Width, uint32 character.Albedo.Height, 1u)
+
+        textureDescriptor.Size <-
+            Extent3D(uint32 character.Albedo.Levels[0].Width, uint32 character.Albedo.Levels[0].Height, 1u)
         // Stop before atlas tiles collapse into one another; mip filtering suppresses distant fabric shimmer.
-        textureDescriptor.MipLevelCount <- 9u
+        textureDescriptor.MipLevelCount <- uint32 character.Albedo.Levels.Length
         textureDescriptor.SampleCount <- 1u
         textureDescriptor.Format <- TextureFormat.Rgba8UnormSrgb
         characterAlbedo <- api.DeviceCreateTexture(device, &textureDescriptor)
@@ -725,6 +737,8 @@ type WebGpuStadiumRenderer
     position: vec4<f32>,
     sunAndEnvironment: vec4<f32>,
     sunRadiance: vec4<f32>,
+    lightViewProjection: mat4x4<f32>,
+    inverseViewProjection: mat4x4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> camera: Camera;
@@ -739,6 +753,7 @@ type WebGpuStadiumRenderer
 @group(0) @binding(9) var environmentMap: texture_2d_array<f32>;
 @group(0) @binding(10) var environmentBrdf: texture_2d<f32>;
 @group(0) @binding(11) var environmentSampler: sampler;
+@group(0) @binding(12) var skyMap: texture_2d<f32>;
 const JOINT_COUNT: u32 = CHARACTER_JOINT_COUNT;
 
 struct VertexInput {
@@ -762,7 +777,7 @@ struct VertexOutput {
     @location(5) @interpolate(flat) surface: u32,
 }
 
-@vertex fn vs(input: VertexInput, @builtin(instance_index) instance: u32) -> VertexOutput {
+fn transformVertex(input: VertexInput, instance: u32) -> VertexOutput {
     var output: VertexOutput;
     let root = input.rootIndex + instance;
     let model = camera.rootTransforms[root];
@@ -777,6 +792,12 @@ struct VertexOutput {
         localPosition = skin * localPosition;
         localNormal = skin * localNormal;
     }
+    if root == 24u && input.position.y > 2.0 {
+        // The overhead annotation must not become a giant triangle when the replay lens moves close.
+        let markerScale = clamp(distance(camera.position.xyz, model[3].xyz) / 48.0, 0.12, 1.5);
+        localPosition.x *= markerScale;
+        localPosition.y = 2.08 + (localPosition.y - 2.08) * markerScale;
+    }
     let world = model * localPosition;
     output.clipPosition = camera.viewProjection * world;
     output.normal = normalize((model * localNormal).xyz);
@@ -787,6 +808,15 @@ struct VertexOutput {
     output.textured = select(0u, 1u, dot(input.weights, vec4<f32>(1.0)) > 0.0);
     output.surface = input.surface;
     return output;
+}
+
+@vertex fn shadowVs(input: VertexInput, @builtin(instance_index) instance: u32) -> @builtin(position) vec4<f32> {
+    let vertex = transformVertex(input, instance);
+    return camera.lightViewProjection * vec4<f32>(vertex.world, 1.0);
+}
+
+@vertex fn vs(input: VertexInput, @builtin(instance_index) instance: u32) -> VertexOutput {
+    return transformVertex(input, instance);
 }
 
 fn materialHash(cell: vec2<i32>) -> f32 {
@@ -803,35 +833,9 @@ fn materialNoise(p: vec2<f32>) -> f32 {
                mix(materialHash(cell + vec2<i32>(0, 1)), materialHash(cell + vec2<i32>(1, 1)), blend.x), blend.y);
 }
 
-fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
-    var visibility = 1.0;
-    // Reduced player proxies ground the presentation; they do not participate in sporting collision or possession.
-    for (var i = 0u; i < 22u; i += 1u) {
-        let root = camera.rootTransforms[i][3].xyz;
-        if root.y > -10.0 && distance(world.xz, root.xz) < 4.0 {
-            let start = root.xz - sunlight.xz * max(root.y - world.y, 0.0) / sunlight.y;
-            let end = root.xz - sunlight.xz * max(root.y + 1.65 - world.y, 0.0) / sunlight.y;
-            let axis = end - start;
-            let t = clamp(dot(world.xz - start, axis) / max(dot(axis, axis), 0.001), 0.0, 1.0);
-            let radius = mix(0.14, 0.23, t);
-            let separation = distance(world.xz, start + axis * t);
-            let penumbra = 0.10 + max(root.y, 0.0) * 0.08;
-            let body = 1.0 - smoothstep(radius, radius + penumbra, separation);
-            let contact = (1.0 - smoothstep(0.12, 0.38, distance(world.xz, root.xz))) * exp(-max(root.y, 0.0) * 3.0);
-            visibility *= 1.0 - max(body * 0.52, contact * 0.64);
-        }
-    }
-    let ball = camera.rootTransforms[22][3].xyz;
-    let ballProjection = ball.xz - sunlight.xz * max(ball.y - world.y, 0.0) / sunlight.y;
-    let ballShadow = (1.0 - smoothstep(0.08, 0.19 + max(ball.y - 0.11, 0.0) * 0.10, distance(world.xz, ballProjection))) * exp(-max(ball.y - 0.11, 0.0) * 0.7);
-    return max(0.15, visibility * (1.0 - ballShadow * 0.45));
-}
-
 @fragment fn fs(input: VertexOutput) -> @location(0) vec4<f32> {
     let normal = normalize(input.normal);
     let sunlight = camera.sunAndEnvironment.xyz;
-    let albedo = textureSample(athleteAlbedo, athleteSampler, input.uv);
-    let detail = textureSample(athleteDetail, athleteSampler, input.uv);
     let dpdxWorld = dpdx(input.world);
     let dpdyWorld = dpdy(input.world);
     let duvdx = dpdx(input.uv);
@@ -839,12 +843,11 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
     let footprint = max(length(dpdxWorld), length(dpdyWorld));
     let surfaceUv = select(select(input.world.xy, input.world.zy, abs(normal.x) > abs(normal.z)), input.world.xz * vec2<f32>(1.0, -1.0), abs(normal.y) > 0.7) * 0.5;
     let surfaceLayer = select(0, 1, input.surface == 4u);
-    let surfaceColour = textureSample(surfaceAlbedo, surfaceSampler, surfaceUv, surfaceLayer).rgb;
-    let surfaceDetail = textureSample(surfaceNormalMap, surfaceSampler, surfaceUv, surfaceLayer).rgb * 2.0 - 1.0;
-    let surfaceProperties = textureSample(surfaceArm, surfaceSampler, surfaceUv, surfaceLayer).rgb;
     let surfaceUvDx = dpdx(surfaceUv);
     let surfaceUvDy = dpdy(surfaceUv);
     if input.textured != 0u {
+        let albedo = textureSampleGrad(athleteAlbedo, athleteSampler, input.uv, duvdx, duvdy);
+        let detail = textureSampleGrad(athleteDetail, athleteSampler, input.uv, duvdx, duvdy);
         // The differential tangent frame follows the deformed mesh without importing a second skinning palette.
         let perpendicularX = cross(dpdyWorld, normal);
         let perpendicularY = cross(normal, dpdxWorld);
@@ -854,10 +857,13 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
         let mapped = detail.rgb * 2.0 - 1.0;
         let surfaceNormal = normalize(tangent * inverseScale * mapped.x + bitangent * inverseScale * mapped.y + normal * mapped.z);
         let roughness = clamp(detail.a, 0.18, 1.0);
-        let litAthlete = shadeMaterial(albedo.rgb, surfaceNormal, input.world, roughness, 0.0, 1.0, 1.0);
+        let litAthlete = shadeAthlete(albedo.rgb, surfaceNormal, normal, input.world, roughness, input.surface);
         return vec4<f32>(litAthlete, albedo.a);
     }
     if input.surface != 0u {
+        if input.surface == 7u {
+            return vec4<f32>(shadeMatchBall(input.uv, normal, input.world), 1.0);
+        }
         if input.surface <= 3u {
             return vec4<f32>(shadePitch(input.world, input.surface, dpdxWorld, dpdyWorld), input.color.a);
         }
@@ -865,12 +871,16 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
         var materialNormal = normal;
         var roughness = 0.90;
         var metallic = 0.0;
+        var ao = 1.0;
         let broadVariation = materialNoise(input.world.xz * 0.24);
         let medium = materialNoise(input.world.xz * 2.2);
         // Frequencies smaller than a pixel fade to their mean instead of producing broadcast-camera shimmer.
         let detailWeight = 1.0 - smoothstep(0.018, 0.065, footprint);
         let grain = materialNoise(input.world.xz * vec2<f32>(75.0, 22.0));
         if input.surface == 4u {
+            let surfaceColour = textureSampleGrad(surfaceAlbedo, surfaceSampler, surfaceUv, surfaceLayer, surfaceUvDx, surfaceUvDy).rgb;
+            let surfaceDetail = textureSampleGrad(surfaceNormalMap, surfaceSampler, surfaceUv, surfaceLayer, surfaceUvDx, surfaceUvDy).rgb * 2.0 - 1.0;
+            let surfaceProperties = textureSampleGrad(surfaceArm, surfaceSampler, surfaceUv, surfaceLayer, surfaceUvDx, surfaceUvDy).rgb;
             let perpendicularX = cross(dpdyWorld, normal);
             let perpendicularY = cross(normal, dpdxWorld);
             let tangent = perpendicularX * surfaceUvDx.x + perpendicularY * surfaceUvDy.x;
@@ -879,10 +889,9 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
             let mapped = normalize(vec3<f32>(surfaceDetail.xy * 0.45, surfaceDetail.z));
             materialNormal = normalize(tangent * scale * mapped.x + bitangent * scale * mapped.y + normal * mapped.z);
             base *= surfaceColour / vec3<f32>(0.25);
-        }
-        if input.surface == 4u {
             base *= 0.90 + 0.16 * broadVariation + (grain - 0.5) * 0.09 * detailWeight;
             roughness = clamp(surfaceProperties.g, 0.65, 1.0);
+            ao = mix(0.75, 1.0, surfaceProperties.r);
         } else if input.surface == 5u {
             base *= 0.95 + 0.06 * medium;
             roughness = 0.40;
@@ -890,12 +899,11 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
         } else {
             roughness = 0.30;
         }
-        let ao = select(1.0, mix(0.75, 1.0, surfaceProperties.r), input.surface <= 4u);
-        let visibility = 1.0;
-        let lit = shadeMaterial(base, materialNormal, input.world, roughness, metallic, ao * mix(0.82, 1.0, visibility), visibility);
+        let visibility = sunlightVisibility(input.world, normal);
+        let lit = shadeMaterial(base, materialNormal, input.world, roughness, metallic, ao, visibility);
         return vec4<f32>(lit, input.color.a);
     }
-    return vec4<f32>(shadeMaterial(input.color.rgb, normal, input.world, 0.85, 0.0, 1.0, 1.0), input.color.a);
+    return vec4<f32>(shadeMaterial(input.color.rgb, normal, input.world, 0.85, 0.0, 1.0, sunlightVisibility(input.world, normal)), input.color.a);
 }
 """
             |> fun source -> source.Replace("CHARACTER_JOINT_COUNT", $"{character.JointCount}u")
@@ -904,10 +912,16 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
                 + File.ReadAllText(
                     Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "EnvironmentLighting.wgsl")
                 )
+                + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "ShadowLighting.wgsl"))
+                + AthleteMaterial.shaderConstants
+                + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "AthleteSurface.wgsl"))
+                + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "MatchBallSurface.wgsl"))
             |> fun source ->
                 source
                 + PitchMarkings.shaderConstants
                 + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "PitchSurface.wgsl"))
+                + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "GrassDetail.wgsl"))
+                + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "SkyBackground.wgsl"))
 
         let sourceBytes = Text.Encoding.UTF8.GetBytes(source + "\u0000")
         use sourcePointer = fixed sourceBytes
@@ -925,7 +939,7 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
         uniformEntry.Binding <- 0u
         uniformEntry.Visibility <- ShaderStage.Vertex ||| ShaderStage.Fragment
         uniformEntry.Buffer.Type <- BufferBindingType.Uniform
-        let uniformEntryPointer = NativePtr.stackalloc<BindGroupLayoutEntry> 12
+        let uniformEntryPointer = NativePtr.stackalloc<BindGroupLayoutEntry> 13
         NativePtr.write uniformEntryPointer uniformEntry
         let mutable jointEntry = BindGroupLayoutEntry()
         jointEntry.Binding <- 1u
@@ -961,7 +975,8 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
 
         for binding, dimension in
             [ 9u, TextureViewDimension.Dimension2DArray
-              10u, TextureViewDimension.Dimension2D ] do
+              10u, TextureViewDimension.Dimension2D
+              12u, TextureViewDimension.Dimension2D ] do
             let mutable entry = BindGroupLayoutEntry()
             entry.Binding <- binding
             entry.Visibility <- ShaderStage.Fragment
@@ -972,16 +987,22 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
         samplerEntry.Binding <- 11u
         NativePtr.write (NativePtr.add uniformEntryPointer 11) samplerEntry
         let mutable groupDescriptor = BindGroupLayoutDescriptor()
-        groupDescriptor.EntryCount <- unativeint 12
+        groupDescriptor.EntryCount <- unativeint 13
         groupDescriptor.Entries <- uniformEntryPointer
         bindGroupLayout <- api.DeviceCreateBindGroupLayout(device, &groupDescriptor)
         checkPointer "the camera bind-group layout" bindGroupLayout
 
-        let layoutPointer = NativePtr.stackalloc<nativeptr<BindGroupLayout>> 1
+        let shadowPass =
+            new DirectionalShadowPass(api, device, shadowSettings, bindGroupLayout)
+
+        shadows <- Some shadowPass
+
+        let layoutPointer = NativePtr.stackalloc<nativeptr<BindGroupLayout>> 2
         NativePtr.write layoutPointer bindGroupLayout
         let mutable pipelineLayoutDescriptor = PipelineLayoutDescriptor()
-        pipelineLayoutDescriptor.BindGroupLayoutCount <- unativeint 1
         pipelineLayoutDescriptor.BindGroupLayouts <- layoutPointer
+        NativePtr.write (NativePtr.add layoutPointer 1) shadowPass.ReceiverLayout
+        pipelineLayoutDescriptor.BindGroupLayoutCount <- unativeint 2
         pipelineLayout <- api.DeviceCreatePipelineLayout(device, &pipelineLayoutDescriptor)
         checkPointer "the stadium pipeline layout" pipelineLayout
 
@@ -999,7 +1020,7 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
         bindEntry.Buffer <- cameraBuffer
         bindEntry.Offset <- 0UL
         bindEntry.Size <- uint64 (cameraUniformData.Length * sizeof<float32>)
-        let bindEntryPointer = NativePtr.stackalloc<BindGroupEntry> 12
+        let bindEntryPointer = NativePtr.stackalloc<BindGroupEntry> 13
         NativePtr.write bindEntryPointer bindEntry
         let mutable jointBindEntry = BindGroupEntry()
         jointBindEntry.Binding <- 1u
@@ -1037,9 +1058,13 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
         samplerBindEntry.Binding <- 11u
         samplerBindEntry.Sampler <- environmentSampler
         NativePtr.write (NativePtr.add bindEntryPointer 11) samplerBindEntry
+        let mutable skyEntry = BindGroupEntry()
+        skyEntry.Binding <- 12u
+        skyEntry.TextureView <- environmentViews[2]
+        NativePtr.write (NativePtr.add bindEntryPointer 12) skyEntry
         let mutable bindDescriptor = BindGroupDescriptor()
         bindDescriptor.Layout <- bindGroupLayout
-        bindDescriptor.EntryCount <- unativeint 12
+        bindDescriptor.EntryCount <- unativeint 13
         bindDescriptor.Entries <- bindEntryPointer
         cameraBindGroup <- api.DeviceCreateBindGroup(device, &bindDescriptor)
         checkPointer "the camera uniform bind group" cameraBindGroup
@@ -1120,6 +1145,10 @@ fn pitchShadow(world: vec3<f32>, sunlight: vec3<f32>) -> f32 {
         descriptor.Multisample.Mask <- UInt32.MaxValue
         pipeline <- api.DeviceCreateRenderPipeline(device, &descriptor)
         checkPointer "the stadium render pipeline" pipeline
+
+        shadowPass.CreatePipeline(vertexState, depthState)
+        grassDetail <- Some(new ProceduralScenePass(api, device, shader, pipelineLayout, depthState, multisampleCount, ProceduralScenePassSettings.grass))
+        skyBackground <- Some(new ProceduralScenePass(api, device, shader, pipelineLayout, depthState, multisampleCount, ProceduralScenePassSettings.sky))
 
     let configureHudTexture (width: uint32) (height: uint32) =
         retainedHud |> Option.iter (fun hud -> (hud :> IDisposable).Dispose())
@@ -1369,50 +1398,20 @@ struct VertexOutput {
         api.QueueWriteTexture(queue, &destination, pointer.ToPointer(), unativeint length, &layout, &extent)
         hudUploadBytes <- hudUploadBytes + int64 (region.Width * region.Height * 4)
 
-    let broadcastForward =
-        // Presentation alignment must not inherit an arbitrary yaw from the stadium authoring camera.
-        let yaw = MathF.PI * 6.0f / 180.0f
-        let horizontal = Vector3(MathF.Sin(yaw), 0.0f, -MathF.Cos(yaw))
-        let horizontalScale = MathF.Cos(carrierCameraPitch)
-        Vector3(horizontal.X * horizontalScale, -MathF.Sin(carrierCameraPitch), horizontal.Z * horizontalScale)
-
-    let broadcastUp = Vector3.UnitY
-
     let mutable cameraFocus = Vector3(0.0f, 1.0f, 0.0f)
 
     let updateCamera width height =
         let aspect = float32 width / float32 height
-        // Narrow layouts retain the same horizontal football context instead of clipping nearby passing options.
-        let distance = carrierCameraDistance * max 1.0f (1.5f / aspect)
-        // Rise over the near-side stand instead of retreating through its geometry.
-        let nearTouchlineBlend = Math.Clamp((cameraFocus.Z - 16.0f) / 14.0f, 0.0f, 1.0f)
-        let pitch = carrierCameraPitch + nearTouchlineBlend * MathF.PI * 14.0f / 180.0f
-        let horizontalScale = MathF.Cos(pitch) / MathF.Cos(carrierCameraPitch)
-
-        let forward =
-            Vector3(broadcastForward.X * horizontalScale, -MathF.Sin(pitch), broadcastForward.Z * horizontalScale)
-        // Leave more room above the carrier for the far-side passing lanes, as in a television broadcast.
-        // Following all the way to a touchline puts the camera inside the stands or wastes the frame on spectators.
-        let framingFocus =
-            Vector3(cameraFocus.X, cameraFocus.Y, Math.Clamp(cameraFocus.Z - 2.5f, -14.0f, 22.0f))
-
-        let cameraPosition = framingFocus - forward * distance
+        let cameraFrame = ViewerCamera.frame cameraMode aspect cameraFocus
+        // At broadcast height these blades are subpixel; drawing them would add shimmer instead of detail.
+        showGrassDetail <- cameraFrame.Position.Y < 7.0f
+        let cameraPosition = cameraFrame.Position
         let cameraOffset = 16 + rootTransformCount * 16
         cameraUniformData[cameraOffset] <- cameraPosition.X
         cameraUniformData[cameraOffset + 1] <- cameraPosition.Y
         cameraUniformData[cameraOffset + 2] <- cameraPosition.Z
         cameraUniformData[cameraOffset + 3] <- 1.0f
-        let view = Matrix4x4.CreateLookAt(cameraPosition, framingFocus, broadcastUp)
-
-        let projection =
-            Matrix4x4.CreatePerspectiveFieldOfView(
-                carrierCameraFov,
-                aspect,
-                scene.Camera.NearPlane,
-                scene.Camera.FarPlane
-            )
-
-        let matrix = view * projection
+        let matrix = ViewerCamera.viewProjection aspect cameraFrame
 
         cameraUniformData[0] <- matrix.M11
         cameraUniformData[1] <- matrix.M12
@@ -1430,6 +1429,29 @@ struct VertexOutput {
         cameraUniformData[13] <- matrix.M42
         cameraUniformData[14] <- matrix.M43
         cameraUniformData[15] <- matrix.M44
+
+        let lightOffset = 16 + rootTransformCount * 16 + 12
+        Array.Copy(shadowMatrixData, 0, cameraUniformData, lightOffset, 16)
+        let mutable inverse = Matrix4x4.Identity
+        if not (Matrix4x4.Invert(matrix, &inverse)) then
+            invalidOp "The viewer camera produced a singular projection."
+        let inverseOffset = lightOffset + 16
+        cameraUniformData[inverseOffset] <- inverse.M11
+        cameraUniformData[inverseOffset + 1] <- inverse.M12
+        cameraUniformData[inverseOffset + 2] <- inverse.M13
+        cameraUniformData[inverseOffset + 3] <- inverse.M14
+        cameraUniformData[inverseOffset + 4] <- inverse.M21
+        cameraUniformData[inverseOffset + 5] <- inverse.M22
+        cameraUniformData[inverseOffset + 6] <- inverse.M23
+        cameraUniformData[inverseOffset + 7] <- inverse.M24
+        cameraUniformData[inverseOffset + 8] <- inverse.M31
+        cameraUniformData[inverseOffset + 9] <- inverse.M32
+        cameraUniformData[inverseOffset + 10] <- inverse.M33
+        cameraUniformData[inverseOffset + 11] <- inverse.M34
+        cameraUniformData[inverseOffset + 12] <- inverse.M41
+        cameraUniformData[inverseOffset + 13] <- inverse.M42
+        cameraUniformData[inverseOffset + 14] <- inverse.M43
+        cameraUniformData[inverseOffset + 15] <- inverse.M44
 
     let updatePlayersAndBall (frame: RenderFrame) (palettes: Matrix4x4[]) =
         if palettes.Length <> jointMatrices.Length then
@@ -1725,6 +1747,13 @@ struct VertexOutput {
             if NativePtr.toNativeInt cameraBindGroup <> 0n then
                 api.BindGroupRelease(cameraBindGroup)
 
+            shadows |> Option.iter (fun shadowPass -> (shadowPass :> IDisposable).Dispose())
+            shadows <- None
+            grassDetail |> Option.iter (fun detail -> (detail :> IDisposable).Dispose())
+            grassDetail <- None
+            skyBackground |> Option.iter (fun sky -> (sky :> IDisposable).Dispose())
+            skyBackground <- None
+
             if NativePtr.toNativeInt characterAlbedoView <> 0n then
                 api.TextureViewRelease(characterAlbedoView)
 
@@ -1872,6 +1901,7 @@ struct VertexOutput {
         Diagnostics.Trace.WriteLine(
             $"WebGPU stadium ready: X11 child 0x{uint64 window:X}, {multisampleCount}x MSAA, {staticBatches.Length} material batches, {dynamicBatches.Length} live batches."
         )
+        Diagnostics.Trace.WriteLine($"Viewer startup ready: {startupClock.Elapsed.TotalMilliseconds:F1} ms")
 
     do
         try
@@ -1881,6 +1911,8 @@ struct VertexOutput {
             reraise ()
 
     member _.NativeWindow = window
+
+    member _.CharacterRig = character.Rig
     member _.HudUploadBytes = hudUploadBytes
 
     // Diagnostics can time completed work without making production rendering wait for the GPU every frame.
@@ -1920,6 +1952,40 @@ struct VertexOutput {
 
                     encoder <- api.DeviceCreateCommandEncoder(device, NativePtr.nullPtr<CommandEncoderDescriptor>)
 
+                    let draw (batch: GpuDrawBatch) =
+                        api.RenderPassEncoderSetVertexBuffer(pass, 0u, batch.VertexBuffer, 0UL, UInt64.MaxValue)
+
+                        api.RenderPassEncoderSetIndexBuffer(
+                            pass,
+                            batch.IndexBuffer,
+                            IndexFormat.Uint32,
+                            0UL,
+                            UInt64.MaxValue
+                        )
+
+                        api.RenderPassEncoderDrawIndexed(pass, batch.IndexCount, batch.InstanceCount, 0u, 0, 0u)
+
+                    if not staticShadowsReady then
+                        pass <- shadows.Value.Begin(encoder, cameraBindGroup, true)
+
+                        for batch in staticBatches do
+                            draw batch
+
+                        api.RenderPassEncoderEnd(pass)
+                        api.RenderPassEncoderRelease(pass)
+                        pass <- NativePtr.nullPtr<RenderPassEncoder>
+
+                    shadows.Value.CopyStatic(encoder)
+                    pass <- shadows.Value.Begin(encoder, cameraBindGroup, false)
+
+                    for batch in dynamicBatches do
+                        draw batch
+
+                    // Selection rings and HUD markers are presentation annotations, not physical occluders.
+                    api.RenderPassEncoderEnd(pass)
+                    api.RenderPassEncoderRelease(pass)
+                    pass <- NativePtr.nullPtr<RenderPassEncoder>
+
                     let mutable colorAttachment = RenderPassColorAttachment()
                     colorAttachment.View <- multisampleColorView
                     colorAttachment.ResolveTarget <- hdrOutput.Value.SceneView
@@ -1951,30 +2017,32 @@ struct VertexOutput {
 
                     api.RenderPassEncoderSetBindGroup(
                         pass,
+                        1u,
+                        shadows.Value.ReceiverGroup,
+                        unativeint 0,
+                        NativePtr.nullPtr<uint32>
+                    )
+
+                    api.RenderPassEncoderSetBindGroup(
+                        pass,
                         0u,
                         cameraBindGroup,
                         unativeint 0,
                         NativePtr.nullPtr<uint32>
                     )
 
-                    let draw (batch: GpuDrawBatch) =
-                        api.RenderPassEncoderSetVertexBuffer(pass, 0u, batch.VertexBuffer, 0UL, UInt64.MaxValue)
-
-                        api.RenderPassEncoderSetIndexBuffer(
-                            pass,
-                            batch.IndexBuffer,
-                            IndexFormat.Uint32,
-                            0UL,
-                            UInt64.MaxValue
-                        )
-
-                        api.RenderPassEncoderDrawIndexed(pass, batch.IndexCount, batch.InstanceCount, 0u, 0, 0u)
-
                     for batch in staticBatches do
                         draw batch
 
                     for batch in dynamicBatches do
                         draw batch
+
+                    skyBackground.Value.Encode(pass)
+                    api.RenderPassEncoderSetPipeline(pass, pipeline)
+
+                    if showGrassDetail then
+                        grassDetail.Value.Encode(pass)
+                        api.RenderPassEncoderSetPipeline(pass, pipeline)
 
                     carrierMarkerBatch |> Option.iter draw
 
@@ -2010,6 +2078,7 @@ struct VertexOutput {
                     let commandPointer = NativePtr.stackalloc<nativeptr<CommandBuffer>> 1
                     NativePtr.write commandPointer commands
                     api.QueueSubmit(queue, unativeint 1, commandPointer)
+                    staticShadowsReady <- true
                     devicePoll.Invoke(NativePtr.toNativeInt device, 0uy, 0n) |> ignore
                     api.SurfacePresent(surface)
                     presented <- true
@@ -2017,7 +2086,7 @@ struct VertexOutput {
                     frameCount <- frameCount + 1
 
                     if frameCount = 1 then
-                        Diagnostics.Trace.WriteLine("Presented the first live FootballEngine stadium frame.")
+                        Diagnostics.Trace.WriteLine($"Presented the first live FootballEngine stadium frame after {startupClock.Elapsed.TotalMilliseconds:F1} ms.")
                 finally
                     if NativePtr.toNativeInt commands <> 0n then
                         api.CommandBufferRelease(commands)
@@ -2044,6 +2113,8 @@ struct VertexOutput {
                     api.TextureRelease(current.Texture)
 
         presented
+
+    member _.SetCamera(mode: ViewerCamera) = cameraMode <- mode
 
     interface IDisposable with
         member _.Dispose() = releaseResources ()
@@ -2082,7 +2153,7 @@ module MatchPitchNative =
                 let assetPath =
                     Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "stadium.glb")
 
-                Some(fun bounds -> new WebGpuStadiumRenderer(parent, bounds, assetPath, HdrLighting.broadcastDaylight))
+                Some(fun bounds -> new WebGpuStadiumRenderer(parent, bounds, assetPath))
 
     let overlayCutouts (control: Control) =
         match TopLevel.GetTopLevel(control) with

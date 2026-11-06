@@ -34,8 +34,12 @@ module AppMsgs =
         | SaveCompleted of requestId: uint64 * slot: string * revision: uint64 * Result<unit, string>
 
     type SimMsg =
+        | ContinueCareer
+        | AdvanceToNextEvent
+        | CancelAdvance
         | Advance of days: int
         | AdvanceDone of DayResult
+        | AdvanceFailed of string
         | AdvanceSeason
         | SeasonAdvanceDone of Result<SeasonResult, SeasonError>
         | SimulateSeason
@@ -95,6 +99,7 @@ module AppMsgs =
         | EndDrag
 
     type TacticsMsg =
+        | SelectSlot of int option
         | SetFormation of Formation
         | SetTeamTactics of TeamTactics
         | SetInstruction of (TacticalInstructions -> TacticalInstructions)
@@ -136,6 +141,7 @@ module AppMsgs =
         | CommandRejected of MatchCommandId * CommandRejection
         | RuntimeStatusChanged of LiveMatchStatus
         | SelectManagerWorkspace of MatchDayWorkspace
+        | SelectViewerCamera of FootballEngine.Client.Match3D.ViewerCamera
         | SelectIntelligenceWorkspace of IntelligenceWorkspace
         | SelectPlayer of FootballEngine.Domain.PlayerId option
         | SetEvidenceQuery of FootballEngine.Core.Match.ObservationQuery

@@ -15,6 +15,7 @@
         <Compile Include="Routing\Route.fs"/>
         <Compile Include="AppState\ModEditorTypes.fs"/>
         <Compile Include="AppState\ExecutionRandomness.fs"/>
+        <Compile Include="Match3D\ViewerCamera.fs"/>
         <Compile Include="AppState\Types.fs"/>
         <Compile Include="AppState\Msg.fs"/>
         <Compile Include="Animation\Contracts.fs"/>
@@ -71,10 +72,13 @@
         <Compile Include="Views\Components\MatchProjection.fs"/>
         <Compile Include="Match3D\StadiumAsset.fs"/>
         <Compile Include="Match3D\PitchMarkings.fs"/>
+        <Compile Include="Match3D\AthleteMaterial.fs"/>
         <Compile Include="Match3D\CharacterAsset.fs"/>
         <Compile Include="Match3D\MotionPalette.fs"/>
         <Compile Include="Match3D\SurfaceTexturePack.fs"/>
         <Compile Include="Match3D\HdrLighting.fs"/>
+        <Compile Include="Match3D\DirectionalShadowPass.fs"/>
+        <Compile Include="Match3D\ProceduralScenePass.fs"/>
         <Compile Include="Match3D\HdrOutputPass.fs"/>
         <Compile Include="Match3D\MatchHudInvalidation.fs"/>
         <Compile Include="Match3D\MatchHudRenderer.fs"/>
@@ -124,7 +128,7 @@
         <Content Include="Assets\MatchViewer\stadium.glb">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
-        <Content Include="Assets\MatchViewer\player.glb;Assets\MatchViewer\player-motion.json;Assets\MatchViewer\player-albedo.png;Assets\MatchViewer\player-normal-roughness.png">
+        <Content Include="Assets\MatchViewer\player.glb;Assets\MatchViewer\player-motion.json;Assets\MatchViewer\player-albedo*.png;Assets\MatchViewer\player-normal-roughness*.png">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>

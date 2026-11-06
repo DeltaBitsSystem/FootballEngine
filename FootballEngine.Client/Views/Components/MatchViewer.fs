@@ -116,10 +116,10 @@ module MatchViewer =
               Button.onClick (fun _ -> dispatch (LiveMsg(LiveMsg.CommandSubmitted command))) ]
         :> IView
 
-    let private livePitch (runtimeId: MatchRuntimeId) (live: LiveMatchState) : IView =
+    let private livePitch (runtimeId: MatchRuntimeId) (live: LiveMatchState) camera : IView =
         Border.create
             [ Border.background Theme.BgMain
-              Border.child (MatchPitch.view runtimeId live) ]
+              Border.child (MatchPitch.view runtimeId live camera) ]
 
     let private scoreHeader (live: LiveMatchState) : IView =
         let score = live.Score
@@ -427,11 +427,34 @@ module MatchViewer =
                          else
                              events) ] ]
 
-    let private controlDock (live: LiveMatchState) (dispatch: Msg -> unit) : IView =
+    let private controlDock (live: LiveMatchState) camera (dispatch: Msg -> unit) : IView =
         let tokens = Theme.currentTokens.Value
         let colors = tokens.Colors
         let canControl = live.Source = LiveSession && live.Status <> Finished
         let localized key = Localization.resolve key []
+
+        let cameraChoices =
+            [| ViewerCamera.Broadcast, TranslationKey.MatchCameraBroadcast
+               ViewerCamera.Tactical, TranslationKey.MatchCameraTactical
+               ViewerCamera.BehindGoal, TranslationKey.MatchCameraBehindGoal
+               ViewerCamera.Touchline, TranslationKey.MatchCameraTouchline
+               ViewerCamera.CloseUp, TranslationKey.MatchCameraCloseUp |]
+            |> Array.map (fun (mode, key) -> mode, localized key)
+
+        let cameraSelector : IView =
+            ComboBox.create
+                [ ComboBox.dataItems (cameraChoices |> Array.map snd)
+                  ComboBox.selectedItem (cameraChoices |> Array.find (fun (mode, _) -> mode = camera) |> snd)
+                  ComboBox.minWidth 150.0
+                  ComboBox.minHeight tokens.Controls.StandardHeight
+                  ToolTip.tip (localized TranslationKey.MatchCamera)
+                  ComboBox.onSelectedItemChanged (fun value ->
+                      if not (isNull value) then
+                          cameraChoices
+                          |> Array.tryFind (fun (_, label) -> label = string value)
+                          |> Option.iter (fun (mode, _) ->
+                              if mode <> camera then
+                                  dispatch (LiveMsg(LiveMsg.SelectViewerCamera mode)))) ]
 
         let dockButton (label: string) icon selected enabled onClick : IView =
             let foreground =
@@ -509,7 +532,13 @@ module MatchViewer =
                 [ command (localized TranslationKey.MatchDefensive) (ChangeMentality Defensive)
                   command (localized TranslationKey.MatchBalanced) (ChangeMentality Balanced)
                   command (localized TranslationKey.MatchPositive) (ChangeMentality Positive)
-                  command (localized TranslationKey.MatchAttacking) (ChangeMentality Attacking) ]
+                  command (localized TranslationKey.MatchAttacking) (ChangeMentality Attacking)
+                  TextBlock.create
+                      [ TextBlock.text (localized TranslationKey.MatchMentalityHint)
+                        TextBlock.maxWidth 230.0
+                        TextBlock.textWrapping TextWrapping.Wrap
+                        TextBlock.fontSize 11.0
+                        TextBlock.foreground colors.TextSecondary ] :> IView ]
             | Players ->
                 [ TextBlock.create
                       [ TextBlock.text (
@@ -592,7 +621,7 @@ module MatchViewer =
                                                       [ StackPanel.orientation Orientation.Horizontal
                                                         StackPanel.spacing 5.0
                                                         StackPanel.verticalAlignment VerticalAlignment.Center
-                                                        StackPanel.children activeTools ]
+                                                        StackPanel.children (cameraSelector :: activeTools) ]
                                               ) ]
                                         StackPanel.create
                                             [ Grid.column 2
@@ -624,7 +653,7 @@ module MatchViewer =
                                                     dockButton "4x" None (live.Speed = VeryFast) canControl (fun () ->
                                                         submit (SetLiveSpeed VeryFast))
                                                     dockButton
-                                                        "Why?"
+                                                        (localized TranslationKey.MatchEvidence)
                                                         None
                                                         (live.Ui.IntelligenceWorkspace = Events)
                                                         true
@@ -644,22 +673,60 @@ module MatchViewer =
                                                             if live.Status = Finished then
                                                                 TranslationKey.MatchPostMatch
                                                             else
-                                                                TranslationKey.MatchLeave
+                                                                TranslationKey.ReturnHome
                                                         ))
                                                         (Some IconName.next)
                                                         false
                                                         true
                                                         (fun () ->
-                                                            dispatch (
-                                                                LiveMsg(
-                                                                    if live.Status = Finished then
-                                                                        LiveMsg.ConfirmFinish
-                                                                    else
-                                                                        LiveMsg.Close
-                                                                )
-                                                            )) ] ] ] ]
+                                                            if live.Status = Finished then
+                                                                dispatch (LiveMsg LiveMsg.ConfirmFinish)
+                                                            else
+                                                                dispatch (Navigate FootballEngine.Routing.Route.Home)) ] ] ] ]
                         ) ]
               ) ]
+
+    let private commandFeedback (live: LiveMatchState) : IView =
+        let latest =
+            live.PendingCommands
+            |> Map.toList
+            |> List.rev
+            |> List.tryFind (fun (_, pending) ->
+                match pending.Command.Payload with
+                | SetLiveSpeed _ | PauseMatch | ResumeMatch -> false
+                | _ -> true)
+
+        match latest with
+        | None -> Border.create [] :> IView
+        | Some(_, pending) ->
+            let tr key = Localization.resolve key []
+            let action =
+                match pending.Command.Payload with
+                | ChangeMentality Defensive -> tr TranslationKey.MatchDefensive
+                | ChangeMentality Balanced -> tr TranslationKey.MatchBalanced
+                | ChangeMentality Positive -> tr TranslationKey.MatchPositive
+                | ChangeMentality Attacking -> tr TranslationKey.MatchAttacking
+                | ConfirmSubstitutions _ | PrepareSubstitutions _ -> tr TranslationKey.MatchSubstitutions
+                | IssueTouchlineInstruction _ -> tr TranslationKey.MatchTouchline
+                | _ -> tr TranslationKey.Tactics
+            let status =
+                match pending.Lifecycle with
+                | Queued -> tr TranslationKey.MatchChangeQueued
+                | Accepted _ -> tr TranslationKey.MatchChangeAccepted
+                | Applied(revision, _) -> Localization.resolve TranslationKey.MatchChangeApplied [ "revision", string revision ]
+                | Rejected reason -> Localization.resolve TranslationKey.MatchChangeRejected [ "reason", sprintf "%A" reason ]
+
+            Border.create
+                [ Border.padding (12.0, 6.0)
+                  Border.background Theme.BgSidebar
+                  ToolTip.tip (tr TranslationKey.MatchChangeHint)
+                  Border.child (
+                      TextBlock.create
+                          [ TextBlock.text (action + " · " + status)
+                            TextBlock.fontSize 12.0
+                            TextBlock.foreground Theme.TextMain
+                            TextBlock.textWrapping TextWrapping.Wrap ]
+                  ) ] :> IView
 
     let private noMatch (error: string option) : IView =
         Grid.create
@@ -696,10 +763,12 @@ module MatchViewer =
                       [ Grid.create
                             [ Grid.columnDefinitions (if inspect then "*, 380" else "*")
                               Grid.children
-                                  [ livePitch runtimeId live
+                                  [ livePitch runtimeId live state.Match.Camera
                                     if inspect then
                                         MatchEvidenceInspector.view runtimeId live dispatch ] ]
-                        controlDock live dispatch ] ]
+                        StackPanel.create
+                            [ Grid.row 1
+                              StackPanel.children [ commandFeedback live; controlDock live state.Match.Camera dispatch ] ] ] ]
             :> IView
         | _ -> noMatch state.Match.Error
 

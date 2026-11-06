@@ -73,6 +73,8 @@ arm = np.stack([grass['AmbientOcclusion'][..., 0], np.clip(grass['Roughness'][..
 concrete = {k: np.asarray(Image.open(SOURCE/f'concrete_floor_02_{k}_1k.jpg').convert('RGB'), dtype=np.float32)/255 for k in FILES}
 channels = {'albedo': [turf, concrete['diff']], 'normal': [normal, concrete['nor_gl']], 'arm': [arm, concrete['arm']]}
 outputs = []
+# Normal variance survives in roughness even after the normal itself is renormalized at each mip.
+normal_variance = {}
 for kind, layers in channels.items():
     path = OUT / f'{kind}.bin'
     packed = bytearray()
@@ -85,23 +87,31 @@ for kind, layers in channels.items():
         if level == 10:
             break
         reduced = []
-        for layer in layers:
+        for layer_index, layer in enumerate(layers):
             if kind == 'albedo':
                 layer = np.where(layer <= 0.04045, layer/12.92, ((layer+0.055)/1.055)**2.4)
             elif kind == 'normal':
                 layer = layer*2-1
+            elif kind == 'arm':
+                layer = layer.copy()
+                layer[..., 1] **= 4
             layer = (layer[::2, ::2]+layer[1::2, ::2]+layer[::2, 1::2]+layer[1::2, 1::2])*0.25
             if kind == 'albedo':
                 layer = np.where(layer <= 0.0031308, layer*12.92, 1.055*layer**(1/2.4)-0.055)
             elif kind == 'normal':
-                layer /= np.maximum(np.linalg.norm(layer, axis=-1, keepdims=True), 1e-8)
+                length = np.linalg.norm(layer, axis=-1, keepdims=True)
+                normal_variance[level, layer_index] = np.clip(1-length[..., 0], 0, 1)*0.5
+                layer /= np.maximum(length, 1e-8)
                 layer = layer*0.5+0.5
+            elif kind == 'arm':
+                layer[..., 1] = np.clip(layer[..., 1] + normal_variance[level, layer_index], 0, 1)**0.25
             reduced.append(layer)
         layers = reduced
     path.write_bytes(packed)
     outputs.append(dict(path=path.name, sha256=hashlib.sha256(packed).hexdigest(), bytes=len(packed)))
 (OUT/'manifest.json').write_text(json.dumps(dict(schema=1, size=size, layers=2, levels=11,
     layout='mip-major/layer-major RGBA8', albedo='sRGB', normal='OpenGL tangent-space', arm='AO/roughness/metallic linear',
+    mipFiltering='linear-light albedo; normalized normals; GGX alpha-squared roughness with accumulated normal variance',
     materials=['ambientCG Grass004: 1.4 metres/tile, pitch colour calibration', 'Poly Haven concrete_floor_02: 2 metres/tile'],
     author='ambientCG (Grass004); Rob Tuytel (concrete)', license='CC0-1.0',
     source=['https://ambientcg.com/a/Grass004', 'https://polyhaven.com/a/concrete_floor_02'],

@@ -7,6 +7,7 @@
   "albedo": "sRGB",
   "normal": "OpenGL tangent-space",
   "arm": "AO/roughness/metallic linear",
+  "mipFiltering": "linear-light albedo; normalized normals; GGX alpha-squared roughness with accumulated normal variance",
   "materials": [
     "ambientCG Grass004: 1.4 metres/tile, pitch colour calibration",
     "Poly Haven concrete_floor_02: 2 metres/tile"
@@ -71,7 +72,7 @@
     },
     {
       "path": "arm.bin",
-      "sha256": "65849e29cd3292c06a9dfde8c6debcce1949e0f2bb8097008d281a71ccf12c70",
+      "sha256": "406527c14f9214cf3370a56ba32392ac9af23ba0206a8f6476632f12f365e180",
       "bytes": 11184808
     }
   ]

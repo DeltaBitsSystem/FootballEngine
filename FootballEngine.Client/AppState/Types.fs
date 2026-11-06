@@ -106,6 +106,7 @@ module AppTypes =
 
     type TacticsState =
         { DraggedPlayer: PlayerId option
+          SelectedSlot: int option
           History: Lineup list }
 
     type TrainingState = { SelectedPlayer: PlayerId option }
@@ -182,6 +183,7 @@ module AppTypes =
 
     type MatchState =
         { RuntimeId: MatchRuntimeId option
+          Camera: FootballEngine.Client.Match3D.ViewerCamera
           RequestedMatchId: MatchId option
           PendingResult: MatchJobResult option
           Error: string option
@@ -223,6 +225,7 @@ module AppTypes =
         { Mode: AppMode
           Navigation: NavigationState
           IsProcessing: bool
+          AdvanceTarget: System.DateTime option
 
           Setup: SetupState
           Squad: SquadState
@@ -326,12 +329,16 @@ module AppTypes =
               Back = []
               Forward = [] }
           IsProcessing = true
+          AdvanceTarget = None
           Setup = initSetupState
           Squad =
             { SortBy = ByPosition
               SelectedPlayer = None
               DraggedPlayer = None }
-          Tactics = { DraggedPlayer = None; History = [] }
+          Tactics =
+            { DraggedPlayer = None
+              SelectedSlot = None
+              History = [] }
           Training = { SelectedPlayer = None }
           Finance =
             { SelectedOperationId = None
@@ -348,6 +355,7 @@ module AppTypes =
           Inbox = initInboxState
           Match =
             { RuntimeId = None
+              Camera = FootballEngine.Client.Match3D.ViewerCamera.Broadcast
               RequestedMatchId = None
               PendingResult = None
               Error = None

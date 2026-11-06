@@ -14,6 +14,7 @@
     <Compile Include="Animation\MotionRuntimeTests.fs" />
     <Compile Include="Animation\MotionTimelineTests.fs" />
     <Compile Include="HdrLightingTests.fs" />
+    <Compile Include="ViewerPresentationTests.fs" />
     <Compile Include="PitchMarkingsTests.fs" />
     <Compile Include="MatchDiagnosticsTests.fs" />
     <Compile Include="MatchHudTests.fs" />

@@ -15,6 +15,7 @@ type StadiumSurface =
     | Concrete = 4
     | Steel = 5
     | Enamel = 6
+    | MatchBall = 7
 
 module StadiumSurface =
     let ofMaterialName (name: string) =
@@ -64,6 +65,37 @@ type StadiumAssetData =
       Camera: StadiumCameraData
       BallRadius: float32 }
 
+module MatchBallMesh =
+    let create radius : DynamicMeshBatchData =
+        let latitudeCount, longitudeCount = 24, 48
+        let vertices =
+            [| for latitude in 0 .. latitudeCount do
+                   let v = float32 latitude / float32 latitudeCount
+                   let theta = v * MathF.PI
+                   for longitude in 0 .. longitudeCount do
+                       let u = float32 longitude / float32 longitudeCount
+                       let phi = u * MathF.PI * 2.0f
+                       let normal = Vector3(MathF.Sin(theta) * MathF.Cos(phi), MathF.Cos(theta), MathF.Sin(theta) * MathF.Sin(phi))
+                       yield
+                           { Position = normal * radius
+                             Normal = normal
+                             Color = Vector4.One
+                             Uv = Vector2(u, v)
+                             RootIndex = 22u
+                             Joints = Vector4.Zero
+                             Weights = Vector4.Zero
+                             Surface = uint32 StadiumSurface.MatchBall } |]
+        let indices =
+            [| for latitude in 0 .. latitudeCount - 1 do
+                   for longitude in 0 .. longitudeCount - 1 do
+                       let a = uint32 (latitude * (longitudeCount + 1) + longitude)
+                       let b = a + uint32 (longitudeCount + 1)
+                       if latitude > 0 then yield! [| a; b; a + 1u |]
+                       if latitude < latitudeCount - 1 then yield! [| a + 1u; b; b + 1u |] |]
+        { MaterialName = "FE match ball | procedural panel leather"
+          Vertices = vertices
+          Indices = indices }
+
 module StadiumAsset =
     type private BatchBuilder(materialName: string) =
         let vertices = ResizeArray<GpuVertex>()
@@ -107,12 +139,10 @@ module StadiumAsset =
         | true, accessor -> Some(convert accessor)
         | false, _ -> None
 
-    let private appendPrimitive
+    let private appendStaticPrimitive
         (builders: Dictionary<string, BatchBuilder>)
         (primitive: MeshPrimitive)
         (transform: Matrix4x4)
-        (rootIndex: int option)
-        (ballRadius: float32 ref option)
         =
         // The pitch shader paints blades directly; retaining the raised chalk meshes would duplicate and float the markings.
         let raisedPitchPaint =
@@ -159,13 +189,10 @@ module StadiumAsset =
                       Normal = normal
                       Color = color
                       Uv = uv
-                      RootIndex = rootIndex |> Option.defaultValue 23 |> uint32
+                      RootIndex = 23u
                       Joints = Vector4.Zero
                       Weights = Vector4.Zero
                       Surface = uint32 (StadiumSurface.ofMaterialName materialName) }
-
-                ballRadius
-                |> Option.iter (fun radius -> radius.Value <- max radius.Value (position.Length()))
 
             for struct (a, b, c) in primitive.GetTriangleIndices() do
                 builder.Indices.Add(vertexOffset + uint32 a)
@@ -191,16 +218,6 @@ module StadiumAsset =
                Vertices = builder.Vertices.ToArray()
                Indices = builder.Indices.ToArray() }
             : MeshBatchData))
-        |> Seq.toArray
-
-    let private freezeDynamic (builders: Dictionary<string, BatchBuilder>) : DynamicMeshBatchData array =
-        builders.Values
-        |> Seq.sortBy _.MaterialName
-        |> Seq.map (fun builder ->
-            ({ MaterialName = builder.MaterialName
-               Vertices = builder.Vertices.ToArray()
-               Indices = builder.Indices.ToArray() }
-            : DynamicMeshBatchData))
         |> Seq.toArray
 
     let load (path: string) =
@@ -251,13 +268,12 @@ module StadiumAsset =
                 dynamicNodes.Add node |> ignore
 
         let staticBuilders = Dictionary<string, BatchBuilder>(StringComparer.Ordinal)
-        let dynamicBuilders = Dictionary<string, BatchBuilder>(StringComparer.Ordinal)
         let ballRadius = ref 0.0f
 
         for node in model.DefaultScene.VisualChildren |> Seq.collect flatten do
             if not (dynamicNodes.Contains node) && not (isNull node.Mesh) then
                 for primitive in node.Mesh.Primitives do
-                    appendPrimitive staticBuilders primitive node.WorldMatrix None None
+                    appendStaticPrimitive staticBuilders primitive node.WorldMatrix
 
         let mutable inverseBall = Matrix4x4.Identity
 
@@ -269,17 +285,14 @@ module StadiumAsset =
                 let localToBall = node.WorldMatrix * inverseBall
 
                 for primitive in node.Mesh.Primitives do
-                    appendPrimitive dynamicBuilders primitive localToBall (Some 22) (Some ballRadius)
+                    for position in primitive.GetVertexAccessor("POSITION").AsVector3Array() do
+                        ballRadius.Value <- max ballRadius.Value (Vector3.Transform(position, localToBall).Length())
 
-        if
-            staticBuilders.Count = 0
-            || dynamicBuilders.Count = 0
-            || ballRadius.Value <= 0.0f
-        then
-            invalidOp "The stadium GLB is missing renderable pitch, player, or ball geometry."
+        if staticBuilders.Count = 0 || ballRadius.Value <= 0.0f then
+            invalidOp "The stadium GLB is missing renderable pitch or ball geometry."
 
         { StaticBatches = freezeStatic staticBuilders
-          DynamicBatches = freezeDynamic dynamicBuilders
+          DynamicBatches = [| MatchBallMesh.create ballRadius.Value |]
           Camera =
             { World = cameraNode.WorldMatrix
               VerticalFov = cameraSettings.VerticalFOV
