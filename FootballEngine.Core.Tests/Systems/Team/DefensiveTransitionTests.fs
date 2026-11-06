@@ -61,7 +61,203 @@ module DefensiveTransitionTests =
 
     let tests =
         testList "DefensiveTransitions"
-            [ testCase "unchanged possession cannot manufacture transition episodes" (fun _ ->
+            [ testCase "organized defense assigns coherent movement on both sides" (fun _ ->
+                  for side in [ ClubSide.Home; ClubSide.Away ] do
+                      let ctx, world = DefensiveTransitionFixtures.scenario side false 1.0f
+                      let team = MatchWorld.team world side
+                      let opponent = MatchWorld.team world (MatchWorld.oppOf side)
+                      team.Defense.Episode <- None
+                      team.Tactics <- { team.Tactics with PressIntensity = 1.0f; PressTriggerZone = 1.0f }
+                      world.State <-
+                          { world.State with
+                              Ball = { world.State.Ball with Control = BallControl.Controlled(MatchWorld.oppOf side, opponent.RosterIds[9]) } }
+                      let system = DefensiveTransitionFixtures.systemContext ctx
+                      TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                      PlayerIntent.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                      invariants world side
+                      let snapshot = DefensiveCheckpoint.snapshot team
+                      use stream = new System.IO.MemoryStream()
+                      use writer = new System.IO.BinaryWriter(stream)
+                      DefensiveCheckpoint.write writer snapshot
+                      writer.Flush()
+                      stream.Position <- 0L
+                      use reader = new System.IO.BinaryReader(stream)
+                      Expect.equal (DefensiveCheckpoint.read reader) snapshot "organized tasks survive checkpoint encoding"
+                      let primary = MatchWorld.activeSlots team.Frame |> Array.filter (fun slot -> team.Frame.DefensiveRoles[slot] = DefensiveRole.FirstDefender)
+                      Expect.equal primary.Length 1 "one primary engages a controlled ball"
+                      Expect.equal team.Frame.Intent.Kind[primary[0]] IntentCode.Press "the assigned player presses"
+                      Expect.equal (team.Frame.DefensiveRoles |> Array.filter ((=) DefensiveRole.Cover) |> Array.length) 1 "one player covers"
+                      let initial = primary[0]
+                      team.Frame.PosY[initial] <- team.Frame.PosY[initial] + 0.01f
+                      TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                      Expect.equal team.Frame.DefensiveRoles[initial] DefensiveRole.FirstDefender "small perturbation keeps responsibility"
+                      opponent.Frame.PosX[8] <- float32 (-45.0 * MatchMath.goalDirection side)
+                      opponent.Frame.PosY[8] <- 0.0f
+                      TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                      Expect.isFalse (team.Frame.DefensiveRoles |> Array.contains DefensiveRole.FirstDefender) "deep threat takes priority over pressure")
+              testCase "organized defense respects tactical restraint and clears after recovery" (fun _ ->
+                  let ctx, world = DefensiveTransitionFixtures.scenario ClubSide.Home false 1.0f
+                  let team = world.Home
+                  team.Defense.Episode <- None
+                  team.Tactics <- { team.Tactics with PressIntensity = 0.0f }
+                  world.State <-
+                      { world.State with
+                          Ball = { world.State.Ball with Control = BallControl.Controlled(ClubSide.Away, world.Away.RosterIds[9]) } }
+                  let system = DefensiveTransitionFixtures.systemContext ctx
+                  TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                  Expect.isFalse (team.Frame.DefensiveRoles |> Array.contains DefensiveRole.FirstDefender) "low press holds shape"
+                  world.State <-
+                      { world.State with
+                          Ball = { world.State.Ball with Control = BallControl.Controlled(ClubSide.Home, team.RosterIds[9]) } }
+                  TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                  Expect.isTrue (team.Defense.Tasks |> Array.forall Option.isNone) "recovery clears defensive tasks")
+              testCase "organized defense records changed responsibilities without capture effects" (fun _ ->
+                  let ctx, captured = DefensiveTransitionFixtures.scenario ClubSide.Home false 1.0f
+                  let _, silent = DefensiveTransitionFixtures.scenario ClubSide.Home false 1.0f
+                  for world, enabled in [ captured, true; silent, false ] do
+                      world.Observation.Enabled <- enabled
+                      world.Home.Defense.Episode <- None
+                      world.Home.Tactics <- { world.Home.Tactics with PressIntensity = 1.0f; PressTriggerZone = 1.0f }
+                      world.State <- { world.State with Ball = { world.State.Ball with Control = BallControl.Controlled(ClubSide.Away, world.Away.RosterIds[9]) } }
+                      let system = DefensiveTransitionFixtures.systemContext ctx
+                      TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                      TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                      world.Away.Frame.PosX[8] <- -45.0f
+                      world.Away.Frame.PosY[8] <- 0.0f
+                      TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                  let decisions =
+                      captured.Observation.Snapshot().Entries
+                      |> Array.choose (fun entry -> match entry.Data with OrganizedDefenseEvaluated decision when decision.Side = ClubSide.Home -> Some decision | _ -> None)
+                  Expect.equal decisions.Length 2 "only initial assignment and threat-driven release produce evidence"
+                  Expect.equal decisions[0].Reason OrganizedPressure "initial reason"
+                  Expect.equal decisions[1].Reason OrganizedDepthThreat "release reason"
+                  Expect.equal captured.Home.Defense.Tasks silent.Home.Defense.Tasks "capture does not alter tasks"
+                  Expect.equal captured.Home.Frame.DefensiveRoles silent.Home.Frame.DefensiveRoles "capture does not alter assignments")
+              testCase "organized defense checkpoint restores a real session frontier" (fun _ ->
+                  let input = matchInput ()
+                  let session = MatchSession.create Scheduler.systems input MatchRunMode.Fast |> unwrap
+                  let organized () =
+                      [ ClubSide.Home; ClubSide.Away ] |> List.exists (fun side ->
+                          let team = MatchWorld.team session.World side
+                          (team.Defense.Episode |> Option.forall (fun episode -> episode.EndedAt.IsSome))
+                          && (team.Defense.Tasks |> Array.exists Option.isSome)
+                          && (match MatchWorld.ballCarrier input.Context session.World with
+                              | Some (owner, _, _) -> owner <> side
+                              | None -> false))
+                  while not (organized ()) && session.World.State.Tick < 40000<subtick> do
+                      MatchSession.advanceTo (session.World.State.Tick + 8<subtick>) session |> unwrap |> ignore
+                  Expect.isTrue (organized ()) "production scheduler reaches an organized defensive frontier"
+                  let checkpoint = MatchSession.checkpoint session
+                  let restored = checkpoint |> MatchSession.serializeCheckpoint |> MatchSession.deserializeCheckpoint |> unwrap
+                                 |> MatchSession.restore Scheduler.systems input |> unwrap
+                  Expect.equal (fingerprint restored) (fingerprint session) "exact tasks and sporting state at checkpoint"
+                  let target = session.World.State.Tick + 400<subtick>
+                  MatchSession.advanceTo target session |> unwrap |> ignore
+                  while restored.World.State.Tick < target do
+                      MatchSession.advanceTo (min target (restored.World.State.Tick + 7<subtick>)) restored |> unwrap |> ignore
+                  Expect.equal (fingerprint restored) (fingerprint session) "continuation is chunk-independent")
+              testCase "organized defense capture leaves a real session deterministic" (fun _ ->
+                  let input = matchInput ()
+                  let captured = MatchSession.create Scheduler.systems input MatchRunMode.Fast |> unwrap
+                  let silent = MatchSession.create Scheduler.systems input MatchRunMode.Fast |> unwrap
+                  captured.World.Observation.Enabled <- true
+                  silent.World.Observation.Enabled <- false
+                  MatchSession.advanceTo 12000<subtick> captured |> unwrap |> ignore
+                  MatchSession.advanceTo 12000<subtick> silent |> unwrap |> ignore
+                  Expect.isTrue (captured.World.Observation.Snapshot().Entries |> Array.exists (fun entry -> match entry.Data with OrganizedDefenseEvaluated _ -> true | _ -> false)) "the measured path was reached"
+                  Expect.equal (fingerprint captured) (fingerprint silent) "capture cannot change tasks events state or RNG")
+              testCase "scheduler physically advances an organized primary toward its target" (fun _ ->
+                  for side in [ ClubSide.Home; ClubSide.Away ] do
+                      let ctx, geometry = DefensiveTransitionFixtures.scenario side false 1.0f
+                      let world = MatchFactory.create ctx
+                      for currentSide in [ ClubSide.Home; ClubSide.Away ] do
+                          let source = (MatchWorld.team geometry currentSide).Frame
+                          let destination = (MatchWorld.team world currentSide).Frame
+                          System.Array.Copy(source.PosX, destination.PosX, source.SlotCount)
+                          System.Array.Copy(source.PosY, destination.PosY, source.SlotCount)
+                          System.Array.Copy(source.Condition, destination.Condition, source.SlotCount)
+                      let team = MatchWorld.team world side
+                      let opponentSide = MatchWorld.oppOf side
+                      let opponent = MatchWorld.team world opponentSide
+                      let dir = MatchMath.goalDirection side
+                      team.Frame.PosX[9] <- float32 (-2.0 * dir)
+                      team.Frame.PosX[5] <- float32 (-4.0 * dir)
+                      team.Tactics <- { team.Tactics with PressIntensity = 1.0f; PressTriggerZone = 1.0f }
+                      world.State <- { world.State with Flow = MatchFlow.Live; Ball = TestBuilders.emptyBall }
+                      let buffer = DefensiveTransitionFixtures.buffer ()
+                      buffer.Events.Add { Tick = world.State.Tick; Data = EventData.Possession(opponentSide, opponent.RosterIds[9]) }
+                      let schedule = ScheduleCompiler.compile Scheduler.systems
+                      let context = DefensiveTransitionFixtures.systemContext ctx
+                      let output = Array.zeroCreate<MatchEvent> 256
+                      let initialRng, _, _ = Stepper.stepInto schedule context (Rng.ofSeed 1UL) world buffer output
+                      let primary = MatchWorld.activeSlots team.Frame |> Array.find (fun slot -> team.Frame.DefensiveRoles[slot] = DefensiveRole.FirstDefender)
+                      Expect.equal (team.Frame.DefensiveRoles |> Array.filter ((=) DefensiveRole.Cover) |> Array.length) 1 "one cover supports the initial press"
+                      Expect.equal (team.Frame.DefensiveRoles |> Array.filter ((=) DefensiveRole.ProtectDepth) |> Array.length) 2 "two players protect depth"
+                      let target = team.Defense.Tasks[primary].Value.Target
+                      let distance () = MatchMath.dist (MatchWorld.posX team.Frame primary) (MatchWorld.posY team.Frame primary) target.X target.Y
+                      let initialDistance = distance ()
+                      let mutable minimum = initialDistance
+                      let mutable rng = initialRng
+                      let mutable tracking = true
+                      for _ in 1 .. 20 do
+                          let next, _, _ = Stepper.stepInto schedule context rng world buffer output
+                          rng <- next
+                          if team.Frame.DefensiveRoles[primary] <> DefensiveRole.FirstDefender then tracking <- false
+                          if tracking then minimum <- min minimum (distance ())
+                      Expect.isLessThan minimum initialDistance "real scheduler physics closes distance while the same primary is assigned")
+              testCase "organized defense releases duties on loose ball restart and tactics" (fun _ ->
+                  for interruption in [ 0; 1; 2 ] do
+                      let ctx, world = DefensiveTransitionFixtures.scenario ClubSide.Home false 1.0f
+                      world.Home.Defense.Episode <- None
+                      world.Home.Tactics <- { world.Home.Tactics with PressIntensity = 1.0f; PressTriggerZone = 1.0f }
+                      world.State <- { world.State with Ball = { world.State.Ball with Control = BallControl.Controlled(ClubSide.Away, world.Away.RosterIds[9]) } }
+                      let system = DefensiveTransitionFixtures.systemContext ctx
+                      TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                      Expect.isTrue (world.Home.Frame.DefensiveRoles |> Array.contains DefensiveRole.FirstDefender) "fixture begins in pressure"
+                      if interruption = 0 then
+                          world.State <- { world.State with Ball = { world.State.Ball with Control = BallControl.Free } }
+                          TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                          Expect.isTrue (world.Home.Defense.Tasks |> Array.forall Option.isNone) "loose-ball roles replace controlled-ball tasks"
+                      elif interruption = 1 then
+                          EventApply.apply ctx world { Tick = 402<subtick>; Data = EventData.SetPiece(SetPieceKind.ThrowIn, ClubSide.Home) }
+                          Expect.isTrue (world.Home.Defense.Tasks |> Array.forall Option.isNone) "restart reducer clears duties immediately"
+                      else
+                          world.Home.Tactics <- { world.Home.Tactics with PressIntensity = 0.0f }
+                          TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                          Expect.isFalse (world.Home.Frame.DefensiveRoles |> Array.contains DefensiveRole.FirstDefender) "new tactical instruction releases pressure")
+              testCase "organized defense removes departed primary and reassigns" (fun _ ->
+                  for injury in [ false; true ] do
+                      let ctx, world = DefensiveTransitionFixtures.scenario ClubSide.Home false 1.0f
+                      world.Home.Defense.Episode <- None
+                      world.Home.Tactics <- { world.Home.Tactics with PressIntensity = 1.0f; PressTriggerZone = 1.0f }
+                      world.State <- { world.State with Ball = { world.State.Ball with Control = BallControl.Controlled(ClubSide.Away, world.Away.RosterIds[9]) } }
+                      let system = DefensiveTransitionFixtures.systemContext ctx
+                      TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                      let old = MatchWorld.activeSlots world.Home.Frame |> Array.find (fun slot -> world.Home.Frame.DefensiveRoles[slot] = DefensiveRole.FirstDefender)
+                      let data = if injury then EventData.Injury(world.Home.RosterIds[old], 1) else EventData.RedCardIssued world.Home.RosterIds[old]
+                      EventApply.apply ctx world { Tick = 402<subtick>; Data = data }
+                      Expect.isNone world.Home.Defense.Tasks[old] "reducer releases the departed slot immediately"
+                      TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                      Expect.equal world.Home.Frame.DefensiveRoles[old] DefensiveRole.Unassigned "departed player cannot regain a duty")
+              testCase "organized defense releases substituted identity" (fun _ ->
+                  let original = TestBuilders.formationCtx ()
+                  let lineup = original.HomeLineup
+                  let lineup = { lineup with Profiles = Array.append lineup.Profiles [| TestBuilders.makeProfile 500 SlotRole.Striker |]
+                                             BasePositions = Array.append lineup.BasePositions [| lineup.BasePositions[9] |]; SlotCount = 12 }
+                  let ctx = { original with HomeLineup = lineup; HomeParticipants = MatchLineupBoundary.fromLineup lineup }
+                  let ctx, world = DefensiveTransitionFixtures.scenarioWithContext ctx ClubSide.Home false 1.0f
+                  world.Home.Defense.Episode <- None
+                  world.Home.Tactics <- { world.Home.Tactics with PressIntensity = 1.0f; PressTriggerZone = 1.0f }
+                  world.State <- { world.State with Ball = { world.State.Ball with Control = BallControl.Controlled(ClubSide.Away, world.Away.RosterIds[9]) } }
+                  let system = DefensiveTransitionFixtures.systemContext ctx
+                  TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                  let old = MatchWorld.activeSlots world.Home.Frame |> Array.find (fun slot -> world.Home.Frame.DefensiveRoles[slot] = DefensiveRole.FirstDefender)
+                  EventApply.apply ctx world { Tick = 402<subtick>; Data = EventData.Substitution(world.Home.RosterIds[old], PlayerId 500) }
+                  Expect.isNone world.Home.Defense.Tasks[old] "old identity is released immediately"
+                  TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                  Expect.equal world.Home.Frame.DefensiveRoles[old] DefensiveRole.Unassigned "outgoing slot cannot regain a duty"
+                  Expect.isTrue (MatchWorld.isActive world.Home.Frame 11) "incoming slot participates by its own identity")
+              testCase "unchanged possession cannot manufacture transition episodes" (fun _ ->
                   let ctx = TestBuilders.formationCtx ()
                   let world = MatchFactory.create ctx
                   world.State <- { world.State with Flow = MatchFlow.Live; Tick = 400<subtick> }
@@ -185,7 +381,10 @@ module DefensiveTransitionTests =
                   Expect.equal (frame.DefensiveRoles |> Array.filter ((=) DefensiveRole.Screen) |> Array.length) 2 "two reachable outlets are screened"
                   Expect.equal (frame.DefensiveRoles |> Array.filter ((=) DefensiveRole.ProtectDepth) |> Array.length) 2 "depth is reserved"
                   let before = Array.copy frame.PosX
-                  PlayerSteering.step (DefensiveTransitionFixtures.systemContext ctx) (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                  let movementContext = DefensiveTransitionFixtures.systemContext ctx
+                  let movementEvents = DefensiveTransitionFixtures.buffer ()
+                  PlayerSteering.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
+                  ContactDynamics.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
                   Expect.notEqual frame.PosX before "targets produce real motion")
               testCase "retreat protects the centre and has an attacking opportunity cost" (fun _ ->
                   let ctx, world = DefensiveTransitionFixtures.scenario ClubSide.Home true 1.0f
@@ -196,7 +395,10 @@ module DefensiveTransitionTests =
                       if slot <> 0 then Expect.isLessThan world.Home.Frame.Intent.TargetX[slot] 0.0f "forward outlet is surrendered"
                   Expect.equal world.Home.Frame.Intent.Kind[0] IntentCode.HoldPosition "keeper still owns goal positioning"
                   let before = world.Home.Frame.PosX[0]
-                  PlayerSteering.step (DefensiveTransitionFixtures.systemContext ctx) (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
+                  let movementContext = DefensiveTransitionFixtures.systemContext ctx
+                  let movementEvents = DefensiveTransitionFixtures.buffer ()
+                  PlayerSteering.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
+                  ContactDynamics.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
                   Expect.notEqual world.Home.Frame.PosX[0] before "keeper is not frozen")
               testCase "beaten primary hands off to cover without exposing the depth pair" (fun _ ->
                   let ctx, world = DefensiveTransitionFixtures.scenario ClubSide.Home false 1.0f
@@ -344,11 +546,28 @@ module DefensiveTransitionTests =
                       world.Home.Tactics <- { world.Home.Tactics with PressIntensity = 0.1f }
                       response ctx world
                   Expect.equal fresh.Home.Frame.Intent.TargetX[6] tired.Home.Frame.Intent.TargetX[6] "same protective objective"
+                  let targetX = float fresh.Home.Frame.Intent.TargetX[6]
+                  for world in [ fresh; tired ] do
+                      world.Home.Frame.PosX[6] <- float32 (targetX - 8.0)
                   let initial = fresh.Home.Frame.PosX[6]
-                  for _ in 1 .. 40 do
+                  for _ in 1 .. 80 do
                       for world in [ fresh; tired ] do
-                          PlayerSteering.step (DefensiveTransitionFixtures.systemContext ctx) (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
-                  Expect.isGreaterThan (abs (fresh.Home.Frame.PosX[6] - initial)) (abs (tired.Home.Frame.PosX[6] - initial)) "capacity is movement, not a decision-only label")
+                          let movementContext = DefensiveTransitionFixtures.systemContext ctx
+                          let movementEvents = DefensiveTransitionFixtures.buffer ()
+                          PlayerSteering.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
+                          ContactDynamics.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
+                  Expect.isGreaterThan
+                      (abs (fresh.Home.Frame.PosX[6] - initial))
+                      (abs (tired.Home.Frame.PosX[6] - initial))
+                      (sprintf
+                          "capacity is movement, not a decision-only label (condition %.2f/%.2f, target velocity %.2f/%.2f, x %.2f/%.2f, target %.2f)"
+                          fresh.Home.Frame.Condition[6]
+                          tired.Home.Frame.Condition[6]
+                          fresh.Home.Frame.TargetVelX[6]
+                          tired.Home.Frame.TargetVelX[6]
+                          fresh.Home.Frame.PosX[6]
+                          tired.Home.Frame.PosX[6]
+                          fresh.Home.Frame.Intent.TargetX[6]))
               testCase "configured geometry cadence reaches the consumers in the same pass" (fun _ ->
                   let original, world = DefensiveTransitionFixtures.scenario ClubSide.Home false 1.0f
                   let ctx = { original with Config = { original.Config with DefensiveTransition = { original.Config.DefensiveTransition with ReevaluateTicks = 3<tickDelta> } } }

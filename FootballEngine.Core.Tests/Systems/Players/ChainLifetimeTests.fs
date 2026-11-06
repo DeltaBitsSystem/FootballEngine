@@ -117,6 +117,31 @@ module ChainLifetimeTests =
                   Expect.equal frame.Intent.ExitTrigger.[6] ExitTrigger.BallNearby "replacement is observable"
                   Expect.equal frame.Intent.Kind.[7] IntentCode.ExecuteRun "new receiver keeps the run")
 
+              testCase "incoming pass receiver keeps the trajectory chase over role intent" (fun _ ->
+                   let world = TestBuilders.formationWorld ()
+                   let passer = ctx.HomeLineup.Profiles.[5].Id
+                   let receiver = ctx.HomeLineup.Profiles.[6].Id
+                   world.State <-
+                       { world.State with
+                           Tick = 100<subtick>
+                           Ball =
+                               { world.State.Ball with
+                                   Control = BallControl.Free
+                                   Trajectory = Some(TrajectoryIntent.Aimed(passer, receiver, 1.0))
+                                   ArrivalGate = Some 140<subtick>
+                                   Position =
+                                       { world.State.Ball.Position with
+                                           X = 3.0<meter>
+                                           Y = 2.0<meter>
+                                           Vx = 4.0<meterPerSecond>
+                                           Vy = -1.5<meterPerSecond> } } }
+
+                   stepIntent world
+
+                   Expect.equal world.Home.Frame.Intent.Kind.[6] (byte IntentCode.ExecuteRun) "the intended receiver follows the live flight projection"
+                   Expect.equal world.Home.Frame.Intent.TargetX.[6] 7.0f "the receiver targets one second of horizontal flight"
+                   Expect.equal world.Home.Frame.Intent.TargetY.[6] 0.5f "the receiver targets one second of lateral flight")
+
               testCase "expired plan does not generate intent" (fun _ ->
                   let world = TestBuilders.formationWorld ()
                   world.State <- { world.State with Tick = 100<subtick> }

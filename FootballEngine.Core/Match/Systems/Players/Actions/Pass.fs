@@ -82,10 +82,8 @@ module Pass =
                     (SimTick.ofSubTicks tick)
                     ExecutionContext.OpenPlay
 
-            let arrival =
-                tick
-                + int (round (flightSeconds * float ctx.Clock.SubTicksPerSecond)) * 1<subtick>
-                + 6<subtick>
+            let travelTicks = int (ceil (flightSeconds * float ctx.Clock.SubTicksPerSecond))
+            let arrival = tick + travelTicks * 1<subtick>
 
             BallFootContact.request
                 ctx

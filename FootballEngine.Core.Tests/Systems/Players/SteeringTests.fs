@@ -23,6 +23,9 @@ module SteeringTests =
     let private stepSteering world =
         PlayerSteering.step systemContext (Rng.ofSeed 1UL) world (buffer ()) |> ignore
 
+    let private stepContact world =
+        ContactDynamics.step systemContext (Rng.ofSeed 1UL) world (buffer ()) |> ignore
+
     let steeringTests =
         testList
             "FootballEngine.Core.Systems.Players.SteeringTests"
@@ -51,18 +54,24 @@ module SteeringTests =
                           frame.PosX[teammate] <- float32 (10 + teammate)
                           frame.PosY[teammate] <- 15.0f
 
+                  for opponent in MatchWorld.activeSlots world.Away.Frame do
+                      world.Away.Frame.PosX[opponent] <- 30.0f + float32 opponent
+                      world.Away.Frame.PosY[opponent] <- 20.0f
+
                   for tick = 0 to 159 do
                       let angle = float tick * 0.1
                       frame.Intent.TargetX[slot] <- frame.PosX[slot] + float32 (cos angle * 0.1)
                       frame.Intent.TargetY[slot] <- frame.PosY[slot] + float32 (sin angle * 0.1)
                       stepSteering world
+                      stepContact world
 
                   let expected = atan2 (-float frame.PosY[slot]) (15.0 - float frame.PosX[slot])
+                  let error = atan2 (sin (float frame.BodyFacing[slot] - expected)) (cos (float frame.BodyFacing[slot] - expected))
 
                   Expect.isLessThan
-                      (abs (float frame.BodyFacing[slot] - expected))
-                      0.03
-                      "body settles toward play, not the rotating micro target")
+                       (abs error)
+                       0.03
+                       "body settles toward play, not the rotating micro target")
               testCase "continuous intent refreshes its target" (fun _ ->
                   let world = TestBuilders.formationWorld ()
                   let intent = world.Home.Frame.Intent
@@ -92,21 +101,24 @@ module SteeringTests =
                   let events = buffer ()
                   let rng = Rng.ofSeed 1UL
                   frame.JumpRequested[5] <- true
-                  let result = PlayerBodyPhysics.step systemContext rng world events
+                  let result = ContactDynamics.step systemContext rng world events
                   Expect.equal result rng "body integration cannot affect random decisions"
                   Expect.isGreaterThan frame.PosZ[5] 0.0f "takeoff raises the body"
                   Expect.isFalse frame.JumpRequested[5] "request is consumed once"
                   frame.JumpRequested[5] <- true
 
                   for _ in 1..200 do
-                      PlayerBodyPhysics.step systemContext rng world events |> ignore
+                       ContactDynamics.step systemContext rng world events |> ignore
 
                   Expect.equal frame.PosZ[5] 0.0f "landing never penetrates the pitch"
                   Expect.equal frame.VelZ[5] 0.0f "landing stops vertical motion"
                   Expect.equal frame.JumpSequence[5] 1UL "an airborne request cannot start a second jump"
 
                   Expect.equal
-                      (events.Events |> Seq.map _.Data |> Seq.toList)
+                       (events.Events
+                        |> Seq.map _.Data
+                        |> Seq.filter (function EventData.PlayerBodyFlight _ -> true | _ -> false)
+                        |> Seq.toList)
                       [ EventData.PlayerBodyFlight(world.Home.RosterIds[5], 1UL, true)
                         EventData.PlayerBodyFlight(world.Home.RosterIds[5], 1UL, false) ]
                       "takeoff and landing share a stable flight identity")
@@ -129,7 +141,7 @@ module SteeringTests =
 
                   Expect.equal frame.Intent.ExitTrigger[slot] ExitTrigger.None "arrival does not fire an exit trigger")
 
-              testCase "arrival clears stale velocity when separation is inactive" (fun _ ->
+              testCase "arrival proposes a stop and physical integration removes stale velocity" (fun _ ->
                   let world = TestBuilders.formationWorld ()
                   let frame = world.Home.Frame
                   let slot = 5
@@ -149,8 +161,14 @@ module SteeringTests =
 
                   stepSteering world
 
-                  Expect.equal frame.VelX[slot] 0.0f "arrival clears stale x velocity"
-                  Expect.equal frame.VelY[slot] 0.0f "arrival clears stale y velocity")
+                  Expect.equal frame.TargetVelX[slot] 0.0f "arrival proposes zero x velocity"
+                  Expect.equal frame.TargetVelY[slot] 0.0f "arrival proposes zero y velocity"
+
+                  for _ in 1..100 do
+                       stepContact world
+
+                  Expect.isLessThan (abs frame.VelX[slot]) 0.001f "body solver decelerates x"
+                  Expect.isLessThan (abs frame.VelY[slot]) 0.001f "body solver decelerates y")
 
               testCase "overlapping stationary teammates separate" (fun _ ->
                   let world = TestBuilders.formationWorld ()
@@ -166,11 +184,61 @@ module SteeringTests =
                       frame.Intent.TargetY[slot] <- y
                       frame.Intent.Phase[slot] <- IntentPhase.Executing
 
-                  stepSteering world
+                  stepContact world
 
                   Expect.isTrue
-                      (frame.PosX[1] <> frame.PosX[2] || frame.PosY[1] <> frame.PosY[2])
-                      "players no longer share the same coordinate")
+                       (frame.PosX[1] <> frame.PosX[2] || frame.PosY[1] <> frame.PosY[2])
+                       "static overlap receives a bounded positional correction")
+
+              testCase "head-on body impact emits deterministic physical evidence" (fun _ ->
+                   let world = TestBuilders.formationWorld ()
+                   let events = buffer ()
+
+                   for side, team in [ ClubSide.Home, world.Home; ClubSide.Away, world.Away ] do
+                       for slot in MatchWorld.activeSlots team.Frame do
+                           if not (side = ClubSide.Home && slot = 5) && not (side = ClubSide.Away && slot = 5) then
+                               team.Frame.PosX[slot] <- if side = ClubSide.Home then -30.0f else 30.0f
+                               team.Frame.PosY[slot] <- -20.0f + float32 slot * 4.0f
+
+                   let home = world.Home.Frame
+                   let away = world.Away.Frame
+                   home.PosX[5] <- -0.22f
+                   home.PosY[5] <- 0.0f
+                   home.VelX[5] <- 8.0f
+                   home.TargetVelX[5] <- 8.0f
+                   away.PosX[5] <- 0.22f
+                   away.PosY[5] <- 0.0f
+                   away.VelX[5] <- -8.0f
+                   away.TargetVelX[5] <- -8.0f
+                   let distantBall =
+                       { TestBuilders.emptyBall with
+                           Position =
+                               { TestBuilders.emptyBall.Position with
+                                   X = 15.0<meter>
+                                   Y = 20.0<meter>
+                                   Z = 10.0<meter> } }
+
+                   world.State <- { world.State with Flow = MatchFlow.Live; Ball = distantBall }
+
+                   let rng = Rng.ofSeed 17UL
+                   let next = ContactDynamics.step systemContext rng world events
+
+                   Expect.equal next rng "physical resolution does not consume randomness"
+
+                   let contact =
+                       events.Events
+                       |> Seq.tryPick (fun event ->
+                           match event.Data with
+                           | EventData.PhysicalContact contact -> Some contact
+                           | _ -> None)
+                       |> Option.defaultWith (fun () -> failtest "head-on collision emitted no physical record")
+
+                   Expect.equal contact.Other (Some world.Away.RosterIds[5]) "the opposing participant is recorded"
+                   Expect.isGreaterThan contact.NormalImpulse 0.0 "closing velocity produces a normal impulse"
+                   Expect.equal contact.SupportBefore BodySupport.DoubleFootSupport "record preserves support before the impulse"
+                   Expect.equal contact.SupportAfter BodySupport.NoBodySupport "falling response removes support"
+                   Expect.isGreaterThan contact.Fraction 0.0 "impact occurs inside the swept subtick"
+                   Expect.isLessThan contact.Fraction 1.0 "impact is not deferred past the subtick")
 
               testCase "steering cannot move a player beyond the pitch" (fun _ ->
                   let world = TestBuilders.formationWorld ()
@@ -184,6 +252,7 @@ module SteeringTests =
                   frame.Intent.Phase[slot] <- IntentPhase.Executing
 
                   stepSteering world
+                  stepContact world
 
                   Expect.isLessThanOrEqual frame.PosX[slot] (float32 Pitch.HalfLength) "x remains in bounds"
                   Expect.isLessThanOrEqual frame.PosY[slot] (float32 Pitch.HalfWidth) "y remains in bounds")
@@ -206,6 +275,7 @@ module SteeringTests =
                           frame.PosY[teammate] <- float32 (20 + teammate)
 
                   stepSteering world
+                  stepContact world
 
                   Expect.isLessThan
                       frame.BodyFacing[slot]
@@ -224,8 +294,8 @@ module SteeringTests =
 
                   Expect.isLessThanOrEqual
                       (abs frame.BodyAngularAcceleration[slot])
-                      (float32 ctx.Config.Movement.TurningAcceleration + 0.001f)
-                      "angular acceleration respects its configured limit")
+                       (float32 ctx.Config.Movement.TurningAcceleration + 0.001f)
+                       "angular acceleration respects its configured limit")
 
               testCase "a replay never freezes for a full match minute" (fun _ ->
                   let outcome =

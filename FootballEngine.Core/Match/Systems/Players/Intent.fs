@@ -104,15 +104,14 @@ module PlayerIntent =
 
         float32 (bestX * dir), float32 bestY
 
-    let private supportTarget
+    let private supportTargets
         (ctx: MatchContext)
         (world: World)
         (side: ClubSide)
         (carrierSlot: int)
-        (slot: int)
-        : (float32 * float32) option =
-        if carrierSlot < 0 || slot = carrierSlot then
-            None
+        : (int * float32 * float32) option * (int * float32 * float32) option =
+        if carrierSlot < 0 then
+            None, None
         else
             let team = MatchWorld.team world side
             let frame = team.Frame
@@ -144,15 +143,15 @@ module PlayerIntent =
                         rearDistance <- distance
 
             let targetFor chosen front =
-                if chosen <> slot then
+                if chosen < 0 then
                     None
                 else
-                    let candidateY = float (MatchWorld.posY frame slot)
+                    let candidateY = float (MatchWorld.posY frame chosen)
 
                     let naturalSign =
                         if candidateY > carrierY then 1.0
                         elif candidateY < carrierY then -1.0
-                        else if slot % 2 = 0 then 1.0
+                        else if chosen % 2 = 0 then 1.0
                         else -1.0
 
                     let sign = if front then naturalSign else -naturalSign
@@ -168,11 +167,9 @@ module PlayerIntent =
                     let targetX, targetY =
                         insetTarget ctx (carrierX * dir + xOffset) (carrierY + yOffset)
 
-                    Some(float32 (float targetX * dir), targetY)
+                    Some(chosen, float32 (float targetX * dir), targetY)
 
-            match targetFor frontSlot true with
-            | Some target -> Some target
-            | None -> targetFor rearSlot false
+            targetFor frontSlot true, targetFor rearSlot false
 
     let private roleIntent
         (ctx: MatchContext)
@@ -206,6 +203,7 @@ module PlayerIntent =
         let transitionTask =
             match team.Defense.Episode with
             | Some episode when episode.EndedAt.IsNone -> team.Defense.Tasks[slot]
+            | _ when opponentControlsBall && world.State.Flow = MatchFlow.Live -> team.Defense.Tasks[slot]
             | _ -> None
 
         let attackDuty =
@@ -374,8 +372,15 @@ module PlayerIntent =
                                 frame.Intent.ExitTrigger.[activeSlot] <- ExitTrigger.BallNearby
                                 cancelledByReplacement.[activeSlot] <- true
 
+                let frontSupport, rearSupport =
+                    if team.Attack.Episode.IsSome then None, None
+                    else supportTargets ctx.Ctx world side carrierSlot
+
                 let supportFor slot =
-                    supportTarget ctx.Ctx world side carrierSlot slot
+                    match frontSupport, rearSupport with
+                    | Some (owner, x, y), _ when owner = slot -> Some(x, y)
+                    | _, Some (owner, x, y) when owner = slot -> Some(x, y)
+                    | _ -> None
 
                 let looseBallChaser =
                     match world.State.Ball.Control with
@@ -402,7 +407,15 @@ module PlayerIntent =
                     | _ -> ()
 
                     for slot in MatchWorld.activeSlots frame do
-                        if not cancelledByReplacement.[slot] || team.Defense.Tasks[slot].IsSome then
+                        let isIncomingReceiver =
+                            receiveTarget
+                            |> Option.exists (fun (receiverSide, receiverSlot) ->
+                                receiverSide = side && receiverSlot = slot)
+
+                        if
+                            not isIncomingReceiver
+                            && (not cancelledByReplacement.[slot] || team.Defense.Tasks[slot].IsSome)
+                        then
                             roleIntent
                                 ctx.Ctx
                                 world

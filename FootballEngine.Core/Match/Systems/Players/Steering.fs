@@ -19,7 +19,6 @@ module PlayerSteering =
         let team = MatchWorld.team world side
         let frame = team.Frame
         let cfg = ctx.Config.Movement
-        let dt = float (SimulationClock.dtPlayer clock)
 
         let tx, ty, activeIntent =
             match frame.Intent.Kind.[slot] with
@@ -59,31 +58,10 @@ module PlayerSteering =
                     Some(atan2 ballDy ballDx)
                 else None
 
-        let maxRate = float cfg.TurningRate
-        let maxRateDelta = float cfg.TurningAcceleration * dt
-        let oldRate = float frame.BodyAngularVelocity.[slot]
-
-        let advanceFacing targetRate =
-            let rate =
-                oldRate + MatchMath.clamp (-maxRateDelta) maxRateDelta (targetRate - oldRate)
-
-            let facing =
-                atan2
-                    (sin (float frame.BodyFacing.[slot] + rate * dt))
-                    (cos (float frame.BodyFacing.[slot] + rate * dt))
-
-            frame.BodyAngularVelocity.[slot] <- float32 rate
-            frame.BodyAngularAcceleration.[slot] <- float32 ((rate - oldRate) / max dt 0.000001)
-            frame.BodyFacing.[slot] <- float32 facing
-
-        match desiredFacing with
-        | Some target ->
-            let current = float frame.BodyFacing.[slot]
-            let error = atan2 (sin (target - current)) (cos (target - current))
-            let stoppingRate = sqrt (2.0 * float cfg.TurningAcceleration * abs error)
-            let rateLimit = min maxRate stoppingRate
-            advanceFacing (MatchMath.clamp (-rateLimit) rateLimit (error / max dt 0.000001))
-        | None -> advanceFacing 0.0
+        frame.TargetFacing.[slot] <-
+            desiredFacing
+            |> Option.map float32
+            |> Option.defaultValue frame.BodyFacing.[slot]
 
         let dx = tx - px
         let dy = ty - py
@@ -127,123 +105,19 @@ module PlayerSteering =
                 else
                     desiredSpeed
 
-            let mutX = float frame.VelX.[slot]
-            let mutY = float frame.VelY.[slot]
-
-            let desiredX = dx / dist * speed
-            let desiredY = dy / dist * speed
-            let deltaX = desiredX - mutX
-            let deltaY = desiredY - mutY
-            let deltaLength = sqrt (deltaX * deltaX + deltaY * deltaY)
-            let maxDelta = float cfg.Acceleration * dt * max 0.1 (min 1.0 (float cfg.Smoothing))
-
-            let accelerationScale =
-                if deltaLength > maxDelta then
-                    maxDelta / deltaLength
-                else
-                    1.0
-
-            let smoothX = mutX + deltaX * accelerationScale
-            let smoothY = mutY + deltaY * accelerationScale
-
-            let mutable vx = smoothX
-            let mutable vy = smoothY
-
-            let sepRadius = float cfg.SeparationRadius
-            let sepStrength = float cfg.SeparationStrength
-
-            let teamFrame = frame
-
-            // Separation: teammates repel within the separation radius, so a
-            // compact shape never collapses into players standing on each other.
-            for s2 in MatchWorld.activeSlots teamFrame do
-                // Teammates yield to the dead-ball executor, whose contact target cannot move.
-                if s2 <> slot && not restartExecutor then
-                    let ox = float teamFrame.PosX.[s2]
-                    let oy = float teamFrame.PosY.[s2]
-                    let sdx = px - ox
-                    let sdy = py - oy
-                    let sd = sqrt (sdx * sdx + sdy * sdy)
-
-                    if sd < sepRadius && sd > 0.01 then
-                        let push = (1.0 - sd / sepRadius) * sepStrength * 3.0
-                        vx <- vx + sdx / sd * push
-                        vy <- vy + sdy / sd * push
-
-            frame.PosX.[slot] <-
-                float32 (MatchMath.clamp (-(float Pitch.HalfLength)) (float Pitch.HalfLength) (px + vx * dt))
-
-            frame.PosY.[slot] <-
-                float32 (MatchMath.clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) (py + vy * dt))
-
-            frame.VelX.[slot] <- float32 vx
-            frame.VelY.[slot] <- float32 vy
-
-            if
-                dist < 1.0
-                && activeIntent
-                && not (IntentCode.isContinuous frame.Intent.Kind.[slot])
-            then
-                frame.Intent.ExitTrigger.[slot] <- ExitTrigger.ReachedTarget
-                frame.Intent.Phase.[slot] <- IntentPhase.Completed
+            frame.TargetVelX.[slot] <- float32 (dx / dist * speed)
+            frame.TargetVelY.[slot] <- float32 (dy / dist * speed)
         else
-            let separationRadius = float cfg.SeparationRadius
-            let mutable pushX = 0.0
-            let mutable pushY = 0.0
+            frame.TargetVelX.[slot] <- 0.0f
+            frame.TargetVelY.[slot] <- 0.0f
 
-            for teammate in MatchWorld.activeSlots frame do
-                if teammate <> slot && not restartExecutor then
-                    let dx = px - float frame.PosX.[teammate]
-                    let dy = py - float frame.PosY.[teammate]
-                    let distanceSquared = dx * dx + dy * dy
-
-                    if distanceSquared < separationRadius * separationRadius then
-                        if distanceSquared > 0.0001 then
-                            let distance = sqrt distanceSquared
-                            let strength = 1.0 - distance / separationRadius
-                            pushX <- pushX + dx / distance * strength
-                            pushY <- pushY + dy / distance * strength
-                        else
-                            // Slot identity provides a stable escape direction when two
-                            // players occupy exactly the same coordinate.
-                            pushY <- pushY + (if slot < teammate then -1.0 else 1.0)
-
-            if pushX <> 0.0 || pushY <> 0.0 then
-                let length = sqrt (pushX * pushX + pushY * pushY)
-                let speed = float cfg.SeparationStrength
-
-                frame.PosX.[slot] <-
-                    float32 (
-                        MatchMath.clamp
-                            (-(float Pitch.HalfLength))
-                            (float Pitch.HalfLength)
-                            (px + pushX / length * speed * dt)
-                    )
-
-                frame.PosY.[slot] <-
-                    float32 (
-                        MatchMath.clamp
-                            (-(float Pitch.HalfWidth))
-                            (float Pitch.HalfWidth)
-                            (py + pushY / length * speed * dt)
-                    )
-
-                frame.VelX.[slot] <- float32 (pushX / length * speed)
-                frame.VelY.[slot] <- float32 (pushY / length * speed)
-            else
-                frame.VelX.[slot] <- 0.0f
-                frame.VelY.[slot] <- 0.0f
-
-        let legalX, legalY = MatchMath.pitchClampF32 frame.PosX.[slot] frame.PosY.[slot]
-        frame.PosX.[slot] <- legalX
-        frame.PosY.[slot] <- legalY
-        // Distance, not render time multiplied by current speed, preserves gait continuity through acceleration.
-        let travelledX = float legalX - px
-        let travelledY = float legalY - py
-
-        frame.BodyTravelDistance.[slot] <-
-            frame.BodyTravelDistance.[slot]
-            + float32 (sqrt (travelledX * travelledX + travelledY * travelledY))
+        if
+            dist < 1.0
+            && activeIntent
+            && not (IntentCode.isContinuous frame.Intent.Kind.[slot])
+        then
+            frame.Intent.ExitTrigger.[slot] <- ExitTrigger.ReachedTarget
+            frame.Intent.Phase.[slot] <- IntentPhase.Completed
 
     let private decayCondition (ctx: MatchContext) (clock: SimulationClock) (world: World) : unit =
         let dt = float (SimulationClock.dt clock)

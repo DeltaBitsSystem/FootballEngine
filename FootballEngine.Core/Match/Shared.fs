@@ -267,3 +267,28 @@ module MatchWorld =
         world.State <-
             { world.State with
                 Ball = f world.State.Ball }
+
+    let placeDeadBall (world: World) (spot: Vec2) : unit =
+        updateBall world (fun ball ->
+            { ball with
+                Position =
+                    { X = spot.X
+                      Y = spot.Y
+                      Z = 0.0<meter>
+                      Vx = 0.0<meterPerSecond>
+                      Vy = 0.0<meterPerSecond>
+                      Vz = 0.0<meterPerSecond> }
+                Spin =
+                    { X = 0.0<radianPerSecond>
+                      Y = 0.0<radianPerSecond>
+                      Z = 0.0<radianPerSecond> }
+                FootMotion = None
+                PendingStrike = None
+                Control = BallControl.Free
+                Trajectory = None
+                LastTouch = None
+                StationarySince = None
+                GKHoldSince = None
+                ArrivalGate = None
+                PreviousPosition = ValueNone
+                Impulse = None })

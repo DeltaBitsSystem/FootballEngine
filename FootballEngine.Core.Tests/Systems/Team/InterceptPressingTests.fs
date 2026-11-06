@@ -104,6 +104,9 @@ module InterceptPressingTests =
               testCase "first defender presses an opponent ball carrier" (fun _ ->
                   let world, ctx = pressWorld ()
                   let carrier = ctx.AwayLineup.Profiles.[9].Id
+                  world.Home.Tactics <- { world.Home.Tactics with PressIntensity = 1.0f; PressTriggerZone = 1.0f }
+                  world.Home.Frame.PosX[9] <- -2.0f
+                  world.Home.Frame.PosX[5] <- -4.0f
 
                   world.State <-
                       { world.State with
@@ -131,21 +134,22 @@ module InterceptPressingTests =
                       DefensiveRole.FirstDefender
                       "the assigned first defender owns the press"
 
-                  Expect.equal
-                      world.Home.Frame.Intent.TargetX.[pressers.[0]]
-                      0.0f
-                      "the press targets the carrier position"
+                  let target = TransitionGeometry.pressPoint ctx world ClubSide.Home
+                  Expect.equal world.Home.Frame.Intent.TargetX.[pressers.[0]] (float32 target.X) "the press uses the shared approach point"
 
                   Expect.equal
                       world.Home.Frame.Intent.TargetY.[pressers.[0]]
-                      0.0f
-                      "the press targets the carrier position"
+                      (float32 target.Y)
+                      "the press uses the shared approach point"
 
-                  let before = abs world.Home.Frame.PosX.[pressers.[0]]
-                  PlayerSteering.step (sctx ctx) (Rng.ofSeed 11UL) world (buffer ()) |> ignore
+                  let before = MatchMath.dist (MatchWorld.posX world.Home.Frame pressers[0]) (MatchWorld.posY world.Home.Frame pressers[0]) target.X target.Y
+                  let movementContext = sctx ctx
+                  let movementEvents = buffer ()
+                  PlayerSteering.step movementContext (Rng.ofSeed 11UL) world movementEvents |> ignore
+                  ContactDynamics.step movementContext (Rng.ofSeed 11UL) world movementEvents |> ignore
 
                   Expect.isLessThan
-                      (abs world.Home.Frame.PosX.[pressers.[0]])
+                      (MatchMath.dist (MatchWorld.posX world.Home.Frame pressers[0]) (MatchWorld.posY world.Home.Frame pressers[0]) target.X target.Y)
                       before
                       "the first defender physically closes down the carrier")
 

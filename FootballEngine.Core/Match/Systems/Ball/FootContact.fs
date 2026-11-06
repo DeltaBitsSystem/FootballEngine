@@ -214,44 +214,96 @@ module BallFootContact =
             (ValueSome outgoing)
 
     let receive (ctx: SystemContext) (world: World) buffer side slot =
-        let profile = MatchWorld.profileOf ctx.Ctx side slot
+        let frame = (MatchWorld.team world side).Frame
+        let ball = world.State.Ball
+        let retention = ctx.Ctx.Config.Ball.ReceptionVelocityRetention
 
-        if not profile.IsGK then
-            let frame = (MatchWorld.team world side).Frame
-            let ball = world.State.Ball
-            let retention = ctx.Ctx.Config.Ball.ReceptionVelocityRetention
+        let vx =
+            float frame.VelX[slot]
+            + (float ball.Position.Vx - float frame.VelX[slot]) * retention
 
-            let vx =
-                float frame.VelX[slot]
-                + (float ball.Position.Vx - float frame.VelX[slot]) * retention
+        let vy =
+            float frame.VelY[slot]
+            + (float ball.Position.Vy - float frame.VelY[slot]) * retention
 
-            let vy =
-                float frame.VelY[slot]
-                + (float ball.Position.Vy - float frame.VelY[slot]) * retention
+        recordTouch
+            ctx
+            world
+            buffer
+            side
+            slot
+            FootTouchKind.Receive
+            (vx - float ball.Position.Vx)
+            (vy - float ball.Position.Vy)
+            (float ball.Position.Vz * retention)
+        // The boot absorbs relative momentum at first touch, not on a later possession timer.
+        MatchWorld.updateBall world (fun ball ->
+            { ball with
+                Position =
+                    { ball.Position with
+                        Vx = vx * 1.0<meterPerSecond>
+                        Vy = vy * 1.0<meterPerSecond>
+                        Vz = ball.Position.Vz * retention }
+                Spin =
+                    { X = ball.Spin.X * retention
+                      Y = ball.Spin.Y * retention
+                      Z = ball.Spin.Z * retention }
+                GKHoldSince = None })
 
-            recordTouch
-                ctx
-                world
-                buffer
-                side
-                slot
-                FootTouchKind.Receive
-                (vx - float ball.Position.Vx)
-                (vy - float ball.Position.Vy)
-                (float ball.Position.Vz * retention)
-            // The boot absorbs relative momentum at first touch, not on a later possession timer.
-            MatchWorld.updateBall world (fun ball ->
-                { ball with
-                    Position =
-                        { ball.Position with
-                            Vx = vx * 1.0<meterPerSecond>
-                            Vy = vy * 1.0<meterPerSecond>
-                            Vz = ball.Position.Vz * retention }
-                    Spin =
-                        { X = ball.Spin.X * retention
-                          Y = ball.Spin.Y * retention
-                          Z = ball.Spin.Z * retention }
-                    GKHoldSince = None })
+    let private liveAimedTarget
+        (ctx: SystemContext)
+        (world: World)
+        (pending: PendingFootStrike)
+        (origin: Spatial)
+        (impulse: BallImpulse)
+        : Vec2 option * int<subtick> option =
+        match pending.Trajectory, impulse.ExecutionContext with
+        | TrajectoryIntent.Aimed(_, receiver, _), ExecutionContext.OpenPlay ->
+            match MatchWorld.teamOfPlayer ctx.Ctx receiver with
+            | Some side ->
+                match MatchWorld.slotOf ctx.Ctx side receiver with
+                | Some slot ->
+                    let frame = (MatchWorld.team world side).Frame
+
+                    let speed =
+                        sqrt (float impulse.LinearVelocity.X ** 2.0 + float impulse.LinearVelocity.Y ** 2.0)
+
+                    if MatchWorld.isActiveSlot frame.Occupancy[slot] && speed > 1e-8 then
+                        let receiverX = float frame.PosX[slot]
+                        let receiverY = float frame.PosY[slot]
+                        let receiverVx = float frame.VelX[slot]
+                        let receiverVy = float frame.VelY[slot]
+                        let lowerX = -(float Pitch.HalfLength + 5.0)
+                        let upperX = float Pitch.HalfLength + 5.0
+                        let lowerY = -(float Pitch.HalfWidth + 5.0)
+                        let upperY = float Pitch.HalfWidth + 5.0
+                        let mutable flightSeconds =
+                            sqrt ((receiverX - float origin.X) ** 2.0 + (receiverY - float origin.Y) ** 2.0) / speed
+
+                        let mutable targetX = receiverX
+                        let mutable targetY = receiverY
+
+                        for _ in 1..6 do
+                            targetX <- MatchMath.clamp lowerX upperX (receiverX + receiverVx * flightSeconds)
+                            targetY <- MatchMath.clamp lowerY upperY (receiverY + receiverVy * flightSeconds)
+
+                            flightSeconds <-
+                                sqrt ((targetX - float origin.X) ** 2.0 + (targetY - float origin.Y) ** 2.0)
+                                / speed
+
+                        let target: Vec2 =
+                            { X = targetX * 1.0<meter>
+                              Y = targetY * 1.0<meter> }
+
+                        let travelTicks =
+                            max 1 (int (ceil (flightSeconds * float ctx.Clock.SubTicksPerSecond))) * 1<subtick>
+
+                        Some target, Some(world.State.Tick + travelTicks)
+                    else
+                        impulse.IntendedTarget, pending.ArrivalGate
+                | None -> impulse.IntendedTarget, pending.ArrivalGate
+            | None -> impulse.IntendedTarget, pending.ArrivalGate
+        | _ -> impulse.IntendedTarget, pending.ArrivalGate
 
     let step: SystemStep =
         fun ctx rng world buffer ->
@@ -291,6 +343,8 @@ module BallFootContact =
                     let old = pending.Impulse
                     let origin = world.State.Ball.Position
                     let speed = MatchMath.speedOf old.LinearVelocity.X old.LinearVelocity.Y
+                    let intendedTarget, arrivalGate = liveAimedTarget ctx world pending origin old
+                    let old = { old with IntendedTarget = intendedTarget }
 
                     let velocity =
                         match old.IntendedTarget with
@@ -323,7 +377,7 @@ module BallFootContact =
                             Point = contactPoint
                             BallCenter = centre world.State.Ball }
 
-                    BallPhysics.applyImpulse world impulse pending.Trajectory pending.ArrivalGate
+                    BallPhysics.applyImpulse world impulse pending.Trajectory arrivalGate
 
                     publish
                         world

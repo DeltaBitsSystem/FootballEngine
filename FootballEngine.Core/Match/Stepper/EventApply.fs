@@ -44,34 +44,6 @@ module EventApply =
 
             MatchMath.goalX side - 11.0<meter> * dir, 0.0<meter>
 
-    let private placeBall (world: World) (spot: Vec2) : unit =
-        MatchWorld.updateBall world (fun b ->
-            { b with
-                Position =
-                    { X = spot.X
-                      Y = spot.Y
-                      Z = 0.0<meter>
-                      Vx = 0.0<meterPerSecond>
-                      Vy = 0.0<meterPerSecond>
-                      Vz = 0.0<meterPerSecond> }
-                Control = BallControl.Free
-                Trajectory = None
-                ArrivalGate = None
-                LastTouch = None
-                StationarySince = None
-                GKHoldSince = None
-                PreviousPosition = ValueNone
-                Impulse = None })
-
-        MatchWorld.updateBall world (fun b ->
-            { b with
-                Spin =
-                    { X = 0.0<radianPerSecond>
-                      Y = 0.0<radianPerSecond>
-                      Z = 0.0<radianPerSecond> }
-                PendingStrike = None
-                FootMotion = None })
-
     let private isStoppage flow =
         match flow with
         | MatchFlow.PreMatch
@@ -108,13 +80,17 @@ module EventApply =
             let ev = { Tick = tick; Data = EventData.DefensiveTransition(side, episode.Id, Finished outcome) }
             evidence |> ValueOption.iter (fun id -> world.Observation.Associate(ev, ResolutionCause id))
             emit buffer ev
-        | _ -> ()
+        | _ -> DefensiveTransitionState.clearTasks team.Frame team.Defense
 
     let private releaseSlot (team: TeamWorld) slot =
         team.Frame.DefensiveRoles[slot] <- DefensiveRole.Unassigned
         team.Frame.RoleBias[slot] <- 1.0f
         team.Frame.Intent.Kind[slot] <- IntentCode.None
         team.Frame.Intent.Phase[slot] <- IntentPhase.Completed
+        team.Frame.ContactActions[slot] <- None
+        team.Frame.ContactState[slot] <-
+            { BodyContactState.stable with
+                Support = BodySupport.NoBodySupport }
         team.Defense.Tasks[slot] <- None
         team.Frame.RunLookup.Remove slot |> ignore
         team.PendingActions.Remove slot |> ignore
@@ -184,10 +160,12 @@ module EventApply =
             team.Frame.BodyAngularVelocity.[inSlot] <- 0.0f
             team.Frame.BodyAngularAcceleration.[inSlot] <- 0.0f
             team.Frame.BodyTravelDistance.[inSlot] <- 0.0f
+            team.Frame.ContactState.[inSlot] <- BodyContactState.stable
             team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
             team.SubsUsed <- team.SubsUsed + 1
             ParticipationBook.stop team.Participation outgoing tick
             ParticipationBook.start team.Participation incoming team.Frame.SlotRoles.[inSlot] tick
+            team.Frame.ContactGeneration.[inSlot] <- ParticipationBook.generation team.Participation incoming
 
             let old = team.Substitution
 
@@ -236,6 +214,8 @@ module EventApply =
         | SetPieceKind.Penalty -> RestartCause.Foul(None, None)
 
     let private applyRestart (ctx: MatchContext) (world: World) tick cause kind side x y =
+        world.Home.PendingActions.Clear()
+        world.Away.PendingActions.Clear()
         let x, y =
             match kind with
             | SetPieceKind.FreeKick ->
@@ -271,7 +251,7 @@ module EventApply =
 
             world.Observation.Record(tick, evidenceCause, RestartCreated award) |> ignore
 
-        placeBall world { X = x; Y = y }
+        MatchWorld.placeDeadBall world { X = x; Y = y }
 
         world.State <-
             { world.State with
@@ -292,6 +272,16 @@ module EventApply =
         award
 
     let private applyPossession (ctx: MatchContext) (world: World) buffer side pid tick =
+        let previousOwner =
+            match world.State.Ball.Control with
+            | BallControl.Controlled(owner, player)
+            | BallControl.Receiving(owner, player, _) -> Some(owner, player)
+            | _ -> None
+
+        if previousOwner <> Some(side, pid) then
+            world.Home.PendingActions.Clear()
+            world.Away.PendingActions.Clear()
+
         let pendingAdvantage =
             match world.State.Advantage with
             | AdvantageState.AdvantagePending(incident, _) -> Some incident
@@ -312,7 +302,6 @@ module EventApply =
                 losingTeam.Defense.ControlChangedAt <- Some tick
                 (MatchWorld.team world side).Defense.ControlChangedAt <- Some tick
                 losingTeam.Frame.RunLookup.Clear()
-                losingTeam.PendingActions.Clear()
                 losingTeam.Defense.Episode <-
                     Some
                         { Id = id; LostAt = tick
@@ -381,6 +370,40 @@ module EventApply =
                 x
                 y
             |> ignore
+        | None -> ()
+
+    let private applyPhysicalContact (ctx: MatchContext) (world: World) (contact: ContactRecord) =
+        match MatchWorld.teamOfPlayer ctx contact.Actor with
+        | Some side ->
+            match MatchWorld.slotOf ctx side contact.Actor with
+            | Some slot ->
+                let frame = (MatchWorld.team world side).Frame
+
+                if
+                    contact.BallTouched
+                    && MatchWorld.isActiveSlot frame.Occupancy[slot]
+                    && frame.ContactGeneration[slot] = contact.ActorGeneration
+                then
+                    let acquiredSide, acquiredPlayer =
+                        match contact.ControlAfter.Kind, contact.ControlAfter.Side, contact.ControlAfter.Player with
+                        | ContactControlKind.ReceivingBall, Some ownerSide, Some player when
+                            ownerSide = side
+                            && player = contact.Actor
+                            && world.State.Flow = MatchFlow.Live
+                            ->
+                            Some ownerSide, Some player
+                        | _ -> None, None
+
+                    MatchWorld.updateBall world (fun ball ->
+                        { ball with
+                            LastTouch = Some contact.Actor
+                            Control =
+                                match acquiredSide, acquiredPlayer with
+                                | Some ownerSide, Some player -> BallControl.Receiving(ownerSide, player, contact.Tick)
+                                | _ -> BallControl.Free
+                            GKHoldSince = None
+                            StationarySince = None })
+            | None -> ()
         | None -> ()
 
     let private applyGoal (ctx: MatchContext) (world: World) side scorer xG tick buffer =
@@ -583,7 +606,10 @@ module EventApply =
             | EventData.DefensiveTransition _ -> ()
             | EventData.CollectiveAttack _ -> ()
             | EventData.TeamInstruction _ -> ()
+            | EventData.PhysicalContact contact -> applyPhysicalContact ctx world contact
             | EventData.BallLoose(x, y) ->
+                world.Home.PendingActions.Clear()
+                world.Away.PendingActions.Clear()
                 let side = world.State.Possession.LastGainer |> Option.defaultValue ClubSide.Home
 
                 MatchWorld.updateBall world (fun b ->
@@ -632,8 +658,7 @@ module EventApply =
                         match result with
                         | ShotResult.OnTarget true ->
                             team.Memory.[slot].ShotSuccessMod <- min 2.0 (team.Memory.[slot].ShotSuccessMod + 0.2)
-                        | ShotResult.OnTarget false
-                        | ShotResult.Post ->
+                        | ShotResult.OnTarget false ->
                             team.Memory.[slot].ShotSuccessMod <- max -2.0 (team.Memory.[slot].ShotSuccessMod - 0.2)
                         | _ -> ()
                     | None -> ()

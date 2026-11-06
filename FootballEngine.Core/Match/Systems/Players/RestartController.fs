@@ -117,6 +117,8 @@ module RestartController =
                                 { Tick = world.State.Tick
                                   Data = EventData.RestartCompleted plan.Id }
                         | EventData.FootStrikeCancelled actor when actor = plan.Executor ->
+                            MatchWorld.placeDeadBall world restart.Spot
+
                             setRestart
                                 world
                                 { restart with

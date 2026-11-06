@@ -128,10 +128,42 @@ module PassTests =
                       "explanation distinguishes refusal from physical failed contact"
 
                   Expect.isNonEmpty
-                      (ConfigValidation.validateActions
-                          { ctx.Config.Actions with
-                              MaxPassExecutionDistance = System.Double.NaN * 1.0<meter> })
-                      "nonfinite execution limit is rejected")
+                       (ConfigValidation.validateActions
+                           { ctx.Config.Actions with
+                               MaxPassExecutionDistance = System.Double.NaN * 1.0<meter> })
+                       "nonfinite execution limit is rejected")
+
+              testCase "arrival gate accounts for strike windup exactly once" (fun _ ->
+                  let world = TestBuilders.minimalWorld ()
+                  standardLayout world
+
+                  world.State <-
+                      { world.State with
+                          Ball =
+                              { world.State.Ball with
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          X = 0.0<meter>
+                                          Y = 0.0<meter> } } }
+
+                  Pass.launch sctx (Rng.ofSeed 29UL) world (buffer ()) ClubSide.Home 5 7 0.0 |> ignore
+
+                  let pending =
+                      world.State.Ball.PendingStrike
+                      |> Option.defaultWith (fun () -> failtest "reachable passer prepares a physical strike")
+
+                  let distance = 12.0
+                  let speed =
+                      float ctx.Config.Actions.PassLaunchSpeed
+                      + distance * ctx.Config.Actions.PassDistanceSpeedGain
+
+                  let expectedFlightTicks =
+                      int (ceil (distance / speed * float sctx.Clock.SubTicksPerSecond)) * 1<subtick>
+
+                  Expect.equal
+                      pending.ArrivalGate
+                      (Some(SimTick.value pending.Impulse.ContactTick + expectedFlightTicks))
+                      "the post-strike flight gets one ceiling-rounded travel interval, without a second grace period")
 
               testCase "quality stays within bounds" (fun _ ->
                   let world = TestBuilders.minimalWorld ()

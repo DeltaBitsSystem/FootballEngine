@@ -195,10 +195,22 @@ module CollectiveAttackTests =
             Expect.equal world.Home.Frame.Intent.TargetY[e.Runner.Slot] (float32 e.Runner.Target.Y) "complementary target consumed"
             for index in 1 .. 40 do
                 world.State <- { world.State with Tick = 400<subtick> + index * 1<subtick> }
-                PlayerSteering.step (systemContext ctx) (Rng.ofSeed 1UL) world b |> ignore
+                let movementContext = systemContext ctx
+                PlayerSteering.step movementContext (Rng.ofSeed 1UL) world b |> ignore
+                ContactDynamics.step movementContext (Rng.ofSeed 1UL) world b |> ignore
             let finalDistance = MatchMath.dist (MatchWorld.posX world.Home.Frame e.Runner.Slot) (MatchWorld.posY world.Home.Frame e.Runner.Slot) e.Runner.Target.X e.Runner.Target.Y
             Expect.isLessThan finalDistance initialDistance "actual physical motion approaches the assigned target"
             Expect.isLessThan (abs (world.Home.Frame.PosX[e.Runner.Slot] - before)) (float32 ctx.Config.Movement.SprintSpeed) "one second cannot exceed physical speed")
+        testCase "active attack duties exclude independent fallback supports" (fun _ ->
+            for side in [ ClubSide.Home; ClubSide.Away ] do
+                let ctx, world = scenario side
+                start ctx world |> ignore
+                let e = episode world side
+                let team = MatchWorld.team world side
+                PlayerIntent.step (systemContext ctx) (Rng.ofSeed 1UL) world (buffer ()) |> ignore
+                for slot in MatchWorld.activeSlots team.Frame do
+                    if slot <> e.Link.Slot && slot <> e.Runner.Slot && slot <> e.Security.Slot then
+                        Expect.notEqual team.Frame.Intent.Kind[slot] IntentCode.Support "nonparticipants preserve shape rather than duplicate the team plan")
         testCase "a real pass fact advances once and own flight preserves identity" (fun _ ->
             let ctx, world = scenario ClubSide.Home
             start ctx world |> ignore

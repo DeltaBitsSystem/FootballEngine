@@ -154,6 +154,8 @@ module RestartPlanner =
                             // Aim beyond the legal boundary so normalized targets remain legal after rounding.
                             RestartRole.Support,
                             awayFrom spot current (9.15 + float ctx.Config.SetPiece.TargetTolerance)
+                        elif currentSide = opponent && kind = SetPieceKind.Corner then
+                            RestartRole.Support, awayFrom spot current (float ctx.Config.SetPiece.WallDistance)
                         elif currentSide = opponent && kind = SetPieceKind.FreeKick then
                             let target =
                                 if slot = 0 then
@@ -291,19 +293,31 @@ module RestartRules =
             if not (insidePitch target.Position) then
                 add Rule.TargetReachability (Some target.Player) "target is outside the pitch"
 
-            match MatchWorld.slotOf ctx target.Side target.Player with
-            | Some slot ->
-                let frame = (MatchWorld.team world target.Side).Frame
+            let currentPosition =
+                MatchWorld.slotOf ctx target.Side target.Player
+                |> Option.map (fun slot ->
+                    let frame = (MatchWorld.team world target.Side).Frame
+                    clampPoint (float (MatchWorld.posX frame slot)) (float (MatchWorld.posY frame slot)))
 
-                let current =
-                    clampPoint (float (MatchWorld.posX frame slot)) (float (MatchWorld.posY frame slot))
-
+            match currentPosition with
+            | Some current ->
                 if distance current target.Position > float ctx.Config.SetPiece.MaxTargetDistance then
                     add Rule.TargetReachability (Some target.Player) "target is unreachable"
             | None -> add Rule.TargetReachability (Some target.Player) "target player is not in the lineup"
 
             if target.Side = opponents then
                 match plan.Kind, target.Role with
+                | SetPieceKind.Corner, _ ->
+                    let required = float ctx.Config.SetPiece.WallDistance
+                    let tolerance = float ctx.Config.SetPiece.TargetTolerance
+                    let targetDistance = distance target.Position spot
+                    let currentDistance = currentPosition |> Option.map (fun current -> distance current spot) |> Option.defaultValue required
+
+                    if targetDistance + tolerance < required then
+                        add Rule.OpponentDistance (Some target.Player) "corner target is inside the minimum distance"
+
+                    if currentDistance + tolerance < required then
+                        add Rule.OpponentDistance (Some target.Player) "opponent has not yet vacated the corner distance"
                 | SetPieceKind.FreeKick, RestartRole.Wall ->
                     let d = distance target.Position spot
 

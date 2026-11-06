@@ -167,32 +167,50 @@ module FootMotionTests =
                   Expect.equal count 1000 "reachable winner is consumed")
               testCase "a moving loose ball is trapped at physical reach without teleporting" (fun _ ->
                   let world, events = controlled (), buffer ()
+                  let footX = float ctx.HomeLineup.Profiles[5].Morphology.FootLength * 0.4
 
                   for slot = 0 to world.Home.Frame.PosX.Length - 1 do
-                      if slot <> 5 then
-                          world.Home.Frame.PosX[slot] <- 20.0f
+                      if slot = 5 then
+                          world.Home.Frame.PosX[slot] <- 0.0f
+                          world.Home.Frame.PosY[slot] <- 0.0f
+                      else
+                          world.Home.Frame.PosX[slot] <- -40.0f + float32 slot
+                          world.Home.Frame.PosY[slot] <- -20.0f + float32 slot * 4.0f
 
-                      world.Away.Frame.PosX[slot] <- 20.0f
+                      world.Away.Frame.PosX[slot] <- 40.0f - float32 slot
+                      world.Away.Frame.PosY[slot] <- -20.0f + float32 slot * 4.0f
 
                   world.State <-
                       { world.State with
                           Ball =
                               { world.State.Ball with
-                                  Control = BallControl.Free
-                                  Position =
-                                      { world.State.Ball.Position with
-                                          Vx = 12.0<meterPerSecond> } } }
+                                   Control = BallControl.Free
+                                   Position =
+                                       { world.State.Ball.Position with
+                                           X = footX * 1.0<meter>
+                                           Vx = 12.0<meterPerSecond> } } }
 
                   let origin = world.State.Ball.Position
+                  ContactDynamics.step sctx (Rng.ofSeed 1UL) world events |> ignore
                   BallPossession.step sctx (Rng.ofSeed 1UL) world events |> ignore
-                  Expect.equal world.State.Ball.Position.X origin.X "first touch never changes position"
 
                   Expect.isLessThan
-                      (float world.State.Ball.Position.Vx)
+                      (abs (float world.State.Ball.Position.Vx))
                       12.0
-                      "relative velocity is absorbed at contact"
+                      "physical impact transfers momentum and loses energy"
 
-                  Expect.isSome world.State.Ball.FootMotion "first touch is replayable")
+                  Expect.isLessThanOrEqual
+                      (abs (float (world.State.Ball.Position.X - origin.X)))
+                      (12.0 * float (SimulationClock.dt sctx.Clock) + 0.01)
+                      "the collision advances only through the fixed subtick"
+
+                  Expect.isTrue
+                      (events.Events
+                       |> Seq.exists (fun event ->
+                           match event.Data with
+                           | EventData.PhysicalContact contact -> contact.BallTouched
+                           | _ -> false))
+                      (sprintf "first touch is visible as physical contact evidence: %A" (events.Events |> Seq.map _.Data |> Seq.toList)))
               testCase "a ball above foot reach cannot produce a foot contact" (fun _ ->
                   let world, events = controlled (), buffer ()
 
@@ -341,6 +359,89 @@ module FootMotionTests =
                        |> Seq.length)
                       1
                       "exactly one contact")
+              testCase "an open-play pass retargets to the receiver at committed contact after windup" (fun _ ->
+                  let world, events = controlled (), buffer ()
+                  let passer = ctx.HomeLineup.Profiles[5].Id
+                  let receiver = ctx.HomeLineup.Profiles[6].Id
+
+                  for slot in MatchWorld.activeSlots world.Home.Frame do
+                      if slot <> 5 && slot <> 6 then
+                          world.Home.Frame.PosX[slot] <- -30.0f + float32 slot
+                          world.Home.Frame.PosY[slot] <- -20.0f + float32 slot * 3.0f
+
+                  for slot in MatchWorld.activeSlots world.Away.Frame do
+                      world.Away.Frame.PosX[slot] <- 30.0f
+                      world.Away.Frame.PosY[slot] <- -20.0f + float32 slot * 3.0f
+
+                  let requestedTarget =
+                      Some
+                          { X = 20.0<meter>
+                            Y = 0.0<meter> }
+
+                  let impulse =
+                      BallPhysics.createImpulse
+                          passer
+                          { X = 0.0<meter>
+                            Y = 0.0<meter>
+                            Z = 0.0<meter> }
+                          { X = 15.0<meterPerSecond>
+                            Y = 0.0<meterPerSecond>
+                            Z = 0.0<meterPerSecond> }
+                          { Top = 0.0<radianPerSecond>
+                            Side = 0.0<radianPerSecond>
+                            Roll = 0.0<radianPerSecond> }
+                          requestedTarget
+                          StrikeKind.Pass
+                          (SimTick.ofSubTicks world.State.Tick)
+                          ExecutionContext.OpenPlay
+
+                  BallFootContact.request
+                      sctx
+                      world
+                      events
+                      impulse
+                      (TrajectoryIntent.Aimed(passer, receiver, 0.8))
+                      (Some 0<subtick>)
+
+                  let pending = world.State.Ball.PendingStrike.Value
+                  let preparedGate = pending.ArrivalGate.Value
+                  world.Home.Frame.PosX[6] <- 8.0f
+                  world.Home.Frame.PosY[6] <- 4.0f
+                  world.Home.Frame.VelX[6] <- 2.0f
+                  world.Home.Frame.VelY[6] <- -1.0f
+                  world.State <- { world.State with Tick = SimTick.value pending.Impulse.ContactTick }
+
+                  let contactTick = world.State.Tick
+                  let origin = world.State.Ball.Position
+                  BallFootContact.step sctx (Rng.ofSeed 41UL) world events |> ignore
+
+                  let committed = world.State.Ball.Impulse.Value
+                  let target = committed.IntendedTarget.Value
+                  Expect.isLessThan (abs (float target.X - 9.32)) 0.01 "the target follows the receiver's current position and forward velocity"
+                  Expect.isLessThan (abs (float target.Y - 3.34)) 0.01 "the target follows lateral receiver motion during windup"
+                  Expect.notEqual committed.IntendedTarget requestedTarget "the committed trajectory replaces the stale pre-windup aim"
+
+                  let speed =
+                      sqrt (float committed.LinearVelocity.X ** 2.0 + float committed.LinearVelocity.Y ** 2.0)
+
+                  let flightSeconds =
+                      sqrt
+                          ((float target.X - float origin.X) ** 2.0
+                           + (float target.Y - float origin.Y) ** 2.0)
+                      / speed
+
+                  let travelTicks =
+                      max 1 (int (ceil (flightSeconds * float sctx.Clock.SubTicksPerSecond))) * 1<subtick>
+
+                  Expect.equal
+                      world.State.Ball.ArrivalGate
+                      (Some(contactTick + travelTicks))
+                      "the arrival gate is recomputed from the committed target and launch speed"
+
+                  Expect.isGreaterThan
+                      (Option.get world.State.Ball.ArrivalGate)
+                      preparedGate
+                      "the post-windup flight gate replaces the preparation-time estimate")
               testCase "leaving reach or losing ownership cancels instead of kicking remotely" (fun _ ->
                   for loseOwnership in [ false; true ] do
                       let world, events = controlled (), buffer ()

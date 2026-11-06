@@ -104,6 +104,75 @@ module RestartContractTests =
                                           (float Pitch.HalfWidth)
                                           "target stays inside touchlines")
 
+              testCase "corner opponents clear the spot before the physical restart can be issued" (fun _ ->
+                  let ctx = TestBuilders.defaultCtx ()
+                  let world = TestBuilders.minimalWorld ()
+                  let spot = Vec2.create (MatchMath.goalX ClubSide.Home) -Pitch.HalfWidth
+
+                  for slot in MatchWorld.activeSlots world.Home.Frame do
+                      world.Home.Frame.PosX[slot] <- -40.0f + float32 slot * 1.5f
+                      world.Home.Frame.PosY[slot] <- -24.0f + float32 slot * 3.0f
+
+                  for slot in MatchWorld.activeSlots world.Away.Frame do
+                      world.Away.Frame.PosX[slot] <- -20.0f + float32 slot * 1.5f
+                      world.Away.Frame.PosY[slot] <- -24.0f + float32 slot * 3.0f
+
+                  let executorSlot = 1
+                  let nearbyOpponentSlot = 3
+                  world.Home.Frame.PosX[executorSlot] <- float32 (spot.X - 1.0<meter>)
+                  world.Home.Frame.PosY[executorSlot] <- float32 spot.Y
+                  world.Away.Frame.PosX[nearbyOpponentSlot] <- float32 spot.X
+                  world.Away.Frame.PosY[nearbyOpponentSlot] <- float32 spot.Y
+
+                  let plan =
+                      RestartPlanner.plan
+                          ctx
+                          world
+                          (RestartId 1UL)
+                          (RestartCause.BallCrossedGoalLine None)
+                          SetPieceKind.Corner
+                          ClubSide.Home
+                          spot.X
+                          spot.Y
+                          0<subtick>
+                      |> Result.defaultWith (fun error -> failtestf "corner planning failed: %A" error)
+
+                  let opponentId = ctx.AwayLineup.Profiles[nearbyOpponentSlot].Id
+                  let opponentTarget = plan.Targets |> Array.find (fun target -> target.Player = opponentId)
+                  let required = float ctx.Config.SetPiece.WallDistance
+                  let targetDistance = MatchMath.dist spot.X spot.Y opponentTarget.Position.X opponentTarget.Position.Y
+                  Expect.isGreaterThanOrEqual
+                      (targetDistance + float ctx.Config.SetPiece.TargetTolerance)
+                      required
+                      "the projected corner target is outside the exclusion radius"
+                  Expect.isFalse (RestartRules.validate ctx world plan).Valid "a corner remains unauthorized until the opponent moves away"
+
+                  let events = buffer ()
+                  events.Events.Add
+                      { Tick = world.State.Tick
+                        Data = EventData.SetPieceAt(SetPieceKind.Corner, ClubSide.Home, spot.X, spot.Y) }
+
+                  let mutable rng = Rng.ofSeed 102UL
+                  let mutable ticks = 0
+                  let mutable resumed = false
+                  let mutable restartContact = false
+
+                  while not resumed && ticks < 2000 do
+                      let next, _, applied = Stepper.step Scheduler.systems (stepContext ctx) rng world events
+                      rng <- next
+                      ticks <- ticks + 1
+
+                      for event in applied do
+                          match event.Data with
+                          | EventData.RestartContact(_, actor, SetPieceKind.Corner) when actor = plan.Executor ->
+                              restartContact <- true
+                          | _ -> ()
+
+                      resumed <- restartContact && world.State.Flow = MatchFlow.Live
+
+                  Expect.isTrue restartContact "the corner must reach the physical strike instead of repeating cancellations"
+                  Expect.isTrue resumed "the completed corner returns the match to live play")
+
               testCase "seed 11 completes the previously blocked boundary free kick" (fun _ ->
                   let input =
                       { MatchId = 11UL
@@ -198,8 +267,9 @@ module RestartContractTests =
                           let ctx' = stepContext ctx
                           RestartController.step ctx' (Rng.ofSeed 17UL) world events |> ignore
                           PlayerSteering.step ctx' (Rng.ofSeed 17UL) world events |> ignore
-                          Expect.equal frame.PosX.[slot] 0.0f "executor remains at the ball on the X axis"
-                          Expect.equal frame.PosY.[slot] 0.0f "executor remains at the ball on the Y axis"
+                          ContactDynamics.step ctx' (Rng.ofSeed 17UL) world events |> ignore
+                          Expect.isLessThanOrEqual (abs frame.PosX.[slot]) 0.001f "executor remains within one millimetre of the ball on the X axis"
+                          Expect.isLessThanOrEqual (abs frame.PosY.[slot]) 0.001f "executor remains within one millimetre of the ball on the Y axis"
 
                           Expect.isTrue
                               (MatchWorld.activeSlots frame
@@ -207,6 +277,270 @@ module RestartContractTests =
                                    teammate <> slot
                                    && (frame.PosX.[teammate] <> 0.0f || frame.PosY.[teammate] <> 0.0f)))
                               "separation still moves overlapping teammates away from the executor")
+
+              testCase "restart executor overlap does not consume a prepared physical strike" (fun _ ->
+                  let ctx = TestBuilders.formationCtx ()
+                  let world = TestBuilders.formationWorld ()
+                  let systemCtx = stepContext ctx
+                  let events = buffer ()
+
+                  for side in [ ClubSide.Home; ClubSide.Away ] do
+                      let frame = (MatchWorld.team world side).Frame
+
+                      for slot in MatchWorld.activeSlots frame do
+                          if side = ClubSide.Home && slot = 9 then
+                              frame.PosX[slot] <- 0.0f
+                              frame.PosY[slot] <- 0.0f
+                          else
+                              frame.PosX[slot] <- (if side = ClubSide.Home then -40.0f else 20.0f) + float32 slot * 2.0f
+                              frame.PosY[slot] <- if slot % 2 = 0 then -8.0f else 8.0f
+
+                  let plan =
+                      RestartPlanner.plan
+                          ctx
+                          world
+                          (RestartId 1UL)
+                          MatchStart
+                          SetPieceKind.KickOff
+                          ClubSide.Home
+                          0.0<meter>
+                          0.0<meter>
+                          0<subtick>
+                      |> Result.defaultWith (fun error -> failtestf "kickoff planning failed: %A" error)
+
+                  world.State <-
+                      { world.State with
+                          Flow =
+                              MatchFlow.Restart
+                                  { TestBuilders.restartState SetPieceKind.KickOff ClubSide.Home plan.Spot RestartPhase.Authorized with
+                                      Plan = Some plan } }
+
+                  RestartController.step systemCtx (Rng.ofSeed 17UL) world events |> ignore
+                  let pending = world.State.Ball.PendingStrike |> Option.defaultWith (fun () -> failtest "kickoff did not prepare a strike")
+
+                  ContactDynamics.step systemCtx (Rng.ofSeed 17UL) world events |> ignore
+
+                  Expect.isSome world.State.Ball.PendingStrike "the executor's resting foot is not a second strike"
+                  Expect.isFalse
+                      (events.Events
+                       |> Seq.exists (fun event ->
+                           match event.Data with
+                           | EventData.FootStrikeCancelled _ -> true
+                           | _ -> false))
+                      "an isolated restart executor cannot cancel its own windup"
+
+                  world.State <- { world.State with Tick = SimTick.value pending.Impulse.ContactTick }
+                  BallFootContact.step systemCtx (Rng.ofSeed 17UL) world events |> ignore
+                  ContactDynamics.step systemCtx (Rng.ofSeed 17UL) world events |> ignore
+
+                  Expect.isSome world.State.Ball.Impulse "the prepared strike commits at its scheduled contact"
+                  Expect.isTrue
+                      (events.Events
+                       |> Seq.exists (fun event ->
+                           match event.Data with
+                           | EventData.RestartContact(id, actor, SetPieceKind.KickOff) ->
+                               id = plan.Id && actor = plan.Executor
+                           | _ -> false))
+                      "restart completion is backed by the executor's physical strike")
+
+              testCase "another player's physical touch cancels and replans a restart strike" (fun _ ->
+                  let ctx = TestBuilders.formationCtx ()
+                  let world = TestBuilders.formationWorld ()
+                  let systemCtx = stepContext ctx
+                  let events = buffer ()
+
+                  for side in [ ClubSide.Home; ClubSide.Away ] do
+                      let frame = (MatchWorld.team world side).Frame
+
+                      for slot in MatchWorld.activeSlots frame do
+                          if side = ClubSide.Home && slot = 9 then
+                              frame.PosX[slot] <- 0.0f
+                              frame.PosY[slot] <- 0.0f
+                          elif side = ClubSide.Away && slot = 5 then
+                              frame.PosX[slot] <- -0.15f
+                              frame.PosY[slot] <- 0.0f
+                          else
+                              frame.PosX[slot] <- (if side = ClubSide.Home then -40.0f else 20.0f) + float32 slot * 2.0f
+                              frame.PosY[slot] <- if slot % 2 = 0 then -8.0f else 8.0f
+
+                  let plan =
+                      RestartPlanner.plan
+                          ctx
+                          world
+                          (RestartId 1UL)
+                          MatchStart
+                          SetPieceKind.KickOff
+                          ClubSide.Home
+                          0.0<meter>
+                          0.0<meter>
+                          0<subtick>
+                      |> Result.defaultWith (fun error -> failtestf "kickoff planning failed: %A" error)
+
+                  world.State <-
+                      { world.State with
+                          Flow =
+                              MatchFlow.Restart
+                                  { TestBuilders.restartState SetPieceKind.KickOff ClubSide.Home plan.Spot RestartPhase.Authorized with
+                                      Plan = Some plan } }
+
+                  RestartController.step systemCtx (Rng.ofSeed 23UL) world events |> ignore
+                  ContactDynamics.step systemCtx (Rng.ofSeed 23UL) world events |> ignore
+
+                  Expect.isNone world.State.Ball.PendingStrike "a physically distinct player invalidates the prepared path"
+
+                  let cancellation =
+                      events.Events
+                      |> Seq.tryFind (fun event ->
+                          match event.Data with
+                          | EventData.FootStrikeCancelled actor -> actor = plan.Executor
+                          | _ -> false)
+                      |> Option.defaultWith (fun () -> failtest "external contact did not publish strike cancellation")
+
+                  events.Applied.Add cancellation
+                  RestartController.step systemCtx (Rng.ofSeed 23UL) world events |> ignore
+
+                  match world.State.Flow with
+                  | MatchFlow.Restart restart ->
+                      Expect.equal restart.Phase RestartPhase.Positioning "the controller retries from a fresh legal position"
+                      Expect.isFalse restart.CommandIssued "a canceled command is not left marked as issued"
+                  | flow -> failtestf "external contact ended the restart unexpectedly: %A" flow)
+
+              testCase "an external goal-kick touch restores the legal spot before retry" (fun _ ->
+                   let ctx = TestBuilders.formationCtx ()
+                   let world = TestBuilders.formationWorld ()
+                   let systemCtx = stepContext ctx
+                   let events = buffer ()
+
+                   for slot in MatchWorld.activeSlots world.Home.Frame do
+                       world.Home.Frame.PosX[slot] <- -38.0f + float32 slot * 1.2f
+                       world.Home.Frame.PosY[slot] <- float32 slot * 1.5f
+
+                   for slot in MatchWorld.activeSlots world.Away.Frame do
+                       world.Away.Frame.PosX[slot] <- 25.0f + float32 slot
+                       world.Away.Frame.PosY[slot] <- float32 slot * 1.5f
+
+                   let plan =
+                       RestartPlanner.plan
+                           ctx
+                           world
+                           (RestartId 1UL)
+                           (RestartCause.BallCrossedGoalLine None)
+                           SetPieceKind.GoalKick
+                           ClubSide.Home
+                           (MatchMath.ownGoalX ClubSide.Home)
+                           0.0<meter>
+                           0<subtick>
+                       |> Result.defaultWith (fun error -> failtestf "goal-kick planning failed: %A" error)
+
+                   let executorSlot = MatchWorld.slotOf ctx ClubSide.Home plan.Executor |> Option.get
+                   world.Home.Frame.PosX[executorSlot] <- float32 plan.Spot.X
+                   world.Home.Frame.PosY[executorSlot] <- float32 plan.Spot.Y
+
+                   let contactorSlot = 5
+                   world.Away.Frame.PosX[contactorSlot] <- float32 plan.Spot.X + 0.15f
+                   world.Away.Frame.PosY[contactorSlot] <- float32 plan.Spot.Y
+
+                   let restart =
+                       { TestBuilders.restartState SetPieceKind.GoalKick ClubSide.Home plan.Spot RestartPhase.Authorized with
+                           Id = plan.Id
+                           Plan = Some plan }
+
+                   world.State <-
+                       { world.State with
+                           Flow = MatchFlow.Restart restart }
+
+                   MatchWorld.placeDeadBall world plan.Spot
+                   RestartController.step systemCtx (Rng.ofSeed 37UL) world events |> ignore
+                   ContactDynamics.step systemCtx (Rng.ofSeed 37UL) world events |> ignore
+
+                   Expect.isTrue
+                       (events.Events
+                        |> Seq.exists (fun event ->
+                            match event.Data with
+                            | EventData.PhysicalContact contact -> contact.BallTouched && contact.Actor = ctx.AwayLineup.Profiles[contactorSlot].Id
+                            | _ -> false))
+                       "the opponent cancels the prepared strike with a physical touch"
+
+                   Expect.isTrue
+                       (events.Events
+                        |> Seq.exists (fun event ->
+                            match event.Data with
+                            | EventData.FootStrikeCancelled actor -> actor = plan.Executor
+                            | _ -> false))
+                       "the external touch invalidates the pending goal kick"
+
+                   Expect.isGreaterThan
+                       (MatchMath.dist world.State.Ball.Position.X world.State.Ball.Position.Y plan.Spot.X plan.Spot.Y)
+                       0.001
+                       "the physical impact displaces the dead ball before the controller restores it"
+
+                   let mutable rng, _, _ = Stepper.step Scheduler.systems systemCtx (Rng.ofSeed 37UL) world events
+                   let restored = world.State.Ball
+
+                   Expect.equal restored.Position.X plan.Spot.X "cancellation restores the legal goal-kick X"
+                   Expect.equal restored.Position.Y plan.Spot.Y "cancellation restores the legal goal-kick Y"
+                   Expect.equal restored.Position.Vx 0.0<meterPerSecond> "the restored ball has no residual X velocity"
+                   Expect.equal restored.Position.Vy 0.0<meterPerSecond> "the restored ball has no residual Y velocity"
+                   Expect.isNone restored.PendingStrike "the cancelled strike is cleared before retry"
+                   Expect.isNone restored.LastTouch "an illegal pre-restart touch does not become the official restart touch"
+
+                   let mutable ticks = 0
+                   let mutable restartContact = false
+
+                   while world.State.Flow <> MatchFlow.Live && ticks < 10000 do
+                       let next, _, applied = Stepper.step Scheduler.systems systemCtx rng world events
+                       rng <- next
+                       ticks <- ticks + 1
+
+                       for event in applied do
+                           match event.Data with
+                           | EventData.RestartContact(id, actor, SetPieceKind.GoalKick) when id = plan.Id && actor = plan.Executor ->
+                               restartContact <- true
+                           | _ -> ()
+
+                   Expect.isTrue restartContact "the retry reaches the goal kick through its physical contact"
+                   Expect.equal world.State.Flow MatchFlow.Live "the completed retry returns the match to live play")
+
+              testCase "an unsuccessful restart command cannot expose the dead ball to contact" (fun _ ->
+                  let ctx = TestBuilders.defaultCtx ()
+                  let world = TestBuilders.minimalWorld ()
+                  let systemCtx = stepContext ctx
+                  let events = buffer ()
+
+                  for side in [ ClubSide.Home; ClubSide.Away ] do
+                      let frame = (MatchWorld.team world side).Frame
+
+                      for slot in MatchWorld.activeSlots frame do
+                          let x = if side = ClubSide.Home then -40.0f + float32 slot else 40.0f - float32 slot
+                          let y = -20.0f + float32 slot * 4.0f
+                          frame.PosX[slot] <- x
+                          frame.PosY[slot] <- y
+
+                  let contactorSlot = 4
+                  world.Away.Frame.PosX[contactorSlot] <- 0.0f
+                  world.Away.Frame.PosY[contactorSlot] <- 0.0f
+
+                  world.State <-
+                      { world.State with
+                          Flow =
+                              MatchFlow.Restart
+                                  { TestBuilders.restartState
+                                        SetPieceKind.Corner
+                                        ClubSide.Home
+                                        (Vec2.create Pitch.awayGoalX -Pitch.HalfWidth)
+                                        RestartPhase.AwaitingContact with
+                                      CommandIssued = true } }
+
+                  ContactDynamics.step systemCtx (Rng.ofSeed 29UL) world events |> ignore
+
+                  Expect.equal world.State.Ball.Position.X 0.0<meter> "an issued command without a pending or committed strike keeps the ball dead"
+                  Expect.isFalse
+                      (events.Events
+                       |> Seq.exists (fun event ->
+                           match event.Data with
+                           | EventData.PhysicalContact contact -> contact.BallTouched
+                           | _ -> false))
+                      "only a real restart strike opens the physical-contact window")
 
               testCase "restart preparation moves through steering" (fun _ ->
                   let ctx = TestBuilders.formationCtx ()
@@ -288,6 +622,64 @@ module RestartContractTests =
                           "the restart uses the normal ball impulse path"
                   | None -> failtest "the throw-in never launched the ball")
 
+              testCase "a restart executor cannot displace the dead ball before the command" (fun _ ->
+                  let ctx = TestBuilders.defaultCtx ()
+                  let world = TestBuilders.minimalWorld ()
+
+                  for slot in MatchWorld.activeSlots world.Home.Frame do
+                      world.Home.Frame.PosX[slot] <- -20.0f
+                      world.Home.Frame.PosY[slot] <- float32 (-24 + slot * 3)
+
+                  for slot in MatchWorld.activeSlots world.Away.Frame do
+                      world.Away.Frame.PosX[slot] <- 20.0f
+                      world.Away.Frame.PosY[slot] <- float32 (-24 + slot * 3)
+
+                  let executorSlot = 1
+                  world.Home.Frame.PosX[executorSlot] <- -0.2f
+                  world.Home.Frame.PosY[executorSlot] <- 0.0f
+
+                  let plan =
+                      match
+                          RestartPlanner.plan
+                              ctx
+                              world
+                              (RestartId 1UL)
+                              RestartCause.MatchStart
+                              SetPieceKind.KickOff
+                              ClubSide.Home
+                              0.0<meter>
+                              0.0<meter>
+                              0<subtick>
+                      with
+                      | Ok plan -> plan
+                      | Error error -> failtestf "kickoff plan failed: %A" error
+
+                  let restart =
+                      { TestBuilders.restartState
+                            SetPieceKind.KickOff
+                            ClubSide.Home
+                            (Vec2.create 0.0<meter> 0.0<meter>)
+                            RestartPhase.Positioning with
+                          Plan = Some plan }
+
+                  world.State <- { world.State with Flow = MatchFlow.Restart restart }
+                  world.Home.Frame.VelX[executorSlot] <- 4.0f
+                  world.Home.Frame.TargetVelX[executorSlot] <- 4.0f
+
+                  let contacts = buffer ()
+                  ContactDynamics.step (stepContext ctx) (Rng.ofSeed 31UL) world contacts |> ignore
+
+                  Expect.equal world.State.Ball.Position.X 0.0<meter> "setup movement cannot move the dead ball"
+                  Expect.equal world.State.Ball.Position.Y 0.0<meter> "setup movement cannot move the dead ball"
+                  Expect.equal world.State.Ball.Position.Vx 0.0<meterPerSecond> "the ball remains stationary until commanded"
+                  Expect.isFalse
+                      (contacts.Events
+                       |> Seq.exists (fun event ->
+                           match event.Data with
+                           | EventData.PhysicalContact contact -> contact.BallTouched
+                           | _ -> false))
+                      "pre-command setup cannot publish a physical ball touch")
+
               testCase "all restart kinds execute through an authoritative restart impulse" (fun _ ->
                   for kind in
                       [ SetPieceKind.KickOff
@@ -350,7 +742,15 @@ module RestartContractTests =
                       let next, _, _ = Stepper.step Scheduler.systems ctx' rng world buffer
                       rng <- next
 
-                      if world.State.Flow = MatchFlow.Live then
+                      let boundaryRestartQueued =
+                          buffer.Events
+                          |> Seq.exists (fun event ->
+                              match event.Data with
+                              | EventData.SetPiece _
+                              | EventData.SetPieceAt _ -> true
+                              | _ -> false)
+
+                      if world.State.Flow = MatchFlow.Live && not boundaryRestartQueued then
                           let ball = world.State.Ball
 
                           if
