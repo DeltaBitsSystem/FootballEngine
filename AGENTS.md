@@ -27,7 +27,7 @@ dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Relea
 
 **Run the tests:**
 ```bash
-dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj
+dotnet fsi scripts/test.fsx
 ```
 
 **Formatting (Fantomas):**
@@ -49,7 +49,7 @@ The engine has moved out of Client. The historical layout and layer descriptions
 - `FootballEngine.Core/Match/Systems/`: Ball, Players, Referee, Team and Manager systems; `Match/Restart/` owns restart planning.
 - `FootballEngine.Core/Match/Simulator/`: factory, Result-based `Simulator.runMatch`, visual replay projection. No `weightsPath` argument or exception-returning facade.
 - `FootballEngine.Client/`: Avalonia UI, runtime worker, persistence adapter and WebGPU presentation. Rendering never determines sporting outcomes.
-- Core tests: `dotnet run --project FootballEngine.Core.Tests/FootballEngine.Core.Tests.fsproj`; client tests: `dotnet run --project FootballEngine.Client.Tests/FootballEngine.Client.Tests.fsproj`.
+- Canonical test command (local and CI): `dotnet fsi scripts/test.fsx`. Select Core or Client with `--project Core` or `--project Client`; see `docs/TESTING.md`.
 - `FootballEngine.slnx` contains Core, Core.Tests, Client and Training. Client.Tests and Benchmarks are built separately.
 
 Decision proposals belong to `TeamWorld.PendingActions`; VAR snapshots belong to `World.Reviews`. Neither belongs in `TeamFrame.RunLookup`. Evidence is captured through `World.Observation`; format text/export outside ticks. Scheduling/visibility and determinism decisions are documented in `docs/evidence/MATCH_ENGINE_FOUNDATION.md`.
@@ -232,35 +232,38 @@ The UI uses **Avalonia.FuncUI** with the Elmish pattern:
 
 ## Test Structure
 
-Tests use **Expecto** and are organized in 3 layers:
-
-| Layer | Directory | What it tests |
-|---|---|---|
-| `Layer1_E2E/` | End-to-end tests | Full flows: state transitions, goal cycles, GK distribution, set pieces, match invariants |
-| `Layer2_Systems/` | System tests | Output contracts, BallSystem, Chemistry, EmergentLoops, VAR, HandballDetector, statistics |
-| `Layer3_EdgeCases/` | Edge cases | Shots, passes, GK, personality, mathematical pipelines, WeightsLoader |
-
-**Test infrastructure:**
-- `Infrastructure/Builders.fs` — Test data builders (`makePlayer`, `makeGk`, `eliteAttacker`, `worstAttacker`, etc.)
-- `Infrastructure/Runners.fs` — Helpers to run simulations in tests
-- `Infrastructure/Assertions.fs` — Custom assertions
-
-**Run specific tests:**
-
-Tests use **Expecto** (not xUnit/NUnit), so `dotnet test --filter` does NOT work. Use `dotnet run` instead:
+Tests are executable **Expecto** projects, not VSTest projects. `dotnet test` is not the repository test command. Use the same SDK-only F# runner locally and in CI:
 
 ```bash
-# Step 1: List ALL test names (pipe through grep to remove warnings)
-dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj -- --list-tests 2>&1 | grep -v "warning\|NU1"
-
-# Step 2: Filter by FULL test name prefix (dots as separators)
-dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.GoalCycle"
-dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.Diagnostics"
-dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.FlowTransition"
-dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.MatchClock"
+dotnet fsi scripts/test.fsx                         # all discovered test projects, Release
+dotnet fsi scripts/test.fsx --project Core --list    # discover current full names; does not execute tests
+dotnet fsi scripts/test.fsx --project Core --filter "FootballEngine.Core.FootballEngine.Core.Contracts.Rng"
+dotnet fsi scripts/test.fsx --project Client
+dotnet fsi scripts/test.fsx --self-test              # runner checks only, not game acceptance
 ```
 
-**IMPORTANT:** The filter string must match the BEGINNING of the full test name. partial names like `"Layer1"` or `"GoalCycle"` do NOT work. Always run `-- --list-tests` first to get the exact names.
+The runner discovers source `*.Tests.fsproj` projects, builds before execution, rejects focused tests and validates fresh JUnit reports. Zero executed cases, missing reports, failures, errors and skipped cases are failures. A typo in a filter must not produce a green gate. `scripts/test.sh` is only a forwarding convenience, never a second implementation. Reports and build/test logs live in `artifacts/tests/<run-id>/`; CI uploads them even on failure. Full names may contain repeated namespace segments: copy actual discovery output rather than guessing. Add a test file to its F# compilation order **and** its suite to `Program.fs`; being present on disk does not register a test.
+
+Current ownership:
+- `FootballEngine.Core.Tests/Contracts`, `GameData`, `World`, `Stepper`, `Systems`: domain, content, world progression and match simulation. Builders live in `Infrastructure/TestBuilders.fs`.
+- `FootballEngine.Client.Tests`: SQLite persistence, application/MVU, runtime workers, presentation, animation and asset contracts. State tests are not proof of actual UI layout or interaction.
+- Tool-specific tests and visual/benchmark probes are additional evidence, not automatically covered by the .NET runner. Record their commands explicitly when relevant.
+
+### Testing philosophy and anti-gaming rules
+
+- Define acceptance before implementation: valid starting state, real action, observable result, forbidden effects and the defect the test must detect. A test name must describe what its assertions actually prove. Never compare a value with itself or assert only that a type/case exists as evidence of a working feature.
+- Test the whole game: data/save integrity, world scheduling, economy/transfers, competitions, training/scouting, match laws and causal behavior, application/UI journeys, assets and packaged startup. Prioritize irreversible damage (lost careers, duplicated money/results), then blocked player journeys and incorrect simulation. Do not let match-engine volume hide untested world/UI boundaries.
+- Protect boundaries with real integration tests: temporary isolated SQLite databases, real codecs, a small valid career traversing create/advance/match/commit/save/reload/continue, and explicit cancellation/failure recovery. Mocks may isolate dependencies but cannot certify the dependency they replace.
+- Demonstrate sensitivity: reproduce the regression or show a deliberately incorrect/no-op/duplicate/inverted implementation fails. Use independent simple reference models, negative controls and targeted mutation testing for critical contracts. Review test helpers/oracles too; two implementations sharing the same faulty helper can agree while both are wrong.
+- No weakening acceptance to obtain green: deleting/disabling cases, expanding tolerances, changing expected values, reducing seeds/workload, replacing real integration with mocks or updating goldens requires a contract-based justification and review. Never special-case fixture names/seeds or detect test execution in production. Fix the implementation or expose the contradiction with evidence.
+- Keep evaluation separate from calibration: use documented representative corpora and held-out scenarios; do not tune only against familiar seeds or require every stochastic match to follow a preferred script. Determinism proves reproducibility, not football validity or fun. Use causal A/B scenarios, invariants, metamorphic properties and corpus-level distributions with justified tolerances/sample sizes.
+- Coverage is evidence across risks, states/transitions, branches and defect sensitivity, not a global line percentage or test count target. Record gaps honestly. Never equate successful compilation, discovery, runner self-tests or a filtered subset with all tests passing.
+- Keep feedback economical: use the smallest scenario that can expose the defect, reserving full matches/seasons for integration/corpus checks. Measure per-case duration before removing duplication. Separate functional correctness, statistical validation, performance benchmarks and real visual review; do not relax any to meet a speed target.
+- Use reproducible inputs and controlled clocks; synchronize workers with explicit signals, not sleeps/retries until green. Keep test state isolated and parallelize only independent work. Do not share mutable fixtures. Preserve a failing seed as a regression case; do not reroll until passing.
+- Maintain fast local feedback, a global PR gate, broader integration/corpus/soak checks and package/platform smoke checks as explicit levels. These are design responsibilities, not a claim that all levels already exist. Selection based on changed files never replaces global acceptance at integration.
+- Validation reports must identify commands, selected cases, failures/skips, environment, corpus/seeds and relevant timing/artifact evidence. An implementer cannot independently certify its own changed acceptance criteria; critical changes require independent review of code and tests.
+
+Runner maintenance and exact commands: `docs/TESTING.md`.
 
 ---
 
@@ -281,6 +284,18 @@ dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "
 ## Useful Commands
 
 ## Collaboration and UI Editing Rules
+
+### Implementation sessions and subagents
+
+- The user defines the product vision and priorities. The primary agent owns analysis, solution design, architecture and independent acceptance review. A smaller implementation model writes and validates a solution already designed by the primary agent; do not delegate an open-ended redesign and expect the implementer to invent the architecture.
+- Delegate only when the user or applicable instructions authorize it. Authorized code implementation may use a session or subagent under this workflow; delegation is not restricted to Blender. Do not create additional agents recursively or change the requested model or reasoning effort without authorization.
+- Before dispatch, resolve the important design decisions and provide a concise, self-contained specification: objective and rationale; chosen algorithms and contracts; state ownership, update order and invalidation; affected files and consumers; edge cases; acceptance tests; performance budget and measurement method where relevant. Identify existing functionality to reuse and changes that are out of scope. An ambitious goal must become concrete implementation work, not an invitation to add speculative systems.
+- Use Goal Mode for dispatched work sessions when supported. Preserve the user's requested model and reasoning effort; configure a goal token budget only when supplied or agreed with the user. Goal Mode sustains execution but does not replace a specification, verification or resource limits. Do not assume subagents support the same session options.
+- Give each implementer exclusive write ownership of a bounded set of files, including project files and shared contracts. Treat uncommitted work as the authoritative shared baseline; record status, preserve prior changes and evidence, and do not silently overwrite reports. The primary agent reviews or works in non-overlapping areas while implementation runs.
+- The implementer may make ordinary local coding choices, compile, test and fix defects within the specification. It must not independently choose a different architecture, weaken acceptance tests, disable functionality to meet a benchmark, or silently reduce scope. If a design contradiction or genuine blocker appears, return the exact evidence and a concrete question or proposed correction to the primary agent.
+- Require a complete reviewable result for the specified unit: actual implementation, relevant tests, reproducible measurements where required, and honest limits. A plan, successful build, convincing report or list of remaining authorized work is not completion. Continue the implement/test/correct cycle until acceptance criteria are met or a genuine blocker is demonstrated.
+- The primary agent inspects the actual diff and independently verifies critical behavior and evidence before accepting the result or expanding the next unit. Use focused failure feedback rather than repeatedly resending a broad vision or telling the implementer to try harder. Repeated failed attempts require diagnosis and a revised solution, not an endless continuation loop.
+- Keep orchestration efficient: reuse established context, avoid duplicate audits and polling, request automatic result delivery when the next step needs the outcome, and keep handoffs concise without dropping constraints. Do not trade requested completeness or quality for fewer tokens.
 
 ### Development commits and review workflow
 
@@ -314,9 +329,9 @@ dotnet build
 dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release
 
 # Tests
-dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj -- --list-tests 2>&1 | grep -v "warning\|NU1"  # list all tests
-dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.GoalCycle"  # specific suite
-dotnet run --project FootballEngine.Tests/FootballEngine.Tests.fsproj --filter "FootballEngine.MatchEngine.Diagnostics"  # diagnostics only
+dotnet fsi scripts/test.fsx
+dotnet fsi scripts/test.fsx --project Core --list
+dotnet fsi scripts/test.fsx --project Client
 
 # Formatting
 dotnet fantomas .
@@ -339,6 +354,14 @@ dotnet run --project FootballEngine.Benchmarks/FootballEngine.Benchmarks.fsproj 
 | Simulator | `Engine/Match/Simulation/Simulator.fs` |
 | Match agents | `Engine/Match/Ball/`, `Referee/`, `Player/`, `Manager/`, `TeamOrchestrator/` |
 | UI state | `AppState/Types.fs` |
-| Test builders | `FootballEngine.Tests/Infrastructure/Builders.fs` |
+| Test builders | `FootballEngine.Core.Tests/Infrastructure/TestBuilders.fs` |
 | Config validation | `Engine/Match/Core/ConfigValidation.fs` |
 | ML weights | `Engine/Match/ML/WeightsLoader.fs` |
+
+## Blender and original asset production
+
+- For any Blender asset work—player models, anatomy, clothing, equipment, stadiums, props, rigs, skinning, animation, materials, textures, skies/clouds or lighting—load the project skill `footballengine-blender` from `.opencode/skills/footballengine-blender/SKILL.md` first, then the relevant installed specialist skill.
+- The user uses OpenChamber/OpenCode. Skills are project-local under `.opencode/skills/`; preserve existing MCP configuration and do not install unrelated global/Claude/Codex settings.
+- All final visual assets are intended to be original project-owned content, including texture pixels and animations. Reuse established tools, algorithms, procedural generators, rigging/IK, modifiers and baking/export workflows whose licenses permit the intended outputs; do not reinvent capable existing solutions without a reason. Imitate reference quality, form and motion through our own authoring, not copied meshes, pixels, clips, logos or protected distinctive designs.
+- Preserve editable Blender sources, parameters/seeds and reproducible runtime exports. Sky/clouds follow this same policy: author and render our own environment rather than using stock HDRIs or cloud photography. Existing third-party/derivative assets must keep honest provenance until explicitly replaced; a CC0 license is not a claim that we originally authored the asset.
+- Blender delegation follows the implementation-session workflow above. Preserve the live Blender scene and shared project changes; isolated batch authoring is explicit, never a silent reset of the user's scene.

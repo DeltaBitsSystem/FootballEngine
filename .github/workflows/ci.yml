@@ -13,7 +13,6 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
-  DOTNET_VERSION: "10.0.x"
 
 jobs:
   build-and-test:
@@ -26,13 +25,13 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          global-json-file: global.json
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.fsproj') }}
+          key: ${{ runner.os }}-nuget-${{ hashFiles('global.json', 'Directory.Packages.props', '**/*.fsproj') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
@@ -41,7 +40,6 @@ jobs:
 
       - name: Restore additional projects
         run: |
-          dotnet restore FootballEngine.Client.Tests/FootballEngine.Client.Tests.fsproj
           dotnet restore Tools/ModCli/ModCli.fsproj
 
       - name: Restore .NET tools
@@ -55,10 +53,15 @@ jobs:
 
       - name: Build additional projects
         run: |
-          dotnet build FootballEngine.Client.Tests/FootballEngine.Client.Tests.fsproj --no-restore --configuration Release
           dotnet build Tools/ModCli/ModCli.fsproj --no-restore --configuration Release
 
       - name: Run all tests
-        run: |
-          dotnet run --project FootballEngine.Core.Tests/FootballEngine.Core.Tests.fsproj --configuration Release --no-build
-          dotnet run --project FootballEngine.Client.Tests/FootballEngine.Client.Tests.fsproj --configuration Release --no-build
+        run: dotnet fsi scripts/test.fsx
+
+      - name: Upload test reports and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/tests/
+          if-no-files-found: warn

@@ -224,7 +224,14 @@ FootballEngine/
 ## Testing
 
 ```bash
-dotnet run --project FootballEngine.Core.Tests/FootballEngine.Core.Tests.fsproj
+dotnet fsi scripts/test.fsx
+dotnet fsi scripts/test.fsx --project Core --list
+dotnet fsi scripts/test.fsx --project Client
+```
+
+Local development and CI use the same SDK-only F# runner. It builds and runs all source `*.Tests.fsproj` executables with Expecto, rejects empty/focused/skipped runs and saves JUnit reports and logs under `artifacts/tests/`. See [testing commands and policy](docs/TESTING.md). Benchmarks are separate:
+
+```bash
 dotnet run --project FootballEngine.Benchmarks/FootballEngine.Benchmarks.fsproj -c Release
 dotnet run --project FootballEngine.Benchmarks/FootballEngine.Benchmarks.fsproj -c Release -- --profile
 ```
