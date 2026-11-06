@@ -8,15 +8,21 @@ module DefenseLine =
         let frame = (MatchWorld.team world side).Frame
         let own = MatchMath.ownGoalX side
 
-        let outfielders =
-            MatchWorld.activeSlots frame |> Array.filter (fun slot -> slot <> 0)
+        let mutable first = -1
+        let mutable second = -1
+        let mutable firstDistance = System.Double.PositiveInfinity
+        let mutable secondDistance = System.Double.PositiveInfinity
 
-        if outfielders.Length < 2 then
-            own
-        else
-            let ranked =
-                outfielders
-                |> Array.sortBy (fun slot ->
-                    MatchMath.dist (MatchWorld.posX frame slot) (MatchWorld.posY frame slot) own 0.0<meter>)
+        for slot in MatchWorld.activeSlots frame do
+            if slot <> 0 then
+                let distance = MatchMath.dist (MatchWorld.posX frame slot) (MatchWorld.posY frame slot) own 0.0<meter>
+                if distance < firstDistance then
+                    second <- first
+                    secondDistance <- firstDistance
+                    first <- slot
+                    firstDistance <- distance
+                elif distance < secondDistance then
+                    second <- slot
+                    secondDistance <- distance
 
-            MatchWorld.posX frame ranked.[1]
+        if second < 0 then own else MatchWorld.posX frame second

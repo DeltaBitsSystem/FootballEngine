@@ -4,6 +4,7 @@
     <ProjectReference Include="../../FootballEngine.Core/FootballEngine.Core.fsproj" />
     <Compile Include="../../FootballEngine.Core.Tests/Infrastructure/TestBuilders.fs" Link="TestBuilders.fs" />
     <Compile Include="../../FootballEngine.Core.Tests/Systems/Team/CollectiveAttackFixtures.fs" Link="Fixtures.fs" />
+    <Compile Include="OrganizedProbe.fs" />
     <Compile Include="PairedProbe.fs" />
   </ItemGroup>
 </Project>

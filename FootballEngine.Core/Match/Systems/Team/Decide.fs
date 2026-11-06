@@ -5,6 +5,9 @@ namespace FootballEngine.Core.Match
 /// pressing thrash instead of playing one coherent plan.
 module TeamDecide =
 
+    let pressGate (tactics: TacticsConfig) =
+        17.5 - 70.0 * float tactics.PressTriggerZone
+
     let private decideTeam (ctx: MatchContext) (world: World) (side: ClubSide) (tick: int<subtick>) : unit =
         let team = MatchWorld.team world side
         let tactics = team.Tactics
@@ -29,7 +32,7 @@ module TeamDecide =
 
         // The trigger zone draws the engagement line in the attacking frame:
         // low values only press in the attacking third, high values press anywhere.
-        let pressGate = 17.5 - 70.0 * float tactics.PressTriggerZone
+        let pressGate = pressGate tactics
 
         let candidate: DirectiveKind =
             if riskLate && winProb < 0.35 && minute >= 60 then

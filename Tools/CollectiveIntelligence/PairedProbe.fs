@@ -114,8 +114,7 @@ let repeated output =
            printfn "sequence match %d pressure %.1f: cells %d replay exact" index press home.Count
            yield {|Match = index; RivalPress = press; SeasonRetentionApplied = index = 3; OriginalKickoffHash = MatchJob.inputHash input; ReplayHash = replay.EventsHash; Patterns = rows; Home = saved.Home; Away = saved.Away; DiskRoundtripExact = true; ChronologicalCommitExact = true; ReplayExact = true|} |]
 
-[<EntryPoint>]
-let main argv =
+let private historicalMain (argv: string[]) =
     let output = if argv.Length > 0 then argv[0] else "docs/evidence/collective-intelligence/paired-v2.json"
     // Warm both treatments before timing; seeds below are a consecutive declared corpus, not selected successes.
     let treatments = ["collective-off", false, true, true; "full", true, true, true; "learning-off", true, false, true; "anticipation-off", true, true, false]
@@ -136,3 +135,12 @@ let main argv =
     File.WriteAllText(output, JsonSerializer.Serialize({| Format = 2; Provenance = "Rebuilt Release; full production scheduler/actions/physics; consecutive seeds 1..12; same original opponents/scenarios/limits; independent collective, learning and anticipation ablations. Six sequential matches carry exact chronological memory; retention after match3; memory-only disk roundtrip and original-input replay. Actual career database/season persistence separately tested in Client suite. Illustrative40second scenarios unchanged. No injected passes/rewards/goals."; Matches = matches; IllustrativeScenarios = scenarios; RepeatedMatches = sequence |}, JsonSerializerOptions(WriteIndented = true)))
     printfn "Evidence written to %s" output
     if matches |> Array.exists (fun row -> not row.Terminal || row.Failure <> "") then 1 else 0
+
+[<EntryPoint>]
+let main argv =
+    if argv.Length > 0 && argv[0] = "organized" then
+        OrganizedProbe.run (argv |> Array.skip 1)
+    elif argv.Length > 0 && argv[0] = "control" then
+        OrganizedProbe.runControl (argv |> Array.skip 1)
+    else
+        historicalMain argv

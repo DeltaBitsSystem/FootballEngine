@@ -238,3 +238,398 @@ causal responses, or model several concurrent attacking episodes. Pattern
 geometry is hand-designed. Paired evidence measures collective enabled/disabled,
 not every component separately, nor convergence over repeated seasons. Those
 broader research claims remain unverified despite passing implementation gates.
+
+
+---
+
+# Collective intelligence — working evidence
+
+## Existing ownership
+
+`TeamPerceive` owns the shared phase and coarse pressure/territory blackboard. `TeamDecide` translates the manager's tactics into a persistent strategic directive. `TeamPosition` produces the formation and defensive responsibilities; `TeamTransition` owns loss episodes and their reasons. `TeamAttack` owns sustained attacking patterns and duties. `PlayerIntent` arbitrates these against reception and individual commitments; steering executes the resulting intent. The scheduler and event-drain visibility are unchanged.
+
+## Changes in this work
+
+When a rival controls the ball and no defensive transition is active, `TeamPosition` now uses the existing defensive task machinery for organized defense. The tactical engagement line and press intensity gate pressure; available outfielders are selected by the existing fatigue-aware arrival estimate and handoff margin, while two deeper players are reserved. Coverage, screens and depth/recovery tasks share the same one-slot task array as transitions. `PlayerIntent` consumes those tasks while the rival controls the ball. Reacquisition and loose-ball handling clear them through the existing role assignment path. Tasks are already included in `DefensiveCheckpoint`.
+
+Fallback support selection is performed once per team rather than once per player, and is suppressed while an attacking episode owns the support responsibilities. The latter does not override a committed receive run.
+
+## Known gaps and validation limits
+
+This is an incremental change, not the requested complete collective-intelligence system. The blackboard does not yet expose a shared spatial occupancy/threat model; organized defense has no dedicated reason or episode evidence. Rest-defense selection is positional rather than a full one-to-one marking allocation. Tactical changes, contested balls and interruptions need broader end-to-end coverage for this new path. Individual perception and communication latency have not been modeled for these duties. Attack candidate generation still uses transient collections, and coordinated attack does not cover the whole team. Paired causal corpus, representative long-horizon performance comparisons, and comprehensive checkpoint/capture/replay validation of the new path remain outstanding. Existing transition checkpoint tests do not alone prove organized-defense restoration.
+
+## Preliminary performance (Release, one run each)
+
+`dotnet fsi Tools/MatchDiagnostics/CollectivePerf.fsx` measures a fixed controlled-ball `TeamPosition` fixture after 100 warmups and three real fast sessions to 20,000 ticks each, seeds 1–3, observation off. No other benchmark process was run concurrently. Kernel latency is per call; session latency is per-tick average of 200-tick batches, not a tick-latency percentile. Allocation is measured on the executing thread and includes sampling overhead.
+
+| Measurement | Baseline | Changed |
+|---|---:|---:|
+| Position median / p95 / p99, µs | 76.214 / 80.954 / 84.831 | 83.589 / 88.908 / 94.138 |
+| Position bytes/call | 3,776.6 | 5,280.6 |
+| Session batch median / p95 / p99, µs/tick | 50.841 / 91.272 / 126.915 | 41.832 / 93.467 / 129.886 |
+| Session bytes/tick | 10,614.0 | 10,682.4 |
+
+The kernel regression is material and needs optimization and repeated measurements. One noisy short sample does not establish a session improvement, and this does not measure full-match latency or individual-tick p99.
+
+## Follow-up: organized-defense closure measurements
+
+The preceding table is historical, from before the optimization below. The
+original 240-line document above this follow-up was restored byte-for-byte from
+the clean initial `HEAD`; its earlier historical claims and measurements are
+unchanged.
+
+`DefenseLine` now selects the two nearest players in a bounded scan instead of
+allocating a filtered and sorted array. The goalkeeper threat scan no longer
+materializes an opponent-distance array. An unchanged defensive task reuses its
+existing slot value, owned by `Defense.Tasks`; invalidation still clears it on
+recovery, stoppage, or participant departure. No tactical function is disabled.
+
+Three sequential Release runs of `Tools/MatchDiagnostics/CollectivePerf.fsx`,
+same fixture and seeds as the preliminary table, gave:
+
+| Run | Position median / p95 / p99 µs | Position bytes/call | Session batch median / p95 / p99 µs/tick | Session bytes/tick |
+|---|---|---:|---|---:|
+| 1 | 78.660 / 81.225 / 82.958 | 3,488.6 | 19.178 / 76.343 / 133.006 | 10,234.7 |
+| 2 | 79.011 / 82.007 / 84.662 | 3,488.6 | 16.310 / 77.244 / 128.406 | 10,062.1 |
+| 3 | 79.893 / 85.313 / 90.854 | 3,488.6 | 16.403 / 83.659 / 132.482 | 10,125.6 |
+
+The only original baseline sample remains 76.214 / 80.954 / 84.831 µs and
+3,776.6 bytes/call; its binary was not retained, so it cannot honestly be
+reported as a repeated baseline. These samples remove the measured allocation
+regression, but cannot establish a statistically controlled latency comparison.
+Session numbers are averages of 200-tick batches, not tick percentiles; three
+20,000-tick sessions per run do not establish full-match or long-horizon cost.
+
+Organized defense now records a bounded observation when the first/cover
+responsibility changes or the task set is first assigned. It includes the
+current reason; a reason changing without a change in those responsibilities is
+not emitted. Capture is not an authority or RNG source. Real-session tests cover
+checkpoint serialization/restore and chunked continuation, plus capture on/off
+identity. Fixture tests cover tactical restraint, depth threat, loose ball,
+restart, injury, dismissal and substitution. These do not model communication
+delay or prove an optimal tactical policy.
+
+### Final optimized comparison
+
+The preceding three-run table precedes the final optimization. The final code
+reuses the already selected depth pair and does not calculate a cover arrival
+after the primary is already too late, or calculate arrivals when tactics or a
+deep threat preclude a press. These are short circuits of the same predicates,
+not changes to tactical thresholds or a disabled responsibility.
+
+Because the original baseline binary was overwritten, a non-git source copy was
+reconstructed under `/tmp/opencode/collective-baseline`: files clean at the
+initial status were taken from `HEAD`, and this session's known changes were
+reversed in the already-modified `Position.fs`, preserving its pre-existing
+work. The reconstruction script is `/tmp/opencode/reconstruct-collective-baseline.py`;
+the copy is not a worktree. This is a reconstruction, not a retained original
+binary. Its 3,776.6 bytes/call exactly reproduces the original sample, which
+supports the reconstruction but does not prove byte-for-byte source identity.
+
+Two sequential baseline/current pairs, same Release command, fixture, seed,
+and horizon, with no concurrent benchmark process:
+
+| Pair | Variant | Position median / p95 / p99 µs | bytes/call | Session batch median / p95 / p99 µs/tick | bytes/tick |
+|---|---|---|---:|---|---:|
+| 1 | reconstructed baseline | 76.135 / 79.171 / 82.698 | 3,776.6 | 23.826 / 79.764 / 135.696 | 10,488.2 |
+| 1 | current | 76.225 / 81.655 / 90.863 | 2,440.6 | 17.413 / 83.755 / 118.540 | 10,149.9 |
+| 2 | reconstructed baseline | 73.982 / 76.867 / 78.921 | 3,776.6 | 21.758 / 77.792 / 122.004 | 10,279.9 |
+| 2 | current | 75.835 / 80.173 / 83.830 | 2,440.6 | 14.782 / 84.001 / 117.319 | 10,038.3 |
+
+The current fixture allocates 35.4% less per call than the reconstructed
+baseline, with median latency differences of +0.1% and +2.5%; kernel p95/p99
+are higher in these pairs, particularly one p99, so a tail-latency improvement
+is not claimed. Session batch averages have different sporting trajectories
+after the intervention; they are neither per-tick percentiles nor evidence of a
+general speedup. Raw logs are `/tmp/opencode/collective-reconstructed-{4,5}.log`
+and `/tmp/opencode/collective-rest-perf-{2,3}.log`.
+
+For actual individual `advanceTo` calls rather than 200-tick averages, repeat
+with `COLLECTIVE_PERF_TICK=1`. Each sample includes the public session boundary
+and timing instrumentation; capture remains off. Both variants use the same
+three seeds and 20,000-tick horizon (60,000 samples per run):
+
+| Pair | Variant | Session median / p95 / p99 µs/tick | bytes/tick |
+|---|---|---|---:|
+| 1 | reconstructed baseline | 9.428 / 134.105 / 339.087 | 10,773.1 |
+| 1 | current | 7.745 / 109.749 / 289.803 | 10,348.4 |
+| 2 | reconstructed baseline | 8.907 / 126.251 / 303.849 | 10,499.2 |
+| 2 | current | 8.997 / 115.460 / 298.470 | 10,391.2 |
+
+These include per-call publication and instrumentation overhead and diverging
+football histories. They are short, local runs, not a full-match latency
+certification or proof that all tactical scenarios became faster. Raw logs are
+`/tmp/opencode/collective-{baseline,final}-tick-{1,2}.log`.
+
+## Organized-defense tactical sensitivity — short scheduler corpus
+
+Raw output: [organized-sensitivity.json](collective-intelligence/organized-sensitivity.json).
+Reproduce from the repository root, using a new output path (the tool refuses
+to overwrite an existing file):
+
+```sh
+dotnet run --project Tools/CollectiveIntelligence/CollectiveIntelligence.fsproj -c Release -- organized /tmp/opencode/organized-new.json
+```
+
+This is a **tactical sensitivity** intervention, not an isolated comparison of
+the implementation: the pair changes only the defending club's `PressIntensity`
+from 0 to 1, and that instruction can affect multiple existing systems. The
+two clubs' base tactics are normalized for the mirror fixture. Each pair has
+the same seed, profiles, rival, initial geometry and physical condition; the
+JSON includes resolved config and input hashes, an initial-geometry hash, source
+and assembly SHA-256, all samples and observations, event data and RNG frontier.
+Identical seeds do not imply identical subsequent action histories.
+
+The corpus uses `MatchFactory`, the production `Scheduler.systems` and
+`Stepper.stepInto`, including real physics, event drain and player decisions.
+It is a controlled world fixture, not a `MatchSession` checkpoint or a second
+simulator. Initial rival possession is queued as a fixture input. The separate
+`lifecycle` case explicitly queues a possession change at subtick 1, loose ball
+at 10 and throw-in at 20; these are **scripted reducer inputs**, not claimed
+physical recoveries. Each 120-subtick run covers three seconds. The 60 pairs
+span seeds 1–3, both sides, ball Y 0/18, and open, deep, late, tired and
+lifecycle geometries. The pre-step viability record reports actual candidate
+arrival estimates, windows, eligible count and depth runners; it is not itself
+a commitment. The trace records positions, current targets, roles, protector
+targets relative to opponents, screen ownership and observed reasons. Target
+approach is measured only during the first uninterrupted primary assignment;
+foot reach is distance to the actual ball during that same interval.
+
+| Initial condition | Low pressure | High pressure | Observed effect |
+|---|---:|---:|---|
+| Open, 12 runs per treatment | 0 first presses | 12 first presses | 12/12 assigned primaries physically reduced distance to their first target, approximately 0.927→0.887 m, with one cover and two depth protectors while pressing. |
+| Deep runner, 12 per treatment | 0 first presses | 0 first presses | High-pressure initial reason was `OrganizedDepthThreat` in all 12. |
+| Too late, 12 per treatment | 0 first presses | 0 first presses | Initial primary arrival was approximately 3.98 s against a 2 s window; high-pressure reason `OrganizedUnavailable`. |
+| Tired, 12 per treatment | 0 first presses | 0 first presses | No eligible fresh outfielder at the configured 0.55 condition threshold; high-pressure reason `OrganizedUnavailable`. |
+
+No initial primary reached `FootReach` while that first assignment remained
+active in these short runs; an intent or an approach is **not** a recovery or a
+successful press. The 24 lifecycle runs all had the required previous rival
+possession, opened the rival's loss episode, cleared the recovering team's
+tasks, and had valid loose-ball and restart cleanup after the scripted inputs.
+The local mirror assertion compares responsibility and target plus the first
+four physics samples, within 0.001 m; it does not assert full trajectory
+equality after football decisions diverge. Across 120 runs the probe found no
+duplicate first/cover responsibilities, no duplicated screened outlet, and no
+pressing samples without cover or two depth protectors, and no observation
+evictions. It records 180 organized and 401 transition evaluations;
+an observation reason is reported as such, not as a post-hoc proof of every
+subsequent movement. The first assignment/release is included in change counts.
+
+The initial draft `/tmp/opencode/organized-draft-2.json` recorded eight failed
+loose-ball assertions: those runs had a live `Counterpress` episode and its
+primary/cover still matched the episode. The assertion had incorrectly required
+all duties to vanish even for an active transition. The final check requires
+empty tasks without an episode and episode-consistent tasks with one. An earlier
+lifecycle schedule also placed possession at subtick 40, after spontaneous
+recoveries in every case, so it did not test a new loss; the final scripted
+sequence makes the precondition explicit at subtick 1 and checks it in every
+case. Neither change altered runtime, thresholds or selected seeds.
+
+Final result: **120/120 cases, zero invariant failures**; rerunning produced a
+byte-identical JSON SHA-256
+`9477f99ea7d4addeaa6bbc17e1716cf71de5d065d2d88d1cf116d04bd52db788`.
+Focused `DefensiveTransitions` tests: **41/41**, including the new real-scheduler
+physical-approach test for both sides. The independently run full Core suite was
+636/636 before that additional test. The probe establishes local tactical
+sensitivity and observed movement under these controlled conditions, not that
+more pressure is universally better or that collective AI is complete.
+
+## Control-transfer diagnostic — seed 1 and fixed corpus
+
+This follow-up corrects the interpretation of `FirstReachTick = -1` above: it
+only means that the former probe did not sample the first primary within
+`FootReach` during its first uninterrupted assignment. It does **not** establish
+that no possession recovery or tackle occurred. The former `SportingEvents`
+filter omitted dribbles and tackles and did not display duel evidence.
+
+New evidence, without replacing the previous corpus:
+
+- [Focused seed 1 diagnostic](collective-intelligence/organized-control-diagnostic-v5.json):
+  both sides, Y=0, both pressure instructions; 128 committed relevant events.
+- [Complete fixed corpus, gzip JSON](collective-intelligence/organized-control-full-v5.json.gz):
+  all 120 scenarios, 3,648 committed relevant events. Uncompressed SHA-256:
+  `ed2d767567dab8ec263d6f89bb25fd39b7880d6ef1fd9a3935ca40c8ef656e17`.
+
+```sh
+dotnet run --project Tools/CollectiveIntelligence/CollectiveIntelligence.fsproj -c Release -- control /tmp/opencode/control-new.json
+dotnet run --project Tools/CollectiveIntelligence/CollectiveIntelligence.fsproj -c Release -- control /tmp/opencode/control-full-new.json --full
+```
+
+The tool retains `Dribble`, `Tackle`, `Interception`, `Possession`, `BallLoose`
+and relevant observations, including `DuelResolved`. It reports each event's
+own tick, the tick where it was drained, fixture versus runtime origin, matched
+queued proposals and `Observation.chain` roots. It samples the ball and actor/
+current carrier XYZ and distances at the boundaries before/after a whole
+step. For source identification, the tool also wraps each **existing**
+scheduled system and records appended events with before/after system-boundary
+geometry; triggers, execution order, returned RNG and runtime implementations
+are unchanged. Neither kind of boundary snapshot is a measured physical
+contact or necessarily the exact intermediate instant within a system. The
+duel observation itself records the carrier's X/Y at adjudication, not the
+ball or defender's exact contact coordinates. Event-ID matches are reported as
+matches, not assumed unique when multiple matches exist.
+
+### Reproduction: Home, open, centre, pressure 1, seed 1
+
+Only the initial Away possession is fixture-scripted. The following events
+are generated by the actual systems, not by the fixture:
+
+1. At `Actions` entry on tick 4, ball XYZ was approximately
+   `(-0.187294, 0, 0)`, carrier `PlayerId 110` was
+   `(-0.023815, -0.041676, 0)`, and defender `PlayerId 10` was
+   `(-1.952000, 0, 0)`. Defender–ball XY distance was **1.764706 m**,
+   defender–carrier **1.928636 m**; configured `FootReach` is **1.05 m**.
+2. `Actions` queued failed `Dribble`, `Tackle` and
+   `Possession(Home, PlayerId 10)` at event tick 4. These drained at step 5.
+   The committed possession occurrence **#12** explicitly links to
+   `ResolutionCause` **#9** (`DuelResolved`), which links to
+   `DecisionCause` **#8**. The duel recorded carrier 110, defender 10,
+   probability 0.5, draw 0.6846634282, no foul and a lost carrier duel.
+   The tackle and dribble occurrences **#11/#10** link to the same #9.
+3. On step 5 after that drain, `BallPossession` entered with controlled owner
+   10, ball `(-0.228369, 0, 0)` and owner `(-1.952000, 0, 0)`: horizontal
+   separation **1.723631 m**. Its wrapper recorded that system appending
+   `BallLoose` at event tick 5; the event drained on step 6 as occurrence
+   **#16**. Its observation cause is `ValueNone`: **there is no recorded
+   `Observation.chain` edge** from this loose-ball event to the prior duel or
+   possession. Independently, `BallPossession.carry` calls
+   `BallFootContact.reachable` and emits `BallLoose` when the controlled
+   outfielder is unreachable (`Possession.fs:110–131`, `FootContact.fs:71–81`).
+   The measured system-entry state and the system that appended the event
+   reproduce that branch; they are not invented contact evidence.
+4. At step 6, `BallPossession` saw `Contesting Home` and queued
+   `Possession(Away, PlayerId 110)` for drain at step 7. Player 110 was
+   **0.246873 m** from the ball at that system boundary. Occurrence **#19**
+   has `ValueNone` cause; the system boundary and `contest` branch explain
+   what ran, but there is no recorded decision/duel ancestry to assert.
+   A further loss at event tick 8 follows the same explicit duel-chain pattern.
+
+This is a concrete runtime interaction, not repeated injected fixture events:
+`Duel.adjudicate` selects the nearest opponent within 3 m and, on a lost duel,
+queues the tackle and possession directly (`Duel.fs:65–162`); the later carry
+uses the separate 1.05 m foot-reach condition. The sample demonstrates a
+logical transfer to an out-of-reach player followed by the real possession
+system generating a loose ball. Whether to reject, delay, or represent that
+transfer as a contest is a design decision for Sol, not a runtime change in
+this diagnostic. It is not proof that every possession change has this cause.
+
+The first transfer reproduces under both instructions and the X-mirrored Away
+fixture, with the same duel draw and mirrored identities. At `Actions` entry,
+the first defender–ball distances are 1.860706 m at pressure 0 and 1.764706 m
+at pressure 1 on either side. Thus the fixture exposes the same mechanism
+even without organized pressing; the result cannot be attributed solely to the
+new collective plan.
+
+### Corpus and evidence limits
+
+Across the 120 short cases there are 968 runtime-produced possession events;
+391 have a **direct** `ResolutionCause` chain to `DuelResolved`. For 363 of
+those, the new owner's XY distance to the ball at the **Actions system entry**
+exceeds the configured foot reach. These are boundary measurements, not exact
+contact distances, and possession events can repeat an owner. Of 509 committed
+`BallLoose` events, wrappers identify 419 as appended by `BallPossession`; 443
+loose events have no observation cause, so the corpus does not invent links
+between adjacent events. The full audit reports zero evictions, ambiguous
+causes, duplicate occurrences or future causes, but **six missing references**
+in two cases: seed 2/Away/Y18/deep, both pressure instructions, three references
+each to `EventCause(EventId 2465055071524420100)`. The four focused cases have
+no missing references. These are explicit limits, not silently repaired chains.
+
+In all 120 cases, the wrapped run matched the original sensitivity corpus's
+event hash, final RNG and sampled trajectory exactly. The focused diagnostic
+was rerun byte-identically (SHA-256
+`2f7d65513e9ce4f6129dcbd90ae077258dd0b3824c608995f3ea16b0eafe227a`).
+The wrapping comparison verifies these fixed runs, not all possible matches.
+
+## Duel contact eligibility — implementation and unresolved contracts
+
+The preceding diagnostic and its JSON remain historical. The new implementation
+requires the acting player to be the active current carrier and to satisfy
+`BallFootContact.reachable`; it selects the reachable rival with minimum
+ball distance, breaking ties by slot, and calls the existing reception contract
+before a lost-duel tackle and possession. The original probability, draw order,
+scheduler and possession reducer are unchanged. Rejections consume no match RNG.
+The `DuelResolved` consequence links include the reception event when produced.
+
+The regression traces are [duel-contact-fixed-focus.json](collective-intelligence/duel-contact-fixed-focus.json)
+and [duel-contact-fixed-full.json.gz](collective-intelligence/duel-contact-fixed-full.json.gz).
+They use the same fixture, commands, seeds and horizon as the earlier control
+diagnostic, not an isolated proof that all football play is better. In all 120
+short cases the instrumented direct-duel possession checks found **zero**
+out-of-reach or unverifiable transfers at the `Actions` boundary. In the original
+seed 1, centre, high-pressure fixture the first primary reaches the sampled
+`FootReach` at subtick 26 on both sides; a lost duel at tick 28 produces a
+`FootContact Receive`, tackle and possession linked to `DuelResolved` #29.
+The defender was 1.034990 m from the ball at the Actions boundary, against
+1.05 m reach. Low pressure follows a different trajectory. The fixture does not
+show that `ApproachOffset` always prevents contact; it is not a universal proof.
+The focused output repeats byte-identically (SHA-256
+`ca6efd2cacb176c9b1a6d5dbf090de8aef105988535d282028597d0498abc416`).
+The new full trace reports zero observation evictions and eight missing links;
+these are not silently reconstructed.
+
+**Unresolved goalkeeper contradiction:** `BallFootContact.receive` explicitly
+does nothing when `profile.IsGK` (`FootContact.fs:216–254`). The specified
+selection correctly includes an eligible goalkeeper and calls `receive`, but a
+lost duel then has no `FootContact` for that keeper. The new goalkeeper test
+requires that real contact and fails; it was not changed to accept a fake touch.
+The current allowed write scope excludes the reception implementation. Sol must
+choose and authorize a keeper-compatible contact contract before this unit can
+satisfy both requirements without an ad hoc impulse or excluding the keeper.
+
+The first pre-change red test verified that a rival 2 m from the ball consumed
+RNG under the old resolver; it now passes. The final focused suite is **9/10**,
+with the keeper contact failure above. The full Core run is **644/647**:
+that keeper failure, one failure and one error in the existing
+`Contracts/ObservationTests.fs:370–532`. Both old fixtures call the duel with
+`TestBuilders.minimalWorld()` and a free ball: one expects a sampled duel and
+the other expects `NoDuelOpponent`, while the new required first rejection is
+`DuelCarrierUnavailable`. That file was outside the authorized write scope and
+was not modified. A valid-fixture update would give the actor actual reachable
+control and, for the first test, a reachable outfield defender while retaining
+its existing draw and causal assertions. No prior test or tolerance was removed.
+
+`Tools/CollectiveIntelligence/DuelPerf.fsx` measured 10,000 Release resolver
+calls after 1,000 warmups, seed 42, capture off, two sequential runs each. The
+reachable winning branch emitted one event in both versions: before median
+0.621/0.591 µs, p95 1.162/0.792, p99 3.046/2.174, 328 B/call; after median
+1.633/1.322 µs, p95 2.044/1.744, p99 2.656/3.978, 432 B/call. For the old
+2 m fixture the resolver previously executed a duel (328 B/call); now it
+rejects (168 B/call), so those cases intentionally do different work. These
+are noisy single-thread kernel timings, not total-match or zero-allocation
+claims. Logs: `/tmp/opencode/duel-perf-before-{1,2}.log` and
+`/tmp/opencode/duel-perf-after-{1,2}.log`.
+
+Integration builds succeeded with zero errors: solution 72 warnings,
+Client.Tests 5 warnings, Benchmarks 0 warnings. The complete Client suite passed
+191/191. These build counts do not make the failing Core requirements pass.
+
+## Goalkeeper foot reception — revised contract
+
+This section supersedes the goalkeeper blocker described immediately above;
+the previous measurements and failures remain historical. `BallFootContact.receive`
+now represents a foot reception for every eligible player, including a keeper.
+It records the same reception evidence and absorbs relative momentum without
+moving the ball. `GKHoldSince = Some` remains the explicit hand-held state set
+by a real catch; a keeper with `GKHoldSince = None` follows the ordinary
+reach-gated foot-control path and does not acquire a handhold automatically.
+The goalkeeper catch and ball-physics implementations were not changed.
+
+The previously failing goalkeeper duel test now passes on both sides with a
+real `FootContact.Receive`, motion evidence, duel ancestry, unchanged ball
+position and no duplicate next-tick reception. Additional tests cover a free
+ball and a ground pass at midfield, release of an out-of-reach foot-controlled
+ball, and an actual saved-shot path whose explicit handhold retains attachment.
+The foot-controlled ball also advances under `BallPhysics.step`; duel,
+pickup, pass and catch paths verify capture on/off sporting state, events and
+RNG identity on both sides. The two
+historical observation fixtures now initialize the actor as the actual
+reachable carrier; their causal and statistical assertions were retained.
+
+Final validation: **651/651 Core** and **191/191 Client** tests passed.
+The solution, Client.Tests and Benchmarks builds succeeded with respectively
+72, 5 and 0 warnings and no errors. The focused duel/contact suite passed
+14/14 and the observation suite 24/24. `git diff --check` passed. These results
+supersede the failing validation above; prior timing measurements remain
+historical and were not repeated for this goalkeeper-only change.
