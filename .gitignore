@@ -96,6 +96,7 @@
 !/FootballEngine.Client/Assets/MatchViewer/Lighting/*.bin
 !/FootballEngine.Client/Assets/MatchViewer/Lighting/manifest.json
 !/FootballEngine.Client/Assets/MatchViewer/Lighting/README.md
+!/FootballEngine.Client/Assets/MatchViewer/PlayerMotionRework/corrective-golden.json
 !/FootballEngine.Client/Match3D/Shaders/*.wgsl
 
 # --- Planes de agencia (opencode) ---
