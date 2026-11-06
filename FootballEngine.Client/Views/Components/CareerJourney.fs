@@ -1,0 +1,303 @@
+namespace FootballEngine.Components
+
+open System.Globalization
+open Avalonia.Controls
+open Avalonia.FuncUI.DSL
+open Avalonia.FuncUI.Types
+open Avalonia.Layout
+open Avalonia.Media
+open FootballEngine
+open FootballEngine.AppTypes
+open FootballEngine.AppMsgs
+open FootballEngine.Domain
+open FootballEngine.Routing
+
+module CareerJourney =
+    let private tr key = Localization.resolve key []
+
+    let private date (value: System.DateTime) =
+        let culture =
+            CultureInfo.GetCultureInfo(
+                if Localization.active () = Locale.Es then
+                    "es-AR"
+                else
+                    "en-GB"
+            )
+
+        value.ToString("ddd dd MMM", culture)
+
+    let continueLabel state =
+        match CareerFlow.continuation state with
+        | CareerFlow.PrepareMatch _ -> tr TranslationKey.PrepareNextMatch
+        | CareerFlow.ReturnToMatch(_, Postmatch) -> tr TranslationKey.MatchPostMatch
+        | CareerFlow.ReturnToMatch _ -> tr TranslationKey.MatchResume
+        | CareerFlow.AdvanceDay tomorrow -> Localization.resolve TranslationKey.ContinueToDate [ "date", date tomorrow ]
+        | CareerFlow.Working -> tr TranslationKey.JourneyWorking
+        | CareerFlow.Unavailable -> tr TranslationKey.Continue
+
+    let canContinue state =
+        match CareerFlow.continuation state with
+        | CareerFlow.Working
+        | CareerFlow.Unavailable -> false
+        | _ -> true
+
+    let private text size (color: string) value =
+        TextBlock.create
+            [ TextBlock.text value
+              TextBlock.fontSize size
+              TextBlock.foreground color
+              TextBlock.textWrapping TextWrapping.Wrap ]
+        :> IView
+
+    let private actions children =
+        WrapPanel.create [ WrapPanel.children children ] :> IView
+
+    let private button label primary enabled action =
+        let state =
+            if enabled then
+                UI.ControlState.Default
+            else
+                UI.ControlState.Disabled(tr TranslationKey.DisabledTitle)
+
+        let view =
+            if primary then
+                UI.primaryButtonWithState label None state (fun _ -> action ())
+            else
+                UI.secondaryButton label None state (fun _ -> action ())
+
+        Border.create [ Border.margin (0.0, 0.0, 8.0, 8.0); Border.child view ] :> IView
+
+    let private panel title children =
+        Border.create
+            [ Border.background Theme.BgCard
+              Border.borderBrush Theme.BorderLight
+              Border.borderThickness 1.0
+              Border.cornerRadius Theme.RadiusLg
+              Border.padding 20.0
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.spacing 12.0
+                        StackPanel.children [ text 12.0 Theme.Accent title; yield! children ] ]
+              ) ]
+        :> IView
+
+    let private lineupDetails gs =
+        let readiness = CareerFlow.lineupReadiness gs
+        let empty = max readiness.EmptySlots (11 - readiness.SlotCount)
+
+        [ text
+              16.0
+              (if readiness.IsReady then Theme.TextMain else Theme.Warning)
+              (tr (
+                  if readiness.IsReady then
+                      TranslationKey.LineupReady
+                  else
+                      TranslationKey.LineupNeedsAttention
+              ))
+          text
+              13.0
+              Theme.TextSub
+              (Localization.resolve
+                  TranslationKey.LineupCount
+                  [ "count", string (readiness.SlotCount - readiness.EmptySlots) ])
+          if empty > 0 then
+              text 13.0 Theme.Warning (Localization.resolve TranslationKey.LineupEmpty [ "count", string empty ])
+          if not readiness.UnavailableStarters.IsEmpty then
+              text
+                  13.0
+                  Theme.Warning
+                  (Localization.resolve
+                      TranslationKey.LineupUnavailable
+                      [ "names", String.concat ", " readiness.UnavailableStarters ])
+          if readiness.HasDuplicates then
+              text 13.0 Theme.Warning (tr TranslationKey.LineupDuplicates) ]
+
+    let private fixtureTitle (gs: GameState) (fixture: MatchFixture) =
+        let name id =
+            gs.Clubs |> Map.tryFind id |> Option.map _.Name |> Option.defaultValue "—"
+
+        $"{name fixture.HomeClubId} · {name fixture.AwayClubId} — {date fixture.ScheduledDate}"
+
+    let home (state: State) dispatch =
+        match state.Mode with
+        | InGame(gs, _) ->
+            let pending = Inbox.pendingActionCount gs.Inbox
+            let next = GameState.getUserNextFixture gs
+
+            panel
+                (tr TranslationKey.JourneyTitle)
+                [ match next with
+                  | Some(_, fixture) -> text 22.0 Theme.TextMain (fixtureTitle gs fixture)
+                  | None -> text 16.0 Theme.TextMain (tr TranslationKey.NoScheduledFixture)
+                  yield! lineupDetails gs
+                  if state.AdvanceTarget.IsSome then
+                      text 13.0 Theme.TextSub (tr TranslationKey.AdvanceNextEventHint)
+                  actions
+                      [ button (continueLabel state) true (canContinue state) (fun () ->
+                            dispatch (SimMsg ContinueCareer))
+                        button (tr TranslationKey.ReviewLineup) false (not state.IsProcessing) (fun () ->
+                            dispatch (Navigate(Route.Tactics TacticsRoute.Overview)))
+                        if pending > 0 then
+                            button
+                                (Localization.resolve TranslationKey.PendingDecisions [ "count", string pending ])
+                                false
+                                true
+                                (fun () ->
+                                    dispatch (InboxMsg(SetRequiresActionOnly true))
+                                    dispatch (Navigate(Route.Inbox(InboxRoute None))))
+                        if state.AdvanceTarget.IsSome then
+                            button (tr TranslationKey.StopAfterDay) false true (fun () ->
+                                dispatch (SimMsg CancelAdvance))
+                        elif
+                            next
+                            |> Option.exists (fun (_, fixture) -> fixture.ScheduledDate.Date > gs.CurrentDate.Date)
+                        then
+                            button (tr TranslationKey.AdvanceNextEvent) false (canContinue state) (fun () ->
+                                dispatch (SimMsg AdvanceToNextEvent))
+                        match CareerFlow.lastResult gs with
+                        | Some(id, _) ->
+                            button (tr TranslationKey.OpenLastResult) false true (fun () ->
+                                dispatch (Navigate(Route.Match(id, Postmatch))))
+                        | None -> () ]
+                  text
+                      12.0
+                      Theme.TextMuted
+                      (tr (
+                          if state.Match.PendingResult.IsSome then
+                              TranslationKey.ResultAwaitingConfirmation
+                          elif state.Match.RuntimeId.IsSome then
+                              TranslationKey.MatchSessionHint
+                          elif (CareerFlow.todayFixture gs).IsSome then
+                              TranslationKey.PreparationHint
+                          else
+                              TranslationKey.AdvanceNextEventHint
+                      )) ]
+        | _ -> Border.create [] :> IView
+
+    let preparation (state: State) matchId dispatch =
+        match state.Mode with
+        | InGame(gs, _) ->
+            let fixture =
+                gs.Competitions
+                |> Map.toSeq
+                |> Seq.tryPick (fun (_, competition) -> Map.tryFind matchId competition.Fixtures)
+
+            let readiness = CareerFlow.lineupReadiness gs
+
+            let canStart =
+                not state.IsProcessing
+                && readiness.IsReady
+                && (fixture
+                    |> Option.exists (fun fixture ->
+                        not fixture.Played
+                        && fixture.ScheduledDate.Date = gs.CurrentDate.Date
+                        && MatchFixture.involves gs.UserClubId fixture))
+
+            ScrollViewer.create
+                [ ScrollViewer.content (
+                      StackPanel.create
+                          [ StackPanel.margin 24.0
+                            StackPanel.spacing 16.0
+                            StackPanel.children
+                                [ panel
+                                      (tr TranslationKey.BeforeKickoff)
+                                      [ match fixture with
+                                        | Some fixture -> text 24.0 Theme.TextMain (fixtureTitle gs fixture)
+                                        | None -> text 16.0 Theme.Warning (tr TranslationKey.NoScheduledFixture)
+                                        text 14.0 Theme.TextSub (tr TranslationKey.PreparationHint)
+                                        yield! lineupDetails gs
+                                        match TacticsSlice.Query.currentLineup gs with
+                                        | Some lineup ->
+                                            text
+                                                14.0
+                                                Theme.TextMain
+                                                (Localization.resolve
+                                                    TranslationKey.CurrentPlan
+                                                    [ "formation", string lineup.Formation ])
+                                        | None -> ()
+                                        actions
+                                            [ button (tr TranslationKey.StartPreparedMatch) true canStart (fun () ->
+                                                  dispatch (Navigate(Route.Match(matchId, Live))))
+                                              button (tr TranslationKey.ReviewLineup) false true (fun () ->
+                                                  dispatch (Navigate(Route.Tactics TacticsRoute.Overview)))
+                                              button (tr TranslationKey.ReturnHome) false true (fun () ->
+                                                  dispatch (Navigate Route.Home)) ] ] ] ]
+                  ) ]
+            :> IView
+        | _ -> Border.create [] :> IView
+
+    let review (state: State) matchId dispatch =
+        match state.Mode with
+        | InGame(gs, _) ->
+            let pending =
+                state.Match.PendingResult
+                |> Option.filter (fun result -> result.MatchId = matchId)
+
+            let fixture =
+                gs.Competitions
+                |> Map.toSeq
+                |> Seq.tryPick (fun (_, competition) -> Map.tryFind matchId competition.Fixtures)
+
+            let score, events =
+                match pending, fixture with
+                | Some result, _ -> $"{result.HomeScore} – {result.AwayScore}", result.Events
+                | None, Some fixture when fixture.Played ->
+                    $"{fixture.HomeScore |> Option.defaultValue 0} – {fixture.AwayScore |> Option.defaultValue 0}",
+                    fixture.Events
+                | _ -> "—", []
+
+            ScrollViewer.create
+                [ ScrollViewer.content (
+                      StackPanel.create
+                          [ StackPanel.margin 24.0
+                            StackPanel.spacing 16.0
+                            StackPanel.children
+                                [ panel
+                                      (tr (
+                                          if pending.IsSome then
+                                              TranslationKey.ResultAwaitingConfirmation
+                                          else
+                                              TranslationKey.ResultRecorded
+                                      ))
+                                      [ match fixture with
+                                        | Some fixture -> text 22.0 Theme.TextMain (fixtureTitle gs fixture)
+                                        | None -> ()
+                                        text 40.0 Theme.TextMain score
+                                        text 14.0 Theme.TextSub (tr TranslationKey.MatchFacts)
+                                        match CareerFlow.shotFacts state matchId events with
+                                        | Some(homeShots, awayShots, homeXg, awayXg) ->
+                                            text
+                                                16.0
+                                                Theme.TextMain
+                                                ($"{tr TranslationKey.MatchShots}: {homeShots} – {awayShots}")
+
+                                            text 16.0 Theme.TextMain ($"xG: {homeXg:F2} – {awayXg:F2}")
+                                            text 12.0 Theme.TextMuted (tr TranslationKey.MatchEstimateHint)
+                                        | None -> ()
+                                        text
+                                            13.0
+                                            Theme.TextSub
+                                            (Localization.resolve
+                                                TranslationKey.RecordedEvents
+                                                [ "count", string events.Length ])
+                                        match state.Match.Error with
+                                        | Some error -> text 13.0 Theme.Warning error
+                                        | None -> ()
+                                        actions
+                                            [ if pending.IsSome then
+                                                  button
+                                                      (tr TranslationKey.ConfirmMatchResult)
+                                                      true
+                                                      (not state.IsProcessing)
+                                                      (fun () -> dispatch (LiveMsg LiveMsg.ConfirmFinish))
+                                              else
+                                                  button (continueLabel state) true (canContinue state) (fun () ->
+                                                      dispatch (SimMsg ContinueCareer))
+
+                                                  button (tr TranslationKey.ReviewLineup) false true (fun () ->
+                                                      dispatch (Navigate(Route.Tactics TacticsRoute.Overview)))
+                                              button (tr TranslationKey.ReturnHome) false true (fun () ->
+                                                  dispatch (Navigate Route.Home)) ] ] ] ]
+                  ) ]
+            :> IView
+        | _ -> Border.create [] :> IView

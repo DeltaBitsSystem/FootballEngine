@@ -24,6 +24,7 @@ module TacticsSlice =
 
     let update (msg: TacticsMsg) (state: TacticsState) : TacticsState =
         match msg with
+        | TacticsMsg.SelectSlot slot -> { state with SelectedSlot = slot }
         | TacticsMsg.StartDrag id -> { state with DraggedPlayer = Some id }
         | TacticsMsg.EndDrag -> { state with DraggedPlayer = None }
         | TacticsMsg.SetFormation _

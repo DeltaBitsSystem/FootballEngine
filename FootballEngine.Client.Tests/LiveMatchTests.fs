@@ -176,7 +176,279 @@ let private withRuntime test =
 let tests =
     testList
         "LiveMatch"
-        [ testCase "ring buffer overwrites oldest poses without blocking and brackets adjacent poses"
+        [ testCase "cancel stops chained advance without discarding the current day"
+          <| fun _ ->
+              let gs = career ()
+              let state = { AppTypes.initialState () with Mode = InGame(gs, managerEmployment gs); IsProcessing = true; AdvanceTarget = Some(gs.CurrentDate.AddDays 20.0) }
+              let cancelled, command = AppState.update (SimMsg CancelAdvance) state
+              Expect.isNone cancelled.AdvanceTarget "no further day is scheduled"
+              Expect.isTrue cancelled.IsProcessing "the in-flight day is allowed to finish coherently"
+              Expect.equal cancelled.Mode state.Mode "cancel does not rewind or discard world state"
+              Expect.isEmpty command "cancel starts no competing work"
+
+          testCase "advance failure clears busy state and target and offers visible recovery"
+          <| fun _ ->
+              let gs = career ()
+              let state = { AppTypes.initialState () with Mode = InGame(gs, managerEmployment gs); IsProcessing = true; AdvanceTarget = Some(gs.CurrentDate.AddDays 20.0) }
+              let failed, command = AppState.update (SimMsg(AdvanceFailed "test failure")) state
+              Expect.isFalse failed.IsProcessing "retry is available"
+              Expect.isNone failed.AdvanceTarget "failed advance cannot keep chaining"
+              Expect.equal failed.Mode state.Mode "the failed day is not applied"
+              Expect.isFalse failed.Notifications.IsEmpty "the failure is visible"
+              Expect.isEmpty command "failure does not silently retry"
+
+          testCase "a real finished match survives navigation and commits once before the next journey step"
+          <| fun _ ->
+              let require =
+                  function
+                  | Ok value -> value
+                  | Error error -> failtestf "Unexpected error: %A" error
+
+              let id, gs = scheduledCareer ()
+              let clock = WorldClockOps.init gs.Season
+
+              let balance =
+                  WeightMergeSettings.mergeWithOverridesSave (Some SaveSettings.defaults)
+
+              let job = WorldRunner.prepareUserMatchJobWithBalance balance clock gs id |> require
+
+              let outcome =
+                  Simulator.runMatch Scheduler.systems job.Input.Context job.Input.Seed Simulator.RunMode.Fast
+                  |> require
+
+              let result = WorldRunner.matchJobResult job [] outcome
+              let initial = AppTypes.initialState ()
+
+              let state =
+                  { initial with
+                      Mode = InGame(gs, managerEmployment gs)
+                      WorldClock = clock
+                      IsProcessing = false
+                      Navigation =
+                          { Current = Route.Match(id, Postmatch)
+                            Back = []
+                            Forward = [] }
+                      Match =
+                          { initial.Match with
+                              RequestedMatchId = Some id
+                              PendingResult = Some result } }
+
+              let home, _ = AppState.update (Navigate Route.Home) state
+              Expect.isSome home.Match.PendingResult "leaving the result screen cannot discard a completed match"
+
+              Expect.equal
+                  (CareerFlow.continuation home)
+                  (CareerFlow.ReturnToMatch(id, Postmatch))
+                  "home leads back to confirmation"
+
+              let _, blockedSave = AppState.update (PersistenceMsg SaveCurrent) home
+              Expect.isEmpty blockedSave "a pre-match save cannot masquerade as a saved active match"
+              let committed, _ = AppState.update (LiveMsg LiveMsg.ConfirmFinish) home
+
+              let confirmed =
+                  match committed.Mode with
+                  | InGame(value, _) -> value
+                  | _ -> failtest "expected career"
+
+              let fixture =
+                  confirmed.Competitions
+                  |> Map.toSeq
+                  |> Seq.pick (fun (_, competition) -> Map.tryFind id competition.Fixtures)
+
+              Expect.isTrue fixture.Played "the actual result is registered"
+              Expect.equal fixture.HomeScore (Some result.HomeScore) "home score is preserved"
+              Expect.equal fixture.AwayScore (Some result.AwayScore) "away score is preserved"
+              Expect.isNone committed.Match.PendingResult "confirmation consumes the pending result"
+
+              Expect.isSome
+                  (CareerFlow.shotFacts committed id fixture.Events)
+                  "facts remain available from the recorded match input"
+
+              let duplicate, command = AppState.update (LiveMsg LiveMsg.ConfirmFinish) committed
+              Expect.equal duplicate.Mode committed.Mode "a second confirmation cannot apply consequences twice"
+              Expect.isEmpty command "duplicate confirmation schedules nothing"
+
+              match CareerFlow.continuation committed with
+              | CareerFlow.AdvanceDay _ -> ()
+              | other -> failtestf "expected next day after confirmation, got %A" other
+
+          testCase "suggested lineup never selects suspended players"
+          <| fun _ ->
+              let gs = career ()
+              let starter = (TacticsSlice.Query.currentLineup gs).Value.Slots |> List.pick _.PlayerId
+              let gs = { gs with Players = gs.Players |> Map.change starter (Option.map (fun player -> { player with Status = Suspended 1 })) }
+              let state = { AppTypes.initialState () with Mode = InGame(gs, managerEmployment gs); IsProcessing = false }
+              let suggested, _ = AppState.update (TacticsMsg QuickPick) state
+              let updated = match suggested.Mode with InGame(value, _) -> value | _ -> failtest "expected career"
+              let slots = (TacticsSlice.Query.currentLineup updated).Value.Slots
+              Expect.isFalse (slots |> List.exists (fun slot -> slot.PlayerId = Some starter)) "an unavailable starter must not be suggested"
+              Expect.isTrue (CareerFlow.lineupReadiness updated).IsReady "an available squad produces a valid suggested eleven"
+
+          testCase "navigation retains a valid match and returns to the same session"
+          <| fun _ ->
+              let id, gs = scheduledCareer ()
+              let initial = AppTypes.initialState ()
+
+              let state =
+                  { initial with
+                      Mode = InGame(gs, managerEmployment gs)
+                      IsProcessing = false
+                      Navigation =
+                          { Current = Route.Match(id, FootballEngine.Routing.Live)
+                            Back = []
+                            Forward = [] }
+                      Match =
+                          { initial.Match with
+                              RequestedMatchId = Some id
+                              RuntimeId = Some(MatchRuntimeId 9999UL) } }
+
+              let home, _ = AppState.update (Navigate Route.Home) state
+              Expect.equal home.Match.RuntimeId state.Match.RuntimeId "navigation does not dispose the active match"
+
+              Expect.equal
+                  (CareerFlow.continuation home)
+                  (CareerFlow.ReturnToMatch(id, FootballEngine.Routing.Live))
+                  "continue returns to that match"
+
+              let returned, _ = AppState.update GoBack home
+              Expect.equal returned.Navigation.Current state.Navigation.Current "back restores the match route"
+              Expect.equal returned.Match.RuntimeId state.Match.RuntimeId "the session identity is unchanged"
+
+              let rejected, command =
+                  AppState.update (Navigate(Route.Match(id + 1, FootballEngine.Routing.Live))) home
+
+              Expect.equal rejected.Navigation.Current Route.Home "a second fixture cannot replace this session"
+              Expect.isEmpty command "rejected navigation cannot launch another simulation"
+
+          testCase "selecting an existing starter swaps positions and undo restores the exact lineup"
+          <| fun _ ->
+              let gs = career ()
+              let lineup = TacticsSlice.Query.currentLineup gs |> Option.get
+              let first, second = lineup.Slots[0], lineup.Slots[1]
+
+              let state =
+                  { AppTypes.initialState () with
+                      Mode = InGame(gs, managerEmployment gs)
+                      IsProcessing = false
+                      SaveStatus = Saved DateTime.UtcNow }
+
+              let selected, _ = AppState.update (TacticsMsg(SelectSlot(Some first.Index))) state
+
+              let edited, _ =
+                  AppState.update (TacticsMsg(DropPlayerInSlot(first.Index, second.PlayerId.Value))) selected
+
+              let updated =
+                  match edited.Mode with
+                  | InGame(value, _) -> value
+                  | _ -> failtest "expected career"
+
+              let changed = TacticsSlice.Query.currentLineup updated |> Option.get
+
+              Expect.equal
+                  (changed.Slots |> List.find (fun slot -> slot.Index = second.Index) |> _.PlayerId)
+                  first.PlayerId
+                  "the displaced player swaps rather than vanishes"
+
+              Expect.isTrue
+                  (CareerFlow.lineupReadiness updated).IsReady
+                  "the swap keeps eleven distinct available players"
+
+              Expect.isNone edited.Tactics.SelectedSlot "selection closes after assignment"
+              Expect.equal edited.SaveStatus SaveIdle "the UI no longer claims a previous save includes the edit"
+              let undone, _ = AppState.update (TacticsMsg UndoTactics) edited
+
+              let restored =
+                  match undone.Mode with
+                  | InGame(value, _) -> value
+                  | _ -> failtest "expected career"
+
+              Expect.equal (TacticsSlice.Query.currentLineup restored) (Some lineup) "undo restores all lineup data"
+
+          testCase "career continuation prepares today's fixture without advancing or starting it"
+          <| fun _ ->
+              let id, gs = scheduledCareer ()
+
+              let state =
+                  { AppTypes.initialState () with
+                      Mode = InGame(gs, managerEmployment gs)
+                      IsProcessing = false }
+
+              Expect.equal
+                  (CareerFlow.continuation state)
+                  (CareerFlow.PrepareMatch id)
+                  "today has an explicit preparation step"
+
+              let next, command = UpdateSim.handle (Advance 1) state
+              let messages = ResizeArray<Msg>()
+              command |> List.iter (fun effect -> effect messages.Add)
+
+              let routes =
+                  messages
+                  |> Seq.choose (function
+                      | Navigate route -> Some route
+                      | _ -> None)
+                  |> List.ofSeq
+
+              Expect.equal routes [ Route.Match(id, Prematch) ] "raw day advance cannot skip today's game"
+              Expect.equal messages.Count 1 "no simulation commands are emitted"
+              Expect.equal next.Mode state.Mode "no date, lineup or execution seed changes"
+              Expect.isFalse next.IsProcessing "no background simulation was launched"
+
+          testCase "next event respects pending decisions instead of advancing time"
+          <| fun _ ->
+              let gs = career ()
+
+              let message =
+                  { Inbox.create gs.CurrentDate "Staff" "Review an offer" "Details" InboxMessageCategory.Transfer true with
+                      Id = 91 }
+
+              let gs = { gs with Inbox = [ message ] }
+
+              let state =
+                  { AppTypes.initialState () with
+                      Mode = InGame(gs, managerEmployment gs)
+                      IsProcessing = false }
+
+              let next, command = UpdateSim.handle AdvanceToNextEvent state
+              let messages = ResizeArray<Msg>()
+              command |> List.iter (fun effect -> effect messages.Add)
+
+              let routes =
+                  messages
+                  |> Seq.choose (function
+                      | Navigate route -> Some route
+                      | _ -> None)
+                  |> List.ofSeq
+
+              Expect.equal routes [ Route.Inbox(InboxRoute(Some 91)) ] "the real pending message opens"
+              Expect.equal messages.Count 1 "only navigation is requested"
+              Expect.isNone next.AdvanceTarget "no hidden multi-day advance is scheduled"
+
+          testCase "career attention detects new decisions but ignores routine information"
+          <| fun _ ->
+              let gs = career ()
+
+              let routine =
+                  Inbox.create gs.CurrentDate "Staff" "Training report" "Details" InboxMessageCategory.Development false
+
+              let action =
+                  { routine with
+                      Id = 92
+                      RequiresAction = true }
+
+              Expect.isFalse
+                  (CareerFlow.newAttention gs { gs with Inbox = [ routine ] })
+                  "routine news does not interrupt"
+
+              Expect.isTrue (CareerFlow.newAttention gs { gs with Inbox = [ action ] }) "a new decision interrupts"
+
+              Expect.isFalse
+                  (CareerFlow.newAttention { gs with Inbox = [ action ] } { gs with Inbox = [ action ] })
+                  "old decisions are not new events"
+
+              Expect.isTrue (CareerFlow.lineupReadiness gs).IsReady "generated current lineup is usable"
+
+          testCase "ring buffer overwrites oldest poses without blocking and brackets adjacent poses"
           <| fun _ ->
               let stream =
                   MatchPresentationStream(

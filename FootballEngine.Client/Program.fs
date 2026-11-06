@@ -87,6 +87,9 @@ module Views =
             | Route.Transfers _ -> transfersView state dispatch
             | Route.Finances _ -> Finances.view state dispatch
             | Route.Settings _ -> Settings.view state dispatch
+            | Route.Match(id, _) when state.Match.PendingResult.IsSome -> CareerJourney.review state id dispatch
+            | Route.Match(id, MatchPhase.Prematch) -> CareerJourney.preparation state id dispatch
+            | Route.Match(id, MatchPhase.Postmatch) -> CareerJourney.review state id dispatch
             | Route.Match _ -> MatchDayView.view state dispatch
             | Route.ModEditor -> ModEditor.view state dispatch
             | route -> unavailableRoute route
@@ -123,7 +126,26 @@ module Views =
                                         Button.cornerRadius Theme.RadiusMd
                                         Button.padding (10.0, 6.0)
                                         Button.onClick (fun _ -> dispatch (Navigate Route.Home))
-                                        Button.content (TextBlock.create [ TextBlock.text "Home" ]) ]
+                                        Button.content (
+                                            TextBlock.create
+                                                [ TextBlock.text (Localization.resolve TranslationKey.Today []) ]
+                                        ) ]
+                                  Button.create
+                                      [ DockPanel.dock Dock.Left
+                                        Button.isEnabled (not state.Navigation.Back.IsEmpty)
+                                        Button.margin (6.0, 0.0)
+                                        Button.onClick (fun _ -> dispatch GoBack)
+                                        Button.content (Localization.resolve TranslationKey.Back []) ]
+                                  Button.create
+                                      [ DockPanel.dock Dock.Right
+                                        Button.isEnabled (
+                                            not state.IsProcessing
+                                            && state.Match.RuntimeId.IsNone
+                                            && state.Match.PendingResult.IsNone
+                                        )
+                                        Button.margin (6.0, 0.0)
+                                        Button.onClick (fun _ -> dispatch (PersistenceMsg SaveCurrent))
+                                        Button.content (Localization.resolve TranslationKey.ManualSave []) ]
                                   Button.create
                                       [ DockPanel.dock Dock.Right
                                         Button.isEnabled (
@@ -136,8 +158,10 @@ module Views =
                                         Button.borderThickness 0.0
                                         Button.cornerRadius Theme.RadiusMd
                                         Button.padding (10.0, 6.0)
-                                        Button.onClick (fun _ -> dispatch (SimMsg(Advance 1)))
-                                        Button.content (TextBlock.create [ TextBlock.text ">" ]) ]
+                                        Button.onClick (fun _ -> dispatch (SimMsg ContinueCareer))
+                                        Button.content (
+                                            TextBlock.create [ TextBlock.text (CareerJourney.continueLabel state) ]
+                                        ) ]
                                   TextBlock.create
                                       [ TextBlock.text (clubName |> Option.defaultValue "Football Engine")
                                         TextBlock.fontSize 14.0
@@ -150,7 +174,7 @@ module Views =
         let compactThreshold =
             match state.Navigation.Current with
             | Route.Match _ -> 1100.0
-            | _ -> 800.0
+            | _ -> 1280.0
 
         let isMatchRoute =
             match state.Navigation.Current with
@@ -204,6 +228,8 @@ type MainWindow(initialGlobal: GlobalSettings, resolvedData: Data.ResolvedDataSe
 
         let mutable dispatchCell: (Msg -> unit) option = None
         let mutable stateCell: State option = None
+        let mutable exitApproved = false
+        let mutable exitPromptOpen = false
 
         this.Closing.Add(fun args ->
             if shots.IsNone then
@@ -242,6 +268,46 @@ type MainWindow(initialGlobal: GlobalSettings, resolvedData: Data.ResolvedDataSe
         Elmish.Program.mkProgram initFn AppState.update viewFn
         |> Elmish.Program.withHost this
         |> Elmish.Program.runWithAvaloniaSyncDispatch ()
+
+        this.Closing.Add(fun args ->
+            match shots, stateCell with
+            | None, Some state when not exitApproved && (state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome) ->
+                args.Cancel <- true
+                if not exitPromptOpen then
+                    exitPromptOpen <- true
+                    let dialog = Window(Title = Localization.resolve TranslationKey.MatchOverview [], Width = 520.0, Height = 230.0, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner)
+                    let body = StackPanel(Margin = Thickness(24.0), Spacing = 16.0)
+                    body.Children.Add(TextBlock(Text = Localization.resolve TranslationKey.LeaveMatchWarning [], TextWrapping = TextWrapping.Wrap))
+                    let keep = Button(Content = Localization.resolve TranslationKey.KeepPlaying [], IsDefault = true, IsCancel = true)
+                    let leave = Button(Content = Localization.resolve TranslationKey.LeaveMatch [])
+                    keep.Click.Add(fun _ -> dialog.Close(false))
+                    leave.Click.Add(fun _ -> dialog.Close(true))
+                    body.Children.Add(keep)
+                    body.Children.Add(leave)
+                    dialog.Content <- body
+                    async {
+                        let! leave = dialog.ShowDialog<bool>(this) |> Async.AwaitTask
+                        exitPromptOpen <- false
+                        if leave then
+                            exitApproved <- true
+                            this.Close()
+                    } |> Async.StartImmediate
+            | _ -> ())
+
+        this.KeyDown.Add(fun args ->
+            if not args.Handled then
+                let command =
+                    match args.Key, args.KeyModifiers with
+                    | Avalonia.Input.Key.S, Avalonia.Input.KeyModifiers.Control -> Some(PersistenceMsg SaveCurrent)
+                    | Avalonia.Input.Key.Left, Avalonia.Input.KeyModifiers.Alt -> Some GoBack
+                    | Avalonia.Input.Key.Right, Avalonia.Input.KeyModifiers.Alt -> Some GoForward
+                    | _ -> None
+
+                match command, dispatchCell with
+                | Some command, Some dispatch ->
+                    args.Handled <- true
+                    dispatch command
+                | _ -> ())
 
         match shots with
         | Some s ->

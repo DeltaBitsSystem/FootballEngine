@@ -35,23 +35,9 @@ module Header =
 
         clubName, competitionName
 
-    let private continueLabel (gameState: GameState) =
-        let nextDate = gameState.CurrentDate.AddDays 1.0
-
-        let stopsForMatch =
-            GameState.getUserNextFixture gameState
-            |> Option.exists (fun (_, fixture) -> fixture.ScheduledDate.Date <= nextDate.Date)
-
-        if stopsForMatch then
-            Localization.resolve TranslationKey.GoToMatch []
-        else
-            Localization.resolve
-                TranslationKey.ContinueToDate
-                [ "date", nextDate.ToString("ddd dd MMM yyyy").ToUpperInvariant() ]
-
     let private saveStatus (status: SaveStatus) =
         match status with
-        | SaveIdle -> "", Theme.TextMuted
+        | SaveIdle -> Localization.resolve TranslationKey.DraftNotSaved [], Theme.Warning
         | Saving _ -> Localization.resolve TranslationKey.SaveStatusSaving [], Theme.Warning
         | Saved _ -> Localization.resolve TranslationKey.SaveStatusSaved [], Theme.Success
         | SaveFailed _ -> Localization.resolve TranslationKey.SaveStatusError [], Theme.Danger
@@ -104,7 +90,7 @@ module Header =
 
         let saveText, saveColor = saveStatus state.SaveStatus
         let isProcessing = state.IsProcessing
-        let canContinue = gameState.IsSome && not isProcessing
+        let canContinue = CareerJourney.canContinue state
 
         let saveBadge: IView =
             if saveText = "" then
@@ -229,7 +215,18 @@ module Header =
                                                     TextBlock.foreground Theme.TextSub ] ] ]
                               ) ]
                         Button.create
-                            [ Button.isEnabled (gameState.IsSome && not isProcessing)
+                            [ Button.isEnabled (
+                                  gameState.IsSome
+                                  && not isProcessing
+                                  && state.Match.RuntimeId.IsNone
+                                  && state.Match.PendingResult.IsNone
+                              )
+                              ToolTip.tip (
+                                  if state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome then
+                                      Localization.resolve TranslationKey.SaveAfterMatch []
+                                  else
+                                      Localization.resolve TranslationKey.ManualSave []
+                              )
                               Button.background Theme.BgCard
                               Button.borderBrush Theme.BorderLight
                               Button.borderThickness 1.0
@@ -257,7 +254,7 @@ module Header =
                               Button.padding (16.0, 9.0)
                               Button.onClick (fun event ->
                                   event.Handled <- true
-                                  dispatch (SimMsg(Advance 1)))
+                                  dispatch (SimMsg ContinueCareer))
                               Button.content (
                                   StackPanel.create
                                       [ StackPanel.orientation Orientation.Horizontal
@@ -267,11 +264,7 @@ module Header =
                                                   (if isProcessing then IconName.refresh else Nav.next)
                                                   (if canContinue then Theme.BgSidebar else Theme.TextMuted)
                                               TextBlock.create
-                                                  [ TextBlock.text (
-                                                        match gameState with
-                                                        | Some gs when not isProcessing -> continueLabel gs
-                                                        | _ -> Localization.resolve TranslationKey.Continue []
-                                                    )
+                                                  [ TextBlock.text (CareerJourney.continueLabel state)
                                                     TextBlock.fontSize 11.5
                                                     TextBlock.fontWeight FontWeight.Black
                                                     TextBlock.foreground (

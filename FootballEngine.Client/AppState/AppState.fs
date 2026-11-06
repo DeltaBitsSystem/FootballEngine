@@ -37,6 +37,11 @@ module AppState =
         GameState.getStaff clubId gs |> List.tryFind (fun s -> s.Role = HeadCoach)
 
     let private pushTacticsHistory (gs: GameState) (state: State) : State =
+        let state =
+            { state with
+                SaveStatus = SaveIdle
+                PersistenceRequestId = state.PersistenceRequestId + 1UL }
+
         match
             headCoach gs.UserClubId gs
             |> Option.bind (fun c -> c.Attributes.Coaching.Lineup)
@@ -130,6 +135,10 @@ module AppState =
             route <> Route.Loading
             && route <> Route.Setup
             && Route.canNavigate isEmployed route
+            && (match route, state.Match.RequestedMatchId with
+                | Route.Match(id, _), Some active when state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome ->
+                    id = active
+                | _ -> true)
 
     let private applyRouteContext (route: Route) (state: State) =
         match route with
@@ -265,12 +274,26 @@ module AppState =
     let private closeMatchRuntimeWhenLeaving (fromRoute: Route) (toRoute: Route) (state: State) =
         match fromRoute, toRoute with
         | Route.Match _, Route.Match _ -> state
+        | Route.Match _, _ when
+            state.Match.RequestedMatchId.IsSome
+            && (state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome)
+            ->
+            state
         | Route.Match _, _ ->
             state.Match.RuntimeId |> Option.iter MatchRuntime.close
 
             { state with
                 Match = MatchSlice.update LiveMsg.Close state.Match }
         | _ -> state
+
+    let private pauseMatchWhenLeaving fromRoute toRoute (state: State) =
+        match fromRoute, toRoute, state.Match.Live with
+        | Route.Match _, Route.Match _, _ -> Cmd.none
+        | Route.Match _, _, Some live when state.Match.RuntimeId.IsSome ->
+            match live.Status with
+            | FootballEngine.LiveMatch.Live _ -> Cmd.ofMsg (LiveMsg LiveMsg.TogglePause)
+            | _ -> Cmd.none
+        | _ -> Cmd.none
 
     let private listSlotsCmd (requestId: uint64) : Cmd<Msg> =
         Cmd.OfTask.either
@@ -415,6 +438,11 @@ module AppState =
                             Settings = initSettingsState state.Settings.Global saveSettings
                             ActiveSlot = Some slot
                             SaveStatus = Saved gs.CurrentDate
+                            AdvanceTarget = None
+                            Tactics =
+                                { DraggedPlayer = None
+                                  SelectedSlot = None
+                                  History = [] }
                             Setup = initSetupState
                             ModLoadErrors = [] }
 
@@ -443,6 +471,13 @@ module AppState =
 
         | PersistenceMsg SaveCurrent ->
             match state.Mode with
+            | InGame _ when state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome ->
+                state
+                |> pushNotification
+                    Material.Icons.MaterialIconKind.InformationOutline
+                    (Localization.resolve TranslationKey.ManualSave [])
+                    (Localization.resolve TranslationKey.SaveAfterMatch []),
+                Cmd.none
             | InGame(gs, _) when not state.IsProcessing ->
                 let requestId = state.PersistenceRequestId + 1UL
 
@@ -522,6 +557,11 @@ module AppState =
                 Squad = SquadSlice.update m state.Squad },
             Cmd.none
 
+        | TacticsMsg(TacticsMsg.SelectSlot slot) ->
+            { state with
+                Tactics = TacticsSlice.update (TacticsMsg.SelectSlot slot) state.Tactics },
+            Cmd.none
+
         | TacticsMsg(TacticsMsg.SetFormation formation) ->
             withGame (fun gs ->
                 let state = pushTacticsHistory gs state
@@ -587,13 +627,18 @@ module AppState =
                 let state = pushTacticsHistory gs state
 
                 let swapPlayer (idx: int) (pid: PlayerId) (lineup: Lineup) : Lineup =
+                    let outgoing =
+                        lineup.Slots
+                        |> List.tryFind (fun slot -> slot.Index = idx)
+                        |> Option.bind _.PlayerId
+
                     let updatedSlots =
                         lineup.Slots
                         |> List.map (fun slot ->
                             if slot.Index = idx then
                                 { slot with PlayerId = Some pid }
                             elif slot.PlayerId = Some pid then
-                                { slot with PlayerId = None }
+                                { slot with PlayerId = outgoing }
                             else
                                 slot)
 
@@ -625,7 +670,8 @@ module AppState =
                     Mode = InGame(newGs, managerEmployment newGs)
                     Tactics =
                         { state.Tactics with
-                            DraggedPlayer = None } }
+                            DraggedPlayer = None
+                            SelectedSlot = None } }
                 |> addLog $"Swap made: Slot {targetIdx}",
                 Cmd.none)
 
@@ -646,7 +692,7 @@ module AppState =
         | TacticsMsg TacticsMsg.QuickPick ->
             withGame (fun gs ->
                 let state = pushTacticsHistory gs state
-                let squad = GameState.getSquad gs.UserClubId gs
+                let squad = GameState.getSquad gs.UserClubId gs |> List.filter (fun player -> player.Status = Available)
 
                 let formation =
                     headCoach gs.UserClubId gs
@@ -699,6 +745,8 @@ module AppState =
 
                     { state with
                         Mode = InGame(newGs, managerEmployment newGs)
+                        SaveStatus = SaveIdle
+                        PersistenceRequestId = state.PersistenceRequestId + 1UL
                         Tactics = { state.Tactics with History = tail } },
                     Cmd.none)
 
@@ -844,9 +892,17 @@ module AppState =
                             Match = MatchSlice.update (LiveMsg.CommandRejected(commandId, rejection)) state.Match },
                         nextWake
                     | MatchRuntimePublication.StatusChanged status ->
-                        { state with
-                            Match = MatchSlice.update (LiveMsg.RuntimeStatusChanged status) state.Match },
-                        nextWake
+                        let nextState =
+                            { state with
+                                Match = MatchSlice.update (LiveMsg.RuntimeStatusChanged status) state.Match }
+
+                        let pause =
+                            match nextState.Navigation.Current, status with
+                            | Route.Match _, _ -> Cmd.none
+                            | _, FootballEngine.LiveMatch.Live _ -> Cmd.ofMsg (LiveMsg LiveMsg.TogglePause)
+                            | _ -> Cmd.none
+
+                        nextState, Cmd.batch [ nextWake; pause ]
                     | MatchRuntimePublication.Semantic semantic ->
                         { state with
                             Match = MatchSlice.applySemantic semantic state.Match },
@@ -1155,21 +1211,28 @@ module AppState =
                 | _ -> navigated
 
             let cmd =
-                match route with
+                match nextState.Navigation.Current with
                 | Route.Match(_, MatchPhase.Live) when nextState.Match.RuntimeId.IsNone ->
                     Cmd.ofMsg (SimMsg SimulateUserFixture)
                 | Route.Transfers _ when state.Transfer.CachedPlayers.IsEmpty -> Cmd.ofMsg (TransferMsg Load)
                 | _ -> Cmd.none
 
-            nextState, cmd
+            nextState,
+            Cmd.batch
+                [ pauseMatchWhenLeaving state.Navigation.Current nextState.Navigation.Current state
+                  cmd ]
 
         | GoBack ->
             let backed = goBack state
-            closeMatchRuntimeWhenLeaving state.Navigation.Current backed.Navigation.Current backed, Cmd.none
+
+            closeMatchRuntimeWhenLeaving state.Navigation.Current backed.Navigation.Current backed,
+            pauseMatchWhenLeaving state.Navigation.Current backed.Navigation.Current state
 
         | GoForward ->
             let forwarded = goForward state
-            closeMatchRuntimeWhenLeaving state.Navigation.Current forwarded.Navigation.Current forwarded, Cmd.none
+
+            closeMatchRuntimeWhenLeaving state.Navigation.Current forwarded.Navigation.Current forwarded,
+            pauseMatchWhenLeaving state.Navigation.Current forwarded.Navigation.Current state
 
         | SearchGlobal query -> { state with GlobalSearchQuery = query }, Cmd.none
 
@@ -1177,7 +1240,11 @@ module AppState =
             { state with
                 SelectedLeagueId = leagueId },
             Cmd.none
-        | SetProcessing b -> { state with IsProcessing = b }, Cmd.none
+        | SetProcessing b ->
+            { state with
+                IsProcessing = b
+                AdvanceTarget = if b then state.AdvanceTarget else None },
+            Cmd.none
         | NoOp -> state, Cmd.none
 
         | ReloadMods ->

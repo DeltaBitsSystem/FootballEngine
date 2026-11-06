@@ -55,12 +55,14 @@
         <Compile Include="AppState\Slices\MatchSlice.fs"/>
         <Compile Include="AppState\Slices\ScoutingSlice.fs"/>
         <Compile Include="AppState\Slices\SettingsSlice.fs"/>
+        <Compile Include="AppState\CareerFlow.fs"/>
         <Compile Include="AppState\UpdateSetup.fs"/>
         <Compile Include="AppState\UpdateSim.fs"/>
         <Compile Include="AppState\UpdateTransfer.fs"/>
         <Compile Include="AppState\UpdateModEditor.fs"/>
         <Compile Include="AppState\AppState.fs"/>
         <Compile Include="Views\Components\UI.fs"/>
+        <Compile Include="Views\Components\CareerJourney.fs"/>
         <Compile Include="Views\Components\Sidebar.fs"/>
         <Compile Include="Views\Components\Header.fs"/>
         <Compile Include="Views\Components\FootballPitch.fs"/>

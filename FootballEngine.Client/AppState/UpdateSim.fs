@@ -111,6 +111,8 @@ module UpdateSim =
                 Mode = InGame(result.GameState, managerEmployment result.GameState)
                 IsProcessing = false
                 WorldClock = result.WorldClock
+                SaveStatus = SaveIdle
+                PersistenceRequestId = state.PersistenceRequestId + 1UL
                 LogMessages = logs @ state.LogMessages |> List.truncate 30 }
             |> applyMatchNotifs result.GameState result.PlayedMatches
 
@@ -226,6 +228,34 @@ module UpdateSim =
             | _ -> None
 
         match msg with
+        | ContinueCareer ->
+            match CareerFlow.continuation state with
+            | CareerFlow.PrepareMatch id -> state, Cmd.ofMsg (Navigate(Route.Match(id, Prematch)))
+            | CareerFlow.ReturnToMatch(id, phase) -> state, Cmd.ofMsg (Navigate(Route.Match(id, phase)))
+            | CareerFlow.AdvanceDay _ -> handle (Advance 1) state
+            | CareerFlow.Working
+            | CareerFlow.Unavailable -> state, Cmd.none
+
+        | CancelAdvance -> { state with AdvanceTarget = None }, Cmd.none
+
+        | AdvanceFailed error ->
+            { state with IsProcessing = false; AdvanceTarget = None }
+            |> pushNotification NotificationIcons.error
+                (Localization.resolve TranslationKey.JourneyTitle [])
+                (Localization.resolve TranslationKey.AdvanceFailed [ "error", error ]), Cmd.none
+
+        | AdvanceToNextEvent ->
+            match state.Mode, CareerFlow.continuation state with
+            | InGame(gs, _), CareerFlow.AdvanceDay _ ->
+                let pending = gs.Inbox |> List.tryFind (fun message -> message.RequiresAction && message.ActionTaken <> Some true)
+
+                match pending, GameState.getUserNextFixture gs with
+                | Some message, _ -> state, Cmd.ofMsg (Navigate(Route.Inbox(InboxRoute(Some message.Id))))
+                | None, Some(_, fixture) ->
+                    handle (Advance 1) { state with AdvanceTarget = Some fixture.ScheduledDate.Date }
+                | None, None -> handle ContinueCareer state
+            | _ -> handle ContinueCareer state
+
         | Advance days ->
 
 
@@ -235,7 +265,16 @@ module UpdateSim =
             else
                 match tryGetGs () with
                 | None -> state, Cmd.none
+                | Some gs when (CareerFlow.todayFixture gs).IsSome ->
+                    let matchId, _ = CareerFlow.todayFixture gs |> Option.get
+                    { state with AdvanceTarget = None }, Cmd.ofMsg (Navigate(Route.Match(matchId, Prematch)))
                 | Some gs ->
+
+                    // A multi-day request must stop before the user's fixture, not simulate it as a background match.
+                    let days =
+                        GameState.getUserNextFixture gs
+                        |> Option.map (fun (_, fixture) -> max 1 (min days (int (fixture.ScheduledDate.Date - gs.CurrentDate.Date).TotalDays)))
+                        |> Option.defaultValue days
 
                     let gs = ExecutionRandomness.beginAttempt gs
 
@@ -257,13 +296,29 @@ module UpdateSim =
                             Task.Run(fun () -> advanceDaysWithSave (Some state.SaveSettings) days state.WorldClock gs))
                         ()
                         (SimMsg << AdvanceDone)
-                        (fun ex ->
-                            eprintfn $"[CRASH] Advance Error: {ex.ToString()}"
-                            SetProcessing false)
+                        (fun ex -> SimMsg(AdvanceFailed ex.Message))
 
         | AdvanceDone result ->
 
             let nextState = applyDayResult result state
+            let interrupted =
+                match state.Mode with
+                | InGame(before, _) -> CareerFlow.newAttention before result.GameState
+                | _ -> false
+
+            let nextState =
+                if interrupted || result.SeasonComplete || (CareerFlow.todayFixture result.GameState).IsSome then
+                    { nextState with AdvanceTarget = None }
+                else
+                    nextState
+
+            let nextState =
+                if interrupted && state.AdvanceTarget.IsSome then
+                    nextState |> pushNotification IconName.info
+                        (Localization.resolve TranslationKey.JourneyTitle [])
+                        (Localization.resolve TranslationKey.AdvanceAttention [])
+                else
+                    nextState
 
             let baseCmd =
                 if result.SeasonComplete then
@@ -279,7 +334,6 @@ module UpdateSim =
                 nextState,
                 Cmd.batch
                     [ Cmd.ofMsg (Navigate(Route.Match(matchId, Prematch)))
-                      Cmd.ofMsg (SimMsg SimulateUserFixture)
                       baseCmd ]
             | None -> nextState, Cmd.batch [ baseCmd; Cmd.ofMsg (SimMsg SimulateAiFixtures) ]
 
@@ -373,7 +427,7 @@ module UpdateSim =
                     (fun () -> Task.Run(fun () -> runAiFixturesWithSave (Some state.SaveSettings) state.WorldClock gs))
                     ()
                     (SimMsg << AiMatchesDone)
-                    (fun _ -> SetProcessing false)
+                    (fun ex -> SimMsg(AdvanceFailed ex.Message))
 
         | AiMatchesDone result ->
             match state.Mode with
@@ -390,7 +444,17 @@ module UpdateSim =
                             WorldClock = result.WorldClock }
                         |> applyMatchNotifs result.GameState result.PlayedMatches
 
-                    nextState, saveCmd state result.GameState result.WorldClock state.SaveSettings
+                    let continuation =
+                        match nextState.AdvanceTarget with
+                        | Some target when result.GameState.CurrentDate.Date < target -> Cmd.ofMsg (SimMsg(Advance 1))
+                        | _ -> Cmd.none
+
+                    let nextState =
+                        match nextState.AdvanceTarget with
+                        | Some target when result.GameState.CurrentDate.Date >= target -> { nextState with AdvanceTarget = None }
+                        | _ -> nextState
+
+                    nextState, Cmd.batch [ saveCmd state result.GameState result.WorldClock state.SaveSettings; continuation ]
                 else
                     state, Cmd.none
             | _ -> state, Cmd.none

@@ -3,6 +3,7 @@ namespace FootballEngine.Pages
 open Avalonia.Controls
 open Avalonia.Controls.Primitives
 open Avalonia.FuncUI.Types
+open Avalonia.FuncUI.Builder
 open Avalonia.Input
 open Avalonia.FuncUI.DSL
 open Avalonia.Layout
@@ -13,6 +14,7 @@ open FootballEngine.AppMsgs
 open FootballEngine.Domain
 open FootballEngine.Components
 open FootballEngine.Icons
+open FootballEngine.Routing
 
 module Tactics =
 
@@ -72,7 +74,7 @@ module Tactics =
 
     // ── Player node on pitch (FM26-style) ─────────────────────────────
 
-    let playerNode (player: Player option) (slot: LineupSlot) (_state: State) (dispatch: AppMsgs.Msg -> unit) =
+    let playerNode (player: Player option) (slot: LineupSlot) (state: State) (dispatch: AppMsgs.Msg -> unit) =
         let pIdFijo = player |> Option.map _.Id |> Option.defaultValue -1
         let isEmpty = player.IsNone
 
@@ -220,6 +222,14 @@ module Tactics =
         Border.create
             [ Border.width 96.0
               Border.background "Transparent"
+              Border.borderBrush (
+                  if state.Tactics.SelectedSlot = Some slot.Index then
+                      Theme.Accent
+                  else
+                      "Transparent"
+              )
+              Border.borderThickness 2.0
+              Border.cornerRadius 6.0
               Control.allowDrop true
               Control.onDragOver (fun e -> e.DragEffects <- DragDropEffects.Move)
               Control.onDrop (fun _ ->
@@ -228,18 +238,24 @@ module Tactics =
                       draggedId.Value <- None
                       dispatch (AppMsgs.TacticsMsg(TacticsMsg.DropPlayerInSlot(slot.Index, pId)))
                   | None -> ())
-              if player.IsSome then
-                  Border.onPointerPressed (fun e ->
-                      let pt = e.GetCurrentPoint(e.Source :?> Control)
-
-                      if pt.Properties.IsLeftButtonPressed then
-                          e.Handled <- true
-                          startDrag player.Value.Id dispatch e)
               Border.child (
-                  StackPanel.create
-                      [ StackPanel.spacing 3.0
-                        StackPanel.horizontalAlignment HorizontalAlignment.Center
-                        StackPanel.children [ shirt; nameLabel; posBadge; statsRow ] ]
+                  Button.create
+                      [ Button.padding 0.0
+                        Button.background "Transparent"
+                        Button.borderThickness 0.0
+                        AttrBuilder<Button>
+                            .CreateProperty<string>(
+                                Avalonia.Automation.AutomationProperties.NameProperty,
+                                Localization.resolve TranslationKey.ChooseForSlot [ "role", string slot.Role ],
+                                ValueNone
+                            )
+                        Button.onClick (fun _ -> dispatch (AppMsgs.TacticsMsg(TacticsMsg.SelectSlot(Some slot.Index))))
+                        Button.content (
+                            StackPanel.create
+                                [ StackPanel.spacing 3.0
+                                  StackPanel.horizontalAlignment HorizontalAlignment.Center
+                                  StackPanel.children [ shirt; nameLabel; posBadge; statsRow ] ]
+                        ) ]
               ) ]
         |> View.withKey (string pIdFijo)
 
@@ -596,7 +612,7 @@ module Tactics =
 
                     let best =
                         squad
-                        |> List.filter (fun q -> not (startersSet.Contains q.Id))
+                        |> List.filter (fun q -> q.Status = Available && not (startersSet.Contains q.Id))
                         |> List.sortByDescending (fun q -> TacticalSuitability.stars q role)
                         |> List.tryHead
                         |> Option.map (fun q -> q, TacticalSuitability.stars q role)
@@ -914,6 +930,78 @@ module Tactics =
 
     // ── Main view ─────────────────────────────────────────────────────
 
+    let private slotPicker (state: State) (gs: GameState) dispatch : IView =
+        let selected =
+            TacticsSlice.Query.currentLineup gs
+            |> Option.bind (fun lineup ->
+                lineup.Slots
+                |> List.tryFind (fun slot -> Some slot.Index = state.Tactics.SelectedSlot))
+
+        let help = Localization.resolve TranslationKey.SelectLineupSlot []
+
+        let controls =
+            match selected with
+            | None -> []
+            | Some slot ->
+                let candidates =
+                    GameState.getUserSquad gs
+                    |> List.filter (fun player -> player.Status = Available)
+                    |> List.sortBy (fun player ->
+                        -TacticalSuitability.stars player slot.Role, -player.MatchFitness, player.Id)
+                    |> List.toArray
+
+                let labels =
+                    candidates
+                    |> Array.map (fun player ->
+                        Localization.resolve
+                            TranslationKey.PlayerChoice
+                            [ "name", player.Name
+                              "position", string player.Position
+                              "stars", (TacticalSuitability.stars player slot.Role).ToString("0.0")
+                              "fitness", string player.MatchFitness ])
+
+                [ TextBlock.create
+                      [ TextBlock.text (Localization.resolve TranslationKey.ChooseForSlot [ "role", string slot.Role ])
+                        TextBlock.foreground Theme.Accent
+                        TextBlock.fontWeight FontWeight.Bold ]
+                  :> IView
+                  ComboBox.create
+                      [ ComboBox.dataItems labels
+                        ComboBox.horizontalAlignment HorizontalAlignment.Stretch
+                        ComboBox.selectedIndex (
+                            candidates
+                            |> Array.tryFindIndex (fun player -> Some player.Id = slot.PlayerId)
+                            |> Option.defaultValue -1
+                        )
+                        ComboBox.onSelectedIndexChanged (fun index ->
+                            if
+                                index >= 0
+                                && index < candidates.Length
+                                && Some candidates[index].Id <> slot.PlayerId
+                            then
+                                dispatch (
+                                    AppMsgs.TacticsMsg(TacticsMsg.DropPlayerInSlot(slot.Index, candidates[index].Id))
+                                )) ]
+                  :> IView
+                  UI.ghostButton (Localization.resolve TranslationKey.Cancel []) None (fun _ ->
+                      dispatch (AppMsgs.TacticsMsg(TacticsMsg.SelectSlot None))) ]
+
+        Border.create
+            [ DockPanel.dock Dock.Top
+              Border.padding (12.0, 8.0)
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.spacing 6.0
+                        StackPanel.children
+                            [ TextBlock.create
+                                  [ TextBlock.text help
+                                    TextBlock.fontSize 12.0
+                                    TextBlock.foreground Theme.TextSub
+                                    TextBlock.textWrapping TextWrapping.Wrap ]
+                              yield! controls ] ]
+              ) ]
+        :> IView
+
     // ── Top strip: familiarity, next match, Undo, Quick Pick ────────────
 
     let private topStrip (gs: GameState) (state: State) (dispatch: AppMsgs.Msg -> unit) : IView =
@@ -980,7 +1068,11 @@ module Tactics =
                                                 TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
                               TextBlock.create
                                   [ Grid.column 1
-                                    TextBlock.text nextText
+                                    TextBlock.text (
+                                        nextText + "\n" + Localization.resolve TranslationKey.ChangesNextMatch []
+                                    )
+                                    TextBlock.textWrapping TextWrapping.Wrap
+                                    TextBlock.maxWidth 380.0
                                     TextBlock.fontSize 11.0
                                     TextBlock.foreground Theme.TextDim
                                     TextBlock.horizontalAlignment HorizontalAlignment.Center
@@ -991,8 +1083,26 @@ module Tactics =
                                     StackPanel.spacing 8.0
                                     StackPanel.verticalAlignment VerticalAlignment.Center
                                     StackPanel.children
-                                        [ Button.create
-                                              [ Button.content "Undo"
+                                        [ UI.secondaryButton
+                                              (Localization.resolve
+                                                  (if (CareerFlow.todayFixture gs).IsSome then
+                                                       TranslationKey.PrepareNextMatch
+                                                   else
+                                                       TranslationKey.ReturnHome)
+                                                  [])
+                                              None
+                                              UI.ControlState.Default
+                                              (fun _ ->
+                                                  let route =
+                                                      match CareerFlow.continuation state with
+                                                      | CareerFlow.ReturnToMatch(id, phase) -> Route.Match(id, phase)
+                                                      | CareerFlow.PrepareMatch id ->
+                                                          Route.Match(id, FootballEngine.Routing.Prematch)
+                                                      | _ -> Route.Home
+
+                                                  dispatch (AppMsgs.Navigate route))
+                                          Button.create
+                                              [ Button.content (Localization.resolve TranslationKey.UndoLineup [])
                                                 Button.fontSize 11.0
                                                 Button.padding (12.0, 7.0)
                                                 Button.background Theme.BgCard
@@ -1004,7 +1114,7 @@ module Tactics =
                                                 Button.onClick (fun _ ->
                                                     dispatch (AppMsgs.TacticsMsg(TacticsMsg.UndoTactics))) ]
                                           Button.create
-                                              [ Button.content "Quick Pick"
+                                              [ Button.content (Localization.resolve TranslationKey.SuggestLineup [])
                                                 Button.fontSize 11.0
                                                 Button.fontWeight FontWeight.Bold
                                                 Button.padding (12.0, 7.0)
@@ -1042,7 +1152,8 @@ module Tactics =
                 |> Option.defaultValue TacticalInstructions.defaultInstructions
 
             Grid.create
-                [ Grid.rowDefinitions "Auto, *, Auto"
+                [ Grid.isEnabled (not state.IsProcessing && state.AdvanceTarget.IsNone)
+                  Grid.rowDefinitions "Auto, *, Auto"
                   Grid.children
                       [ Border.create [ Grid.row 0; Border.child (topStrip gs state dispatch) ]
                         Grid.create
@@ -1077,7 +1188,13 @@ module Tactics =
                                                     Border.borderThickness 1.0
                                                     Border.cornerRadius 12.0
                                                     Border.clipToBounds true
-                                                    Border.child (pitchContainer state dispatch) ]
+                                                    Border.child (
+                                                        DockPanel.create
+                                                            [ DockPanel.lastChildFill true
+                                                              DockPanel.children
+                                                                  [ slotPicker state gs dispatch
+                                                                    pitchContainer state dispatch ] ]
+                                                    ) ]
                                           ) ]
                                     Border.create
                                         [ Grid.column 2

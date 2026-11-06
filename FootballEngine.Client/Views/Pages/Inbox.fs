@@ -13,6 +13,7 @@ open FootballEngine.AppMsgs
 open FootballEngine.Domain
 open FootballEngine.Components
 open FootballEngine.Icons
+open FootballEngine.Routing
 
 module InboxPresenter =
     let categoryIcon (category: InboxMessageCategory) =
@@ -44,7 +45,7 @@ module InboxPresenter =
 
     let getMessageList (state: State) =
         match state.Mode with
-        | InGame(gs, _) -> gs.Inbox |> List.sortByDescending (fun m -> m.Date)
+        | InGame(gs, _) -> InboxSlice.Query.filteredMessages gs state.Inbox
         | _ -> []
 
     let getSelectedMessage (state: State) =
@@ -66,13 +67,15 @@ module Inbox =
             message.RequiresAction
             && (message.ActionTaken.IsNone || message.ActionTaken = Some false)
 
-        Border.create
-            [ Border.background (SelectionStyle.rowBgColor isSelected categoryColor)
-              Border.borderBrush (SelectionStyle.rowBorderColor isSelected (Theme.withAlpha "60" categoryColor))
-              Border.borderThickness (2.0, 0.0, 0.0, 1.0)
-              Border.cursor Avalonia.Input.Cursor.Default
-              Border.onPointerReleased (fun _ -> dispatch (InboxMsg(InboxMsg.SelectMessage message.Id)))
-              Border.child (
+        Button.create
+            [ Button.background (SelectionStyle.rowBgColor isSelected categoryColor)
+              Button.borderBrush (SelectionStyle.rowBorderColor isSelected (Theme.withAlpha "60" categoryColor))
+              Button.borderThickness (2.0, 0.0, 0.0, 1.0)
+              Button.padding 0.0
+              Button.horizontalAlignment HorizontalAlignment.Stretch
+              Button.horizontalContentAlignment HorizontalAlignment.Stretch
+              Button.onClick (fun _ -> dispatch (InboxMsg(InboxMsg.SelectMessage message.Id)))
+              Button.content (
                   Grid.create
                       [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.inboxListCols)
                         Grid.rowDefinitions "Auto, Auto"
@@ -91,7 +94,7 @@ module Inbox =
                               StackPanel.create
                                   [ Grid.column 1
                                     Grid.row 0
-                                    StackPanel.orientation Orientation.Horizontal
+                                    StackPanel.orientation Orientation.Vertical
                                     StackPanel.spacing 6.0
                                     StackPanel.verticalAlignment VerticalAlignment.Center
                                     StackPanel.children
@@ -117,7 +120,9 @@ module Inbox =
                                                     Border.padding (5.0, 1.0)
                                                     Border.child (
                                                         TextBlock.create
-                                                            [ TextBlock.text "ACTION"
+                                                            [ TextBlock.text (
+                                                                  Localization.resolve TranslationKey.InboxDecisions []
+                                                              )
                                                               TextBlock.fontSize 8.0
                                                               TextBlock.fontWeight FontWeight.Bold
                                                               TextBlock.foreground Theme.Warning ]
@@ -278,6 +283,15 @@ module Inbox =
             let hasAction =
                 msg.RequiresAction && (msg.ActionTaken.IsNone || msg.ActionTaken = Some false)
 
+            let area, route =
+                match msg.Category with
+                | Transfer -> TranslationKey.TransferMarket, Route.Transfers TransferRoute.Market
+                | InjuryMessage
+                | Contract -> TranslationKey.Squad, Route.Squad SquadRoute.All
+                | Development -> TranslationKey.Training, Route.Training TrainingRoute.Overview
+                | MatchReport -> TranslationKey.Calendar, Route.Calendar
+                | BoardUpdate -> TranslationKey.Today, Route.Home
+
             Border.create
                 [ Border.background Theme.BgCard
                   Border.borderBrush Theme.Border
@@ -351,7 +365,16 @@ module Inbox =
                                                                               Button.cornerRadius 6.0
                                                                               Button.fontSize 11.0
                                                                               Button.fontWeight FontWeight.SemiBold
-                                                                              Button.content "Mark as Done"
+                                                                              Button.content (
+                                                                                  Localization.resolve
+                                                                                      TranslationKey.MarkReviewed
+                                                                                      []
+                                                                              )
+                                                                              ToolTip.tip (
+                                                                                  Localization.resolve
+                                                                                      TranslationKey.MarkReviewedHint
+                                                                                      []
+                                                                              )
                                                                               Button.onClick (fun _ ->
                                                                                   dispatch (
                                                                                       InboxMsg(MarkActionTaken msg.Id)
@@ -363,6 +386,18 @@ module Inbox =
                                                                         :> IView ] ] ] ]
                                         ) ]
 
+                                  Border.create
+                                      [ DockPanel.dock Dock.Bottom
+                                        Border.padding (20.0, 12.0)
+                                        Border.child (
+                                            UI.secondaryButton
+                                                (Localization.resolve
+                                                    TranslationKey.ReviewArea
+                                                    [ "area", Localization.resolve area [] ])
+                                                None
+                                                UI.ControlState.Default
+                                                (fun _ -> dispatch (Navigate route))
+                                        ) ]
                                   ScrollViewer.create
                                       [ ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Auto
                                         ScrollViewer.content (
@@ -391,23 +426,60 @@ module Inbox =
 
         // Empty inbox gets one centered state: the list/detail split only makes sense
         // once there is something to select.
-        if messages.IsEmpty then
-            UI.emptyState
-                IconName.inboxArrowDown
-                "No messages yet"
-                "Messages will appear here as your season progresses"
-        else
-            Grid.create
-                [ Grid.columnDefinitions "320, *"
-                  Grid.children
-                      [ Border.create
-                            [ Grid.column 0
-                              Border.borderBrush Theme.Border
-                              Border.borderThickness (0.0, 0.0, 1.0, 0.0)
-                              Border.child (messageList messages state.Inbox.SelectedMessageId currentDate dispatch) ]
+        let content =
+            if messages.IsEmpty then
+                UI.emptyState
+                    IconName.inboxArrowDown
+                    (Localization.resolve TranslationKey.NoMessagesInFilter [])
+                    (Localization.resolve TranslationKey.ClearFilters [])
+            else
+                Grid.create
+                    [ Grid.columnDefinitions "320, *"
+                      Grid.children
+                          [ Border.create
+                                [ Grid.column 0
+                                  Border.borderBrush Theme.Border
+                                  Border.borderThickness (0.0, 0.0, 1.0, 0.0)
+                                  Border.child (messageList messages state.Inbox.SelectedMessageId currentDate dispatch) ]
 
-                        Border.create
-                            [ Grid.column 1
-                              Border.padding (16.0, 16.0)
-                              Border.child (messageDetail selectedMessage currentDate dispatch) ] ] ]
-            :> IView
+                            Border.create
+                                [ Grid.column 1
+                                  Border.padding (16.0, 16.0)
+                                  Border.child (messageDetail selectedMessage currentDate dispatch) ] ] ]
+                :> IView
+
+        let filter label selected action =
+            UI.secondaryButton
+                label
+                None
+                (if selected then
+                     UI.ControlState.Pressed
+                 else
+                     UI.ControlState.Default)
+                (fun _ -> action ())
+
+        DockPanel.create
+            [ DockPanel.lastChildFill true
+              DockPanel.children
+                  [ WrapPanel.create
+                        [ DockPanel.dock Dock.Top
+                          WrapPanel.margin 12.0
+                          WrapPanel.children
+                              [ filter
+                                    (Localization.resolve TranslationKey.InboxAll [])
+                                    (not state.Inbox.RequiresActionOnly && not state.Inbox.UnreadOnly)
+                                    (fun () ->
+                                        dispatch (InboxMsg(SetRequiresActionOnly false))
+                                        dispatch (InboxMsg(SetUnreadOnly false))
+                                        dispatch (InboxMsg(SetCategoryFilter AllInboxCategories)))
+                                filter
+                                    (Localization.resolve TranslationKey.InboxDecisions [])
+                                    state.Inbox.RequiresActionOnly
+                                    (fun () ->
+                                        dispatch (InboxMsg(SetRequiresActionOnly(not state.Inbox.RequiresActionOnly))))
+                                filter
+                                    (Localization.resolve TranslationKey.InboxUnread [])
+                                    state.Inbox.UnreadOnly
+                                    (fun () -> dispatch (InboxMsg(SetUnreadOnly(not state.Inbox.UnreadOnly)))) ] ]
+                    content ] ]
+        :> IView

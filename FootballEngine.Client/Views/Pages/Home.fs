@@ -886,15 +886,6 @@ module Home =
             let compact = compactViewport ()
             let userTeam = gs.Clubs[gs.UserClubId]
 
-            let banner =
-                match HomePresenter.getNextMatch gs with
-                | None -> Display.Matches.emptyBanner ()
-                | Some m ->
-                    if compact then
-                        Display.Matches.nextMatchBannerCompact m.LocalName m.VisitName m.Date m.LocationTag
-                    else
-                        Display.Matches.nextMatchBanner m.LocalName m.VisitName m.Date m.LocationTag
-
             let upcomingFixtures = HomePresenter.getUpcomingFixtures gs 5
             let recentResults = HomePresenter.getRecentResults gs 5
             let userStanding = HomePresenter.getUserStanding gs selectedLeagueId
@@ -949,6 +940,9 @@ module Home =
                       StackPanel.create
                           [ StackPanel.margin (24.0, 24.0)
                             StackPanel.spacing 16.0
-                            StackPanel.children [ banner; summaryBar compact userTeam pos total standing; bodyColumns ] ]
+                            StackPanel.children
+                                [ CareerJourney.home state dispatch
+                                  summaryBar compact userTeam pos total standing
+                                  bodyColumns ] ]
                   ) ]
         | _ -> Border.create [] :> IView
