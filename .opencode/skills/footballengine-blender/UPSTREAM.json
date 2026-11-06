@@ -1,0 +1,103 @@
+{
+  "repository": "https://github.com/RobLe3/cc-blender-skill",
+  "commit": "a2634b588e80265e796aa53f8ab178d75105c2af",
+  "license": "MIT",
+  "files": [
+    {
+      "path": "blender-cameras/SKILL.md",
+      "sha256": "2b6bd6ebeb20d0c69c6dfc38f7cbe1c77175d87e40bace458dcd14fdedf248bd"
+    },
+    {
+      "path": "blender-cameras/references/overview.md",
+      "sha256": "80ea9935fe27484cbd3c71ee319eb8ec6541ebac0e118e783bdf3e7a176584ca"
+    },
+    {
+      "path": "blender-export/SKILL.md",
+      "sha256": "56b21cd6876bbcd5dd23f10f7ef82f99942495ec36f57a7a429ff9aa1701d285"
+    },
+    {
+      "path": "blender-export/references/overview.md",
+      "sha256": "e35ce955a25b704cd3eb72ae024ffbf7416e1fdbf47dbeaa1d90da39e54b2337"
+    },
+    {
+      "path": "blender-export/references/unreal-export.md",
+      "sha256": "a63f4c7c5d9845f74d56096ba7f26a5fec617be5475f04a659f0f9cc248e0743"
+    },
+    {
+      "path": "blender-lighting/SKILL.md",
+      "sha256": "d7ff87caca03cb9ab0e7f7731a8753e5e0ca814b2862ae2bb91fc6b8e3cc2794"
+    },
+    {
+      "path": "blender-lighting/references/overview.md",
+      "sha256": "8f88c9123929fc6b3207ce2016729652971656c54250a094bf4cbffeea989eba"
+    },
+    {
+      "path": "blender-materials/SKILL.md",
+      "sha256": "25839f9707b2239e9d45a9e3c8b2d38fddd88515ea81464306062e5524bed1b5"
+    },
+    {
+      "path": "blender-materials/references/overview.md",
+      "sha256": "ed71e8b6d6d19603b42cacd5f7db60e5f18480bd2cd38b1d030ab8cb9724c361"
+    },
+    {
+      "path": "blender-pro-workflow/SKILL.md",
+      "sha256": "94c6a59311d2833cfaeb1465d7b7ae1ff253eda50683be39d49e724de2d3e861"
+    },
+    {
+      "path": "blender-pro-workflow/references/overview.md",
+      "sha256": "ca11edf82a32a497eac6890cd0f5529236207e50e60136ba6cf2773c131e2596"
+    },
+    {
+      "path": "blender-rendering/SKILL.md",
+      "sha256": "7699bab8a4e634d531c78bc4496837645c867c4070b4722a473fe6c180a29d70"
+    },
+    {
+      "path": "blender-rendering/references/overview.md",
+      "sha256": "5f467b6507e1e6f094d008e2d0533e1216714d2468abf0a4dcaea02157a3446f"
+    },
+    {
+      "path": "text-to-blender/references/agent-hosts.md",
+      "sha256": "7723a628497e2c2c80d58996553e92ac8fc606fbc57713e3a9546e974fd564f0"
+    },
+    {
+      "path": "text-to-blender/references/assembly-order.md",
+      "sha256": "33676b36afb2b31207a8be32491a56ba9606fc35c7c843aa96d1428c4ec23777"
+    },
+    {
+      "path": "text-to-blender/references/blender-version-compat.md",
+      "sha256": "88d70e06b7ef76ae415436ffec8283d032f87035cacd6a80477a0d3936468f37"
+    },
+    {
+      "path": "text-to-blender/references/common-object-dimensions.md",
+      "sha256": "07c2f16dea1375a9064d06dc5b3a999ce2c1e24418ee93878d21bea64698fc5d"
+    },
+    {
+      "path": "text-to-blender/references/mcp-backends.md",
+      "sha256": "7955a3ec4d33905379e006404271595f3195b4b4dd9f294d98606218221537a6"
+    },
+    {
+      "path": "blender-animation/SKILL.md",
+      "sha256": "875301e83c751d0b71e7b7a5689d9f9c7854569bc2370a4265e35783f28f132d"
+    },
+    {
+      "path": "blender-animation/references/overview.md",
+      "sha256": "be8ee1ed97f4ca332770a16ba1208051a9f07c4e160af536c895fb6901f38f6a"
+    },
+    {
+      "path": "blender-modeling/SKILL.md",
+      "sha256": "5ff43df5f31ef9189b23a9ddb074e58ecef49ef3723d150113e6eb0d66f95000"
+    },
+    {
+      "path": "blender-modeling/references/overview.md",
+      "sha256": "1026110415e27f325cc653dfdc71ee4d8f84ba0563e95478621caabb3084ec60"
+    },
+    {
+      "path": "blender-uv-texturing/SKILL.md",
+      "sha256": "67c68827cb04c52bc7354fcf3b0bda717e192343def25998cdb64cbf1534cd1d"
+    },
+    {
+      "path": "blender-uv-texturing/references/overview.md",
+      "sha256": "7ab3bc3e680122a6b2d9eaafdf3436634f676b9994eb0f240eb15e49f2b59ead"
+    }
+  ]
+}
