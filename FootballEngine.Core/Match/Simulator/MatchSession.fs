@@ -39,14 +39,9 @@ module MatchSession =
                     slot <- slot + 1
 
                 let actor = team.RosterIds[slot]
-                let mutable generation = 0
-
-                for index = 0 to team.Participation.Intervals.Count - 1 do
-                    if team.Participation.Intervals[index].PlayerId = actor then
-                        generation <- generation + 1
 
                 { Actor = actor
-                  Generation = generation
+                  Generation = frame.ContactGeneration[slot]
                   Position = System.Numerics.Vector3(frame.PosX[slot], frame.PosY[slot], frame.PosZ[slot])
                   Velocity = System.Numerics.Vector3(frame.VelX[slot], frame.VelY[slot], frame.VelZ[slot])
                   Facing = frame.BodyFacing[slot]
@@ -438,6 +433,7 @@ module MatchSession =
         match command.Action with
         | ChangeTactics tactics ->
             applyTactics (MatchWorld.team session.World side) session.World.State.Tick tactics
+            (MatchWorld.team session.World side).PendingActions.Clear()
             session.Buffer.Events.Add { Tick = session.World.State.Tick; Data = EventData.TeamInstruction side }
         | RequestSubstitution(outgoing, incoming) ->
             session.Buffer.Events.Add
@@ -542,7 +538,7 @@ module MatchSession =
 
                 Ok()
 
-    let advanceTo target session : Result<SessionAdvance, MatchContractError> =
+    let private advanceToCore publishOutput target session : Result<SessionAdvance, MatchContractError> =
         if session.World.State.Flow = MatchFlow.MatchEnded then
             Error SessionAlreadyFinished
         elif target < session.World.State.Tick then
@@ -553,6 +549,11 @@ module MatchSession =
             let produced = ResizeArray<MatchEvent>()
             let producedFrames = ResizeArray<Replay.ReplaySnapshot>()
             let producedMotion = ResizeArray<MotionBoundary>()
+
+            let context =
+                { Ctx = session.Input.Context
+                  Clock = SimulationClock.defaultClock }
+
             let mutable failure = None
 
             while session.World.State.Tick < target
@@ -575,8 +576,7 @@ module MatchSession =
                     let rng, _, appliedCount =
                         Stepper.stepInto
                             session.Systems
-                            { Ctx = session.Input.Context
-                              Clock = SimulationClock.defaultClock }
+                            context
                             session.Rng
                             session.World
                             session.Buffer
@@ -584,26 +584,32 @@ module MatchSession =
 
                     session.Rng <- rng
 
-                    match captureMotion session with
-                    | Ok boundary ->
-                        producedMotion.Add boundary
+                    // Batch completion has no presentation reader; replay archives still require every boundary.
+                    if publishOutput || session.ReplayWriter.IsSome then
+                        match captureMotion session with
+                        | Ok boundary ->
+                            if publishOutput then
+                                producedMotion.Add boundary
 
-                        match session.ReplayWriter with
-                        | Some writer ->
-                            match writer.AppendMotion boundary with
-                            | Ok() -> ()
-                            | Error message -> failure <- Some(InvalidAdvanceBoundary message)
-                        | None -> ()
-                    | Error error -> failure <- Some error
+                            match session.ReplayWriter with
+                            | Some writer ->
+                                match writer.AppendMotion boundary with
+                                | Ok() -> ()
+                                | Error message -> failure <- Some(InvalidAdvanceBoundary message)
+                            | None -> ()
+                        | Error error -> failure <- Some error
 
                     for index = 0 to appliedCount - 1 do
                         let applied = session.AppliedOutput[index]
                         session.Events.Add applied
-                        produced.Add applied
+
+                        if publishOutput then
+                            produced.Add applied
 
                     match session.Mode with
                     | MatchRunMode.Live policy when
-                        session.World.State.Tick % (int policy.PoseEvery * 1<subtick>) = 0<subtick>
+                        publishOutput
+                        && session.World.State.Tick % (int policy.PoseEvery * 1<subtick>) = 0<subtick>
                         ->
                         let frame = Replay.capture session.World
                         producedFrames.Add frame
@@ -612,7 +618,9 @@ module MatchSession =
                         ->
                         let frame = Replay.capture session.World
                         session.ReplayWriter.Value.Append frame
-                        producedFrames.Add frame
+
+                        if publishOutput then
+                            producedFrames.Add frame
                     | MatchRunMode.Fast
                     | MatchRunMode.Live _
                     | MatchRunMode.Replay _ -> ()
@@ -629,6 +637,8 @@ module MatchSession =
                       Events = toArray produced
                       Poses = toArray producedFrames
                       Motion = toArray producedMotion }
+
+    let advanceTo target session = advanceToCore true target session
 
     let rec finish session : Result<MatchOutcome, MatchContractError> =
         match session.Finished with
@@ -649,24 +659,12 @@ module MatchSession =
                             Some(session.ReplayWriter.Value.Complete())
                         | MatchRunMode.Fast
                         | MatchRunMode.Live _ -> None
-                      DumpJson =
-                        match session.Mode with
-                        | MatchRunMode.Fast ->
-                            Some(
-                                MatchDump.export
-                                    session.Input.Context
-                                    events
-                                    session.World.Home.Stats
-                                    session.World.Away.Stats
-                            )
-                        | MatchRunMode.Live _
-                        | MatchRunMode.Replay _ -> None
                       EventsHash = MatchOutcomeHash.eventsHash events }
 
                 session.Finished <- Some outcome
                 Ok outcome
             else
-                match advanceTo maxTicks session with
+                match advanceToCore false maxTicks session with
                 | Error error -> Error error
                 | Ok _ when session.World.State.Flow <> MatchFlow.MatchEnded -> Error(TickLimitExceeded maxTicks)
                 | Ok _ -> finish session

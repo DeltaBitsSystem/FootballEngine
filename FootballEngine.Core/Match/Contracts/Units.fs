@@ -4,6 +4,9 @@ namespace FootballEngine.Core.Match
 type meter
 
 [<Measure>]
+type kilogram
+
+[<Measure>]
 type second
 
 /// 1/40 s — the simulation step

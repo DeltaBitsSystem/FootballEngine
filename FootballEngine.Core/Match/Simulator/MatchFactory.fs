@@ -74,6 +74,7 @@ module MatchFactory =
         for i in 0 .. activeCount - 1 do
             let profile = lineup.Profiles.[i]
             ParticipationBook.start participation profile.Id profile.Role 0<subtick>
+            frame.ContactGeneration.[i] <- ParticipationBook.generation participation profile.Id
 
         { Frame = frame
           Tactics = (if side = ClubSide.Home then ctx.HomeClub else ctx.AwayClub).BaseTactics
@@ -224,4 +225,6 @@ module MatchFactory =
           Observation = ObservationBuffer(4096)
           Reviews = RefereeReviewBook()
           Motion = MotionEvidenceJournal(256)
-          NextRestartId = 1UL }
+          Contact = ContactScratch(home.Frame.SlotCount + away.Frame.SlotCount)
+          NextRestartId = 1UL
+          NextContactId = 1UL }

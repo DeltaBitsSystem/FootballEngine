@@ -94,6 +94,54 @@ module MatchFactoryTests =
                       (intervals |> Array.forall (fun interval -> interval.PlayerId <> PlayerId 12))
                       "bench identity is not accidentally active")
 
+              testCase "contact generations follow participation and reset on substitution" (fun _ ->
+                   let lineup = TestBuilders.makeLineup 0 16
+                   let ctx16 =
+                       { ctx with
+                           HomeLineup = lineup
+                           HomeParticipants = MatchLineupBoundary.fromLineup lineup }
+
+                   let world = MatchFactory.create ctx16
+                   let frame = world.Home.Frame
+                   let outgoing, incoming = world.Home.RosterIds.[0], world.Home.RosterIds.[11]
+                   let staleAction =
+                       { Id = ActionId 12UL
+                         Actor = outgoing
+                         Generation = frame.ContactGeneration.[0]
+                         Kind = ContactActionKind.ContactStandingTackle
+                         Target = None
+                         Phase = ContactActionPhase.ContactActionCommitted
+                         StartedAt = 0<subtick>
+                         CommitAt = 1<subtick>
+                         EndsAt = 10<subtick>
+                         Foot = Some ContactFoot.Left
+                         PredictedX = 0.0<meter>
+                         PredictedY = 0.0<meter>
+                         PredictedZ = 0.0<meter>
+                         ErrorX = 0.0f
+                         ErrorY = 0.0f
+                         ErrorZ = 0.0f }
+
+                   Expect.equal frame.ContactGeneration.[0] 1 "the starting player's first participation is generation one"
+                   Expect.equal frame.ContactGeneration.[11] 0 "a bench player's generation has not started"
+                   frame.ContactActions.[0] <- Some staleAction
+                   frame.ContactState.[0] <-
+                       { BodyContactState.stable with
+                           Status = BodyContactStatus.BodyFalling
+                           Stability = 0.2f }
+
+                   EventApply.apply
+                       ctx16
+                       world
+                       { Tick = 20<subtick>
+                         Data = EventData.SubstitutionApplied(outgoing, incoming) }
+
+                   Expect.equal frame.ContactGeneration.[11] 1 "the incoming player's first stint aligns with motion evidence"
+                   Expect.isNone frame.ContactActions.[0] "the outgoing action is cancelled"
+                   Expect.equal frame.ContactState.[0].Status BodyContactStatus.BodyStable "the outgoing contact state is cleared"
+                   Expect.equal frame.ContactState.[0].Support BodySupport.NoBodySupport "the sidelined player has no support"
+                   Expect.equal frame.ContactState.[11] BodyContactState.stable "the incoming player starts with fresh physical state")
+
               testCase "Substitution preserves player identity and participation intervals" (fun _ ->
                   let ctx16 =
                       { ctx with
@@ -163,7 +211,9 @@ module MatchFactoryTests =
                        |> Array.tryFind (fun interval -> interval.PlayerId = incoming)
                        |> Option.map _.StartAt)
                       (Some at)
-                      "the incoming interval starts at the event tick")
+                      "the incoming interval starts at the event tick"
+
+                  Expect.equal world.Home.Frame.ContactGeneration.[11] 1 "the active frame generation matches the incoming interval")
 
               testCase "Ball starts free at the centre spot" (fun _ ->
                   let world = MatchFactory.create ctx

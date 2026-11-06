@@ -15,6 +15,11 @@ module ParticipationBook =
 
     let create () = ParticipationBook()
 
+    let generation (book: ParticipationBook) (playerId: PlayerId) =
+        book.Intervals
+        |> Seq.filter (fun interval -> interval.PlayerId = playerId)
+        |> Seq.length
+
     let start (book: ParticipationBook) (playerId: PlayerId) (role: SlotRole) (at: int<subtick>) =
         if
             book.Intervals
@@ -113,6 +118,43 @@ type OfficialsState =
       FarAssistant: MatchOfficial
       Signal: RefereeSignal }
 
+/// Per-match fixed-capacity storage keeps contact integration allocation-free after creation.
+type ContactScratch(capacity: int) =
+    let size = max 1 capacity
+    let sides = Array.zeroCreate<ClubSide> size
+    let slots = Array.zeroCreate<int> size
+    let startX = Array.zeroCreate<float> size
+    let startY = Array.zeroCreate<float> size
+    let startZ = Array.zeroCreate<float> size
+    let velocityX = Array.zeroCreate<float> size
+    let velocityY = Array.zeroCreate<float> size
+    let velocityZ = Array.zeroCreate<float> size
+    let accelerationX = Array.zeroCreate<float> size
+    let accelerationY = Array.zeroCreate<float> size
+    let radius = Array.zeroCreate<float> size
+    let height = Array.zeroCreate<float> size
+    let airborneAtStart = Array.zeroCreate<bool> size
+    let resolvedBodyPairs = Array.zeroCreate<bool> (size * size)
+    let resolvedBallPlayers = Array.zeroCreate<bool> size
+
+    member val Count = 0 with get, set
+    member val SaturationCount = 0UL with get, set
+    member _.Sides = sides
+    member _.Slots = slots
+    member _.StartX = startX
+    member _.StartY = startY
+    member _.StartZ = startZ
+    member _.VelocityX = velocityX
+    member _.VelocityY = velocityY
+    member _.VelocityZ = velocityZ
+    member _.AccelerationX = accelerationX
+    member _.AccelerationY = accelerationY
+    member _.Radius = radius
+    member _.Height = height
+    member _.AirborneAtStart = airborneAtStart
+    member _.ResolvedBodyPairs = resolvedBodyPairs
+    member _.ResolvedBallPlayers = resolvedBallPlayers
+
 /// The single object systems see. All arrays/books owned by this match.
 type World =
     { mutable State: MatchState
@@ -123,4 +165,6 @@ type World =
       Observation: ObservationBuffer
       Motion: MotionEvidenceJournal
       Reviews: RefereeReviewBook
-      mutable NextRestartId: uint64 }
+      Contact: ContactScratch
+      mutable NextRestartId: uint64
+      mutable NextContactId: uint64 }

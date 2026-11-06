@@ -104,6 +104,7 @@ let main argv =
               chainIntegrationTests
               chainLifetimeTests
               plannerBudgetTests
+              FootballEngine.Core.Tests.Systems.Players.ReactionCoherenceTests.tests
               passTests
               shootoutTests
               formationTests
