@@ -1,0 +1,14 @@
+/home/pablo/Projects/FootballEngine/Tools/MatchViewer3D/OriginalSky/author_sky.py:60: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  world.use_nodes = True
+/home/pablo/Projects/FootballEngine/Tools/MatchViewer3D/OriginalSky/author_sky.py:132: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  mat.use_nodes = True
+00:58.079  render           | Saved: '/home/pablo/Projects/FootballEngine/FootballEngine.Client/Assets/MatchViewer/OriginalSky/sky-visible.exr'
+Info: Saved as "daylight-sky.blend"
+OUTPUT /home/pablo/Projects/FootballEngine/FootballEngine.Client/Assets/MatchViewer/OriginalSky/sky-visible.exr 5a6eeedeab2b52b85a760144e5cb138892ff28763cfd2db57b0417cd42c197b3
+02:05.260  render           | Saved: '/home/pablo/Projects/FootballEngine/FootballEngine.Client/Assets/MatchViewer/OriginalSky/sky-lighting.exr'
+OUTPUT /home/pablo/Projects/FootballEngine/FootballEngine.Client/Assets/MatchViewer/OriginalSky/sky-lighting.exr 5b34e61cda5b322e9e489b3ba80b566bcc5a111a47b4705c42229fe40a62560b
+02:21.023  render           | Saved: '/home/pablo/Projects/FootballEngine/Tools/MatchViewer3D/OriginalSky/view-horizon.png'
+02:40.062  render           | Saved: '/home/pablo/Projects/FootballEngine/Tools/MatchViewer3D/OriginalSky/view-sunward.png'
+Blender 5.2.2 LTS (hash d13f752e3b9c built 2026-09-22 17:10:25)
+
+Blender quit

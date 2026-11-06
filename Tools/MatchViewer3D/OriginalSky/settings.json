@@ -1,0 +1,50 @@
+{
+  "seed": 31871,
+  "blender": "5.2.2 LTS",
+  "skyModel": "MULTIPLE_SCATTERING",
+  "sunDirectionRuntime": [
+    -0.4802882671356201,
+    0.7804684042930603,
+    0.4002402424812317
+  ],
+  "sunDirectionBlender": [
+    -0.4802882671356201,
+    -0.4002402424812317,
+    0.7804684042930603
+  ],
+  "projection": "Top row zenith. phi=(u-.5)*2pi, theta=v*pi; runtime direction=(sin(theta)*cos(phi),cos(theta),sin(theta)*sin(phi)).",
+  "coordinates": "Blender (x,y,z) -> runtime (x,z,-y), right-handed rotation.",
+  "directSun": {
+    "energy": 3.2,
+    "color": [
+      1.0,
+      0.9660000205039978,
+      0.8999999761581421
+    ],
+    "angularDiameterDegrees": 0.545
+  },
+  "atmosphereStrength": 0.1,
+  "cameraSolarDiscRadianceScale": 0.25,
+  "cloudAltitudeMetres": [
+    2400,
+    3300
+  ],
+  "cloudDomainMetres": [
+    48000,
+    48000,
+    900
+  ],
+  "samples": 64,
+  "resolution": [
+    2048,
+    1024
+  ],
+  "previewDisplay": "AgX, exposure -1 EV, gamma 1; no glare, grading or downloaded pixels",
+  "originalContent": "Original procedural density field and atmosphere authored for FootballEngine. Blender built-in physical sky/noise/Cycles are tools, not imported assets.",
+  "solarSeparation": "Camera-only sky disc in visible. Disc absent in lighting. SUN lights cloud scattering in both; do not add visible map to IBL. Runtime direct sun remains separate.",
+  "limitations": [
+    "Not runtime validated; no runtime files modified.",
+    "Cloud field is an art-directed stationary procedural volume, not a meteorological simulation.",
+    "48km finite cloud domain; below-horizon atmosphere is the physical sky model, not stadium geometry."
+  ]
+}

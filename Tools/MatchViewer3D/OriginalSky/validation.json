@@ -1,0 +1,41 @@
+{
+  "shape": [
+    1024,
+    2048,
+    3
+  ],
+  "dtype": "float32",
+  "finiteNonnegative": true,
+  "visibleRange": [
+    0.0034767959732562304,
+    49746.37109375
+  ],
+  "lightingRange": [
+    0.003476659767329693,
+    2.075096607208252
+  ],
+  "solarPeakPixelXY": [
+    1821,
+    220
+  ],
+  "solarPeakDirection": [
+    -0.4808877030311563,
+    0.7797777879230146,
+    0.4008660855389348
+  ],
+  "solarDirectionErrorDegrees": 0.06349292851734115,
+  "solarCapPositiveDifferenceIntegralRGB": [
+    2.8485343859071937,
+    2.332268042465294,
+    1.8627206681387898
+  ],
+  "upperHemisphereMeanLightingRGB": [
+    0.3428804874420166,
+    0.529863715171814,
+    0.8388820290565491
+  ],
+  "maxOutsideSolarCapDifference": 0.1987687349319458,
+  "halfFloatRepresentable": true,
+  "renderSeconds": 160.062,
+  "runtimeValidated": false
+}

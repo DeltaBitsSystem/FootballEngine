@@ -1,0 +1,16 @@
+{
+  "scene": "OriginalSky-Daylight-31871",
+  "camera": "CAM-runtime-Y-up-equirectangular",
+  "objectNames": [
+    "SUN-direct-cloud-scattering-only",
+    "VOL-distant-fractal-cloud-layer-2400-to-3300m",
+    "CAM-runtime-Y-up-equirectangular"
+  ],
+  "linkedLibraries": [],
+  "externalImages": [],
+  "physicalSkyModels": [
+    "MULTIPLE_SCATTERING",
+    "MULTIPLE_SCATTERING"
+  ],
+  "embeddedAuthoringScriptMatches": true
+}

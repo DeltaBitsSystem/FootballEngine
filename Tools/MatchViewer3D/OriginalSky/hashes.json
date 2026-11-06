@@ -1,0 +1,92 @@
+[
+  {
+    "path": "FootballEngine.Client/Assets/MatchViewer/OriginalSky/sky-lighting.exr",
+    "bytes": 20223352,
+    "sha256": "5b34e61cda5b322e9e489b3ba80b566bcc5a111a47b4705c42229fe40a62560b"
+  },
+  {
+    "path": "FootballEngine.Client/Assets/MatchViewer/OriginalSky/sky-visible.exr",
+    "bytes": 20232799,
+    "sha256": "5a6eeedeab2b52b85a760144e5cb138892ff28763cfd2db57b0417cd42c197b3"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/README.md",
+    "bytes": 6603,
+    "sha256": "49d357bd59d9765c33a365eb9762397ae9c7207e40ce9b3a8e01d981ce1a65e8"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/author_sky.py",
+    "bytes": 11889,
+    "sha256": "71d3aad1659f2de8af6d3a08d44671bafb8184172b25ca3f9e2a5c675e6f5e64"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/blend-inspection.json",
+    "bytes": 422,
+    "sha256": "655ab551fa80468c66a81a78c14eac363bd03360dcae249b6a0cd63f8383d197"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/daylight-sky.blend",
+    "bytes": 111995,
+    "sha256": "8b9d64ffad6e00910090200213213b7eec6b9bd9c85b397c1649b5c9248273d0"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/preview-settings.json",
+    "bytes": 1609,
+    "sha256": "e7b471ce52b39d790a84da406212d17cac00633f22f8cda3fccab66de154f8db"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/render.log",
+    "bytes": 1388,
+    "sha256": "b4c6f50a1276ce0c673991056217c859c3d2b82e270873fd9ebad8e497130b3d"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/settings.json",
+    "bytes": 1651,
+    "sha256": "57462ebc7b666aea53d759d8e0be045bcda5169e539c44452d84ab547d2510f5"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/sky-lighting-draft.png",
+    "bytes": 414457,
+    "sha256": "671be15cad2489748be1ea822fc445198de3ce8245be502a1ddd6c9c76dea13f"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/sky-lighting-preview.exr",
+    "bytes": 3154284,
+    "sha256": "b79b65e672d86e608f4afacab0c074f950066db86bce7b8fc41dcd4a0a5b0bbb"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/sky-lighting-preview.png",
+    "bytes": 2743438,
+    "sha256": "4ee4c221d274b70b099d605017986ed6d77e5f13aacffc9b609a1b1671189ceb"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/sky-visible-draft.png",
+    "bytes": 413860,
+    "sha256": "8dc580f49dd956efeab41b4122a978dfb8364a0894e3e2c414b3cd1efbaf52cd"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/sky-visible-preview.exr",
+    "bytes": 3155071,
+    "sha256": "37e3ced993d71c97c4df09dcaef914ce5fd97252bd0540089c217efaf5d4e3dc"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/sky-visible-preview.png",
+    "bytes": 2744276,
+    "sha256": "620943515e354621ef1ec6706b01e5e16e9af03af31fe81b2fa6c35ddbf0e167"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/validation.json",
+    "bytes": 824,
+    "sha256": "b86977fdf00de42d36032684ded5049e026c4cc18f2925194e874cc9d0ec911a"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/view-horizon.png",
+    "bytes": 826116,
+    "sha256": "dc6f43fc6b80d55aeac3a640e9299dfccff3c14601948183792981deb8e735aa"
+  },
+  {
+    "path": "Tools/MatchViewer3D/OriginalSky/view-sunward.png",
+    "bytes": 826277,
+    "sha256": "f77a13c2f2c6ce6de0d87d519c1bbbf9a0bec5bf6209169fd6c2ec99b6c80e5d"
+  }
+]
