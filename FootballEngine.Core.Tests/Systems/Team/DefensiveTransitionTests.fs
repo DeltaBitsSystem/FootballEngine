@@ -47,7 +47,9 @@ module DefensiveTransitionTests =
 
     let private transitionSession () =
         let session = MatchSession.create Scheduler.systems (matchInput ()) MatchRunMode.Fast |> unwrap
-        while not (inTransition session) && session.World.State.Tick < 12000<subtick> do
+        // The horizon only bounds the search for a natural episode; controlled receptions keep the opening
+        // possession longer, so this seed's first transition now starts after ~13.5k subticks.
+        while not (inTransition session) && session.World.State.Tick < 24000<subtick> do
             MatchSession.advanceTo (session.World.State.Tick + 1<subtick>) session |> unwrap |> ignore
         Expect.isTrue (inTransition session) "the real sporting pipeline must produce an episode"
         session

@@ -641,4 +641,43 @@ module ContactTests =
 
                   Expect.equal contact.Actor actor "the receiver's foot causes the touch"
                   Expect.equal contact.SurfaceA ContactSurface.ContactFoot "a lateral reception remains a foot touch"
-                  Expect.equal contact.ControlAfter.Kind ContactControlKind.ReceivingBall "the supported lateral trap controls the slowed ball") ]
+                  Expect.equal contact.ControlAfter.Kind ContactControlKind.ReceivingBall "the supported lateral trap controls the slowed ball")
+
+              ; testCase "a prepared trap cushions a glancing ball that passive friction cannot control" (fun _ ->
+                  // Regression: Coulomb friction bounded by the small normal impulse of a grazing touch left most
+                  // receptions uncontrollable, so loose balls pinballed for ~20% of match time.
+                  let glancing (absorption: float) (offset: float) =
+                      let c = { ctx with Config = { ctx.Config with Contact = { ctx.Config.Contact with TrapTangentialAbsorption = absorption } } }
+                      let system = { Ctx = c; Clock = SimulationClock.defaultClock }
+                      let world = TestBuilders.minimalWorld ()
+                      placeAllFar world
+                      let frame = world.Home.Frame
+                      frame.PosX[5] <- 0.0f
+                      frame.PosY[5] <- 0.0f
+                      frame.BodyFacing[5] <- 0.0f
+                      world.State <- { world.State with Flow = MatchFlow.Live; Ball = { TestBuilders.emptyBall with Position = { TestBuilders.emptyBall.Position with X = 0.1<meter>; Y = -0.5<meter> } } }
+                      let action =
+                          ContactActionPlanner.prepare system world ClubSide.Home 5 ContactActionKind.ContactTrap None
+                          |> Option.defaultWith (fun () -> failtest "receiver must be eligible to prepare")
+                      world.Home.Frame.ContactActions[5] <- Some { action with Phase = ContactActionPhase.ContactActionCommitted }
+                      world.State <-
+                          { world.State with
+                              Tick = action.CommitAt
+                              Ball = { TestBuilders.emptyBall with Position = { TestBuilders.emptyBall.Position with X = offset * 1.0<meter>; Y = -0.5<meter>; Vy = 12.0<meterPerSecond> } } }
+                      let physical = buffer ()
+                      ContactDynamics.step system (Rng.ofSeed 29UL) world physical |> ignore
+                      physical.Events |> Seq.tryPick (fun event ->
+                          match event.Data with
+                          | EventData.PhysicalContact record when record.BallTouched && record.SurfaceA = ContactSurface.ContactFoot -> Some record
+                          | _ -> None)
+
+                  let isGlancing (record: ContactRecord) = abs record.NormalY < 0.5
+                  let offset =
+                      [ 0.10 .. 0.01 .. 0.45 ]
+                      |> List.tryFind (fun offset -> glancing 0.0 offset |> Option.exists isGlancing)
+                      |> Option.defaultWith (fun () -> failtest "fixture must produce a grazing foot contact")
+
+                  let passive = (glancing 0.0 offset).Value
+                  let trapped = glancing ctx.Config.Contact.TrapTangentialAbsorption offset |> Option.defaultWith (fun () -> failtest "same geometry must touch")
+                  Expect.equal passive.ControlAfter.Kind ContactControlKind.UncontrolledBall "negative control: Coulomb-only trap leaves the grazing ball loose"
+                  Expect.equal trapped.ControlAfter.Kind ContactControlKind.ReceivingBall "the cushioning foot controls the same grazing ball") ]

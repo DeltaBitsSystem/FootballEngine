@@ -85,6 +85,7 @@ type ContactConfig =
       BallBodyFriction: float
       BallControlSpeed: float<meterPerSecond>
       MaximumTrapSpeed: float<meterPerSecond>
+      TrapTangentialAbsorption: float
       SupportedInverseMassScale: float
       AirborneInverseMassScale: float
       StabilityRecoveryPerSecond: float
@@ -642,6 +643,9 @@ module BalanceConfig =
           BallBodyFriction = 0.42
           BallControlSpeed = 2.5<meterPerSecond>
           MaximumTrapSpeed = 26.0<meterPerSecond>
+          // A prepared trap cushions the ball with a moving foot; passive Coulomb friction alone left every
+          // glancing reception uncontrollable, so free balls pinballed for ~20% of match time.
+          TrapTangentialAbsorption = 0.9
           SupportedInverseMassScale = 0.35
           AirborneInverseMassScale = 1.0
           StabilityRecoveryPerSecond = 0.85

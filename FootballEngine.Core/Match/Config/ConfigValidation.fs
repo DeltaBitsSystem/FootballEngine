@@ -349,6 +349,8 @@ module ConfigValidation =
               yield "Contact.BallControlSpeed must be finite and in [0, 8] m/s"
           if not (System.Double.IsFinite(float c.MaximumTrapSpeed)) || c.MaximumTrapSpeed <= c.BallControlSpeed then
               yield "Contact.MaximumTrapSpeed must be finite and greater than BallControlSpeed"
+          if not (System.Double.IsFinite c.TrapTangentialAbsorption) || c.TrapTangentialAbsorption < 0.0 || c.TrapTangentialAbsorption > 1.0 then
+              yield "Contact.TrapTangentialAbsorption must be finite and in [0, 1]"
           if not (System.Double.IsFinite c.SupportedInverseMassScale) || c.SupportedInverseMassScale < 0.05 || c.SupportedInverseMassScale > 1.0 then
               yield "Contact.SupportedInverseMassScale must be finite and in [0.05, 1]"
           if not (System.Double.IsFinite c.AirborneInverseMassScale) || c.AirborneInverseMassScale < 0.5 || c.AirborneInverseMassScale > 2.0 then

@@ -695,7 +695,16 @@ module ContactDynamics =
         let tangentY0 = relativeY - normalSpeed * ny
         let tangentZ0 = relativeZ - normalSpeed * nz
         let tangentLength = sqrt (tangentX0 * tangentX0 + tangentY0 * tangentY0 + tangentZ0 * tangentZ0)
-        let tangentImpulse = min (contactCfg.BallBodyFriction * normalImpulse) (tangentLength / inverseSum)
+        let trapping =
+            candidate.Surface = ContactSurface.ContactFoot
+            && actionAt frame slot |> Option.exists (fun prepared -> prepared.Kind = ContactActionKind.ContactTrap)
+        let coulomb = min (contactCfg.BallBodyFriction * normalImpulse) (tangentLength / inverseSum)
+        // An intentional trap moves the foot with the ball; only passive contacts are bounded by Coulomb friction.
+        let tangentImpulse =
+            if trapping then
+                max coulomb (contactCfg.TrapTangentialAbsorption * tangentLength / inverseSum)
+            else
+                coulomb
         let tangentX, tangentY, tangentZ =
             if tangentLength > 1e-9 then
                 -tangentX0 / tangentLength * tangentImpulse,
