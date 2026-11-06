@@ -46,7 +46,13 @@ module Shots =
           VideoFrames: int
           MatchIndex: int
           InspectMatch: bool
-          MatchSeed: uint64 option }
+          MatchSeed: uint64 option
+          /// Fast-forward the live match and report the match second of its first goal; captures nothing.
+          VideoFindGoal: bool
+          /// Fast-forward to just before this match second, then record the move at normal speed.
+          VideoGoalAt: int option
+          VideoLeadSeconds: int
+          VideoTailSeconds: int }
 
     type Context = { Opts: Options; Demo: State }
 
@@ -95,8 +101,10 @@ module Shots =
             |> Array.tryFindIndex (fun a -> a = flag)
             |> Option.bind (fun i -> if i + 1 < args.Length then Some args.[i + 1] else None)
 
+        let findGoal = args |> Array.contains "--video-find-goal"
+
         match getValue "--shots", getValue "--match-video" with
-        | None, None -> None
+        | None, None when not findGoal -> None
         | shotsDir, videoPath ->
             let dir =
                 shotsDir
@@ -126,7 +134,7 @@ module Shots =
                 | Some s ->
                     let ps = s.Split(',') |> Array.choose parsePage |> List.ofArray
                     if ps.IsEmpty then allPages else ps
-                | None when videoPath.IsSome -> [ Route.Match(1, MatchPhase.Live) ]
+                | None when videoPath.IsSome || findGoal -> [ Route.Match(1, MatchPhase.Live) ]
                 | None -> allPages
 
             let positiveValue flag fallback =
@@ -165,7 +173,16 @@ module Shots =
                   VideoFrames = positiveValue "--video-frames" 3600
                   MatchIndex = nonNegativeValue "--match-index" 0
                   InspectMatch = args |> Array.contains "--match-evidence"
-                  MatchSeed = matchSeed }
+                  MatchSeed = matchSeed
+                  VideoFindGoal = findGoal
+                  VideoGoalAt =
+                    getValue "--video-goal-at"
+                    |> Option.bind (fun value ->
+                        match Int32.TryParse value with
+                        | true, parsed when parsed >= 0 -> Some parsed
+                        | _ -> None)
+                  VideoLeadSeconds = positiveValue "--video-lead" 12
+                  VideoTailSeconds = positiveValue "--video-tail" 5 }
 
     // Sync replica of UpdateTransfer.buildCacheAsync: the async Load races the screenshot
     // timer; pre-populating keeps Transfers deterministic and spinner-free.
@@ -400,7 +417,7 @@ module Shots =
             bmp.Render(window)
             bmp.Save(path)
 
-    let private encodeVideo (opts: Options) framesDir =
+    let private encodeVideo (opts: Options) (fps: int) framesDir =
         match opts.VideoPath with
         | None -> ()
         | Some output ->
@@ -414,7 +431,7 @@ module Shots =
             for argument in
                 [ "-y"
                   "-framerate"
-                  string opts.VideoFps
+                  string fps
                   "-i"
                   Path.Combine(framesDir, "%06d.png")
                   "-c:v"
@@ -470,19 +487,79 @@ module Shots =
             // only need a FuncUI diff + one render.
             do! Async.Sleep 1500
 
-            match ctx.Opts.VideoPath, getDispatch () with
-            | Some _, Some dispatch ->
+            let live () =
+                getState () |> Option.bind (fun state -> state.Match.Live)
+
+            // Same command path as the viewer's speed buttons, so presentation pacing stays authoritative.
+            let sendLive dispatch payload =
+                match live () with
+                | Some state ->
+                    let command: FootballEngine.LiveMatch.LiveMatchCommand =
+                        { CommandId = FootballEngine.LiveMatch.MatchCommandId state.NextCommandId
+                          SessionId = state.SessionId
+                          ExpectedRevision = state.Revision
+                          IssuedAt = state.Clock.Elapsed
+                          Payload = payload }
+
+                    Dispatcher.UIThread.Invoke(fun () -> dispatch (LiveMsg(LiveMsg.CommandSubmitted command)))
+                | None -> ()
+
+            let matchSecond () =
+                live ()
+                |> Option.map (fun state -> float (int state.Clock.Elapsed) / float SimulationClock.defaultClock.SubTicksPerSecond)
+                |> Option.defaultValue 0.0
+
+            let goals () =
+                live () |> Option.map (fun state -> fst state.Score + snd state.Score) |> Option.defaultValue 0
+
+            let openLiveMatch dispatch =
+                async {
+                    Dispatcher.UIThread.Invoke(fun () -> dispatch (Navigate(liveRoute (Route.Match(1, MatchPhase.Live)))))
+                    do! Async.Sleep ctx.Opts.SettleMs
+                    do! waitForPitch window
+                }
+
+            let fastForwardUntil dispatch (until: unit -> bool) =
+                async {
+                    sendLive dispatch (FootballEngine.LiveMatch.SetLiveSpeed FootballEngine.LiveMatch.VeryFast)
+                    // A full match at 4x is ~25 real minutes; the cap only stops a scoreless run from hanging.
+                    let deadline = Stopwatch.StartNew()
+
+                    while not (until ()) && deadline.Elapsed < TimeSpan.FromMinutes 40.0 do
+                        do! Async.Sleep 100
+                }
+
+            match ctx.Opts.VideoPath, ctx.Opts.VideoFindGoal, getDispatch () with
+            | _, true, Some dispatch ->
+                do! openLiveMatch dispatch
+                do! fastForwardUntil dispatch (fun () -> goals () > 0)
+                let second = int (matchSecond ())
+                File.WriteAllText(Path.Combine(ctx.Opts.Dir, "first-goal.txt"), string second)
+                printfn $"[video] first goal at match second {second} (score {live () |> Option.map _.Score})"
+            | Some _, false, Some dispatch ->
                 let framesDir = Path.Combine(ctx.Opts.Dir, "frames")
 
                 if Directory.Exists framesDir then
                     Directory.Delete(framesDir, true)
 
                 Directory.CreateDirectory(framesDir) |> ignore
-                Dispatcher.UIThread.Invoke(fun () -> dispatch (Navigate(liveRoute (Route.Match(1, MatchPhase.Live)))))
-                do! Async.Sleep ctx.Opts.SettleMs
-                do! waitForPitch window
+                do! openLiveMatch dispatch
 
-                for frame = 0 to ctx.Opts.VideoFrames - 1 do
+                match ctx.Opts.VideoGoalAt with
+                | Some goalAt ->
+                    let start = float (max 0 (goalAt - ctx.Opts.VideoLeadSeconds))
+                    do! fastForwardUntil dispatch (fun () -> matchSecond () >= start)
+                    sendLive dispatch (FootballEngine.LiveMatch.SetLiveSpeed FootballEngine.LiveMatch.Normal)
+                | None -> ()
+
+                let stopAt =
+                    ctx.Opts.VideoGoalAt |> Option.map (fun goalAt -> float (goalAt + ctx.Opts.VideoTailSeconds))
+
+                let wall = Stopwatch.StartNew()
+                let mutable frame = 0
+
+                while frame < ctx.Opts.VideoFrames
+                      && (stopAt |> Option.forall (fun stop -> matchSecond () < stop)) do
 
                     do!
                         Dispatcher.UIThread
@@ -491,12 +568,22 @@ module Shots =
                         |> Async.AwaitTask
 
                     Dispatcher.UIThread.Invoke(fun () -> captureTo window (Path.Combine(framesDir, $"%06d{frame}.png")) true)
+                    frame <- frame + 1
                     do! Async.Sleep ctx.Opts.VideoStep
 
-                encodeVideo ctx.Opts framesDir
+                // A goal clip plays at the measured capture cadence so the move is shown at real match speed.
+                let fps =
+                    if ctx.Opts.VideoGoalAt.IsSome && wall.Elapsed.TotalSeconds > 0.0 then
+                        max 1 (int (Math.Round(float frame / wall.Elapsed.TotalSeconds)))
+                    else
+                        ctx.Opts.VideoFps
+
+                printfn $"[video] {frame} frames in {wall.Elapsed.TotalSeconds:F1}s, encoded at {fps} fps"
+                encodeVideo ctx.Opts fps framesDir
                 Directory.Delete(framesDir, true)
-            | Some _, None -> eprintfn "[video] no dispatch available"
-            | None, _ ->
+            | Some _, _, None
+            | _, true, None -> eprintfn "[video] no dispatch available"
+            | None, false, _ ->
                 let mutable idx = 0
 
                 for page in ctx.Opts.Pages do
