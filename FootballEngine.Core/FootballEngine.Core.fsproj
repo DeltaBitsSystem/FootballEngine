@@ -80,7 +80,8 @@
     <Compile Include="Match\Config\WeightMerge.Settings.fs"/>
     <Compile Include="Match\Config\EffectiveConfig.fs"/>
      <Compile Include="Match\Stepper\Scheduler.fs"/>
-      <Compile Include="Match\Shared.fs"/>
+       <Compile Include="Match\Shared.fs"/>
+       <Compile Include="Match\Systems\ContactAction.fs"/>
     <Compile Include="Match\Systems\Team\DefensiveTransition.fs"/>
     <Compile Include="Match\Systems\Team\CollectiveAttack.fs"/>
      <Compile Include="Match\Restart\RestartPlanner.fs"/>
@@ -109,9 +110,10 @@
     <Compile Include="Match\Systems\Players\BodyPhysics.fs"/>
     <Compile Include="Match\Systems\Ball\Contact.fs"/>
     <Compile Include="Match\Systems\Ball\Outcome.fs"/>
-    <Compile Include="Match\Systems\Ball\Possession.fs"/>
-    <Compile Include="Match\Systems\Players\Steering.fs"/>
-    <Compile Include="Match\Systems\Players\Perception.fs"/>
+     <Compile Include="Match\Systems\Ball\Possession.fs"/>
+     <Compile Include="Match\Systems\Players\Steering.fs"/>
+     <Compile Include="Match\Systems\ContactDynamics.fs"/>
+     <Compile Include="Match\Systems\Players\Perception.fs"/>
     <Compile Include="Match\Systems\Players\Intent.fs"/>
     <Compile Include="Match\Systems\Team\InterceptTable.fs"/>
     <Compile Include="Match\Systems\Players\PassIntercept.fs"/>

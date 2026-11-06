@@ -122,10 +122,93 @@ module Actions =
             rng
         | DeliverCross -> Cross.launch ctx rng world buffer side slot
 
+    let private prepareChallenges (ctx: SystemContext) (world: World) =
+        let owner =
+            match world.State.Ball.Control with
+            | BallControl.Controlled(side, player)
+            | BallControl.Receiving(side, player, _) -> Some(side, player)
+            | _ -> None
+
+        match owner with
+        | Some(ownerSide, ownerId) when world.State.Flow = MatchFlow.Live ->
+            let ball = world.State.Ball.Position
+            let config = ctx.Ctx.Config.ContactAction
+            let movement = ctx.Ctx.Config.Movement
+            let preparation = float config.StandingTacklePreparation / float ctx.Clock.SubTicksPerSecond
+
+            for side in [ ClubSide.Home; ClubSide.Away ] do
+                if side <> ownerSide then
+                    let team = MatchWorld.team world side
+
+                    for slot in MatchWorld.activeSlots team.Frame do
+                        let pid = team.RosterIds[slot]
+                        let intent = team.Frame.Intent.Kind[slot]
+
+                        if pid <> ownerId && (intent = IntentCode.Press || intent = IntentCode.Recover) then
+                            let profile = MatchWorld.profileOf ctx.Ctx side slot
+                            let dx = float ball.X - float team.Frame.PosX[slot]
+                            let dy = float ball.Y - float team.Frame.PosY[slot]
+                            let reach =
+                                float config.FootReach
+                                + float movement.SprintSpeed
+                                    * (0.5 + 0.006 * float profile.Pace)
+                                    * preparation
+
+                            if dx * dx + dy * dy <= reach * reach then
+                                ContactActionPlanner.prepare
+                                    ctx
+                                    world
+                                    side
+                                    slot
+                                    ContactActionKind.ContactStandingTackle
+                                    (Some ownerId)
+                                |> ignore
+        | _ -> ()
+
+    let private prepareReceptions (ctx: SystemContext) (world: World) =
+        let ball = world.State.Ball
+        let cfg = ctx.Ctx.Config.ContactAction
+        let horizon = float (cfg.TrapPreparation + cfg.CommittedDuration) / float ctx.Clock.SubTicksPerSecond
+
+        match ball.Control with
+        | BallControl.Free
+        | BallControl.Airborne
+        | BallControl.Contesting _ when world.State.Flow = MatchFlow.Live ->
+            for side in [ ClubSide.Home; ClubSide.Away ] do
+                let frame = (MatchWorld.team world side).Frame
+
+                for slot in MatchWorld.activeSlots frame do
+                    let intent = frame.Intent.Kind[slot]
+                    let pursuing = intent = IntentCode.Recover || intent = IntentCode.Press || intent = IntentCode.ExecuteRun
+
+                    if pursuing && frame.ContactState[slot].Status <> BodyContactStatus.BodyFalling then
+                        let dx = float ball.Position.X - float frame.PosX[slot]
+                        let dy = float ball.Position.Y - float frame.PosY[slot]
+                        let vx = float ball.Position.Vx - float frame.VelX[slot]
+                        let vy = float ball.Position.Vy - float frame.VelY[slot]
+                        let speedSquared = vx * vx + vy * vy
+                        let closestAt =
+                            if speedSquared > 1e-9 then
+                                MatchMath.clamp 0.0 horizon (-(dx * vx + dy * vy) / speedSquared)
+                            else
+                                0.0
+                        let closestX, closestY = dx + vx * closestAt, dy + vy * closestAt
+                        let height = float ball.Position.Z + float ball.Position.Vz * closestAt
+
+                        if
+                            closestX * closestX + closestY * closestY <= float cfg.FootReach ** 2.0
+                            && abs (height - float frame.PosZ[slot]) <= float ctx.Ctx.Config.Ball.FootContactHeight
+                        then
+                            ContactActionPlanner.prepare ctx world side slot ContactActionKind.ContactTrap None |> ignore
+        | _ -> ()
+
     let step: SystemStep =
         fun ctx rng world buffer ->
             let tick = world.State.Tick
             let mutable r = rng
+
+            prepareChallenges ctx world
+            prepareReceptions ctx world
 
             match world.State.Ball.PendingStrike, MatchWorld.ballCarrier ctx.Ctx world with
             | None, Some(side, slot, _) ->

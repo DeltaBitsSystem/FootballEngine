@@ -31,12 +31,10 @@ type BallConfig =
       InterceptionBonus: float
       SaveReflexWeight: float
       SavePositioningWeight: float
-      SaveDistancePenalty: float<meter>
+      ShootoutSaveDistancePenalty: float<meter>
       ReceptionBase: float
       ReceptionSpacePenalty: float
-      ShotSaveBaseProbability: float
-      ShotGoalXGMultiplier: float
-      ShotGoalGKDivisor: float
+      ShootoutSaveBaseProbability: float
       InterceptionPaceWeight: float
       InterceptionIntentBoost: float }
 
@@ -66,6 +64,71 @@ type MovementConfig =
       IntentHysteresis: float
       CommittedRunDuration: int<subtick> }
 
+/// Fixed-step collision, balance and recovery controls. Geometry fallbacks are
+/// explicit so missing player morphology never silently changes contact reach.
+[<Struct>]
+type ContactConfig =
+    { BodyRadiusFallback: float<meter>
+      BodyRadiusScale: float
+      CapsuleLowerHeightRatio: float
+      CapsuleUpperHeightRatio: float
+      HeadRadius: float<meter>
+      LegRadius: float<meter>
+      FootRadius: float<meter>
+      HandRadius: float<meter>
+      FallbackMass: float<kilogram>
+      BallMass: float<kilogram>
+      BodyRestitution: float
+      BodyFriction: float
+      BallBodyRestitution: float
+      BallFootRestitution: float
+      BallBodyFriction: float
+      BallControlSpeed: float<meterPerSecond>
+      MaximumTrapSpeed: float<meterPerSecond>
+      SupportedInverseMassScale: float
+      AirborneInverseMassScale: float
+      StabilityRecoveryPerSecond: float
+      StaggerImpulseThreshold: float
+      FallImpulseThreshold: float
+      RecoverStabilityThreshold: float
+      StaggerAccelerationScale: float
+      FallingAccelerationScale: float
+      PositionCorrectionPercent: float
+      MaximumPositionCorrection: float<meter>
+      VelocitySlop: float<meterPerSecond>
+      ToiTolerance: float
+      SimultaneousTolerance: float
+      SolverIterations: int
+      MaximumImpactIterations: int
+      CurvedPathSegments: int
+      MaximumPathError: float<meter> }
+
+/// Temporal commitments are separate from the solver's laws and from team
+/// movement controls, so agents can change intent without changing physics.
+[<Struct>]
+type ContactActionConfig =
+    { ContainPreparation: int<subtick>
+      ShieldPreparation: int<subtick>
+      ShoulderPreparation: int<subtick>
+      StandingTacklePreparation: int<subtick>
+      SlidingTacklePreparation: int<subtick>
+      TrapPreparation: int<subtick>
+      StrikePreparation: int<subtick>
+      HeaderPreparation: int<subtick>
+      CommittedDuration: int<subtick>
+      RecoveryDuration: int<subtick>
+      FootReach: float<meter>
+      HeadReach: float<meter>
+      MaximumReorientation: float<radian>
+      ExecutionErrorScale: float<meter>
+      MaximumExecutionError: float<meter>
+      ShieldOffset: float<meter>
+      NewImpactThreshold: float<meterPerSecond>
+      CarelessRelativeSpeed: float<meterPerSecond>
+      RecklessRelativeSpeed: float<meterPerSecond>
+      ExcessiveRelativeSpeed: float<meterPerSecond>
+      DangerousBallFirstSpeed: float<meterPerSecond> }
+
 /// Action outcomes — pass, shot, duel, cross, GK and dribble success curves,
 /// tunable without touching agent logic. (was PassConfig, ShotConfig, DuelConfig,
 /// CrossConfig, DribbleConfig, GKConfig, DecisionConfig + IndividualWeights)
@@ -87,7 +150,6 @@ type ActionsConfig =
       ShotVzBase: float
       DuelSteepness: float
       DuelMomentumBonus: float
-      DuelFoulChance: float
       DuelFoulSeverityBias: float
       CrossLateralnessMin: float
       CrossTargetRadius: float<meter>
@@ -98,7 +160,6 @@ type ActionsConfig =
       DribbleRiskWeight: float
       TackleBaseSuccess: float
       DecisionSoftmaxTemperature: float
-      ContestFoulChance: float
       PerceptionConeAngle: float
       PerceptionConeRange: float<meter>
       LaneClearBlockRadius: float<meter>
@@ -451,6 +512,8 @@ type TacticalTradeoffConfig =
 type BalanceConfig =
     { Ball: BallConfig
       Movement: MovementConfig
+      Contact: ContactConfig
+      ContactAction: ContactActionConfig
       Actions: ActionsConfig
       SetPiece: SetPieceConfig
       Team: TeamConfig
@@ -531,12 +594,10 @@ module BalanceConfig =
           InterceptionBonus = 0.1
           SaveReflexWeight = 0.5
           SavePositioningWeight = 0.3
-          SaveDistancePenalty = 12.0<meter>
+          ShootoutSaveDistancePenalty = 12.0<meter>
           ReceptionBase = 0.5
           ReceptionSpacePenalty = 0.04
-          ShotSaveBaseProbability = 0.45
-          ShotGoalXGMultiplier = 1.1
-          ShotGoalGKDivisor = 600.0
+          ShootoutSaveBaseProbability = 0.45
           InterceptionPaceWeight = 0.12
           InterceptionIntentBoost = 1.25 }
 
@@ -563,6 +624,65 @@ module BalanceConfig =
           IntentHysteresis = 0.05
           CommittedRunDuration = 240<subtick> }
 
+    let defaultContact: ContactConfig =
+        { BodyRadiusFallback = 0.31<meter>
+          BodyRadiusScale = 0.5
+          CapsuleLowerHeightRatio = 0.20
+          CapsuleUpperHeightRatio = 0.74
+          HeadRadius = 0.12<meter>
+          LegRadius = 0.12<meter>
+          FootRadius = 0.11<meter>
+          HandRadius = 0.10<meter>
+          FallbackMass = 75.0<kilogram>
+          BallMass = 0.43<kilogram>
+          BodyRestitution = 0.02
+          BodyFriction = 0.58
+          BallBodyRestitution = 0.38
+          BallFootRestitution = 0.05
+          BallBodyFriction = 0.42
+          BallControlSpeed = 2.5<meterPerSecond>
+          MaximumTrapSpeed = 26.0<meterPerSecond>
+          SupportedInverseMassScale = 0.35
+          AirborneInverseMassScale = 1.0
+          StabilityRecoveryPerSecond = 0.85
+          StaggerImpulseThreshold = 2.4
+          FallImpulseThreshold = 5.5
+          RecoverStabilityThreshold = 0.76
+          StaggerAccelerationScale = 0.55
+          FallingAccelerationScale = 0.08
+          PositionCorrectionPercent = 0.22
+          MaximumPositionCorrection = 0.02<meter>
+          VelocitySlop = 0.05<meterPerSecond>
+          ToiTolerance = 0.000001
+          SimultaneousTolerance = 0.00025
+          SolverIterations = 4
+          MaximumImpactIterations = 8
+          CurvedPathSegments = 4
+          MaximumPathError = 0.01<meter> }
+
+    let defaultContactAction: ContactActionConfig =
+        { ContainPreparation = 1<subtick>
+          ShieldPreparation = 2<subtick>
+          ShoulderPreparation = 3<subtick>
+          StandingTacklePreparation = 4<subtick>
+          SlidingTacklePreparation = 6<subtick>
+          TrapPreparation = 2<subtick>
+          StrikePreparation = 6<subtick>
+          HeaderPreparation = 4<subtick>
+          CommittedDuration = 4<subtick>
+          RecoveryDuration = 12<subtick>
+          FootReach = 0.46<meter>
+          HeadReach = 0.28<meter>
+          MaximumReorientation = 0.45<radian>
+          ExecutionErrorScale = 0.14<meter>
+          MaximumExecutionError = 0.65<meter>
+          ShieldOffset = 0.34<meter>
+          NewImpactThreshold = 0.72<meterPerSecond>
+          CarelessRelativeSpeed = 1.2<meterPerSecond>
+          RecklessRelativeSpeed = 2.5<meterPerSecond>
+          ExcessiveRelativeSpeed = 4.2<meterPerSecond>
+          DangerousBallFirstSpeed = 3.6<meterPerSecond> }
+
     let defaultActions: ActionsConfig =
         { PassBaseQuality = 0.7
           PassDistancePenaltyPerMeter = 0.004
@@ -580,7 +700,6 @@ module BalanceConfig =
           ShotVzBase = 0.4
           DuelSteepness = 8.0
           DuelMomentumBonus = 0.1
-          DuelFoulChance = 0.15
           DuelFoulSeverityBias = 0.2
           CrossLateralnessMin = 0.3
           CrossTargetRadius = 12.0<meter>
@@ -591,7 +710,6 @@ module BalanceConfig =
           DribbleRiskWeight = 0.2
           TackleBaseSuccess = 0.5
           DecisionSoftmaxTemperature = 1.0
-          ContestFoulChance = 0.05
           PerceptionConeAngle = 0.6
           PerceptionConeRange = 35.0<meter>
           LaneClearBlockRadius = 2.5<meter>
@@ -837,6 +955,8 @@ module BalanceConfig =
     let defaultConfig: BalanceConfig =
         { Ball = defaultBall
           Movement = defaultMovement
+          Contact = defaultContact
+          ContactAction = defaultContactAction
           Actions = defaultActions
           SetPiece = defaultSetPiece
           Team = defaultTeam

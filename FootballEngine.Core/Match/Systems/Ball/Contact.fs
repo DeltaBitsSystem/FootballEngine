@@ -130,187 +130,109 @@ module BallContact =
 
     let resolve (ctx: SystemContext) (rng: Rng) (world: World) (tick: int<subtick>) (buffer: EventBuffer) : Rng =
         let ball = world.State.Ball
-        let cfg = ctx.Ctx.Config
+        let mutable contact: ContactRecord option = None
 
-        let x = ball.Position.X
-        let y = ball.Position.Y
+        for index = buffer.Events.Count - 1 downto 0 do
+            if contact.IsNone then
+                match buffer.Events[index].Data with
+                | EventData.PhysicalContact record when record.BallTouched -> contact <- Some record
+                | _ -> ()
 
-        match ball.ArrivalGate, ball.Trajectory with
-        | Some gate, Some(TrajectoryIntent.Cleared) when gate <= tick ->
-            let contact =
-                tryReachableContact ctx.Ctx world x y (ball.Impulse |> Option.map (fun impulse -> impulse.ActorId))
+        let emit data =
+            let event = { Tick = tick; Data = data }
+            buffer.Events.Add event
 
-            if contact.IsSome then
-                MatchWorld.updateBall world (fun b ->
-                    { b with
-                        Trajectory = None
-                        ArrivalGate = None
-                        Impulse = None
-                        StationarySince = None })
+            if world.Observation.Enabled then
+                ball.Impulse |> Option.iter (fun impulse -> world.Observation.Associate(event, ActionCause impulse.ActionId))
 
-                buffer.Events.Add
-                    { Tick = tick
-                      Data = EventData.BallLoose(x, y) }
+        let resolveTrajectory () =
+            MatchWorld.updateBall world (fun current ->
+                { current with
+                    Trajectory = None
+                    ArrivalGate = None
+                    PendingStrike = None
+                    Impulse = None })
+
+        match contact, ball.Trajectory with
+        | Some record, Some(TrajectoryIntent.Aimed(passer, receiver, quality)) ->
+            let origin =
+                ball.Impulse
+                |> Option.map _.Origin
+                |> Option.defaultValue { X = ball.Position.X; Y = ball.Position.Y; Z = ball.Position.Z }
+
+            let distance = MatchMath.dist origin.X origin.Y ball.Position.X ball.Position.Y * 1.0<meter>
+            let controlled =
+                record.ControlAfter.Kind = ContactControlKind.ReceivingBall
+                && record.ControlAfter.Player = Some record.Actor
+
+            let completed = record.Actor = receiver && controlled
+            let firstEvent = buffer.Events.Count
+
+            emit (EventData.Pass(passer, Some receiver, distance, quality, completed, origin.X, origin.Y, ball.Position.X, ball.Position.Y))
+
+            match MatchWorld.teamOfPlayer ctx.Ctx record.Actor, MatchWorld.teamOfPlayer ctx.Ctx passer with
+            | Some actorSide, Some passerSide when actorSide <> passerSide && controlled ->
+                emit (EventData.Interception(record.Actor, passer))
+            | _ -> ()
+
+            resolveTrajectory ()
+
+            if world.Observation.Enabled then
+                match ball.Impulse with
+                | Some impulse ->
+                    for index = firstEvent to buffer.Events.Count - 1 do
+                        world.Observation.Associate(buffer.Events[index], ActionCause impulse.ActionId)
+                | None -> ()
 
             rng
-        | _, Some(TrajectoryIntent.Aimed(passer, receiver, quality)) ->
-            let rx = ball.Position.X
-            let ry = ball.Position.Y
+        | Some record, Some(TrajectoryIntent.Struck(shooter, speed, _, xG)) ->
+            let controlled =
+                record.ControlAfter.Kind = ContactControlKind.ReceivingBall
+                && record.ControlAfter.Player = Some record.Actor
 
-            let receiverSide =
-                MatchWorld.teamOfPlayer ctx.Ctx receiver |> Option.defaultValue ClubSide.Home
+            if controlled then
+                let keeper =
+                    match MatchWorld.teamOfPlayer ctx.Ctx record.Actor with
+                    | Some side ->
+                        MatchWorld.slotOf ctx.Ctx side record.Actor
+                        |> Option.exists (fun slot -> (MatchWorld.profileOf ctx.Ctx side slot).IsGK)
+                    | None -> false
 
-            let rSlot = MatchWorld.slotOf ctx.Ctx receiverSide receiver
+                if keeper then
+                    emit (EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, ball.Position.X, ball.Position.Y))
+                    emit (EventData.Save(record.Actor, shooter))
+                else
+                    emit (EventData.Shot(shooter, ShotResult.Blocked, xG, speed, ball.Position.X, ball.Position.Y))
 
-            match rSlot with
-            | None ->
-                MatchWorld.updateBall world (fun b ->
-                    { b with
-                        Trajectory = None
-                        ArrivalGate = None })
+                resolveTrajectory ()
 
-                rng
-            | Some rSlot ->
-                let best = tryReachableContact ctx.Ctx world rx ry (Some passer)
+            // Loose deflections keep the original shot context so the altered path,
+            // not the pre-contact label, decides a later goal-line crossing.
+            rng
+        | Some _, _ ->
+            resolveTrajectory ()
+            rng
+        | None, Some(TrajectoryIntent.Aimed(passer, receiver, quality)) when
+            (ball.ArrivalGate |> Option.exists (fun gate -> gate <= tick))
+            && (ball.StationarySince.IsSome
+                || (MatchMath.speedOf ball.Position.Vx ball.Position.Vy <= float ctx.Ctx.Config.Ball.StopSpeedCutoff
+                    && abs (float ball.Position.Vz) <= float ctx.Ctx.Config.Ball.StopSpeedCutoff))
+            ->
+            // Arrival estimates ignore changing drag and receiver motion; only a stopped flight can expire without a touch.
+            let origin =
+                ball.Impulse
+                |> Option.map _.Origin
+                |> Option.defaultValue { X = ball.Position.X; Y = ball.Position.Y; Z = ball.Position.Z }
 
-                let arrival =
-                    match best with
-                    | ValueSome struct (side, slot, pid, _) when side = receiverSide && slot = rSlot ->
-                        Arrival.CleanReception(side, slot, pid)
-                    | ValueSome struct (side, slot, pid, _) -> Arrival.Interception(side, slot, pid, passer)
-                    | ValueNone -> Arrival.NoContact
-
-                let restartImpulse = ball.Impulse
-                let resolved = arrival <> Arrival.NoContact
-
-                if resolved then
-                    MatchWorld.updateBall world (fun b ->
-                        { b with
-                            Trajectory = None
-                            ArrivalGate = None
-                            Impulse = None })
-
-                let firstResolutionEvent = buffer.Events.Count
-
-                match arrival with
-                | Arrival.CleanReception(side, slot, pid) ->
-                    let p = MatchWorld.profileOf ctx.Ctx side slot
-                    let space = MatchWorld.opponentsNear ctx.Ctx world side rx ry 3.5 |> float
-
-                    let receptionP =
-                        MatchMath.clamp01 (
-                            cfg.Ball.ReceptionBase
-                            + float quality * 0.3
-                            + (float (p.Passing + p.Anticipation + p.Composure)) / 900.0
-                            - space * cfg.Ball.ReceptionSpacePenalty
-                        )
-
-                    let ok, rng' = Rng.bernoulli receptionP rng
-
-                    let resolutionCause =
-                        if world.Observation.Enabled then
-                            let action = restartImpulse |> Option.map _.ActionId
-
-                            let cause =
-                                match action with
-                                | Some id -> ValueSome(ActionCause id)
-                                | None -> ValueNone
-
-                            world.Observation.Record(
-                                tick,
-                                cause,
-                                ProbabilityResolved(Reception, action, receptionP, ok)
-                            )
-                            |> ValueOption.map ResolutionCause
-                        else
-                            ValueNone
-
-                    let px, py, passDist = passerOriginAndDist ctx.Ctx world passer rx ry
-
-                    if ok then
-                        BallFootContact.receive ctx world buffer side slot
-
-                        MatchWorld.updateBall world (fun b ->
-                            { b with
-                                Trajectory = None
-                                ArrivalGate = None
-                                Impulse = None })
-
-                        buffer.Events.Add
-                            { Tick = tick
-                              Data = EventData.Possession(side, pid) }
-
-                        buffer.Events.Add
-                            { Tick = tick
-                              Data = EventData.Pass(passer, Some pid, passDist, quality, true, px, py, rx, ry) }
-                    else
-                        buffer.Events.Add
-                            { Tick = tick
-                              Data = EventData.Pass(passer, Some pid, passDist, quality, false, px, py, rx, ry) }
-
-                        MatchWorld.updateBall world (fun b ->
-                            { b with
-                                Trajectory = None
-                                ArrivalGate = None
-                                Impulse = None })
-
-                        buffer.Events.Add
-                            { Tick = tick
-                              Data = EventData.BallLoose(rx, ry) }
-
-                    if world.Observation.Enabled then
-                        match resolutionCause with
-                        | ValueSome cause ->
-                            for index = firstResolutionEvent to buffer.Events.Count - 1 do
-                                world.Observation.Associate(buffer.Events[index], cause)
-                        | ValueNone -> ()
-
-                    rng'
-                | Arrival.Interception(side, slot, pid, passer) ->
-                    BallFootContact.receive ctx world buffer side slot
-
-                    MatchWorld.updateBall world (fun b ->
-                        { b with
-                            Trajectory = None
-                            ArrivalGate = None
-                            Impulse = None })
-
-                    let px, py, passDist = passerOriginAndDist ctx.Ctx world passer rx ry
-
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.Pass(passer, Some receiver, passDist, quality, false, px, py, rx, ry) }
-
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.Interception(pid, passer) }
-
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.Possession(side, pid) }
-
-                    if world.Observation.Enabled then
-                        match restartImpulse with
-                        | Some impulse ->
-                            for index = firstResolutionEvent to buffer.Events.Count - 1 do
-                                world.Observation.Associate(buffer.Events[index], ActionCause impulse.ActionId)
-                        | None -> ()
-
-                    rng
-                | Arrival.NoContact ->
-                    if ball.StationarySince.IsSome then
-                        MatchWorld.updateBall world (fun b ->
-                            { b with
-                                Control = BallControl.Free
-                                Trajectory = None
-                                ArrivalGate = None
-                                Impulse = None })
-
-                        buffer.Events.Add
-                            { Tick = tick
-                              Data = EventData.BallLoose(ball.Position.X, ball.Position.Y) }
-
-                    rng
+            let distance = MatchMath.dist origin.X origin.Y ball.Position.X ball.Position.Y * 1.0<meter>
+            emit (EventData.Pass(passer, Some receiver, distance, quality, false, origin.X, origin.Y, ball.Position.X, ball.Position.Y))
+            resolveTrajectory ()
+            emit (EventData.BallLoose(ball.Position.X, ball.Position.Y))
+            rng
+        | None, Some TrajectoryIntent.Cleared when ball.ArrivalGate |> Option.exists (fun gate -> gate <= tick) ->
+            resolveTrajectory ()
+            emit (EventData.BallLoose(ball.Position.X, ball.Position.Y))
+            rng
         | _ -> rng
 
     let step: SystemStep =
