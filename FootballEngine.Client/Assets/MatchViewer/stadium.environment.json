@@ -1,0 +1,23 @@
+{
+  "authoringFile": "stadium-original-daylight.blend",
+  "authorship": "first-party-original",
+  "environmentDirectory": "Lighting",
+  "environmentIntensity": 0.65,
+  "environmentManifestSha256": "ce0620450801692d7598fe1925d8c878e1cb7d655d9df96c5e7d59eecbf3dea3",
+  "exposureStops": -0.35,
+  "projection": "atan2(runtime.z,runtime.x), acos(runtime.y); Blender axes converted explicitly",
+  "schema": 2,
+  "skySource": "FootballEngine original Blender atmosphere and procedural cloud volume",
+  "stadiumSha256": "a152247e8b0e2656f0d0fca724026a166d82fb0aab0d41368a5fce1c9b9dd082",
+  "sunDirection": [
+    -0.4802882671356201,
+    0.7804684042930603,
+    0.4002402424812317
+  ],
+  "sunRadiance": [
+    3.2,
+    3.091200065612793,
+    2.879999923706055
+  ],
+  "world": "FE exported stadium environment"
+}

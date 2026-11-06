@@ -84,6 +84,8 @@
 !/FootballEngine.Client/Assets/MatchViewer/Sources/MakeHuman/*.md
 !/FootballEngine.Client/Assets/MatchViewer/pitch-floodlit.blend
 !/FootballEngine.Client/Assets/MatchViewer/stadium.glb
+!/FootballEngine.Client/Assets/MatchViewer/stadium.environment.json
+!/FootballEngine.Client/Assets/MatchViewer/OriginalSky/*.exr
 !/FootballEngine.Client/Assets/MatchViewer/manifest.json
 !/FootballEngine.Client/Assets/MatchViewer/LICENSES.md
 !/FootballEngine.Client/Assets/MatchViewer/Surfaces/*.bin
@@ -93,6 +95,7 @@
 !/FootballEngine.Client/Assets/MatchViewer/Surfaces/Sources/concrete_floor_02_*_1k.jpg
 !/FootballEngine.Client/Assets/MatchViewer/Lighting/*.bin
 !/FootballEngine.Client/Assets/MatchViewer/Lighting/manifest.json
+!/FootballEngine.Client/Assets/MatchViewer/Lighting/README.md
 !/FootballEngine.Client/Match3D/Shaders/*.wgsl
 
 # --- Planes de agencia (opencode) ---

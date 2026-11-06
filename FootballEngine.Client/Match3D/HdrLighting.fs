@@ -17,17 +17,65 @@ type HdrEnvironmentData =
       Height: int
       Layers: int
       LutSize: int
+      SkyWidth: int
+      SkyHeight: int
+      ManifestSha256: string
+      SunDirection: Vector3
       Environment: byte[]
-      Brdf: byte[] }
+      Brdf: byte[]
+      Sky: byte[] }
+
+type DirectionalShadowSettings =
+    { Resolution: uint32
+      Width: float32
+      Height: float32
+      LightDistance: float32
+      FarPlane: float32 }
+
+module DirectionalShadow =
+    // Coverage includes both goals and the stands that can occlude the pitch, independent of camera cuts.
+    let stadium =
+        { Resolution = 4096u
+          Width = 180.0f
+          Height = 160.0f
+          LightDistance = 180.0f
+          FarPlane = 360.0f }
+
+    let viewProjection settings (direction: Vector3) =
+        // A light almost parallel to the usual up vector needs a different basis, including future night lights.
+        let up =
+            if abs (Vector3.Dot(direction, Vector3.UnitZ)) > 0.95f then
+                Vector3.UnitX
+            else
+                Vector3.UnitZ
+
+        let view =
+            Matrix4x4.CreateLookAt(direction * settings.LightDistance, Vector3.Zero, up)
+
+        view
+        * Matrix4x4.CreateOrthographic(settings.Width, settings.Height, 1.0f, settings.FarPlane)
+
+    let matrixData settings direction =
+        let matrix = viewProjection settings direction
+
+        [| matrix.M11
+           matrix.M12
+           matrix.M13
+           matrix.M14
+           matrix.M21
+           matrix.M22
+           matrix.M23
+           matrix.M24
+           matrix.M31
+           matrix.M32
+           matrix.M33
+           matrix.M34
+           matrix.M41
+           matrix.M42
+           matrix.M43
+           matrix.M44 |]
 
 module HdrLighting =
-    // Fixed exposure preserves broadcast readability instead of pumping as the camera follows a white kit.
-    let broadcastDaylight =
-        { ExposureStops = -0.35f
-          EnvironmentIntensity = 0.65f
-          SunDirection = Vector3.Normalize(Vector3(-0.38f, 0.88f, 0.28f))
-          SunRadiance = Vector3(3.2f, 3.05f, 2.8f) }
-
     let validate settings =
         let finiteVector (value: Vector3) =
             Single.IsFinite value.X && Single.IsFinite value.Y && Single.IsFinite value.Z
@@ -75,33 +123,67 @@ module HdrLighting =
 
     let loadEnvironment directory =
         try
-            use document =
-                JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "manifest.json")))
+            use manifestStream = File.OpenRead(Path.Combine(directory, "manifest.json"))
+
+            if manifestStream.Length > 65536L then
+                raise (InvalidDataException "HDR manifest exceeds the package metadata limit.")
+
+            let manifestBytes = Array.zeroCreate<byte> (int manifestStream.Length)
+            manifestStream.ReadExactly(manifestBytes.AsSpan())
+            use document = JsonDocument.Parse(ReadOnlyMemory<byte>(manifestBytes))
 
             let root = document.RootElement
             let number (name: string) = root.GetProperty(name).GetInt32()
 
+            let files = root.GetProperty("files").EnumerateArray() |> Seq.toArray
+            let expectedFiles = Set.ofList [ "environment.bin"; "brdf.bin"; "sky.bin" ]
+            let names = files |> Array.map (fun item -> item.GetProperty("path").GetString())
+
+            // Ambiguous manifests must fail before allocating GPU-bound payloads, not silently select the first entry.
+            if names.Length <> expectedFiles.Count || Set.ofArray names <> expectedFiles then
+                raise (InvalidDataException "HDR manifest must contain exactly one entry for each required texture.")
+
             if
-                number "schema" <> 1
+                number "schema" <> 3
                 || number "width" <> 128
                 || number "height" <> 64
                 || number "layers" <> 7
                 || number "specularLayers" <> 6
                 || number "diffuseLayer" <> 6
                 || number "lutSize" <> 128
+                || number "skyWidth" <> 2048
+                || number "skyHeight" <> 1024
             then
                 raise (InvalidDataException "Unsupported HDR environment layout; rebuild the lighting pack.")
 
+            for name, expected in
+                [ "environmentFormat", "rgba16f-le"
+                  "skyFormat", "rgba16f-le"
+                  "brdfFormat", "rg16f-le"
+                  "colorSpace", "linear-rec709"
+                  "projection", "latlong-y-up"
+                  "diffuseEncoding", "irradiance-over-pi"
+                  "solarDisc", "visible-only" ] do
+                if root.GetProperty(name).GetString() <> expected then
+                    raise (InvalidDataException $"Unsupported HDR contract: {name}")
+
             let read name length =
                 let entry =
-                    root.GetProperty("files").EnumerateArray()
+                    files
                     |> Seq.tryFind (fun item -> item.GetProperty("path").GetString() = name)
 
                 let entry =
                     entry
                     |> Option.defaultWith (fun () -> raise (InvalidDataException $"Missing HDR manifest entry: {name}"))
 
-                let data = File.ReadAllBytes(Path.Combine(directory, name))
+                use stream = File.OpenRead(Path.Combine(directory, name))
+
+                // Reject oversized or truncated packs before allocating from untrusted on-disk lengths.
+                if stream.Length <> int64 length || entry.GetProperty("bytes").GetInt32() <> length then
+                    raise (InvalidDataException $"HDR texture length mismatch: {name}")
+
+                let data = Array.zeroCreate<byte> length
+                stream.ReadExactly(data.AsSpan())
                 let hash = SHA256.HashData data |> Convert.ToHexString
 
                 if
@@ -123,13 +205,25 @@ module HdrLighting =
 
                 data
 
+            let sun = root.GetProperty("sunDirection").EnumerateArray() |> Seq.map (fun value -> value.GetSingle()) |> Seq.toArray
+            if sun.Length <> 3 || sun |> Array.exists (Single.IsFinite >> not) then
+                raise (InvalidDataException "HDR sky has an invalid solar direction.")
+            let sunDirection = Vector3(sun[0], sun[1], sun[2])
+            if abs (sunDirection.LengthSquared() - 1.0f) > 0.001f || sunDirection.Y <= 0.0f then
+                raise (InvalidDataException "HDR solar direction must be normalized and above the horizon.")
+
             Ok
                 { Width = 128
                   Height = 64
                   Layers = 7
                   LutSize = 128
+                  SkyWidth = 2048
+                  SkyHeight = 1024
+                  ManifestSha256 = SHA256.HashData manifestBytes |> Convert.ToHexString
+                  SunDirection = sunDirection
                   Environment = read "environment.bin" (128 * 64 * 7 * 8)
-                  Brdf = read "brdf.bin" (128 * 128 * 4) }
+                  Brdf = read "brdf.bin" (128 * 128 * 4)
+                  Sky = read "sky.bin" (2048 * 1024 * 8) }
         with
         | :? InvalidDataException as error -> Error error.Message
         | :? IOException as error -> Error error.Message
@@ -137,3 +231,6 @@ module HdrLighting =
         | :? InvalidOperationException as error -> Error error.Message
         | :? Collections.Generic.KeyNotFoundException as error -> Error error.Message
         | :? ArgumentException as error -> Error error.Message
+        | :? FormatException as error -> Error error.Message
+        | :? OverflowException as error -> Error error.Message
+        | :? UnauthorizedAccessException as error -> Error error.Message

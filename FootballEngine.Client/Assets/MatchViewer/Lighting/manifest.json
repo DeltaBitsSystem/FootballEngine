@@ -1,15 +1,86 @@
 {
-  "schema": 1,
-  "width": 128,
+  "authorBlend": {
+    "path": "Tools/MatchViewer3D/OriginalSky/daylight-sky.blend",
+    "sha256": "8b9d64ffad6e00910090200213213b7eec6b9bd9c85b397c1649b5c9248273d0"
+  },
+  "authorScript": {
+    "path": "Tools/MatchViewer3D/OriginalSky/author_sky.py",
+    "sha256": "71d3aad1659f2de8af6d3a08d44671bafb8184172b25ca3f9e2a5c675e6f5e64"
+  },
+  "authoringFiles": [
+    {
+      "path": "sky-visible.exr",
+      "sha256": "5a6eeedeab2b52b85a760144e5cb138892ff28763cfd2db57b0417cd42c197b3"
+    },
+    {
+      "path": "sky-lighting.exr",
+      "sha256": "74c8c1ae10273526b6b01413d4130f620eaff2b825d3d592da79951f96acb2ea"
+    }
+  ],
+  "authorship": "first-party-original",
+  "bakerScripts": [
+    {
+      "path": "Tools/MatchViewer3D/build_hdr_environment.py",
+      "sha256": "fd6bf84acf819730321586762374d650cc98a1da0ef94699d1de122e0ad3ea64"
+    },
+    {
+      "path": "Tools/MatchViewer3D/ibl_prefilter.py",
+      "sha256": "8cb2b77fe2e1b0bb33ff47f2031925e3a39486dbde8a432512a8d58897746cca"
+    }
+  ],
+  "brdfFormat": "rg16f-le",
+  "colorSpace": "linear-rec709",
+  "diffuseEncoding": "irradiance-over-pi",
+  "diffuseLayer": 6,
+  "environmentFormat": "rgba16f-le",
+  "files": [
+    {
+      "bytes": 458752,
+      "path": "environment.bin",
+      "sha256": "e6581aa51f29bfa2838598b30602fb7c8144dd22138185905549f9856fd8ad0a"
+    },
+    {
+      "bytes": 65536,
+      "path": "brdf.bin",
+      "sha256": "6e4ec5f84e9d7c65075e160794d0614703274ab1eb4d125cc777c96416418961"
+    },
+    {
+      "bytes": 16777216,
+      "path": "sky.bin",
+      "sha256": "be125928ad619a070f966c9f3a933bd64bf04faf796c56da89b95116ef02c44f"
+    }
+  ],
+  "groundHemisphere": {
+    "horizonMultiplier": 0.65,
+    "nadirMultiplier": 1,
+    "rgb": [
+      0.1,
+      0.15,
+      0.08
+    ]
+  },
   "height": 64,
   "layers": 7,
-  "specularLayers": 6,
-  "diffuseLayer": 6,
   "lutSize": 128,
-  "samples": 256,
-  "encoding": "little-endian IEEE754 binary16, scene-linear RGB; environment RGBA, BRDF RG",
-  "projection": "equirectangular: atan2(z,x), acos(y), right-handed Y-up",
-  "source": "project-owned analytic daylight sky without solar disc; not a photographed HDRI",
+  "originalSourceHashes": {
+    "sky-lighting.exr": "5b34e61cda5b322e9e489b3ba80b566bcc5a111a47b4705c42229fe40a62560b",
+    "sky-visible.exr": "5a6eeedeab2b52b85a760144e5cb138892ff28763cfd2db57b0417cd42c197b3"
+  },
+  "presentation": {
+    "environmentIntensity": 0.65,
+    "exposureStops": -0.35,
+    "sunDirection": [
+      -0.4802882671356201,
+      0.7804684042930603,
+      0.4002402424812317
+    ],
+    "sunRadiance": [
+      3.2,
+      3.091200065612793,
+      2.879999923706055
+    ]
+  },
+  "projection": "latlong-y-up",
   "roughness": [
     0,
     0.2,
@@ -18,16 +89,20 @@
     0.8,
     1
   ],
-  "files": [
-    {
-      "path": "environment.bin",
-      "bytes": 458752,
-      "sha256": "35990e8a6b3ed3dfb763beae3236cb11bbadcd02852214d167f80edb44c43582"
-    },
-    {
-      "path": "brdf.bin",
-      "bytes": 65536,
-      "sha256": "6e4ec5f84e9d7c65075e160794d0614703274ab1eb4d125cc777c96416418961"
-    }
-  ]
+  "samples": 256,
+  "schema": 3,
+  "skyFormat": "rgba16f-le",
+  "skyHeight": 1024,
+  "skyWidth": 2048,
+  "solarAlignmentErrorDegrees": 0.06345632890653774,
+  "solarDisc": "visible-only",
+  "source": "FootballEngine original Blender atmosphere and procedural cloud volume",
+  "specularLayers": 6,
+  "sunAngularDiameterDegrees": 0.545,
+  "sunDirection": [
+    -0.4802882671356201,
+    0.7804684042930603,
+    0.4002402424812317
+  ],
+  "width": 128
 }
