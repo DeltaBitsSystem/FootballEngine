@@ -90,20 +90,55 @@ module Planner =
         progression + shootBonus + dangerPenalty + possessionSecurity
 
     let private advance (s: ChainState) (flight: float<second>) =
-        let advance motions positions =
-            positions |> Array.map (fun struct (slot, x, y) ->
-                match motions |> Array.tryFind (fun struct (movingSlot, _, _) -> movingSlot = slot) with
-                | Some(struct (_, vx, vy)) ->
-                    let x, y = MatchMath.pitchClamp (float (x + vx * flight)) (float (y + vy * flight))
-                    struct (slot, x * 1.0<meter>, y * 1.0<meter>)
-                | None -> struct (slot, x, y))
+        let advance (motions: struct (int * float<meterPerSecond> * float<meterPerSecond>)[]) positions =
+            positions
+            |> Array.map (fun struct (slot, x, y) ->
+                let mutable index = 0
+                let mutable found = false
+                let mutable px = x
+                let mutable py = y
+
+                // Branch states still own their arrays; scanning avoids one heap Option per projected player.
+                while index < motions.Length && not found do
+                    let struct (movingSlot, vx, vy) = motions[index]
+
+                    if movingSlot = slot then
+                        let x, y = MatchMath.pitchClamp (float (x + vx * flight)) (float (y + vy * flight))
+                        px <- x * 1.0<meter>
+                        py <- y * 1.0<meter>
+                        found <- true
+
+                    index <- index + 1
+
+                struct (slot, px, py))
+
         let ours, opponents = advance s.OurMotion s.OurPos, advance s.OppMotion s.OppPos
+
         let line =
-            if s.OppMotion.Length = 0 then s.OffsideLine
+            if s.OppMotion.Length = 0 then
+                s.OffsideLine
             else
-                opponents |> Array.filter (fun struct(slot, _, _) -> not (Set.contains slot s.GoalkeeperSlots))
-                |> Array.map (fun struct(_, x, _) -> x * s.Dir) |> Array.sortDescending
-                |> fun positions -> if positions.Length >= 2 then positions[1] * s.Dir else MatchMath.goalX s.Side
+                let mutable count = 0
+                let mutable first = 0.0<meter>
+                let mutable second = 0.0<meter>
+
+                for struct (slot, x, _) in opponents do
+                    if not (Set.contains slot s.GoalkeeperSlots) then
+                        let position = x * s.Dir
+
+                        if count = 0 || compare position first > 0 then
+                            second <- first
+                            first <- position
+                        elif count = 1 || compare position second > 0 then
+                            second <- position
+
+                        count <- count + 1
+
+                if count >= 2 then
+                    second * s.Dir
+                else
+                    MatchMath.goalX s.Side
+
         { s with
             OurPos = ours
             OppPos = opponents

@@ -18,6 +18,7 @@ module Program =
     type private Options =
         { Repetitions: int
           Warmups: int
+          Seeds: uint64[] option
           OutputDirectory: string
           Scenario: string option
           Profile: bool
@@ -101,6 +102,24 @@ module Program =
           Scenario: string
           Seed: uint64
           SimulatorMilliseconds: float
+          AllocatedBytesCurrentThread: int64
+          AllocatedBytesAllThreads: int64
+          AllocatedBytesInSystems: int64
+          AllocatedBytesOutsideSystems: int64
+          ManagedBytesBefore: int64
+          ManagedBytesAfter: int64
+          ManagedBytesAfterFullCollection: int64
+          ProcessPeakWorkingSetBytes: int64
+          FinalTick: int
+          EventsHash: uint64
+          ExportProbeMilliseconds: float
+          ExportProbeAllocatedBytes: int64
+          ExportProbeCharacters: int
+          ExportProbeIsEmptyObject: bool
+          Gen0Collections: int
+          Gen1Collections: int
+          Gen2Collections: int
+          GcPauseMilliseconds: float
           Systems: SystemProfileRow[] }
 
     type private OutcomeFingerprint =
@@ -241,6 +260,19 @@ module Program =
         | true, parsed when parsed >= 0 -> parsed
         | _ -> invalidArg name (sprintf "%s must be a non-negative integer" name)
 
+    let private parseSeeds (value: string) =
+        let seeds =
+            value.Split(',', StringSplitOptions.RemoveEmptyEntries ||| StringSplitOptions.TrimEntries)
+            |> Array.map (fun item ->
+                match UInt64.TryParse(item, NumberStyles.None, CultureInfo.InvariantCulture) with
+                | true, seed -> seed
+                | _ -> invalidArg "--seeds" (sprintf "invalid unsigned seed: %s" item))
+
+        if seeds.Length = 0 || (seeds |> Array.distinct).Length <> seeds.Length then
+            invalidArg "--seeds" "provide at least one unique comma-separated seed"
+
+        seeds
+
     let private nextValue (argv: string[]) (index: int) (name: string) : string =
         if index + 1 >= argv.Length then
             invalidArg name (sprintf "missing value for %s" name)
@@ -250,6 +282,7 @@ module Program =
     let private parseOptions (argv: string[]) =
         let mutable repetitions = 7
         let mutable warmups = 2
+        let mutable seeds = None
         let mutable outputDirectory = defaultOutputDirectory ()
         let mutable scenario = None
         let mutable profile = false
@@ -270,6 +303,9 @@ module Program =
                 index <- index + 2
             | "--warmups" ->
                 warmups <- parseNonNegative "--warmups" (nextValue argv index "--warmups")
+                index <- index + 2
+            | "--seeds" ->
+                seeds <- Some(parseSeeds (nextValue argv index "--seeds"))
                 index <- index + 2
             | "--output" ->
                 outputDirectory <- nextValue argv index "--output"
@@ -297,6 +333,7 @@ module Program =
             Some
                 { Repetitions = repetitions
                   Warmups = warmups
+                  Seeds = seeds
                   OutputDirectory = Path.GetFullPath outputDirectory
                   Scenario = scenario
                   Profile = profile
@@ -311,6 +348,7 @@ module Program =
         printfn "  --scenario fast|replay-20-ticks|full"
         printfn "  --repetitions N           Timed samples per scenario (default: 7)"
         printfn "  --warmups N               Warmup samples per scenario (default: 2)"
+        printfn "  --seeds N,...             Repeat each explicit seed; warm up each seed first"
         printfn "  --output DIRECTORY        Artifact directory"
         printfn "  --no-verify               Skip same-seed determinism verification"
         printfn "  --trace-tool PATH         dotnet-trace executable (default: dotnet-trace)"
@@ -390,19 +428,36 @@ module Program =
         (options: Options)
         (scenario: Scenario)
         : ScenarioReport =
-        if options.Warmups > 0 then
+        match options.Seeds with
+        | Some seeds when options.Warmups > 0 ->
+            for seed in seeds do
+                for _ = 1 to options.Warmups do
+                    match Simulator.runMatch systems ctx seed scenario.Mode with
+                    | Ok _ -> ()
+                    | Error error -> failwithf "benchmark warmup failed: %A" error
+        | None when options.Warmups > 0 ->
             for warmup in 0 .. options.Warmups - 1 do
                 match Simulator.runMatch systems ctx (0xD00D0000UL + uint64 warmup) scenario.Mode with
                 | Ok _ -> ()
                 | Error error -> failwithf "benchmark warmup failed: %A" error
+        | _ -> ()
 
         let samples =
-            [| for i in 0 .. options.Repetitions - 1 -> collectSample systems ctx scenario (0x1000UL + uint64 i) |]
+            match options.Seeds with
+            | Some seeds ->
+                [| for seed in seeds do
+                       for _ = 1 to options.Repetitions do
+                           yield collectSample systems ctx scenario seed |]
+            | None ->
+                [| for i in 0 .. options.Repetitions - 1 ->
+                       collectSample systems ctx scenario (0x1000UL + uint64 i) |]
 
         let deterministic =
             if options.Verify then
                 samples
-                |> Array.forall (fun sample -> verifyDeterminism systems ctx scenario sample.Seed)
+                |> Array.map _.Seed
+                |> Array.distinct
+                |> Array.forall (fun seed -> verifyDeterminism systems ctx scenario seed)
             else
                 false
 
@@ -530,21 +585,70 @@ module Program =
         let systems = profiler.Wrap Scheduler.systems
         let ctx = BenchContext.create ()
         let seed = 0xFACEUL
+        let managedBefore = GC.GetTotalMemory(false)
+        let collectionsBefore = Array.init 3 GC.CollectionCount
+        let pauseBefore = GC.GetTotalPauseDuration()
+        let allThreadsBefore = GC.GetTotalAllocatedBytes(true)
+        let allocatedBefore = GC.GetAllocatedBytesForCurrentThread()
         let stopwatch = Stopwatch.StartNew()
 
-        match Simulator.runMatch systems ctx seed scenario.Mode with
-        | Ok _ -> ()
-        | Error error -> failwithf "benchmark profile failed: %A" error
+        let outcome =
+            match Simulator.runMatch systems ctx seed scenario.Mode with
+            | Ok outcome -> outcome
+            | Error error -> failwithf "benchmark profile failed: %A" error
 
         stopwatch.Stop()
+        let allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore
+        let allThreadsAllocated = GC.GetTotalAllocatedBytes(true) - allThreadsBefore
+        let managedAfter = GC.GetTotalMemory(false)
+        let pause = GC.GetTotalPauseDuration() - pauseBefore
+        let collectionsAfter = Array.init 3 GC.CollectionCount
+        use currentProcess = Process.GetCurrentProcess()
+        let peakWorkingSet = currentProcess.PeakWorkingSet64
+        // Collection is outside the timed region; this is live managed heap, not RSS or total allocated bytes.
+        let managedAfterCollection = GC.GetTotalMemory(true)
+        let exportAllocatedBefore = GC.GetAllocatedBytesForCurrentThread()
+        let exportTimer = Stopwatch.StartNew()
+
+        let exported =
+            MatchDump.export ctx outcome.Events outcome.Final.Home.Stats outcome.Final.Away.Stats
+            |> function
+                | Ok json -> json
+                | Error error -> failwithf "benchmark export failed: %s" error
+
+        exportTimer.Stop()
+        let exportAllocated = GC.GetAllocatedBytesForCurrentThread() - exportAllocatedBefore
+        let rows = profiler.Rows()
+        let systemAllocated = rows |> Array.sumBy _.AllocatedBytesCurrentThread
 
         let report =
-            { SchemaVersion = reportSchemaVersion
+            { SchemaVersion = 2
               GeneratedUtc = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)
               Scenario = scenario.Name
               Seed = seed
               SimulatorMilliseconds = stopwatch.Elapsed.TotalMilliseconds
-              Systems = profiler.Rows() }
+              AllocatedBytesCurrentThread = allocated
+              AllocatedBytesAllThreads = allThreadsAllocated
+              AllocatedBytesInSystems = systemAllocated
+              AllocatedBytesOutsideSystems = allocated - systemAllocated
+              ManagedBytesBefore = managedBefore
+              ManagedBytesAfter = managedAfter
+              ManagedBytesAfterFullCollection = managedAfterCollection
+              ProcessPeakWorkingSetBytes = peakWorkingSet
+              FinalTick = int outcome.Final.State.Tick
+              EventsHash = outcome.EventsHash
+              ExportProbeMilliseconds = exportTimer.Elapsed.TotalMilliseconds
+              ExportProbeAllocatedBytes = exportAllocated
+              ExportProbeCharacters = exported.Length
+              ExportProbeIsEmptyObject = exported = "{}"
+              Gen0Collections = collectionsAfter[0] - collectionsBefore[0]
+              Gen1Collections = collectionsAfter[1] - collectionsBefore[1]
+              Gen2Collections = collectionsAfter[2] - collectionsBefore[2]
+              GcPauseMilliseconds = pause.TotalMilliseconds
+              Systems = rows }
+
+        // The post-run heap sample must still include the result owned by the caller.
+        GC.KeepAlive outcome
 
         writeJson (Path.Combine(options.OutputDirectory, "system-profile.json")) report
 

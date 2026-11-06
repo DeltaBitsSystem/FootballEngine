@@ -30,7 +30,6 @@ type MatchOutcome =
     { Events: MatchEvent list
       Final: World
       Replay: Replay.ReplayData option
-      DumpJson: string option
       EventsHash: uint64 }
 
 module MatchOutcomeHash =

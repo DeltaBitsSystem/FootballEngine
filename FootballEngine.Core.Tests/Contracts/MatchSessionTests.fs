@@ -1,6 +1,9 @@
 namespace FootballEngine.Core.Tests.Contracts
 
 open Expecto
+open System.IO
+open System.Text.Json
+open System.Text.Json.Serialization
 open FootballEngine.Core.Match
 open FootballEngine.Core.Tests.Infrastructure
 
@@ -86,9 +89,84 @@ module MatchSessionTests =
                       |> MatchSession.finish
                       |> unwrap
 
-                  Expect.isNone outcome.DumpJson "Replay mode does not retain a full dump"
                   Expect.equal outcome.Final.State.Flow MatchFlow.MatchEnded "Replay reaches the end"
                   Expect.notEqual outcome.EventsHash 0UL "event hash is present")
+              testCase "explicit dump contains typed events context stats and VAR-corrected score" (fun _ ->
+                  let session = createTerminalSession ()
+                  let outcome = MatchSession.finish session |> unwrap
+
+                  let events =
+                      [ { Tick = 1<subtick>
+                          Data = EventData.Goal(ClubSide.Home, Some(PlayerId 1), None, 0.5) }
+                        { Tick = 2<subtick>
+                          Data = EventData.VARDecision VARResult.GoalOverturned }
+                        { Tick = 3<subtick>
+                          Data = EventData.Goal(ClubSide.Away, Some(PlayerId 101), None, 0.3) }
+                        { Tick = 4<subtick>
+                          Data = EventData.TeamInstruction ClubSide.Home } ]
+
+                  let json =
+                      MatchDump.export session.Input.Context events outcome.Final.Home.Stats outcome.Final.Away.Stats
+                      |> unwrap
+
+                  use document = JsonDocument.Parse json
+                  let root = document.RootElement
+
+                  Expect.equal
+                      (root.GetProperty("schemaVersion").GetInt32())
+                      2
+                      "explicit schema replaces the empty dump"
+
+                  Expect.equal
+                      (root.GetProperty("finalScore").GetProperty("home").GetInt32())
+                      0
+                      "overturned goal is removed"
+
+                  Expect.equal
+                      (root.GetProperty("finalScore").GetProperty("away").GetInt32())
+                      1
+                      "confirmed goal remains"
+
+                  Expect.equal
+                      (root.GetProperty("context").GetProperty("homeClub").GetProperty("name").GetString())
+                      "Home FC"
+                      "context is exported"
+
+                  Expect.isTrue
+                      (root.GetProperty("homeStats").EnumerateObject() |> Seq.isEmpty |> not)
+                      "stats are not an empty private DTO"
+
+                  let options = JsonSerializerOptions()
+                  options.Converters.Add(JsonFSharpConverter())
+
+                  let restored =
+                      root.GetProperty("events").EnumerateArray()
+                      |> Seq.map (fun item ->
+                          JsonSerializer.Deserialize<EventData>(item.GetProperty("data").GetRawText(), options))
+                      |> List.ofSeq
+
+                  Expect.equal restored (events |> List.map _.Data) "event payloads roundtrip without diagnostic text"
+                  use stream = new MemoryStream()
+
+                  MatchDump.write stream session.Input.Context events outcome.Final.Home.Stats outcome.Final.Away.Stats
+                  |> unwrap
+
+                  Expect.isTrue stream.CanWrite "the caller retains ownership of the destination"
+
+                  Expect.equal
+                      (System.Text.Encoding.UTF8.GetString(stream.ToArray()))
+                      json
+                      "streaming and string export agree")
+              testCase "explicit dump reports an unwritable destination" (fun _ ->
+                  let session = createTerminalSession ()
+                  let outcome = MatchSession.finish session |> unwrap
+                  use stream = new MemoryStream([| 0uy |], false)
+
+                  match
+                      MatchDump.write stream session.Input.Context [] outcome.Final.Home.Stats outcome.Final.Away.Stats
+                  with
+                  | Error _ -> ()
+                  | Ok() -> failtest "writing to a read-only stream must report failure")
               testCase "finish is idempotent and completes replay once" (fun _ ->
                   let session = create (Simulator.RunMode.Replay(5 * 1<tickDelta>)) 11
                   let first = MatchSession.finish session |> unwrap
@@ -96,6 +174,32 @@ module MatchSessionTests =
 
                   Expect.isTrue (obj.ReferenceEquals(first, second)) "cached outcome is returned"
                   Expect.equal first.Replay second.Replay "replay data is stable")
+              testCase "batch finish matches published advance and preserves replay archives" (fun _ ->
+                  for mode in
+                      [ MatchRunMode.Fast
+                        MatchRunMode.Live LiveExecutionPolicy.defaultPolicy
+                        MatchRunMode.Replay 5<tickDelta> ] do
+                      let batch = MatchSession.create terminalSystems (input 11) mode |> unwrap
+                      let published = MatchSession.create terminalSystems (input 11) mode |> unwrap
+                      let output = MatchSession.advanceTo MatchSession.maxTicks published |> unwrap
+                      Expect.isGreaterThan output.Motion.Length 0 "an explicit advance still publishes motion"
+                      let expected = MatchSession.finish published |> unwrap
+                      let actual = MatchSession.finish batch |> unwrap
+
+                      Expect.equal
+                          (outcomeFingerprint actual)
+                          (outcomeFingerprint expected)
+                          "discarding unrequested presentation cannot change sport"
+
+                      Expect.equal
+                          actual.Replay
+                          expected.Replay
+                          "replay snapshots and motion sections remain byte-identical"
+
+                      Expect.equal
+                          (MatchSession.checkpoint batch)
+                          (MatchSession.checkpoint published)
+                          "RNG events and checkpoint state agree")
               testCase "revision mismatch is rejected before queueing" (fun _ ->
                   let session = create Simulator.RunMode.Fast 11
 

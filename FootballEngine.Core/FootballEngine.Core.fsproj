@@ -166,6 +166,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="FsToolkit.ErrorHandling"/>
+    <PackageReference Include="FSharp.SystemTextJson"/>
   </ItemGroup>
 
 </Project>

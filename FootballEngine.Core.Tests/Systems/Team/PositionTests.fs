@@ -81,6 +81,66 @@ module PositionTests =
 
                   Expect.isLessThan gkBias maxOutfield "the keeper keeps a neutral role")
 
+              testCase "role selection preserves sorted distance and slot ties for both sides" (fun _ ->
+                  for sample in 0..31 do
+                      let world = TestBuilders.minimalWorld ()
+
+                      for side in [ ClubSide.Home; ClubSide.Away ] do
+                          let frame = (MatchWorld.team world side).Frame
+
+                          for slot in MatchWorld.activeSlots frame do
+                              frame.PosX[slot] <- float32 ((slot * sample % 7) - 3) * 5.0f
+                              frame.PosY[slot] <- float32 ((slot * sample % 3) - 1) * 4.0f
+
+                      TeamPosition.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
+
+                      for side in [ ClubSide.Home; ClubSide.Away ] do
+                          let frame = (MatchWorld.team world side).Frame
+                          let active = MatchWorld.activeSlots frame
+                          let nearest = MatchWorld.looseBallChaser world side |> Option.defaultValue -1
+
+                          let candidates =
+                              active
+                              |> Array.filter (fun slot ->
+                                  frame.SlotRoles[slot] <> SlotRole.Goalkeeper && slot <> nearest)
+
+                          let rest =
+                              candidates
+                              |> Array.sortBy (fun slot ->
+                                  MatchMath.dist
+                                      (MatchMath.ownGoalX side)
+                                      0.0<meter>
+                                      (MatchWorld.posX frame slot)
+                                      (MatchWorld.posY frame slot),
+                                  slot)
+                              |> Array.truncate 2
+
+                          let ball = world.State.Ball.Position
+
+                          let cover =
+                              candidates
+                              |> Array.filter (fun slot -> not (Array.contains slot rest))
+                              |> Array.sortBy (fun slot ->
+                                  MatchMath.dist
+                                      ball.X
+                                      ball.Y
+                                      (MatchWorld.posX frame slot)
+                                      (MatchWorld.posY frame slot),
+                                  slot)
+                              |> Array.tryHead
+
+                          for slot in active do
+                              let expected =
+                                  if slot = nearest then DefensiveRole.FirstDefender
+                                  elif Some slot = cover then DefensiveRole.Cover
+                                  elif Array.contains slot rest then DefensiveRole.Marker
+                                  else DefensiveRole.Unassigned
+
+                              Expect.equal
+                                  frame.DefensiveRoles[slot]
+                                  expected
+                                  "linear selection must agree with the sorted reference")
+
               testCase "loose ball assigns one chaser and defensive roles" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
 
