@@ -91,11 +91,16 @@ type MatchPitchControl() as this =
     static let bindingProperty =
         AvaloniaProperty.Register<MatchPitchControl, MatchPitchBinding option>("Binding", None)
 
-    let mutable worker: RenderWorker<PixelRect * PitchBindingState option, WebGpuStadiumRenderer> option =
+    static let cameraProperty =
+        AvaloniaProperty.Register<MatchPitchControl, ViewerCamera>("Camera", ViewerCamera.Broadcast)
+
+    let mutable worker: RenderWorker<PixelRect * ViewerCamera * PitchBindingState option, WebGpuStadiumRenderer> option =
         None
 
     let mutable state: PitchBindingState option = None
     let mutable presentation: PresentationLoop option = None
+    let mutable firstPresented =
+        Threading.Tasks.TaskCompletionSource<unit>(Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously)
 
     let currentFrame (cache: PitchProjectionCache) state =
         match state.Stream.Sample(Stopwatch.GetTimestamp()) with
@@ -120,9 +125,14 @@ type MatchPitchControl() as this =
         let visibleState = if this.IsEffectivelyVisible then state else None
 
         worker
-        |> Option.iter (fun active -> active.Publish(MatchPitchNative.bounds this, visibleState))
+        |> Option.iter (fun active -> active.Publish(MatchPitchNative.bounds this, this.Camera, visibleState))
 
     static member BindingProperty = bindingProperty
+    static member CameraProperty = cameraProperty
+
+    member this.Camera
+        with get () = this.GetValue cameraProperty
+        and set value = this.SetValue(cameraProperty, value) |> ignore
 
     member this.Binding
         with get () = this.GetValue bindingProperty
@@ -130,6 +140,9 @@ type MatchPitchControl() as this =
 
     override this.OnPropertyChanged change =
         base.OnPropertyChanged change
+
+        if change.Property = cameraProperty then
+            publishLayout ()
 
         if change.Property = bindingProperty then
             state <-
@@ -153,6 +166,8 @@ type MatchPitchControl() as this =
 
     override this.OnAttachedToVisualTree args =
         base.OnAttachedToVisualTree args
+        firstPresented <- Threading.Tasks.TaskCompletionSource<unit>(Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously)
+        let ready = firstPresented
 
         try
             match TopLevel.GetTopLevel(this), MatchPitchNative.rendererFactory this with
@@ -161,32 +176,40 @@ type MatchPitchControl() as this =
             | topLevel, Some create ->
                 let cache = PitchProjectionCache()
 
-                let characterPath =
-                    IO.Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "player.glb")
+                let mutable evaluator: MotionPaletteEvaluator option = None
 
-                let evaluator =
-                    match CharacterAsset.load characterPath with
-                    | Ok character -> Some(MotionPaletteEvaluator(character.Rig, AnimationConfig.defaultConfig))
-                    | Error message ->
-                        Diagnostics.Trace.WriteLine($"Procedural rig load failed: {message}")
-                        None
+                let render (renderer: WebGpuStadiumRenderer) ((bounds: PixelRect), camera, state) =
+                    // Reuse the renderer's validated rig instead of decoding the entire player again on the UI thread.
+                    let activeEvaluator =
+                        match evaluator with
+                        | Some value -> value
+                        | None ->
+                            let value = MotionPaletteEvaluator(renderer.CharacterRig, AnimationConfig.defaultConfig)
+                            evaluator <- Some value
+                            value
 
-                let render (renderer: WebGpuStadiumRenderer) ((bounds: PixelRect), state) =
+                    renderer.SetCamera camera
                     match state with
                     | Some state when bounds.Width > 0 && bounds.Height > 0 ->
                         match currentFrame cache state with
                         | Some(frame, time) ->
-                            match evaluator with
-                            | Some evaluator when state.Stream.MotionRigMatches evaluator.RigHash && evaluator.Evaluate(state.Stream, frame, time) ->
-                                renderer.Render(bounds, frame, evaluator.Palettes, [||], state.HudStats)
+                            match activeEvaluator with
+                            | evaluator when state.Stream.MotionRigMatches evaluator.RigHash && evaluator.Evaluate(state.Stream, frame, time) ->
+                                let presented = renderer.Render(bounds, frame, evaluator.Palettes, [||], state.HudStats)
+                                if presented && not ready.Task.IsCompleted then
+                                    // SurfacePresent queues work; capture readiness must also wait for the first GPU submission.
+                                    renderer.WaitForGpu()
+                                    ready.TrySetResult(()) |> ignore
+                                presented
                             | _ -> false
                         | None -> false
                     | _ -> false
 
                 let onError error =
+                    ready.TrySetException(error: exn) |> ignore
                     Diagnostics.Trace.WriteLine($"WebGPU match viewer stopped after a render error: {error}")
 
-                worker <- Some(new RenderWorker<_, _>((fun (bounds, _) -> create bounds), render, onError))
+                worker <- Some(new RenderWorker<_, _>((fun (bounds, _, _) -> create bounds), render, onError))
                 publishLayout ()
 
                 let loop =
@@ -195,9 +218,16 @@ type MatchPitchControl() as this =
                 presentation <- Some loop
                 loop.Start()
         with error ->
+            ready.TrySetException error |> ignore
             Diagnostics.Trace.WriteLine($"WebGPU match viewer could not initialize: {error}")
 
+    member _.FirstPresented = firstPresented.Task
+
+    interface IPitchPresentationSource with
+        member _.FirstPresented = firstPresented.Task
+
     override this.OnDetachedFromVisualTree args =
+        firstPresented.TrySetCanceled() |> ignore
         presentation |> Option.iter _.Stop()
         presentation <- None
         worker |> Option.iter (fun value -> (value :> IDisposable).Dispose())
@@ -239,7 +269,7 @@ module MatchPitch =
           HomeColor = fixture.Home.PrimaryColor
           AwayColor = fixture.Away.PrimaryColor }
 
-    let view (runtimeId: MatchRuntimeId) (live: LiveMatchState) : IView =
+    let view (runtimeId: MatchRuntimeId) (live: LiveMatchState) (camera: ViewerCamera) : IView =
         let binding =
             { RuntimeId = runtimeId
               Fixture = live.Fixture
@@ -247,6 +277,8 @@ module MatchPitch =
 
         ViewBuilder.Create<MatchPitchControl>(
             [ AttrBuilder<MatchPitchControl>
-                  .CreateProperty<MatchPitchBinding option>(MatchPitchControl.BindingProperty, Some binding, ValueNone) ]
+                  .CreateProperty<MatchPitchBinding option>(MatchPitchControl.BindingProperty, Some binding, ValueNone)
+              AttrBuilder<MatchPitchControl>
+                  .CreateProperty<ViewerCamera>(MatchPitchControl.CameraProperty, camera, ValueNone) ]
         )
         :> IView

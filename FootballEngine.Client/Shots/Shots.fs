@@ -7,6 +7,7 @@ open Avalonia
 open Avalonia.Controls
 open Avalonia.Media.Imaging
 open Avalonia.Threading
+open Avalonia.VisualTree
 open FootballEngine.AppMsgs
 open FootballEngine.AppTypes
 open FootballEngine.Domain
@@ -24,6 +25,9 @@ open FootballEngine.Routing
 // size, so `dotnet run -- --shots <dir>` + reading the PNGs is the whole review cycle.
 // No new packages, no Xvfb required (works on XWayland :0, and under xvfb-run
 // unchanged for background runs).
+type IPitchPresentationSource =
+    abstract FirstPresented: System.Threading.Tasks.Task<unit>
+
 module Shots =
 
     // Navigation fires Db saves when leaving Tactics/Training; threading a flag through
@@ -80,6 +84,8 @@ module Shots =
         | "finances" -> Some(Route.Finances FinanceRoute.Overview)
         | "settings" -> Some(Route.Settings SettingsRoute.Overview)
         | "match" -> Some(Route.Match(1, MatchPhase.Live))
+        | "prematch" -> Some(Route.Match(1, MatchPhase.Prematch))
+        | "postmatch" -> Some(Route.Match(1, MatchPhase.Postmatch))
         | "modeditor" -> Some Route.ModEditor
         | _ -> None
 
@@ -282,7 +288,10 @@ module Shots =
                 WorldClock = WorldClockOps.init gs.Season
                 Transfer = transfer
                 Inbox = inbox
-                Tactics = { DraggedPlayer = None; History = [] }
+                Tactics =
+                    { DraggedPlayer = None
+                      SelectedSlot = None
+                      History = [] }
                 Training = { SelectedPlayer = demoPupil |> Option.map _.Id }
                 Settings = AppTypes.initSettingsState globalSettings SaveSettings.defaults
                 SaveSettings = SaveSettings.defaults
@@ -303,17 +312,93 @@ module Shots =
                 "Season preview"
                 "Board expects a top-4 finish"
 
-        withNotes
+        match opts.Pages with
+        | [ Route.Match(_, MatchPhase.Postmatch) ] ->
+            // A real batch result lets the review screen be checked without waiting through real-time playback.
+            match GameState.getUserNextFixture gs with
+            | Some(id, _) ->
+                let balance =
+                    WeightMergeSettings.mergeWithOverridesSave (Some withNotes.SaveSettings)
 
-    let private captureTo (window: Window) (path: string) : unit =
-        // Window chrome differs between X11/Wayland; reading back the real size keeps
-        // the PNG exactly what was on screen.
-        let size = window.ClientSize
-        let w = max 1 (int size.Width)
-        let h = max 1 (int size.Height)
-        use bmp = new RenderTargetBitmap(PixelSize(w, h), Vector(96.0, 96.0))
-        bmp.Render(window)
-        bmp.Save(path)
+                let result =
+                    WorldRunner.prepareUserMatchJobWithBalance balance withNotes.WorldClock gs id
+                    |> Result.bind (fun job ->
+                        Simulator.runMatch Scheduler.systems job.Input.Context job.Input.Seed Simulator.RunMode.Fast
+                        |> Result.mapError (sprintf "%A")
+                        |> Result.map (WorldRunner.matchJobResult job []))
+
+                match result with
+                | Ok result ->
+                    { withNotes with
+                        Match =
+                            { withNotes.Match with
+                                RequestedMatchId = Some id
+                                PendingResult = Some result } }
+                | Error error -> failwithf "Cannot prepare postmatch screenshot: %s" error
+            | None -> withNotes
+        | _ -> withNotes
+
+    let private waitForPitch (window: Window) =
+        async {
+            let attached =
+                System.Threading.Tasks.TaskCompletionSource<System.Threading.Tasks.Task<unit>>(
+                    System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously)
+
+            let findPitch () =
+                window.GetVisualDescendants()
+                |> Seq.map box
+                |> Seq.tryPick (function
+                    | :? IPitchPresentationSource as pitch -> Some pitch.FirstPresented
+                    | _ -> None)
+                |> Option.iter (fun ready -> attached.TrySetResult ready |> ignore)
+
+            let handler = EventHandler(fun _ _ -> findPitch ())
+
+            Dispatcher.UIThread.Invoke(fun () ->
+                window.LayoutUpdated.AddHandler handler
+                findPitch ())
+
+            try
+                let deadline = Diagnostics.Stopwatch.StartNew()
+                let! ready = attached.Task.WaitAsync(TimeSpan.FromSeconds 15.0) |> Async.AwaitTask
+                let remaining = TimeSpan.FromSeconds 15.0 - deadline.Elapsed
+
+                // Attachment and GPU presentation share one deadline, not two fixed settling delays.
+                do! ready.WaitAsync(max TimeSpan.Zero remaining) |> Async.AwaitTask
+            finally
+                Dispatcher.UIThread.Invoke(fun () ->
+                    window.LayoutUpdated.RemoveHandler handler)
+        }
+
+    let private captureTo (window: Window) (path: string) native =
+        if native then
+            // Avalonia's offscreen bitmap omits native WebGPU children and can falsely certify a blank pitch.
+            match window.TryGetPlatformHandle() with
+            | null -> invalidOp "Native match capture requires a realized window."
+            | handle when handle.HandleDescriptor <> "XID" ->
+                invalidOp "Native WebGPU match capture currently requires X11/XWayland."
+            | handle ->
+                let info = ProcessStartInfo("import", UseShellExecute = false, RedirectStandardError = true)
+                info.ArgumentList.Add("-window")
+                info.ArgumentList.Add(string (uint64 handle.Handle))
+                info.ArgumentList.Add(path)
+                use process = Process.Start info
+                let errors = process.StandardError.ReadToEndAsync()
+
+                if not (process.WaitForExit 15000) then
+                    process.Kill(true)
+                    process.WaitForExit()
+                    invalidOp "Native match capture timed out."
+
+                if process.ExitCode <> 0 then
+                    invalidOp $"Native match capture failed: {errors.GetAwaiter().GetResult()}"
+        else
+            let size = window.ClientSize
+            let w = max 1 (int size.Width)
+            let h = max 1 (int size.Height)
+            use bmp = new RenderTargetBitmap(PixelSize(w, h), Vector(96.0, 96.0))
+            bmp.Render(window)
+            bmp.Save(path)
 
     let private encodeVideo (opts: Options) framesDir =
         match opts.VideoPath with
@@ -354,6 +439,12 @@ module Shots =
         (ctx: Context)
         : Async<unit> =
         async {
+            // Native renderer failures otherwise reach Trace only and can look like a successful blank capture.
+            if isNull Trace.Listeners["shots-native"] then
+                let listener = new ConsoleTraceListener(true)
+                listener.Name <- "shots-native"
+                Trace.Listeners.Add listener |> ignore
+
             let liveRoute fallback =
                 getState ()
                 |> Option.bind (fun state ->
@@ -389,6 +480,7 @@ module Shots =
                 Directory.CreateDirectory(framesDir) |> ignore
                 Dispatcher.UIThread.Invoke(fun () -> dispatch (Navigate(liveRoute (Route.Match(1, MatchPhase.Live)))))
                 do! Async.Sleep ctx.Opts.SettleMs
+                do! waitForPitch window
 
                 for frame = 0 to ctx.Opts.VideoFrames - 1 do
 
@@ -398,7 +490,7 @@ module Shots =
                             .GetTask()
                         |> Async.AwaitTask
 
-                    Dispatcher.UIThread.Invoke(fun () -> captureTo window (Path.Combine(framesDir, $"%06d{frame}.png")))
+                    Dispatcher.UIThread.Invoke(fun () -> captureTo window (Path.Combine(framesDir, $"%06d{frame}.png")) true)
                     do! Async.Sleep ctx.Opts.VideoStep
 
                 encodeVideo ctx.Opts framesDir
@@ -413,7 +505,10 @@ module Shots =
                     | Some dispatch ->
                         let route =
                             match page with
-                            | Route.Match _ -> liveRoute page
+                            | Route.Match(_, phase) ->
+                                match liveRoute page with
+                                | Route.Match(id, _) -> Route.Match(id, phase)
+                                | route -> route
                             | _ -> page
 
                         Dispatcher.UIThread.Invoke(fun () -> dispatch (Navigate route))
@@ -438,7 +533,16 @@ module Shots =
                             | _ -> ()
 
                         let file = Path.Combine(ctx.Opts.Dir, $"%02d{idx}_{page}.png")
-                        Dispatcher.UIThread.Invoke(fun () -> captureTo window file)
+
+                        let native =
+                            match route with
+                            | Route.Match(_, MatchPhase.Live) -> true
+                            | _ -> false
+
+                        if native then
+                            do! waitForPitch window
+
+                        Dispatcher.UIThread.Invoke(fun () -> captureTo window file native)
                         printfn $"[shots] %A{page} -> {file}"
                         idx <- idx + 1
 
