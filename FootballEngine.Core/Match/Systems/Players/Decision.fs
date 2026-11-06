@@ -440,10 +440,10 @@ module PlayerDecision =
         fun ctx rng world _ ->
             let tick = world.State.Tick
 
-            match MatchWorld.ballCarrier ctx.Ctx world with
-            | Some(side, slot, _) ->
+            match world.State.Ball.PendingStrike, MatchWorld.ballCarrier ctx.Ctx world with
+            | None, Some(side, slot, _) ->
                 if (MatchWorld.profileOf ctx.Ctx side slot).Role <> SlotRole.Goalkeeper then
                     choose ctx.Ctx world side slot tick rng
                 else
                     rng
-            | None -> rng
+            | _ -> rng
