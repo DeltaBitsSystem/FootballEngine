@@ -125,12 +125,20 @@ let tests =
                   let p = rig.Bind[i]
                   let local = Matrix4x4.CreateFromQuaternion(p.Rotation) * Matrix4x4.CreateTranslation(p.Translation)
                   world[i] <- if rig.Parents[i] < 0 then local else local * world[rig.Parents[i]]
-              for leg in [| rig.LeftLeg; rig.RightLeg |] do
+              // Independent oracle: the lowest and frontmost bind vertices of each foot in the GLB itself,
+              // not the manifest that produced the sockets, so a wrong derivation or stale manifest fails.
+              let vertices = asset.Value.Batches |> Array.collect _.Vertices
+              for leg, side in [| rig.LeftLeg, 1.0f; rig.RightLeg, -1.0f |] do
+                  let foot = vertices |> Array.filter (fun v -> v.Position.X * side > 0.02f && v.Position.Y < 0.2f)
+                  let soleY = foot |> Array.map _.Position.Y |> Array.min
+                  let sole = foot |> Array.filter (fun v -> abs (v.Position.Y - soleY) < 0.00001f)
+                  let soleZ = sole |> Array.map _.Position.Z
+                  let frontZ = foot |> Array.map _.Position.Z |> Array.max
                   let ground = Vector3.Transform(leg.Socket, world[leg.End])
                   let ball = Vector3.Transform(leg.BallSocket, world[leg.End])
-                  Expect.isLessThan (abs (ground.Y - 0.005f)) 0.00001f "ground socket on sole"
-                  Expect.isLessThan (abs (ground.Z - 0.0875f)) 0.00001f "sole footprint center"
-                  Expect.isLessThan (abs (ball.Z - 0.275f)) 0.00001f "ball socket on front cap"
+                  Expect.isLessThan (abs (ground.Y - soleY)) 0.00001f "ground socket on sole"
+                  Expect.isLessThan (abs (ground.Z - (Array.min soleZ + Array.max soleZ) * 0.5f)) 0.00001f "sole footprint center"
+                  Expect.isLessThan (abs (ball.Z - frontZ)) 0.00001f "ball socket on front cap"
               Expect.equal rig.Correctives.Length 8 "all authored support rules loaded")
           testCase "contact time maps to the authored marker regardless of windup duration" (fun _ ->
               let clip = asset.Value.Clips["shot_right"]

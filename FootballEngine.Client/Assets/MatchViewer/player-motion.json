@@ -1,6 +1,19 @@
 {
-  "author": "FootballEngine anatomical adaptation, clothing, textures and motion",
-  "blenderVersion": "5.2.2 LTS",
+  "atlas": {
+    "columns": 4,
+    "homeRows": 2,
+    "materials": [
+      "jersey",
+      "shorts",
+      "socks",
+      "skin",
+      "hair",
+      "boots",
+      "trim",
+      "eyes"
+    ]
+  },
+  "author": "FootballEngine ProAthlete: MPFB CC0 anatomical base, project-authored rig mapping, kit, hair and atlas pixels",
   "clips": [
     {
       "contact": null,
@@ -181,30 +194,195 @@
   },
   "file": {
     "path": "player.glb",
-    "sha256": "661e4f664b105c4741b4a4c9e483fe23fe6614aba902a08e03d9b088ef3dd510"
+    "sha256": "6070730053c025df132d601f56f2d6fb5e740ea362bf6a7e4ede32fa559cd5e1"
   },
-  "joints": 22,
-  "qualityStatus": "first-party authoring corpus; gameplay/contact acceptance pending",
-  "rigSchemaVersion": 1,
-  "rootMotion": "in-place; match engine owns world transform",
-  "schemaVersion": 1,
-  "source": [
-    "generate_players.py",
-    "player_authoring.py",
-    "human_authoring.py",
-    "Sources/MakeHuman/sources.json"
-  ],
+  "joints": 60,
+  "mipFiltering": "linear-light albedo; normalized tangent normals; GGX alpha-squared roughness with accumulated normal variance",
+  "mips": {
+    "albedo": [
+      {
+        "height": 2048,
+        "path": "player-albedo-mip-01.png",
+        "sha256": "8b04c5efd1c431ebc96c11d5530bb02b3777cbd97caf241af7511480540dea25",
+        "width": 2048
+      },
+      {
+        "height": 1024,
+        "path": "player-albedo-mip-02.png",
+        "sha256": "7546c54d4022fb457758be3e3ee411a239f0881530d67bdfc5216d597d81c520",
+        "width": 1024
+      },
+      {
+        "height": 512,
+        "path": "player-albedo-mip-03.png",
+        "sha256": "24cf9df0184dbed6564284b7c4b662e8f03fc12a2503a2f38f29cdc56e6b646b",
+        "width": 512
+      },
+      {
+        "height": 256,
+        "path": "player-albedo-mip-04.png",
+        "sha256": "4270b4d5146588e590ed308cb2ef2f4201a7779137a2cea6575405f528647e88",
+        "width": 256
+      },
+      {
+        "height": 128,
+        "path": "player-albedo-mip-05.png",
+        "sha256": "95d2d78daa183e0aa3766025f27704582cc41b0f0e19f517fce864180269ac19",
+        "width": 128
+      },
+      {
+        "height": 64,
+        "path": "player-albedo-mip-06.png",
+        "sha256": "8e1ab582d99f3ff1c895da39020cf6cee7215593ee1850b4d01311a09c2cf840",
+        "width": 64
+      },
+      {
+        "height": 32,
+        "path": "player-albedo-mip-07.png",
+        "sha256": "35b4be85a785835a7df272b21357ffcd85686258063a890b265179c348736001",
+        "width": 32
+      },
+      {
+        "height": 16,
+        "path": "player-albedo-mip-08.png",
+        "sha256": "5bb5f66c3b4bd27cd3383329d691771faf6d36dd2b69519c8405e61a82f9e0f1",
+        "width": 16
+      }
+    ],
+    "normalRoughness": [
+      {
+        "height": 2048,
+        "path": "player-normal-roughness-mip-01.png",
+        "sha256": "7390593abe8938d202259f47a132e332f3172b7121cd326551a45ed60e29c8b6",
+        "width": 2048
+      },
+      {
+        "height": 1024,
+        "path": "player-normal-roughness-mip-02.png",
+        "sha256": "f3c77917c0ac74df8c7be1a541dd9cfcec3a27f1ee60d37b90c838b347e92bf5",
+        "width": 1024
+      },
+      {
+        "height": 512,
+        "path": "player-normal-roughness-mip-03.png",
+        "sha256": "a2456ade3bccaf95406e88282ab7ca4346c0aa2ee58847053b7dd8c697bf4883",
+        "width": 512
+      },
+      {
+        "height": 256,
+        "path": "player-normal-roughness-mip-04.png",
+        "sha256": "509ce7cdc45a7f9c4a12cece4b3dd82da0a7a15b4cb9f7803cbf163fd30dd157",
+        "width": 256
+      },
+      {
+        "height": 128,
+        "path": "player-normal-roughness-mip-05.png",
+        "sha256": "94cda8bbf66b38c2bc4d07ffe83b5bb15891ecc48a25946ea060943ba7728d94",
+        "width": 128
+      },
+      {
+        "height": 64,
+        "path": "player-normal-roughness-mip-06.png",
+        "sha256": "5fe9b36ccd52b53ab098ea14fd04cc70ae11764a25fc21e51b04ecdcb1603d4c",
+        "width": 64
+      },
+      {
+        "height": 32,
+        "path": "player-normal-roughness-mip-07.png",
+        "sha256": "5680c6c57980ac7a73cf829f30af4ef4366a879a15fe5820dccc6420cae93376",
+        "width": 32
+      },
+      {
+        "height": 16,
+        "path": "player-normal-roughness-mip-08.png",
+        "sha256": "067722e43aec02ee49df6b57aa5f4ef9ab2b65821478e90b19c5f28887482e0f",
+        "width": 16
+      }
+    ]
+  },
+  "qualityStatus": "ProAthlete semi-realistic base; native acceptance in progress",
+  "rigGeometry": {
+    "glbSha256": "6070730053c025df132d601f56f2d6fb5e740ea362bf6a7e4ede32fa559cd5e1",
+    "sockets": {
+      "L": {
+        "ballWorldBind": [
+          0.08852950856089592,
+          0.026595313102006912,
+          0.22526630759239197
+        ],
+        "groundWorldBind": [
+          0.10443094372749329,
+          0.0,
+          0.09715240309014916
+        ]
+      },
+      "R": {
+        "ballWorldBind": [
+          -0.08913075923919678,
+          0.02705229539424181,
+          0.22565366327762604
+        ],
+        "groundWorldBind": [
+          -0.10440313816070557,
+          0.0,
+          0.09715240309014916
+        ]
+      }
+    },
+    "supports": [
+      {
+        "source": "thigh.L",
+        "support": "hip_support.L",
+        "weight": 0.5
+      },
+      {
+        "source": "shin.L",
+        "support": "knee_support.L",
+        "weight": 0.5
+      },
+      {
+        "source": "forearm.L",
+        "support": "elbow_support.L",
+        "weight": 0.5
+      },
+      {
+        "source": "upper_arm.L",
+        "support": "axilla_support.L",
+        "weight": 0.5
+      },
+      {
+        "source": "thigh.R",
+        "support": "hip_support.R",
+        "weight": 0.5
+      },
+      {
+        "source": "shin.R",
+        "support": "knee_support.R",
+        "weight": 0.5
+      },
+      {
+        "source": "forearm.R",
+        "support": "elbow_support.R",
+        "weight": 0.5
+      },
+      {
+        "source": "upper_arm.R",
+        "support": "axilla_support.R",
+        "weight": 0.5
+      }
+    ],
+    "version": 1
+  },
+  "rigSchemaVersion": 2,
+  "schemaVersion": 3,
   "textures": [
     {
       "path": "player-albedo.png",
-      "sha256": "75197697bffe9679a805c46c799c0030566537ab2260137eaf7bb35ff46f92e1"
+      "sha256": "dd3a10a9d9b7eefe9626bc303cd9b03c030decf345be1c41a71bcc4d2d8fdd46"
     },
     {
       "path": "player-normal-roughness.png",
-      "sha256": "c4ba0e3ea3e5d15cefc0265f80528a16542b24daa740030b780b18b0baf1485b"
+      "sha256": "a6ff47542b1236d8769c5514916343060637bc0848db4e542e8c97f31dec24a1"
     }
-  ],
-  "thirdPartyGeometryLicense": "CC0-1.0; MakeHuman hm08 and anatomical targets",
-  "thirdPartyGeometryOrMotion": true,
-  "thirdPartyMotion": false
+  ]
 }

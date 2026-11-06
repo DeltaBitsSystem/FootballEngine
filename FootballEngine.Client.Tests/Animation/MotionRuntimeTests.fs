@@ -412,9 +412,13 @@ module MotionRuntimeTests =
                   Expect.isTrue left.IsNone "standing support is reachable"
                   Expect.isTrue right.IsNone "standing support is reachable"
 
+                  // The sole height is whatever the live boot authors; sampling it keeps the planted-contact check
+                  // tied to real sole vertices instead of one pack's constant.
+                  let soleY = character.Batches[0].Vertices |> Array.map _.Position.Y |> Array.min
+
                   let sole =
                       character.Batches[0].Vertices
-                      |> Array.filter (fun vertex -> abs (vertex.Position.Y - 0.005f) < 0.00001f && abs vertex.Position.X > 0.04f && abs vertex.Position.X < 0.17f)
+                      |> Array.filter (fun vertex -> abs (vertex.Position.Y - soleY) < 0.00001f && abs vertex.Position.X > 0.04f && abs vertex.Position.X < 0.17f)
 
                   Expect.isGreaterThan sole.Length 0 "the test samples actual boot sole vertices"
 

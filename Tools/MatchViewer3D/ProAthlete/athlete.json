@@ -1,0 +1,206 @@
+{
+  "pack": {
+    "extraArmAbduction": 0.1
+  },
+  "macro": {
+    "gender": 1.0,
+    "age": 0.5,
+    "muscle": 0.92,
+    "weight": 0.52,
+    "proportions": 0.5,
+    "height": 0.6,
+    "cupsize": 0.5,
+    "firmness": 0.5,
+    "race": {
+      "caucasian": 0.7,
+      "african": 0.15,
+      "asian": 0.15
+    }
+  },
+  "targets": {
+    "l-upperleg-muscle-incr": 0.7,
+    "r-upperleg-muscle-incr": 0.7,
+    "l-lowerleg-muscle-incr": 0.6,
+    "r-lowerleg-muscle-incr": 0.6,
+    "l-upperarm-muscle-incr": 0.45,
+    "r-upperarm-muscle-incr": 0.45,
+    "l-upperarm-shoulder-muscle-incr": 0.5,
+    "r-upperarm-shoulder-muscle-incr": 0.5,
+    "l-lowerarm-muscle-incr": 0.35,
+    "r-lowerarm-muscle-incr": 0.35,
+    "torso-muscle-pectoral-incr": 0.35,
+    "torso-muscle-dorsi-incr": 0.4,
+    "torso-vshape-incr": 0.3,
+    "measure-neck-circ-incr": 0.4,
+    "buttocks-volume-incr": 0.25,
+    "measure-shoulder-dist-incr": 0.2,
+    "penis-length-decr": 1.0,
+    "penis-circ-decr": 1.0,
+    "penis-testicles-decr": 1.0
+  },
+  "bootSoleM": 0.012,
+  "kneeDropM": -0.01,
+  "ankleInsetFromHipM": 0.012,
+  "kit": {
+    "sleeveT": 0.5,
+    "jerseyHemZ": 0.905,
+    "waistZ": 1.08,
+    "collarFrontDz": -0.09,
+    "collarBackDz": -0.035,
+    "jerseyRelax": 8,
+    "jerseyEase": 0.008,
+    "jerseyWaistEase": 0.012,
+    "jerseyGap": 0.006,
+    "clothThickness": 0.0025,
+    "shortsWaistZ": 0.95,
+    "shortsT": 0.45,
+    "shortsRelax": 8,
+    "shortsEase": 0.008,
+    "shortsFlare": 0.02,
+    "shortsGap": 0.006,
+    "sockTopT": 0.14,
+    "sockBottomZ": 0.07,
+    "sockEase": 0.002,
+    "sockGap": 0.002,
+    "bootCollarDz": 0.035,
+    "bootRelax": 6,
+    "bootEase": 0.005,
+    "bootGap": 0.004,
+    "soleFlattenZ": 0.01,
+    "hairCentreDy": 0.0,
+    "hairTopThickness": 0.017,
+    "hairSideThickness": 0.0035,
+    "hideDistance": 0.035,
+    "hideEdgeMargin": 0.05,
+    "collarA": 0.078,
+    "collarB": 0.072,
+    "collarDy": 0.005,
+    "jerseyOverShortsGap": 0.004,
+    "hairTaper": 0.025,
+    "collarBandHeight": 0.018,
+    "collarBandInset": 0.011,
+    "hairlineDrop": [
+      0.066,
+      0.065,
+      0.064,
+      0.08,
+      0.098,
+      0.13,
+      0.158
+    ],
+    "hairClump": 0.3,
+    "scalpSink": 0.0025,
+    "hairFringeForward": 0.004,
+    "collarMargin": 0.01,
+    "hemAboveCrotch": 0.03,
+    "shortsUnderJersey": 0.045,
+    "collarProbeLow": 0.025,
+    "collarProbeHigh": 0.045,
+    "maxEdgeM": 0.1
+  },
+  "look": {
+    "skinTone": [
+      214,
+      160,
+      128
+    ],
+    "lipTone": [
+      160,
+      104,
+      96
+    ],
+    "hairTone": [
+      52,
+      38,
+      28
+    ],
+    "irisTone": [
+      92,
+      62,
+      38
+    ],
+    "stubble": 0.25,
+    "bootTone": [
+      20,
+      20,
+      22
+    ],
+    "bootAccent": [
+      235,
+      200,
+      20
+    ],
+    "trimTone": [
+      238,
+      238,
+      232
+    ],
+    "home": {
+      "jersey": [
+        196,
+        28,
+        36
+      ],
+      "jerseyAccent": [
+        238,
+        238,
+        232
+      ],
+      "shorts": [
+        22,
+        30,
+        56
+      ],
+      "shortsAccent": [
+        238,
+        238,
+        232
+      ],
+      "socks": [
+        196,
+        28,
+        36
+      ],
+      "socksAccent": [
+        238,
+        238,
+        232
+      ]
+    },
+    "away": {
+      "jersey": [
+        28,
+        78,
+        176
+      ],
+      "jerseyAccent": [
+        238,
+        238,
+        232
+      ],
+      "shorts": [
+        22,
+        30,
+        56
+      ],
+      "shortsAccent": [
+        238,
+        238,
+        232
+      ],
+      "socks": [
+        28,
+        78,
+        176
+      ],
+      "socksAccent": [
+        238,
+        238,
+        232
+      ]
+    },
+    "browHeight": 0.0095,
+    "fadeBelowHairline": 0.016
+  },
+  "genitalRelaxIterations": 40
+}
