@@ -26,7 +26,7 @@ module MotionTimelineTests =
              (CharacterAsset.load path |> unwrap).Rig)
 
     let private identity () =
-        { PlannerVersion = 1
+        { PlannerVersion = MotionIdentity.plannerVersion
           ConfigHash = MotionIdentity.configHash config
           RigHash = rig.Value.Hash
           ProfileHash = "timeline-fixture"

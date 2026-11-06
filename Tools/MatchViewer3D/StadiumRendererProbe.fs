@@ -53,6 +53,17 @@ type private ProbePitch() as this =
     let cameraScenario =
         Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CAMERA_SCENE")
 
+    let isolatedMotion = cameraScenario = "motion"
+    let motionPace =
+        match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_GAIT") with
+        | "run" -> 2.25
+        | _ -> 1.0
+    let curvedMotion = Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CURVE") = "1"
+    let motionAxis =
+        match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_AXIS") with
+        | "front" -> -Math.PI * 0.5
+        | _ -> 0.0
+
     let fixedPose =
         Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_FIXED_POSE") = "1"
 
@@ -62,6 +73,7 @@ type private ProbePitch() as this =
         Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CONTACT_PHASE")
 
     let capturePath = Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CAPTURE")
+    let sequencePath = Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_SEQUENCE")
     let measure = Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_MEASURE") = "1"
 
     let waitForGpu =
@@ -150,13 +162,17 @@ type private ProbePitch() as this =
         |> Array.mapi (fun index player ->
             { player with
                 Position =
-                    if index = 9 then
+                    if isolatedMotion && index <> 9 then
+                        { X = -40.0 + float (index % 6) * 9.0
+                          Y = if index < 11 then -25.0 else 25.0 }
+                    elif index = 9 then
                         match cameraScenario with
                         | "left-goal" -> { X = -44.0; Y = 0.0 }
                         | "right-goal" -> { X = 44.0; Y = 0.0 }
                         | "near-touchline" -> { X = 16.0; Y = -30.0 }
                         | "far-touchline" -> { X = 16.0; Y = 30.0 }
                         | "midfield" -> Vector2.zero
+                        | "motion" -> Vector2.zero
                         | _ -> { player.Position with X = 16.0 }
                     else
                         player.Position
@@ -173,34 +189,76 @@ type private ProbePitch() as this =
             let ramp = Math.Clamp(t - 1.0, 0.0, 2.0)
             let cruise = Math.Clamp(t - 3.0, 0.0, 3.0)
             let brake = Math.Clamp(t - 6.0, 0.0, 2.0)
-            let distance = 0.4 * ramp * ramp + 1.6 * cruise + 1.6 * brake - 0.4 * brake * brake
+            let pace = if isolatedMotion then 3.0 else 1.0
+            let distance = pace * (0.4 * ramp * ramp + 1.6 * cruise + 1.6 * brake - 0.4 * brake * brake)
 
             let speed =
-                if t < 3.0 then 0.8 * ramp
-                elif t < 6.0 then 1.6
-                elif t < 8.0 then 1.6 - 0.8 * brake
+                if t < 3.0 then pace * 0.8 * ramp
+                elif t < 6.0 then pace * 1.6
+                elif t < 8.0 then pace * (1.6 - 0.8 * brake)
                 else 0.0
 
             let pivot = Math.Clamp((t - 9.0) / 1.2, 0.0, 1.0)
             let sign = if player.IsHome then 1.0 else -1.0
 
-            { player with
-                Position =
-                    { player.Position with
-                        X = player.Position.X + sign * distance }
-                Velocity = Vector2.create (sign * speed) 0.0
-                BodyFacing =
-                    (if player.IsHome then 0.0 else Math.PI)
-                    + pivot * pivot * (3.0 - 2.0 * pivot) * Math.PI * 0.5
-                TravelDistance = distance
-                State = if speed > 0.05 then Walking else Idle })
+            if isolatedMotion && index = 9 then
+                let ramp = Math.Clamp(at - 0.75, 0.0, 1.0)
+                let cruise = Math.Clamp(at - 1.75, 0.0, 1.0)
+                let brake = Math.Clamp(at - 2.75, 0.0, 0.75)
+                let distance = motionPace * (1.2 * ramp * ramp + 2.4 * cruise + 2.4 * brake - 1.6 * brake * brake)
+                let unscaledSpeed =
+                    if at < 1.75 then 2.4 * ramp
+                    elif at < 2.75 then 2.4
+                    elif at < 3.5 then 2.4 - 3.2 * brake
+                    else 0.0
+                let speed = motionPace * unscaledSpeed
+                let curvature = if curvedMotion then 0.12 else 0.0
+                let travelAngle = motionAxis + curvature * distance
+                let position =
+                    if curvedMotion then
+                        Vector2.create ((sin travelAngle - sin motionAxis) / curvature) ((cos motionAxis - cos travelAngle) / curvature)
+                    else
+                        Vector2.create (cos motionAxis * distance) (sin motionAxis * distance)
+                let turn = Math.Clamp(at - 4.1, 0.0, 1.0)
+                let angle = travelAngle + turn * turn * (3.0 - 2.0 * turn) * Math.PI * 0.5
+                let angular = curvature * speed + (if turn > 0.0 && turn < 1.0 then 6.0 * turn * (1.0 - turn) * Math.PI * 0.5 else 0.0)
+                { player with
+                    Position = position
+                    Velocity = Vector2.create (cos travelAngle * speed) (sin travelAngle * speed)
+                    BodyFacing = angle
+                    AngularVelocity = angular
+                    TravelDistance = distance
+                    State = if speed > 0.05 then Walking else Idle }
+            else
+                { player with
+                    Position =
+                        { player.Position with
+                            X = player.Position.X + sign * distance }
+                    Velocity = Vector2.create (sign * speed) 0.0
+                    BodyFacing =
+                        (if player.IsHome then 0.0 else Math.PI)
+                        + pivot * pivot * (3.0 - 2.0 * pivot) * Math.PI * 0.5
+                    AngularVelocity =
+                        if pivot > 0.0 && pivot < 1.0 then
+                            (6.0 * pivot * (1.0 - pivot) / 1.2) * Math.PI * 0.5
+                        else
+                            0.0
+                    TravelDistance = distance
+                    State = if speed > 0.05 then Walking else Idle })
+
+    let isolatedBall at =
+        let commitCarrier = samplePlayers 3.5 |> Array.find _.HasBall
+        let cx, cy = cos commitCarrier.BodyFacing, sin commitCarrier.BodyFacing
+        let lateral = if contactFoot = "left" then 0.10 else -0.10
+        let travel = if at < 3.5 then 3.5 - at else 3.0 * (at - 3.5)
+        Vector2.create (commitCarrier.Position.X + cx * (0.31 + travel) - cy * lateral) (commitCarrier.Position.Y + cy * (0.31 + travel) + cx * lateral)
 
     let motionConfig = AnimationConfig.defaultConfig
 
     let motionRuntime =
         MotionRuntime(
             motionConfig,
-            { PlannerVersion = 1
+            { PlannerVersion = MotionIdentity.plannerVersion
               ConfigHash = "probe-v1"
               RigHash = "probe-rig"
               ProfileHash = "probe-profile"
@@ -234,6 +292,7 @@ type private ProbePitch() as this =
             let roots =
                 samplePlayers (float tick * float motionConfig.TickSeconds)
                 |> Array.map (fun player ->
+                    let ball = if isolatedMotion && (contactFoot = "left" || contactFoot = "right") then isolatedBall (float tick * float motionConfig.TickSeconds) else frame.Ball.Position
                     { Actor = PlayerId player.Id
                       Generation = 1
                       Position =
@@ -254,19 +313,38 @@ type private ProbePitch() as this =
                       AttentionTarget =
                         ValueSome(
                             System.Numerics.Vector3(
-                                float32 frame.Ball.Position.X,
-                                float32 frame.Ball.Position.Y,
+                                float32 ball.X,
+                                float32 ball.Y,
                                 float32 (frame.Ball.Height + frame.Ball.Radius)
                             )
                         )
                       Morphology = PhysicalMorphology.standard
                       Active = true })
 
+            let evidence =
+                if isolatedMotion && (contactFoot = "left" || contactFoot = "right") && (tick = 112 || tick = 139) then
+                    let carrier = samplePlayers (140.0 * float motionConfig.TickSeconds) |> Array.find _.HasBall
+                    let dx, dy = cos carrier.BodyFacing, sin carrier.BodyFacing
+                    let lateral = if contactFoot = "left" then 0.10 else -0.10
+                    let point = System.Numerics.Vector3(float32 (carrier.Position.X + dx * 0.20 - dy * lateral), float32 (carrier.Position.Y + dy * 0.20 + dx * lateral), 0.07f)
+                    [| { Sequence = if tick = 112 then 1UL else 2UL
+                         TaskId = 1UL; Actor = PlayerId carrier.Id; Generation = 1
+                         Family = MotionFamily.FootStrike
+                         Effector = if contactFoot = "left" then MotionEffector.LeftFoot else MotionEffector.RightFoot
+                         Phase = if tick = 112 then MotionEvidencePhase.Prepared else MotionEvidencePhase.Confirmed
+                         OccurredAt = tick * 1<subtick>; AvailableAt = tick * 1<subtick>
+                         StartedAt = 112<subtick>; CommitAt = 140<subtick>; EndsAt = 152<subtick>
+                         PredictedPoint = point; ConfirmedPoint = if tick = 139 then ValueSome point else ValueNone
+                         BallCenter = point + System.Numerics.Vector3(float32 dx * 0.11f, float32 dy * 0.11f, 0.04f)
+                         IncomingVelocity = ValueNone; OutgoingVelocity = ValueNone } |]
+                else
+                    [||]
+
             match
                 motionRuntime.Ingest
                     { Tick = tick * 1<subtick>
                       Roots = roots
-                      Evidence = [||] }
+                      Evidence = evidence }
             with
             | Ok() -> ()
             | Error error -> invalidOp (sprintf "%A" error)
@@ -285,7 +363,9 @@ type private ProbePitch() as this =
         let lateral = if contactFoot = "left" then 0.10 else -0.10
 
         let ballPosition =
-            if contact then
+            if contact && isolatedMotion then
+                isolatedBall time
+            elif contact then
                 Vector2.create
                     (carrier.Position.X + dx * 0.32 - dy * lateral)
                     (carrier.Position.Y + dy * 0.32 + dx * lateral)
@@ -302,7 +382,9 @@ type private ProbePitch() as this =
                     elif contactPhase = "recover" then -5
                     else 0
 
-                let tick = int (round (timeSeconds * 40.0)) + phaseOffset
+                let tick =
+                    if isolatedMotion then int (round ((baseTime + 3.5) * 40.0))
+                    else int (round (timeSeconds * 40.0)) + phaseOffset
 
                 Some
                     { Actor = FootballEngine.Core.Match.PlayerId carrier.Id
@@ -327,7 +409,12 @@ type private ProbePitch() as this =
         { Players = movingPlayers
           Ball =
             { Position = ballPosition
-              Velocity = { X = 0.0; Y = 0.0 }
+              Velocity =
+                if contact && isolatedMotion then
+                    let speed = if time < 3.5 then -1.0 else 3.0
+                    Vector2.create (cos motionAxis * speed) (sin motionAxis * speed)
+                else
+                    { X = 0.0; Y = 0.0 }
               VelocityZ = 0.0
               Orientation = System.Numerics.Quaternion.Identity
               AngularVelocity = System.Numerics.Vector3.Zero
@@ -425,6 +512,17 @@ type private ProbePitch() as this =
 
                 Console.Error.WriteLine($"Captured HDR frame: {capturePath}")
 
+            if not (String.IsNullOrWhiteSpace sequencePath) && renderedFrames % 3 = 0 then
+                IO.Directory.CreateDirectory(sequencePath) |> ignore
+                let path = IO.Path.Combine(sequencePath, $"frame-{renderedFrames / 3:D4}.png")
+                let info = Diagnostics.ProcessStartInfo("import")
+                info.ArgumentList.Add("-window")
+                info.ArgumentList.Add(string (uint64 parentWindow))
+                info.ArgumentList.Add(path)
+                use process = Diagnostics.Process.Start(info)
+                process.WaitForExit()
+                if process.ExitCode <> 0 then invalidOp "Native sequence capture failed."
+
             if frameLimit > 0 && renderedFrames >= frameLimit then
                 if timings.Count > 0 then
                     let sorted = timings |> Seq.sort |> Seq.toArray
@@ -475,12 +573,8 @@ type private ProbePitch() as this =
 
             let exposure =
                 match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_EXPOSURE_STOPS") with
-                | null -> HdrLighting.broadcastDaylight.ExposureStops
-                | value -> Single.Parse(value, Globalization.CultureInfo.InvariantCulture)
-
-            let lighting =
-                { HdrLighting.broadcastDaylight with
-                    ExposureStops = exposure }
+                | null -> None
+                | value -> Some(Single.Parse(value, Globalization.CultureInfo.InvariantCulture))
 
             let topLevel = TopLevel.GetTopLevel(this)
             parentWindow <- handle.Handle
@@ -493,7 +587,17 @@ type private ProbePitch() as this =
                     (Application.Current.ApplicationLifetime :?> IClassicDesktopStyleApplicationLifetime).Shutdown(1))
 
             let create bounds =
-                let active = new WebGpuStadiumRenderer(parent, bounds, asset, lighting)
+                let camera =
+                    match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_VIEW") with
+                    | null
+                    | "broadcast" -> ViewerCamera.Broadcast
+                    | "tactical" -> ViewerCamera.Tactical
+                    | "behind-goal" -> ViewerCamera.BehindGoal
+                    | "touchline" -> ViewerCamera.Touchline
+                    | "close-up" -> ViewerCamera.CloseUp
+                    | value -> invalidArg "MATCHVIEWER_PROBE_VIEW" $"Unknown viewer camera: {value}"
+
+                let active = new WebGpuStadiumRenderer(parent, bounds, asset, camera = camera, ?exposureStops = exposure)
                 renderer <- Some active
                 ProbeLifecycle.attachedOnce ()
                 active
@@ -556,10 +660,13 @@ type private ProbeApp() =
             )
 
             let createWindow () =
+                let fullscreen =
+                    Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_FULLSCREEN") = "1"
+
                 let root = Grid()
-                root.RowDefinitions.Add(RowDefinition(52.0, GridUnitType.Pixel))
+                root.RowDefinitions.Add(RowDefinition((if fullscreen then 0.0 else 52.0), GridUnitType.Pixel))
                 root.RowDefinitions.Add(RowDefinition(1.0, GridUnitType.Star))
-                root.RowDefinitions.Add(RowDefinition(40.0, GridUnitType.Pixel))
+                root.RowDefinitions.Add(RowDefinition((if fullscreen then 0.0 else 40.0), GridUnitType.Pixel))
                 root.Background <- SolidColorBrush(Color.Parse("#0b1020"))
                 let header = Grid()
                 header.ColumnDefinitions.Add(ColumnDefinition(1.0, GridUnitType.Star))
@@ -604,7 +711,17 @@ type private ProbeApp() =
                 Grid.SetRow(footer, 2)
                 root.Children.Add(footer) |> ignore
 
-                Window(Title = "FootballEngine stadium renderer probe", Width = 1160.0, Height = 790.0, Content = root)
+                Window(
+                    Title = "FootballEngine stadium renderer probe",
+                    Width = 1160.0,
+                    Height = 790.0,
+                    WindowState =
+                        (if fullscreen then
+                             WindowState.FullScreen
+                         else
+                             WindowState.Normal),
+                    Content = root
+                )
 
             if ProbeLifecycle.cycles = 0 then
                 let window = createWindow ()

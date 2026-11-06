@@ -14,11 +14,7 @@ module MotionCheckpointCodec =
     let private readVector (reader: BinaryReader) =
         Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle())
 
-    let private writeFoot (writer: BinaryWriter) (foot: FootPlan) =
-        writer.Write(int foot.Phase)
-        writeVector writer foot.Anchor
-        writer.Write foot.ReleaseAt
-        let segment = foot.Segment
+    let private writeSegment (writer: BinaryWriter) (segment: MotionSegment) =
         writer.Write segment.Start
         writer.Write segment.Finish
         writeVector writer segment.From
@@ -26,6 +22,21 @@ module MotionCheckpointCodec =
         writeVector writer segment.FromVelocity
         writeVector writer segment.TargetVelocity
         writer.Write segment.Clearance
+
+    let private writeFoot (writer: BinaryWriter) (foot: FootPlan) =
+        writer.Write(int foot.Phase)
+        writeVector writer foot.Anchor
+        writer.Write foot.ReleaseAt
+        writeSegment writer foot.Segment
+
+    let private readSegment (reader: BinaryReader) =
+        { Start = reader.ReadSingle()
+          Finish = reader.ReadSingle()
+          From = readVector reader
+          Target = readVector reader
+          FromVelocity = readVector reader
+          TargetVelocity = readVector reader
+          Clearance = reader.ReadSingle() }
 
     let private readFoot (reader: BinaryReader) =
         let phase = reader.ReadInt32()
@@ -36,25 +47,40 @@ module MotionCheckpointCodec =
         let anchor = readVector reader
         let releaseAt = reader.ReadSingle()
 
-        let segment =
-            { Start = reader.ReadSingle()
-              Finish = reader.ReadSingle()
-              From = readVector reader
-              Target = readVector reader
-              FromVelocity = readVector reader
-              TargetVelocity = readVector reader
-              Clearance = reader.ReadSingle() }
+        let segment = readSegment reader
 
         { Phase = enum<SupportPhase> phase
           Anchor = anchor
           ReleaseAt = releaseAt
           Segment = segment }
 
+    let private writeOverlay (writer: BinaryWriter) (overlay: FootOverlay) =
+        writer.Write overlay.TaskId
+        writer.Write overlay.Sequence
+        writer.Write overlay.Active
+        writer.Write overlay.PreparationSocketStart
+        writer.Write overlay.RecoverySocketStart
+        writer.Write overlay.PreparationSocketVelocity
+        writer.Write overlay.RecoverySocketVelocity
+        writeSegment writer overlay.Preparation
+        writeSegment writer overlay.Recovery
+
+    let private readOverlay (reader: BinaryReader) =
+        { TaskId = reader.ReadUInt64()
+          Sequence = reader.ReadUInt64()
+          Active = reader.ReadBoolean()
+          PreparationSocketStart = reader.ReadSingle()
+          RecoverySocketStart = reader.ReadSingle()
+          PreparationSocketVelocity = reader.ReadSingle()
+          RecoverySocketVelocity = reader.ReadSingle()
+          Preparation = readSegment reader
+          Recovery = readSegment reader }
+
     let serialize (checkpoint: MotionCheckpoint) =
         use stream = new MemoryStream()
         use writer = new BinaryWriter(stream)
         writer.Write 0x46454D43
-        writer.Write 1
+        writer.Write 2
         writer.Write checkpoint.Identity.PlannerVersion
         writer.Write checkpoint.Identity.ConfigHash
         writer.Write checkpoint.Identity.RigHash
@@ -76,6 +102,8 @@ module MotionCheckpointCodec =
             writer.Write plan.Tick
             writeFoot writer plan.Left
             writeFoot writer plan.Right
+            writeOverlay writer plan.LeftOverlay
+            writeOverlay writer plan.RightOverlay
             writeVector writer plan.Acceleration
             writeVector writer plan.Lean
             writer.Write plan.Gaze.X
@@ -98,7 +126,7 @@ module MotionCheckpointCodec =
                 use stream = new MemoryStream(payload, false)
                 use reader = new BinaryReader(stream)
 
-                if reader.ReadInt32() <> 0x46454D43 || reader.ReadInt32() <> 1 then
+                if reader.ReadInt32() <> 0x46454D43 || reader.ReadInt32() <> 2 then
                     Error "checkpoint format is incompatible"
                 else
                     let identity =
@@ -133,10 +161,12 @@ module MotionCheckpointCodec =
                                           Tick = reader.ReadInt32()
                                           Left = readFoot reader
                                           Right = readFoot reader
+                                          LeftOverlay = readOverlay reader
+                                          RightOverlay = readOverlay reader
                                           Acceleration = readVector reader
                                           Lean = readVector reader
                                           Gaze = Vector2(reader.ReadSingle(), reader.ReadSingle())
-                                          Seed = reader.ReadUInt64() })
+                                          Seed = reader.ReadUInt64() } : ActorPlan)
 
                                 let tasks =
                                     Array.init boundary.Evidence.Length (fun index ->

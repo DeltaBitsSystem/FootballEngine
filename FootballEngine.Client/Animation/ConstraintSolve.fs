@@ -32,6 +32,18 @@ module ConstraintSolve =
         for descendant = node to rig.DescendantEnds[node] do
             world[descendant] <- world[descendant] * delta
 
+    let private bendFrame (upper: Vector3) (normal: Vector3) =
+        let longitudinal = Vector3.Normalize upper
+        let hinge = Vector3.Normalize normal
+        let transverse = Vector3.Normalize(Vector3.Cross(hinge, longitudinal))
+
+        Matrix4x4(
+            hinge.X, hinge.Y, hinge.Z, 0.0f,
+            longitudinal.X, longitudinal.Y, longitudinal.Z, 0.0f,
+            transverse.X, transverse.Y, transverse.Z, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        )
+
     let limb (rig: RigDefinition, world: Matrix4x4[], actor, effector, chain: RigLimb, target) =
         let hip = world[chain.Upper].Translation
         let knee = world[chain.Lower].Translation
@@ -80,7 +92,24 @@ module ConstraintSolve =
 
             let height = MathF.Sqrt(max 0.0f (upper * upper - along * along))
             let desiredKnee = hip + direction * along + pole * height
-            rotate rig world chain.Upper (between (knee - hip) (desiredKnee - hip))
+            let desiredEnd = hip + direction * distance
+            let originalNormal =
+                if chain.HingeAxis.LengthSquared() > 0.5f then
+                    Vector3.TransformNormal(chain.HingeAxis, world[chain.Upper])
+                else
+                    Vector3.Cross(knee - hip, endPoint - knee)
+            let desiredNormal = Vector3.Cross(desiredKnee - hip, desiredEnd - desiredKnee)
+
+            let upperRotation =
+                if originalNormal.LengthSquared() > 1e-12f && desiredNormal.LengthSquared() > 1e-12f then
+                    // Matching a bone direction alone leaves its hinge twisted relative to the skinned elbow or knee.
+                    let originalFrame = bendFrame (knee - hip) originalNormal
+                    let desiredFrame = bendFrame (desiredKnee - hip) desiredNormal
+                    Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(Matrix4x4.Transpose(originalFrame) * desiredFrame))
+                else
+                    between (knee - hip) (desiredKnee - hip)
+
+            rotate rig world chain.Upper upperRotation
             let solvedKnee = world[chain.Lower].Translation
             let solvedEnd = world[chain.End].Translation
             rotate rig world chain.Lower (between (solvedEnd - solvedKnee) (hip + direction * distance - solvedKnee))
@@ -99,3 +128,23 @@ module ConstraintSolve =
 
         if projected.LengthSquared() > 1e-8f then
             rotate rig world node (between projected forward)
+
+    let correctives (rig: RigDefinition) (world: Matrix4x4[]) =
+        for rule in rig.Correctives do
+            let parent = rig.Parents[rule.Source]
+            let mutable parentRotation = world[parent]
+            parentRotation.Translation <- Vector3.Zero
+            let mutable sourceRotation = world[rule.Source]
+            sourceRotation.Translation <- Vector3.Zero
+            let mutable supportRotation = world[rule.Support]
+            supportRotation.Translation <- Vector3.Zero
+            let basis = sourceRotation * Matrix4x4.Transpose(parentRotation) * rule.SourceBindInverse
+            let delta = Quaternion.Normalize(Quaternion.CreateFromRotationMatrix basis)
+            let half = Quaternion.Slerp(Quaternion.Identity, delta, rule.Weight)
+            let desired = Matrix4x4.CreateFromQuaternion(half) * rule.SupportBindRotation * parentRotation
+            let relative = Matrix4x4.Transpose(supportRotation) * desired
+            let pivot = world[rule.Support].Translation
+            let correction = Matrix4x4.CreateTranslation(-pivot) * relative * Matrix4x4.CreateTranslation(pivot)
+
+            for descendant = rule.Support to rig.DescendantEnds[rule.Support] do
+                world[descendant] <- world[descendant] * correction

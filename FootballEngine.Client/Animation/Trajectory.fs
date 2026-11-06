@@ -41,3 +41,17 @@ module Trajectory =
             From = position
             FromVelocity = velocity
             Target = target }
+
+    let evaluatePreparation tickSeconds time (segment: MotionSegment) =
+        let struct (position, velocity) = evaluate tickSeconds time { segment with Clearance = 0.0f }
+        let ticks = max 1e-5f (segment.Finish - segment.Start)
+        let duration = ticks * tickSeconds
+        let u = Math.Clamp((time - segment.Start) / ticks, 0.0f, 1.0f)
+        let v = 1.0f - u
+        let v2 = v * v
+        let v5 = v2 * v2 * v
+        // A forward-loaded arch arrests a descending swing early without changing either endpoint tangent.
+        let normalization = 65536.0f / 729.0f
+        let lift = segment.Clearance * normalization * u * u * v5 * v
+        let liftVelocity = segment.Clearance * normalization * 2.0f * u * v5 * (1.0f - 4.0f * u) / duration
+        struct (position + Vector3.UnitY * lift, velocity + Vector3.UnitY * liftVelocity)

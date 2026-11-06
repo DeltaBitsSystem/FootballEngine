@@ -15,11 +15,21 @@ type RigLimb =
       Lower: int
       End: int
       Socket: Vector3
+      BallSocket: Vector3
       SocketNormal: Vector3
       SocketForward: Vector3
       Pole: Vector3
+      HingeAxis: Vector3
       MinimumFlex: float32
       MaximumFlex: float32 }
+
+[<Struct>]
+type RigCorrective =
+    { Support: int
+      Source: int
+      Weight: float32
+      SourceBindInverse: Matrix4x4
+      SupportBindRotation: Matrix4x4 }
 
 type RigDefinition =
     { Hash: string
@@ -28,12 +38,14 @@ type RigDefinition =
       Bind: RigLocalPose[]
       JointNodes: int[]
       InverseBind: Matrix4x4[]
+      Correctives: RigCorrective[]
       LeftLeg: RigLimb
       RightLeg: RigLimb
       LeftArm: RigLimb
       RightArm: RigLimb
       Pelvis: int
       Torso: int
+      Neck: int
       Head: int }
 
 module RigDefinition =
@@ -91,6 +103,17 @@ module RigDefinition =
                 && limb.MinimumFlex >= 0.0f
                 && limb.MaximumFlex < MathF.PI
                 && limb.MaximumFlex > limb.MinimumFlex
+
+        for rule in rig.Correctives do
+            valid <-
+                valid
+                && rule.Source >= 0
+                && rule.Source < rig.Bind.Length
+                && rule.Support >= 0
+                && rule.Support < rig.Bind.Length
+                && rig.Parents[rule.Source] >= 0
+                && rig.Parents[rule.Source] = rig.Parents[rule.Support]
+                && rule.Weight = 0.5f
 
         if valid then
             Ok()

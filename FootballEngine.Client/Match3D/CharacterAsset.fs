@@ -10,10 +10,12 @@ open SharpGLTF.Schema2
 open SkiaSharp
 open FootballEngine.Client.Animation
 
-type CharacterTextureData =
+type CharacterTextureMip =
     { Width: int
       Height: int
       Pixels: byte[] }
+
+type CharacterTextureData = { Levels: CharacterTextureMip[] }
 
 [<Struct>]
 type CharacterLocalPose =
@@ -58,8 +60,8 @@ module CharacterAsset =
         let manifest = metadata.RootElement
 
         if
-            manifest.GetProperty("schemaVersion").GetInt32() <> 1
-            || manifest.GetProperty("rigSchemaVersion").GetInt32() <> 1
+            manifest.GetProperty("schemaVersion").GetInt32() <> 3
+            || manifest.GetProperty("rigSchemaVersion").GetInt32() <> 2
         then
             invalidData "Unsupported character or rig schema. Rebuild the first-party pack."
 
@@ -69,13 +71,30 @@ module CharacterAsset =
         if not (String.Equals(expectedHash, actualHash, StringComparison.OrdinalIgnoreCase)) then
             invalidData "Character GLB does not match its motion manifest."
 
-        let readTexture name =
-            let entry =
-                manifest.GetProperty("textures").EnumerateArray()
-                |> Seq.tryFind (fun entry -> entry.GetProperty("path").GetString() = name)
-                |> Option.defaultWith (fun () ->
-                    invalidData $"Character texture '{name}' is missing from the manifest.")
+        let geometry = manifest.GetProperty("rigGeometry")
 
+        if
+            geometry.GetProperty("version").GetInt32() <> 1
+            || not (String.Equals(geometry.GetProperty("glbSha256").GetString(), actualHash, StringComparison.OrdinalIgnoreCase))
+        then
+            invalidData "Character rig geometry does not match the GLB."
+
+        let atlas = manifest.GetProperty("atlas")
+
+        let materialNames =
+            atlas.GetProperty("materials").EnumerateArray()
+            |> Seq.map (fun value -> value.GetString())
+            |> Seq.toArray
+
+        if
+            atlas.GetProperty("columns").GetInt32() <> 4
+            || atlas.GetProperty("homeRows").GetInt32() <> 2
+            || materialNames <> AthleteMaterial.atlasMaterials
+        then
+            invalidData "Unsupported athlete material atlas layout. Rebuild the first-party pack."
+
+        let readMip (entry: JsonElement) expectedSize =
+            let name = entry.GetProperty("path").GetString()
             let texturePath = Path.Combine(Path.GetDirectoryName path, name)
             let bytes = File.ReadAllBytes texturePath
             let hash = SHA256.HashData(bytes) |> Convert.ToHexString
@@ -85,15 +104,21 @@ module CharacterAsset =
             then
                 invalidData $"Character texture '{name}' does not match the manifest."
 
-            use source = SKBitmap.Decode bytes
+            use stream = new SKMemoryStream(bytes)
+            use codec = SKCodec.Create(stream)
 
-            if isNull source || source.Width <> 4096 || source.Height <> 4096 then
-                invalidData $"Character texture '{name}' must be a 4096-square atlas."
+            if
+                isNull codec
+                || codec.Info.Width <> expectedSize
+                || codec.Info.Height <> expectedSize
+            then
+                invalidData $"Character texture '{name}' has invalid mip dimensions."
 
             use bitmap =
-                new SKBitmap(SKImageInfo(source.Width, source.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul))
+                new SKBitmap(SKImageInfo(expectedSize, expectedSize, SKColorType.Rgba8888, SKAlphaType.Unpremul))
 
-            if not (source.CopyTo(bitmap, SKColorType.Rgba8888)) then
+            // Detail alpha stores roughness, not opacity: premultiplication would corrupt every normal's RGB.
+            if codec.GetPixels(bitmap.Info, bitmap.GetPixels()) <> SKCodecResult.Success then
                 invalidData $"Cannot decode character texture '{name}'."
 
             let pixels = Array.zeroCreate<byte> (bitmap.Width * bitmap.Height * 4)
@@ -103,8 +128,38 @@ module CharacterAsset =
               Height = bitmap.Height
               Pixels = pixels }
 
-        let albedo = readTexture "player-albedo.png"
-        let normalRoughness = readTexture "player-normal-roughness.png"
+        let readTexture name (kind: string) =
+            let entry =
+                manifest.GetProperty("textures").EnumerateArray()
+                |> Seq.tryFind (fun entry -> entry.GetProperty("path").GetString() = name)
+                |> Option.defaultWith (fun () ->
+                    invalidData $"Character texture '{name}' is missing from the manifest.")
+
+            let mips =
+                manifest.GetProperty("mips").GetProperty(kind).EnumerateArray() |> Seq.toArray
+
+            if mips.Length <> 8 then
+                invalidData $"Character texture '{name}' needs eight offline mips."
+
+            let levels =
+                Array.append
+                    [| readMip entry 4096 |]
+                    (mips
+                     |> Array.mapi (fun index mip ->
+                         let size = 4096 >>> (index + 1)
+
+                         if
+                             mip.GetProperty("width").GetInt32() <> size
+                             || mip.GetProperty("height").GetInt32() <> size
+                         then
+                             invalidData $"Character texture '{name}' has an incompatible mip manifest."
+
+                         readMip mip size))
+
+            { Levels = levels }
+
+        let albedo = readTexture "player-albedo.png" "albedo"
+        let normalRoughness = readTexture "player-normal-roughness.png" "normalRoughness"
 
         let coordinates = manifest.GetProperty("coordinates")
 
@@ -191,36 +246,102 @@ module CharacterAsset =
                 else
                     matrix * bindWorld[parents[node]]
 
-        let limb upper lower ending sole =
+        let readVector (item: JsonElement) =
+            let values = item.EnumerateArray() |> Seq.map _.GetSingle() |> Seq.toArray
+
+            if values.Length <> 3 || values |> Array.exists (Single.IsFinite >> not) then
+                invalidData "Invalid rig geometry point."
+
+            Vector3(values[0], values[1], values[2])
+
+        let limb upper lower ending (points: (Vector3 * Vector3) option) =
             let endpoint = semantic ending
             let mutable inverse = Matrix4x4.Identity
 
             if not (Matrix4x4.Invert(bindWorld[endpoint], &inverse)) then
                 invalidData "Singular contact socket transform."
 
+            let ground, ball =
+                match points with
+                | Some(ground, ball) -> Vector3.Transform(ground, inverse), Vector3.Transform(ball, inverse)
+                | None -> Vector3.Zero, Vector3.Zero
+
             { Upper = semantic upper
               Lower = semantic lower
               End = endpoint
-              Socket = Vector3.TransformNormal(sole, inverse)
+              Socket = ground
+              BallSocket = ball
               SocketNormal = Vector3.TransformNormal(Vector3.UnitY, inverse)
               SocketForward = Vector3.TransformNormal(Vector3.UnitZ, inverse)
               Pole = Vector3.UnitZ
+              HingeAxis = Vector3.Zero
               MinimumFlex = 0.025f
               MaximumFlex = 2.60f }
 
+        let arm side =
+            let chain = limb ("upper_arm." + side) ("forearm." + side) ("hand." + side) None
+            let hand = bindWorld[chain.End].Translation
+            let middle = bindWorld[semantic ("middle_01." + side)].Translation
+            let index = bindWorld[semantic ("index_01." + side)].Translation
+            let little = bindWorld[semantic ("little_01." + side)].Translation
+            let direction = Vector3.Normalize(middle - hand)
+            let lateral = index - little
+            let normal = Vector3.Normalize(Vector3.Cross(direction, lateral)) * (if side = "L" then 1.0f else -1.0f)
+            let upperDirection = bindWorld[chain.Lower].Translation - bindWorld[chain.Upper].Translation
+            let hinge = Vector3.Normalize(Vector3.Cross(-Vector3.UnitZ, upperDirection))
+            let mutable handInverse = Matrix4x4.Identity
+            let mutable upperInverse = Matrix4x4.Identity
+            if not (Matrix4x4.Invert(bindWorld[chain.End], &handInverse) && Matrix4x4.Invert(bindWorld[chain.Upper], &upperInverse)) then
+                invalidData "Singular anatomical arm frame."
+            { chain with
+                Pole = -Vector3.UnitZ
+                HingeAxis = Vector3.TransformNormal(hinge, upperInverse)
+                SocketNormal = Vector3.TransformNormal(normal, handInverse)
+                SocketForward = Vector3.TransformNormal(direction, handInverse) }
+
+        let sockets (side: string) =
+            let value = geometry.GetProperty("sockets").GetProperty(side)
+            Some(readVector (value.GetProperty("groundWorldBind")), readVector (value.GetProperty("ballWorldBind")))
+
+        let correctives =
+            geometry.GetProperty("supports").EnumerateArray()
+            |> Seq.map (fun rule ->
+                let support = semantic (rule.GetProperty("support").GetString())
+                let source = semantic (rule.GetProperty("source").GetString())
+                { Support = support
+                  Source = source
+                  Weight = rule.GetProperty("weight").GetSingle()
+                  SourceBindInverse = Matrix4x4.Transpose(Matrix4x4.CreateFromQuaternion(bind[source].Rotation))
+                  SupportBindRotation = Matrix4x4.CreateFromQuaternion(bind[support].Rotation) })
+            |> Seq.toArray
+
+        let expectedCorrectives =
+            [| for side in [| "L"; "R" |] do
+                   for helper, source in [| "hip_support", "thigh"; "knee_support", "shin"; "elbow_support", "forearm"; "axilla_support", "upper_arm" |] do
+                       yield semantic (helper + "." + side), semantic (source + "." + side) |]
+
+        if
+            correctives.Length <> 8
+            || (correctives |> Array.exists (fun rule -> rule.Weight <> 0.5f || not (Array.contains (rule.Support, rule.Source) expectedCorrectives)))
+            || (correctives |> Array.map _.Support |> Array.distinct |> Array.length) <> 8
+        then
+            invalidData "Character requires the eight authored half-rotation corrective pairs."
+
         let rig =
-            { Hash = actualHash
+            { Hash = MotionIdentity.rigHash path
               Parents = parents
               DescendantEnds = RigDefinition.descendantEnds parents
               Bind = bind
               JointNodes = jointNodes
               InverseBind = inverseBind
-              LeftLeg = limb "thigh.L" "shin.L" "foot.L" (Vector3(0.0f, -0.095f, 0.10f))
-              RightLeg = limb "thigh.R" "shin.R" "foot.R" (Vector3(0.0f, -0.095f, 0.10f))
-              LeftArm = limb "upper_arm.L" "forearm.L" "hand.L" Vector3.Zero
-              RightArm = limb "upper_arm.R" "forearm.R" "hand.R" Vector3.Zero
+              Correctives = correctives
+              LeftLeg = limb "thigh.L" "shin.L" "foot.L" (sockets "L")
+              RightLeg = limb "thigh.R" "shin.R" "foot.R" (sockets "R")
+              LeftArm = arm "L"
+              RightArm = arm "R"
               Pelvis = semantic "pelvis"
               Torso = semantic "chest"
+              Neck = semantic "neck"
               Head = semantic "head" }
 
         match RigDefinition.validate rig with
@@ -344,6 +465,15 @@ module CharacterAsset =
                               Surface = uint32 StadiumSurface.Plain }
 
                     for struct (a, b, c) in primitive.GetTriangleIndices() do
+                        let surface = AthleteMaterial.ofTriangle uvs[a] uvs[b] uvs[c] |> uint32
+
+                        for index in [ a; b; c ] do
+                            let vertexIndex = int offset + index
+
+                            vertices[vertexIndex] <-
+                                { vertices[vertexIndex] with
+                                    Surface = surface }
+
                         indices.Add(offset + uint32 a)
                         indices.Add(offset + uint32 b)
                         indices.Add(offset + uint32 c)

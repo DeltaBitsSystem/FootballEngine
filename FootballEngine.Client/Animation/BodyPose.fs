@@ -4,7 +4,7 @@ open System
 open System.Numerics
 
 module BodyPose =
-    let initialize (rig: RigDefinition) (plan: ActorPlan) (local: RigLocalPose[]) =
+    let initialize (config: AnimationConfig) (rig: RigDefinition) (plan: ActorPlan) (local: RigLocalPose[]) =
         Array.Copy(rig.Bind, local, rig.Bind.Length)
         let stature = plan.Root.Morphology.Height / 1.8f
 
@@ -30,7 +30,13 @@ module BodyPose =
             { pelvis with
                 Translation = pelvis.Translation - Vector3.UnitY * flex }
 
-        let fatigue = Math.Clamp(1.0f - plan.Root.Condition, 0.0f, 1.0f)
+        let yaw = Math.Clamp(plan.Gaze.X - torsoYaw, -config.MaxGazeYaw, config.MaxGazeYaw)
+        let pitch = Math.Clamp(plan.Gaze.Y - lean.Z, -config.MaxGazePitch, config.MaxGazePitch)
+        let neckYaw = Math.Clamp(yaw * config.NeckShare, -config.MaxNeckYaw, config.MaxNeckYaw)
+        let neckPitch = Math.Clamp(pitch * config.NeckShare, -config.MaxNeckPitch, config.MaxNeckPitch)
+        let neck = local[rig.Neck]
+        local[rig.Neck] <-
+            { neck with Rotation = Quaternion.Normalize(neck.Rotation * Quaternion.CreateFromYawPitchRoll(neckYaw, neckPitch, 0.0f)) }
         let head = local[rig.Head]
 
         local[rig.Head] <-
@@ -38,5 +44,5 @@ module BodyPose =
                 Rotation =
                     Quaternion.Normalize(
                         head.Rotation
-                        * Quaternion.CreateFromYawPitchRoll(plan.Gaze.X - torsoYaw, plan.Gaze.Y + fatigue * 0.10f, 0.0f)
+                        * Quaternion.CreateFromYawPitchRoll(yaw - neckYaw, pitch - neckPitch, 0.0f)
                     ) }

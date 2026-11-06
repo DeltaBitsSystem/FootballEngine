@@ -44,11 +44,35 @@ type FootPlan =
       ReleaseAt: float32 }
 
 [<Struct>]
+type FootOverlay =
+    { TaskId: uint64
+      Sequence: uint64
+      Active: bool
+      PreparationSocketStart: float32
+      RecoverySocketStart: float32
+      PreparationSocketVelocity: float32
+      RecoverySocketVelocity: float32
+      Preparation: MotionSegment
+      Recovery: MotionSegment }
+
+module FootOverlay =
+    let empty =
+        let segment =
+            { Start = 0.0f; Finish = 1.0f; From = Vector3.Zero; Target = Vector3.Zero
+              FromVelocity = Vector3.Zero; TargetVelocity = Vector3.Zero; Clearance = 0.0f }
+        { TaskId = 0UL; Sequence = 0UL; Active = false
+          PreparationSocketStart = 0.0f; RecoverySocketStart = 0.0f
+          PreparationSocketVelocity = 0.0f; RecoverySocketVelocity = 0.0f
+          Preparation = segment; Recovery = segment }
+
+[<Struct>]
 type ActorPlan =
     { Root: MotionRootSample
       Tick: int
       Left: FootPlan
       Right: FootPlan
+      LeftOverlay: FootOverlay
+      RightOverlay: FootOverlay
       Acceleration: Vector3
       Lean: Vector3
       Gaze: System.Numerics.Vector2
