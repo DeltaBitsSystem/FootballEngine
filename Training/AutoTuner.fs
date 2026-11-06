@@ -99,21 +99,6 @@ module AutoTuner =
             Set = fun c v -> withBallCfg c (fun b -> { b with PassRollingSpinRatio = v })
             Min = 0.3
             Max = 1.0 }
-          { Name = "saveBase"
-            Get = fun c -> (ballCfg c).ShotSaveBaseProbability
-            Set = fun c v -> withBallCfg c (fun b -> { b with ShotSaveBaseProbability = v })
-            Min = 0.2
-            Max = 0.8 }
-          { Name = "goalXGMult"
-            Get = fun c -> (ballCfg c).ShotGoalXGMultiplier
-            Set = fun c v -> withBallCfg c (fun b -> { b with ShotGoalXGMultiplier = v })
-            Min = 0.2
-            Max = 3.0 }
-          { Name = "duelFoulChance"
-            Get = fun c -> (acts c).DuelFoulChance
-            Set = fun c v -> withActs c (fun a -> { a with DuelFoulChance = v })
-            Min = 0.0
-            Max = 0.5 }
           { Name = "foulYellowChance"
             Get = fun c -> (refCfg c).FoulYellowWorthyChance
             Set = fun c v -> withRefCfg c (fun r -> { r with FoulYellowWorthyChance = v })
@@ -124,11 +109,6 @@ module AutoTuner =
             Set = fun c v -> withActs c (fun a -> { a with DribbleBaseSuccess = v })
             Min = 0.2
             Max = 0.9 }
-          { Name = "contestFoulChance"
-            Get = fun c -> (acts c).ContestFoulChance
-            Set = fun c v -> withActs c (fun a -> { a with ContestFoulChance = v })
-            Min = 0.0
-            Max = 0.2 }
           { Name = "receptionBase"
             Get = fun c -> (ballCfg c).ReceptionBase
             Set = fun c v -> withBallCfg c (fun b -> { b with ReceptionBase = v })

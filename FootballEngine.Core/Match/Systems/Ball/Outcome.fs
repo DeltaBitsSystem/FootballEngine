@@ -1,53 +1,74 @@
 namespace FootballEngine.Core.Match
 
-/// A struck ball does not resolve at the moment of the shot: its outcome is
-/// decided when it reaches the target, so defenders and the GK can still react
-/// during flight. Also awards out-of-bounds restarts, so a ball leaving the
-/// pitch never just vanishes.
+/// A shot remains unresolved until its actual path is saved, scored, or leaves play.
 module BallOutcome =
 
-    let private emitSetPiece
-        (ctx: SystemContext)
-        (world: World)
-        (tick: int<subtick>)
-        (buffer: EventBuffer)
-        (kind: SetPieceKind)
-        (side: ClubSide)
-        : unit =
-        buffer.Events.Add
-            { Tick = tick
-              Data = EventData.SetPiece(kind, side) }
+    let private emit (world: World) tick (buffer: EventBuffer) data =
+        let event = { Tick = tick; Data = data }
+        buffer.Events.Add event
 
-    /// Restart ownership follows who defends the crossed goal line: the defenders
-    /// of that line concede a corner or win a goal kick.
+        if world.Observation.Enabled then
+            world.State.Ball.Impulse
+            |> Option.iter (fun impulse -> world.Observation.Associate(event, ActionCause impulse.ActionId))
+
+    let private emitSetPiece world tick buffer kind side =
+        emit world tick buffer (EventData.SetPiece(kind, side))
+
     let private goalLineDefender (x: float<meter>) : ClubSide =
         if x > 0.0<meter> then ClubSide.Away else ClubSide.Home
 
-    /// A goal is the real goal frame: inside the 7.32 m width and below the 2.44 m
-    /// crossbar at the line — anything outside is a miss, even inches away.
     let private isInGoal (position: Vec3) : bool = BallPhysics.withinGoalFrame position
 
-    /// Attribution must follow the real rule: if the last touch before the line was
-    /// a defender's, the goal counts to that defender, not to the shooter.
-    let private detectOwnGoal
-        (ctx: SystemContext)
-        (world: World)
-        (shooterSide: ClubSide)
-        (shooter: PlayerId)
-        (scoringSide: ClubSide)
-        : PlayerId option * PlayerId option =
-        let defSide = MatchWorld.oppOf scoringSide
+    let private isGoalkeeper (ctx: MatchContext) player =
+        match MatchWorld.teamOfPlayer ctx player with
+        | Some side ->
+            MatchWorld.slotOf ctx side player
+            |> Option.exists (fun slot -> (MatchWorld.profileOf ctx side slot).IsGK)
+        | None -> false
+
+    let private detectOwnGoal (ctx: SystemContext) (world: World) shooter scoringSide =
+        let defenderSide = MatchWorld.oppOf scoringSide
 
         match MatchWorld.lastTouchSide ctx.Ctx world with
-        | Some side when side = defSide ->
+        | Some side when side = defenderSide ->
             match world.State.Ball.LastTouch with
-            | Some defPid -> Some defPid, None
+            | Some defender -> Some defender, None
             | None -> Some shooter, None
         | _ -> Some shooter, None
 
+    let private shotExitResult (ctx: SystemContext) (world: World) shooter defendingSide =
+        match world.State.Ball.LastTouch with
+        | Some player when MatchWorld.teamOfPlayer ctx.Ctx player = Some defendingSide && isGoalkeeper ctx.Ctx player ->
+            ShotResult.OnTarget true, Some player
+        | Some _ when MatchWorld.lastTouchSide ctx.Ctx world = Some defendingSide -> ShotResult.Blocked, None
+        | _ -> ShotResult.OffTarget, None
+
+    let private emitShotExit ctx world tick buffer shooter speed xG x y defendingSide =
+        let result, keeper = shotExitResult ctx world shooter defendingSide
+        emit world tick buffer (EventData.Shot(shooter, result, xG, speed, x, y))
+        keeper |> Option.iter (fun gk -> emit world tick buffer (EventData.Save(gk, shooter)))
+
+    let private finishBall (world: World) stopVelocity =
+        MatchWorld.updateBall world (fun ball ->
+            { ball with
+                Control = BallControl.Free
+                Trajectory = None
+                ArrivalGate = None
+                PendingStrike = None
+                Impulse = None
+                StationarySince = None
+                GKHoldSince = None
+                Position =
+                    if stopVelocity then
+                        { ball.Position with
+                            Vx = 0.0<meterPerSecond>
+                            Vy = 0.0<meterPerSecond>
+                            Vz = 0.0<meterPerSecond> }
+                    else
+                        ball.Position })
+
     let private resolveShot
         (ctx: SystemContext)
-        (rng: Rng)
         (world: World)
         (tick: int<subtick>)
         (buffer: EventBuffer)
@@ -55,219 +76,33 @@ module BallOutcome =
         (speed: float<meterPerSecond>)
         (xG: float)
         (crossing: GoalCrossing)
-        : Rng =
-        let ball = world.State.Ball
-
-        let shooterSide =
-            MatchWorld.teamOfPlayer ctx.Ctx shooter |> Option.defaultValue ClubSide.Home
-
+        : unit =
         let scoringSide = crossing.Side
-        let defSide = MatchWorld.oppOf scoringSide
-        let frame = (MatchWorld.team world defSide).Frame
-        let bx = crossing.Position.X
-        let by = crossing.Position.Y
+        let defenderSide = MatchWorld.oppOf scoringSide
+        let x, y = crossing.Position.X, crossing.Position.Y
 
-        let resolution kind probability succeeded =
-            if world.Observation.Enabled then
-                let action = ball.Impulse |> Option.map _.ActionId
+        if isInGoal crossing.Position then
+            emit world tick buffer (EventData.Shot(shooter, ShotResult.OnTarget false, xG, speed, x, y))
+            let scorer, assist = detectOwnGoal ctx world shooter scoringSide
+            emit world tick buffer (EventData.Goal(scoringSide, scorer, assist, xG))
+            emit world tick buffer (EventData.MomentumShift scoringSide)
 
-                let cause =
-                    match action with
-                    | Some id -> ValueSome(ActionCause id)
-                    | None -> ValueNone
+            world.State <-
+                { world.State with
+                    Momentum = world.State.Momentum + (if scoringSide = ClubSide.Home then 0.35 else -0.35) }
 
-                world.Observation.Record(tick, cause, ProbabilityResolved(kind, action, probability, succeeded))
-                |> ValueOption.map ResolutionCause
+            finishBall world true
+        else
+            emitShotExit ctx world tick buffer shooter speed xG x y defenderSide
+
+            if MatchWorld.lastTouchSide ctx.Ctx world = Some defenderSide then
+                emitSetPiece world tick buffer SetPieceKind.Corner scoringSide
             else
-                ValueNone
+                emitSetPiece world tick buffer SetPieceKind.GoalKick defenderSide
 
-        let emitResolved cause data =
-            let event = { Tick = tick; Data = data }
-            buffer.Events.Add event
+            finishBall world true
 
-            match cause with
-            | ValueSome source -> world.Observation.Associate(event, source)
-            | ValueNone -> ()
-
-        // A defender within reach of the flight path gets one last chance to stop
-        // the ball before arrival — resolving at arrival is what makes this possible.
-        let blocker = MatchWorld.nearestOpponent ctx.Ctx world shooterSide bx by 3.0
-
-        match blocker with
-        | Some _ ->
-            let blocked, rng' = Rng.bernoulli 0.5 rng
-            let blockedCause = resolution DefenderBlock 0.5 blocked
-
-            if blocked then
-                emitResolved blockedCause (EventData.Shot(shooter, ShotResult.Blocked, xG, speed, bx, by))
-
-                let outForCorner, rng'' = Rng.bernoulli 0.25 rng'
-
-                if outForCorner then
-                    emitSetPiece ctx world tick buffer SetPieceKind.Corner shooterSide
-                    rng''
-                else
-                    MatchWorld.updateBall world (fun b ->
-                        { b with
-                            Trajectory = None
-                            ArrivalGate = None
-                            Position =
-                                { b.Position with
-                                    Vx = -b.Position.Vx * 0.3
-                                    Vy = -b.Position.Vy * 0.3
-                                    Vz = 1.0<meterPerSecond> } })
-
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.BallLoose(bx, by) }
-
-                    rng''
-            else
-                MatchWorld.updateBall world (fun b ->
-                    { b with
-                        Trajectory = None
-                        ArrivalGate = None })
-
-                rng'
-        | None ->
-            let absY = abs (float by)
-
-            if isInGoal crossing.Position then
-                // Inside the frame only the keeper can stop it — the shot must beat the save roll.
-                let gkSlot = 0
-                let gk = MatchWorld.profileOf ctx.Ctx defSide gkSlot
-                let gkX = MatchWorld.posX frame gkSlot
-                let gkY = MatchWorld.posY frame gkSlot
-                let gkDist = MatchMath.dist gkX gkY bx by
-                let attrs = float (gk.Positioning + gk.Agility + gk.Anticipation)
-
-                let saveP = Goalkeeping.saveProbability ctx.Ctx.Config attrs speed gkDist
-
-                let goalP =
-                    MatchMath.clamp01 (
-                        xG * ctx.Ctx.Config.Ball.ShotGoalXGMultiplier
-                        + (attrs - 195.0) / ctx.Ctx.Config.Ball.ShotGoalGKDivisor
-                    )
-
-                let probability = max saveP (1.0 - goalP)
-                let saved, rng' = Rng.bernoulli probability rng
-                let savedCause = resolution GoalkeeperSave probability saved
-                let parriedOver, rng'' = Rng.bernoulli 0.15 rng'
-                let gkPid = (MatchWorld.lineup ctx.Ctx defSide).Profiles.[0].Id
-
-                if saved && parriedOver then
-                    emitResolved savedCause (EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, bx, by))
-                    emitResolved savedCause (EventData.Save(gkPid, shooter))
-
-                    emitSetPiece ctx world tick buffer SetPieceKind.Corner (MatchWorld.oppOf defSide)
-                    rng''
-                elif saved then
-                    MatchWorld.updateBall world (fun b ->
-                        { b with
-                            Trajectory = None
-                            ArrivalGate = None
-                            GKHoldSince = Some tick
-                            Position =
-                                { b.Position with
-                                    Vx = 0.0<meterPerSecond>
-                                    Vy = 0.0<meterPerSecond>
-                                    Vz = 0.0<meterPerSecond> }
-                            PreviousPosition = ValueNone
-                            Impulse = None })
-
-                    emitResolved savedCause (EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, bx, by))
-                    emitResolved savedCause (EventData.Save(gkPid, shooter))
-
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.Possession(defSide, gkPid) }
-
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.MomentumShift defSide }
-
-                    world.State <-
-                        { world.State with
-                            Momentum = world.State.Momentum + (if defSide = ClubSide.Home then 0.12 else -0.12) }
-
-                    rng'
-                else
-                    MatchWorld.updateBall world (fun b ->
-                        { b with
-                            Trajectory = None
-                            ArrivalGate = None
-                            Impulse = None
-                            Position =
-                                { b.Position with
-                                    Vx = 0.0<meterPerSecond>
-                                    Vy = 0.0<meterPerSecond>
-                                    Vz = 0.0<meterPerSecond> } })
-
-                    emitResolved savedCause (EventData.Shot(shooter, ShotResult.OnTarget false, xG, speed, bx, by))
-
-                    let scorer, assist = detectOwnGoal ctx world shooterSide shooter scoringSide
-
-                    emitResolved savedCause (EventData.Goal(scoringSide, scorer, assist, xG))
-
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.MomentumShift scoringSide }
-
-                    world.State <-
-                        { world.State with
-                            Momentum = world.State.Momentum + (if scoringSide = ClubSide.Home then 0.35 else -0.35) }
-
-                    rng'
-            else
-                // A miss near the frame edges is not dead yet: the post can still keep it in play.
-                let postZone = absY < float Pitch.GoalHalfWidth + 0.5
-
-                if postZone then
-                    let post, rng' = Rng.bernoulli 0.35 rng
-                    let postCause = resolution GoalFrameRebound 0.35 post
-
-                    if post then
-                        emitResolved postCause (EventData.Shot(shooter, ShotResult.Post, xG, speed, bx, by))
-
-                        MatchWorld.updateBall world (fun b ->
-                            { b with
-                                Trajectory = None
-                                ArrivalGate = None
-                                Impulse = None
-                                Position =
-                                    { b.Position with
-                                        Vx = -b.Position.Vx * 0.5
-                                        Vy = -b.Position.Vy * 0.5
-                                        Vz = 1.5<meterPerSecond> } })
-
-                        buffer.Events.Add
-                            { Tick = tick
-                              Data = EventData.BallLoose(bx, by) }
-
-                        rng'
-                    else
-                        MatchWorld.updateBall world (fun b ->
-                            { b with
-                                Trajectory = None
-                                ArrivalGate = None
-                                Impulse = None })
-
-                        rng'
-                else
-                    buffer.Events.Add
-                        { Tick = tick
-                          Data = EventData.Shot(shooter, ShotResult.OffTarget, xG, speed, bx, by) }
-
-                    MatchWorld.updateBall world (fun b ->
-                        { b with
-                            Trajectory = None
-                            ArrivalGate = None
-                            Impulse = None })
-
-                    rng
-
-    /// A ball crossing a line must produce its restart immediately: without this
-    /// the ball would leave the pitch and possession would silently disappear.
+    /// A line crossing ends the live path; the last physical touch owns its restart.
     let private handleOutOfBounds
         (ctx: SystemContext)
         (world: World)
@@ -275,9 +110,7 @@ module BallOutcome =
         (buffer: EventBuffer)
         : bool =
         let ball = world.State.Ball
-        let px = ball.Position.X
-        let py = ball.Position.Y
-
+        let px, py = ball.Position.X, ball.Position.Y
         let outX = abs (float px) > float Pitch.HalfLength
         let outY = abs (float py) > float Pitch.HalfWidth
 
@@ -287,25 +120,36 @@ module BallOutcome =
             let lastSide = MatchWorld.lastTouchSide ctx.Ctx world
             let attackingSide = lastSide |> Option.defaultValue ClubSide.Home
 
+            match ball.Trajectory with
+            | Some(TrajectoryIntent.Struck(shooter, speed, _, xG)) ->
+                let shooterSide = MatchWorld.teamOfPlayer ctx.Ctx shooter |> Option.defaultValue ClubSide.Home
+                emitShotExit ctx world tick buffer shooter speed xG px py (MatchWorld.oppOf shooterSide)
+            | _ -> ()
+
             if outX then
                 let defender = goalLineDefender px
 
                 if lastSide = Some defender then
-                    // The defender of the crossed line concedes the corner — attackers get the restart.
-                    emitSetPiece ctx world tick buffer SetPieceKind.Corner (MatchWorld.oppOf defender)
+                    emitSetPiece world tick buffer SetPieceKind.Corner (MatchWorld.oppOf defender)
                 else
-                    emitSetPiece ctx world tick buffer SetPieceKind.GoalKick defender
+                    emitSetPiece world tick buffer SetPieceKind.GoalKick defender
             else
-                emitSetPiece ctx world tick buffer SetPieceKind.ThrowIn (MatchWorld.oppOf attackingSide)
+                emitSetPiece world tick buffer SetPieceKind.ThrowIn (MatchWorld.oppOf attackingSide)
 
-            MatchWorld.updateBall world (fun b ->
-                { b with
+            MatchWorld.updateBall world (fun current ->
+                { current with
                     Control = BallControl.Free
                     Trajectory = None
                     ArrivalGate = None
+                    PendingStrike = None
                     LastTouch = None
                     StationarySince = None
-                    Impulse = None })
+                    Impulse = None
+                    Position =
+                        { current.Position with
+                            Vx = 0.0<meterPerSecond>
+                            Vy = 0.0<meterPerSecond>
+                            Vz = 0.0<meterPerSecond> } })
 
             true
 
@@ -314,11 +158,10 @@ module BallOutcome =
             let tick = world.State.Tick
             let ball = world.State.Ball
             let firstEvent = buffer.Events.Count
-            let mutable rng = rng
             let mutable shotCrossed = false
 
-            match ball.ArrivalGate, ball.Trajectory with
-            | _, Some(TrajectoryIntent.Struck(shooter, speed, _, xG)) ->
+            match ball.Trajectory with
+            | Some(TrajectoryIntent.Struck(shooter, speed, _, xG)) ->
                 let dt = float (SimulationClock.dt ctx.Clock)
 
                 let inferredPrevious =
@@ -332,12 +175,19 @@ module BallOutcome =
                 match BallPhysics.goalCrossing previous ball.Position with
                 | Some crossing ->
                     shotCrossed <- true
-                    rng <- resolveShot ctx rng world tick buffer shooter speed xG crossing
+                    resolveShot ctx world tick buffer shooter speed xG crossing
                 | None -> ()
             | _ -> ()
 
-            if not shotCrossed then
-                handleOutOfBounds ctx world tick buffer |> ignore
+            let exited = if shotCrossed then true else handleOutOfBounds ctx world tick buffer
+
+            if not shotCrossed && not exited then
+                match world.State.Ball.Trajectory, world.State.Ball.StationarySince with
+                | Some(TrajectoryIntent.Struck(shooter, speed, _, xG)), Some _ ->
+                    let shooterSide = MatchWorld.teamOfPlayer ctx.Ctx shooter |> Option.defaultValue ClubSide.Home
+                    emitShotExit ctx world tick buffer shooter speed xG world.State.Ball.Position.X world.State.Ball.Position.Y (MatchWorld.oppOf shooterSide)
+                    finishBall world false
+                | _ -> ()
 
             if world.Observation.Enabled then
                 match ball.Impulse with

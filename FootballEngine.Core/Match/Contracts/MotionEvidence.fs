@@ -12,6 +12,7 @@ type MotionFamily =
     | ThrowIn = 6
     | Header = 7
     | Reaction = 8
+    | PhysicalContact = 9
 
 type MotionEffector =
     | LeftFoot = 0

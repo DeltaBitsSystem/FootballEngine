@@ -1319,9 +1319,7 @@ module Settings =
                                         readOnlyValue
                                             "Sprint"
                                             (sprintf "%.1f m/s" (float effective.Movement.SprintSpeed))
-                                        readOnlyValue
-                                            "Falta en disputa"
-                                            (sprintf "%.3f" effective.Actions.ContestFoulChance) ] ]
+                                        ] ]
                         ) ]
                   :> IView ]
             else
@@ -1947,22 +1945,6 @@ module Settings =
                         { b with
                             Actions = { b.Actions with PassBaseQuality = c } }))
 
-            let contestFoulCtl =
-                sliderWithLabel 0.0 1.0 curBalance.Actions.ContestFoulChance (fun v -> sprintf "%.3f" v) (fun v ->
-                    let c = System.Math.Clamp(v, 0.0, 1.0)
-
-                    updateBalance (fun b ->
-                        { b with
-                            Actions = { b.Actions with ContestFoulChance = c } }))
-
-            let duelFoulCtl =
-                sliderWithLabel 0.0 1.0 curBalance.Actions.DuelFoulChance (fun v -> sprintf "%.3f" v) (fun v ->
-                    let c = System.Math.Clamp(v, 0.0, 1.0)
-
-                    updateBalance (fun b ->
-                        { b with
-                            Actions = { b.Actions with DuelFoulChance = c } }))
-
             let urgencyDeficitCtl =
                 intSliderWithLabel 0 5 curBalance.Team.UrgencyMaxDeficit (fun v ->
                     let c = System.Math.Clamp(v, 0, 5)
@@ -2063,18 +2045,6 @@ module Settings =
                        "🎯",
                        passQualityCtl,
                        "PassBaseQuality")
-                  yield
-                      ("Actions.ContestFoulChance",
-                       "0-1 falta en disputa — 0.05 default",
-                       "🎯",
-                       contestFoulCtl,
-                       "ContestFoulChance")
-                  yield
-                      ("Actions.DuelFoulChance",
-                       "0-1 falta en duelo — 0.15 default",
-                       "🎯",
-                       duelFoulCtl,
-                       "DuelFoulChance")
                   yield
                       ("Team.UrgencyMaxDeficit",
                        "0-5 déficit máx para urgencia — 2 default",

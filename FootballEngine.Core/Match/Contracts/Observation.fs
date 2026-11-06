@@ -46,27 +46,11 @@ type ObservationQuery =
 
 type ProbabilityResolutionKind =
     | Reception
-    | DefenderBlock
-    | GoalkeeperSave
-    | GoalFrameRebound
 
 type ExecutionRejection =
     | PassDistanceLimit of distance: float<meter> * limit: float<meter>
     | NoCrossTarget
-    | NoDuelOpponent
-
-[<Struct>]
-type DuelEvidence =
-    { Carrier: PlayerId
-      Defender: PlayerId
-      X: float<meter>
-      Y: float<meter>
-      WinProbability: float
-      WinDraw: float
-      FoulProbability: float
-      FoulDraw: float
-      Foul: bool
-      Won: bool }
+    | DuelCarrierUnavailable
 
 [<Struct>]
 type TransitionDecisionEvidence =
@@ -82,6 +66,20 @@ type TransitionDecisionEvidence =
       LocalPlayers: int
       Opponents: int
       DepthRunners: int }
+
+type OrganizedDefenseReason =
+    | OrganizedPressure
+    | OrganizedTacticalRestraint
+    | OrganizedOutsidePressZone
+    | OrganizedDepthThreat
+    | OrganizedUnavailable
+
+[<Struct>]
+type OrganizedDefenseEvidence =
+    { Side: ClubSide
+      Reason: OrganizedDefenseReason
+      Primary: PlayerId option
+      Cover: PlayerId option }
 
 type ObservationData =
     | AttackEvaluated of ClubSide * uint64 * AttackPattern * context: int * geometry: float * learned: float * uncertainty: float
@@ -101,9 +99,9 @@ type ObservationData =
     | EventCommitted of MatchEvent
     | CommandEffective of manager: uint64 * sequence: uint64
     | TacticsEffective of manager: uint64 * sequence: uint64 * TacticsConfig
-    | DuelResolved of DuelEvidence
     | TransitionEvaluated of TransitionDecisionEvidence
     | TransitionEnded of ClubSide * EventId * TransitionEnd * TransitionReason
+    | OrganizedDefenseEvaluated of OrganizedDefenseEvidence
 
 [<Struct>]
 type ObservationEntry =
@@ -331,6 +329,8 @@ module Observation =
                 (float decision.CoverArrival) decision.LocalPlayers decision.Opponents decision.DepthRunners decision.Primary decision.Cover
         | TransitionEnded(side, episode, outcome, reason) ->
             sprintf "Transition %A (%A) finished: %A; last mode rationale %A. Recovery requires committed possession; stabilization requires actual goal-side arrival held over successive evaluations." episode side outcome reason
+        | OrganizedDefenseEvaluated decision ->
+            sprintf "Organized defense %A: %A; first %A, cover %A. Assigned movement is not an immediate recovery." decision.Side decision.Reason decision.Primary decision.Cover
         | DecisionChosen decision ->
             let action =
                 match decision.ActionCode with
@@ -383,9 +383,9 @@ module Observation =
             sprintf
                 "%A attempted a cross but the current target search found no eligible teammate in its target region. No impulse was applied; CrossAttempt is intention, not a consumed physical contact."
                 actor
-        | ActionRejected(actor, NoDuelOpponent) ->
+        | ActionRejected(actor, DuelCarrierUnavailable) ->
             sprintf
-                "%A did not execute the duel: no opponent satisfied the current proximity gate. No duel draw, physical contact or sporting consequence was produced."
+                "%A did not execute the duel: the actor did not actively control a reachable ball. No duel draw, physical contact or sporting consequence was produced."
                 actor
         | ProbabilityResolved(kind, action, probability, succeeded) ->
             sprintf
@@ -400,19 +400,6 @@ module Observation =
                 (MatchEvent.describe incident)
                 penalty
                 advantage
-        | DuelResolved duel ->
-            sprintf
-                "%A contested %A at (%.2f, %.2f): current model win probability %.3f/draw %.3f; foul probability %.3f/draw %.3f; foul=%b, won=%b. Foul takes precedence over the win draw. This is stochastic adjudication, not measured body/ball contact or certification of legal severity."
-                duel.Carrier
-                duel.Defender
-                (float duel.X)
-                (float duel.Y)
-                duel.WinProbability
-                duel.WinDraw
-                duel.FoulProbability
-                duel.FoulDraw
-                duel.Foul
-                duel.Won
         | RestartCreated award ->
             sprintf
                 "%A awarded to %A at (%.2f, %.2f), restart %A. Recorded football cause: %A."
@@ -449,7 +436,6 @@ module Observation =
         | DecisionAlternatives(actor, _) -> Some actor
         | ImpulseApplied impulse -> Some impulse.ActorId
         | ActionRejected(actor, _) -> Some actor
-        | DuelResolved duel -> Some duel.Carrier
         | EventCommitted { Data = EventData.FootContact(actor, _, _, _, _, _) }
         | EventCommitted { Data = EventData.FootStrikeCancelled actor } -> Some actor
         | _ -> None
@@ -665,34 +651,15 @@ module Observation =
         |> Array.map (fun entry ->
             let (ObservationId id) = entry.Id
 
-            let duel =
-                match entry.Data with
-                | DuelResolved evidence ->
-                    let (PlayerId carrier) = evidence.Carrier
-                    let (PlayerId defender) = evidence.Defender
-
-                    [| {| Carrier = carrier
-                          Defender = defender
-                          X = float evidence.X
-                          Y = float evidence.Y
-                          WinProbability = evidence.WinProbability
-                          WinDraw = evidence.WinDraw
-                          FoulProbability = evidence.FoulProbability
-                          FoulDraw = evidence.FoulDraw
-                          Foul = evidence.Foul
-                          Won = evidence.Won |} |]
-                | _ -> [||]
-
             {| Id = id
                Tick = int entry.Tick
                Causes = exportLinks entry.Cause
-               Duel = duel
                Explanation = explain entry |})
 
     /// This export carries explicit links and loss counters; it is an inspection format, not a checkpoint.
     let exportJson (snapshot: ObservationSnapshot) =
         System.Text.Json.JsonSerializer.Serialize(
-            {| FormatVersion = 2
+            {| FormatVersion = 3
                Enabled = snapshot.Enabled
                Total = snapshot.Total
                Evicted = snapshot.Evicted
@@ -713,7 +680,7 @@ module Observation =
                 |> Array.map (fun (ObservationId child, ObservationId source) -> {| Child = child; Source = source |})
 
             System.Text.Json.JsonSerializer.Serialize(
-                {| FormatVersion = 2
+                {| FormatVersion = 3
                    Root = rootId
                    Enabled = snapshot.Enabled
                    Total = snapshot.Total
@@ -747,9 +714,9 @@ module Observation =
                 | EventCommitted event -> "event:" + string (MatchEvent.kind event)
                 | CommandEffective _ -> "command"
                 | TacticsEffective _ -> "tactics"
-                | DuelResolved _ -> "duel-resolution"
                 | TransitionEvaluated _ -> "transition-decision"
-                | TransitionEnded _ -> "transition-end")
+                | TransitionEnded _ -> "transition-end"
+                | OrganizedDefenseEvaluated _ -> "organized-defense")
             |> Array.sortBy fst
             |> Array.map (fun (kind, count) -> {| Kind = kind; Count = count |})
 
@@ -763,7 +730,7 @@ module Observation =
                 |> Array.map (fun source -> {| Child = child; Source = source |}))
 
         System.Text.Json.JsonSerializer.Serialize(
-            {| FormatVersion = 2
+            {| FormatVersion = 3
                Enabled = snapshot.Enabled
                Total = snapshot.Total
                Retained = snapshot.Entries.Length

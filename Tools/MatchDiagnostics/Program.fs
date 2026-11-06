@@ -113,17 +113,18 @@ let private category (entry: ObservationEntry) =
     | AttackCooperation _ -> "individual cooperation"
     | TransitionEvaluated _ -> "defensive transition evaluation"
     | TransitionEnded _ -> "defensive transition outcome"
+    | OrganizedDefenseEvaluated _ -> "organized defense evaluation"
     | DecisionChosen _ -> "chosen decision"
     | DecisionAlternatives _ -> "selective alternatives"
     | ImpulseApplied _ -> "applied impulse"
     | ActionRejected _ -> "rejected execution"
     | ProbabilityResolved _ -> "stochastic resolution"
+    | EventCommitted { Data = EventData.PhysicalContact _ } -> "committed physical contact"
     | RefereeAssessed _ -> "referee assessment"
     | RestartCreated _ -> "restart award"
     | EventCommitted _ -> "committed event"
     | CommandEffective _ -> "effective command"
     | TacticsEffective _ -> "effective tactics"
-    | DuelResolved _ -> "stochastic duel resolution"
 
 let private printSummary (archive: MatchObservationArchive) (entries: ObservationEntry[]) =
     printfn "Match %d seed %d build %s" archive.Input.MatchId archive.Input.Seed archive.Input.EngineVersion

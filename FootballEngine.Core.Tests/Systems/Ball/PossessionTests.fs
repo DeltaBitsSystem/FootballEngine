@@ -111,9 +111,8 @@ module PossessionTests =
                   | BallControl.Controlled(ClubSide.Home, pid') -> Expect.equal pid' pid "controlled after grace"
                   | other -> failtestf "expected Controlled, got %A" other)
 
-              testCase "Nearest side wins a loose-ball contest" (fun _ ->
+              testCase "Proximity cannot resolve a loose-ball contest" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
-                  let homePid = ctx.HomeLineup.Profiles.[5].Id
 
                   world.State <-
                       { world.State with
@@ -132,13 +131,8 @@ module PossessionTests =
                   BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
                   applyEvents world buf
 
-                  Expect.exists
-                      buf.Events
-                      (fun ev ->
-                          match ev.Data with
-                          | EventData.Possession(ClubSide.Home, pid) -> pid = homePid
-                          | _ -> false)
-                      "home won the contest")
+                  Expect.isEmpty buf.Events "a nearby player has not made physical contact"
+                  Expect.equal world.State.Ball.Control (BallControl.Contesting ClubSide.Home) "the race remains unresolved")
 
               testCase "Nobody near a loose ball: no contest" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
@@ -158,9 +152,8 @@ module PossessionTests =
 
                   Expect.isEmpty buf.Events "no contest")
 
-              testCase "Long-stopped free ball is picked up" (fun _ ->
+              testCase "Elapsed time cannot pick up a free ball" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
-                  let pid = ctx.HomeLineup.Profiles.[1].Id
 
                   world.State <-
                       { world.State with
@@ -180,9 +173,10 @@ module PossessionTests =
                   BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
                   applyEvents world buf
 
-                  match world.State.Ball.Control with
-                  | BallControl.Controlled(ClubSide.Home, pid') -> Expect.equal pid' pid "picked up"
-                  | other -> failtestf "expected Controlled, got %A" other)
+                  Expect.equal world.State.Ball.Control BallControl.Free "free ball awaits physical contact"
+                  Expect.isFalse
+                      (buf.Events |> Seq.exists (fun event -> match event.Data with EventData.Possession _ -> true | _ -> false))
+                      "stationary time is not a pickup")
 
               testCase "A reachable loose ball does not wait for an idle timer" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
@@ -204,15 +198,10 @@ module PossessionTests =
                   let buf = buffer ()
                   BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
 
-                  Expect.exists
-                      buf.Events
-                      (fun event ->
-                          match event.Data with
-                          | EventData.Possession _ -> true
-                          | _ -> false)
-                      "physical reach is enough to trap the ball")
+                  Expect.isEmpty buf.Events "reach alone is not a recorded touch"
+                  Expect.equal world.State.Ball.Control BallControl.Free "the ball remains loose until contact")
 
-              testCase "press intent wins a loose ball over a faster idle player" (fun _ ->
+              testCase "press intent cannot win a loose ball without contact" (fun _ ->
                   let c = TestBuilders.defaultCtx ()
 
                   c.HomeLineup.Profiles.[5] <-
@@ -248,15 +237,10 @@ module PossessionTests =
                   let buf = buffer ()
                   BallPossession.step sctx' (Rng.ofSeed 3UL) world buf |> ignore
 
-                  Expect.exists
-                      buf.Events
-                      (fun ev ->
-                          match ev.Data with
-                          | EventData.Possession(ClubSide.Away, pid) -> pid = c.AwayLineup.Profiles.[5].Id
-                          | _ -> false)
-                      "slower pressing player won the contest")
+                  Expect.isEmpty buf.Events "intent changes movement, not the contact result"
+                  Expect.equal world.State.Ball.Control (BallControl.Contesting ClubSide.Home) "neither side wins by scoring")
 
-              testCase "keeper picks up a loose ball in his own area" (fun _ ->
+              testCase "keeper cannot acquire a contested ball by proximity" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
                   placeAllFar world
                   place world ClubSide.Home 0 -50.0<meter> 0.0<meter>
@@ -275,7 +259,5 @@ module PossessionTests =
                   BallPossession.step sctx (Rng.ofSeed 3UL) world buf |> ignore
                   applyEvents world buf
 
-                  match world.State.Ball.Control with
-                  | BallControl.Controlled(ClubSide.Home, pid) ->
-                      Expect.equal pid ctx.HomeLineup.Profiles.[0].Id "keeper held the ball"
-                  | other -> failtestf "expected Controlled, got %A" other) ]
+                  Expect.equal world.State.Ball.Control (BallControl.Contesting ClubSide.Home) "keeper needs a physical save or foot contact"
+                  Expect.isEmpty buf.Events "keeper proximity cannot create a catch") ]

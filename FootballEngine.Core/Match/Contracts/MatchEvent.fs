@@ -101,6 +101,7 @@ type EventKind =
     | DefensiveTransition
     | TeamInstruction
     | CollectiveAttack
+    | PhysicalContact
 
 module EventFlags =
 
@@ -153,6 +154,7 @@ module EventFlags =
             | EventKind.DefensiveTransition -> 41
             | EventKind.TeamInstruction -> 42
             | EventKind.CollectiveAttack -> 43
+            | EventKind.PhysicalContact -> 44
 
         { Bits = 1UL <<< bit }
 
@@ -171,7 +173,6 @@ type ShotResult =
     | OnTarget of saved: bool
     | OffTarget
     | Blocked
-    | Post
 
 type EventData =
     | CollectiveAttack of side: ClubSide * episode: uint64 * change: AttackChange
@@ -185,6 +186,7 @@ type EventData =
         x: float<meter> *
         y: float<meter> *
         z: float<meter>
+    | PhysicalContact of ContactRecord
     | FootStrikeCancelled of player: PlayerId
     | Pass of
         passer: PlayerId *
@@ -288,7 +290,6 @@ module MatchEvent =
         | ShotResult.OnTarget saved -> hashBool (fnv h 0UL) saved
         | ShotResult.OffTarget -> fnv h 1UL
         | ShotResult.Blocked -> fnv h 2UL
-        | ShotResult.Post -> fnv h 3UL
 
     let private hashFoulSeverity h severity =
         match severity with
@@ -312,6 +313,99 @@ module MatchEvent =
         match result with
         | VARResult.GoalStands -> fnv h 0UL
         | VARResult.GoalOverturned -> fnv h 1UL
+
+    let private hashContactSurface (h: uint64) (surface: ContactSurface) =
+        let tag =
+            match surface with
+            | ContactSurface.ContactTorso -> 0UL
+            | ContactSurface.ContactHead -> 1UL
+            | ContactSurface.ContactLeg -> 2UL
+            | ContactSurface.ContactFoot -> 3UL
+            | ContactSurface.ContactHand -> 4UL
+            | ContactSurface.ContactBall -> 5UL
+
+        fnv h tag
+
+    let private hashBodySupport (h: uint64) (support: BodySupport) =
+        let tag =
+            match support with
+            | BodySupport.NoBodySupport -> 0UL
+            | BodySupport.LeftFootSupport -> 1UL
+            | BodySupport.RightFootSupport -> 2UL
+            | BodySupport.DoubleFootSupport -> 3UL
+
+        fnv h tag
+
+    let private hashContactControl (h: uint64) (control: ContactControlSnapshot) =
+        let tag =
+            match control.Kind with
+            | ContactControlKind.UncontrolledBall -> 0UL
+            | ContactControlKind.ControlledBall -> 1UL
+            | ContactControlKind.ReceivingBall -> 2UL
+            | ContactControlKind.ContestedBall -> 3UL
+            | ContactControlKind.HeldBall -> 4UL
+
+        let h = fnv h tag
+        let h =
+            match control.Side with
+            | None -> fnv h 0UL
+            | Some side -> hashSide (fnv h 1UL) side
+
+        hashPlayerOption h control.Player
+
+    let private hashContact (h: uint64) (contact: ContactRecord) =
+        let h = fnv h (ContactId.value contact.Id)
+        let h = hashPlayer h contact.Actor
+        let h = fnv h (uint64 (uint32 contact.ActorGeneration))
+        let h = hashPlayerOption h contact.Other
+        let h =
+            match contact.OtherGeneration with
+            | None -> fnv h 0UL
+            | Some generation -> fnv (fnv h 1UL) (uint64 (uint32 generation))
+
+        let h =
+            match contact.Action with
+            | None -> fnv h 0UL
+            | Some action -> fnv (fnv h 1UL) (ActionId.value action)
+
+        let h =
+            match contact.ActionKind with
+            | None -> fnv h 0UL
+            | Some kind ->
+                let tag =
+                    match kind with
+                    | ContactActionKind.ContactContain -> 0UL
+                    | ContactActionKind.ContactShield -> 1UL
+                    | ContactActionKind.ContactShoulderChallenge -> 2UL
+                    | ContactActionKind.ContactStandingTackle -> 3UL
+                    | ContactActionKind.ContactSlidingTackle -> 4UL
+                    | ContactActionKind.ContactTrap -> 5UL
+                    | ContactActionKind.ContactStrike -> 6UL
+                    | ContactActionKind.ContactHeader -> 7UL
+
+                fnv (fnv h 1UL) tag
+
+        let h = fnv h (uint64 (uint32 (int contact.Tick)))
+        let h = hashFloat h contact.Fraction
+        let h = hashFloat (hashFloat (hashFloat h contact.PointX) contact.PointY) contact.PointZ
+        let h = hashFloat (hashFloat (hashFloat h contact.NormalX) contact.NormalY) contact.NormalZ
+        let h = hashContactSurface (hashContactSurface h contact.SurfaceA) contact.SurfaceB
+        let h =
+            hashFloat
+                (hashFloat
+                    (hashFloat h contact.RelativeVelocityX)
+                    contact.RelativeVelocityY)
+                contact.RelativeVelocityZ
+
+        let h = hashFloat (hashFloat h contact.NormalImpulse) contact.TangentialImpulse
+        let h = hashBodySupport (hashBodySupport h contact.SupportBefore) contact.SupportAfter
+        let h = hashBool h contact.BallTouched
+        let h =
+            match contact.BallTouchOrder with
+            | None -> fnv h 0UL
+            | Some order -> fnv (fnv h 1UL) (uint64 (uint32 order))
+
+        hashContactControl (hashContactControl h contact.ControlBefore) contact.ControlAfter
 
     let private hashEventData h data =
         match data with
@@ -423,6 +517,7 @@ module MatchEvent =
                 fnv (fnv (hashPlayer (fnv h 44UL) player) tag) (if foot = ContactFoot.Left then 0UL else 1UL)
 
             hashFloat (hashFloat (hashFloat h x) y) z
+        | EventData.PhysicalContact contact -> hashContact (fnv h 49UL) contact
         | EventData.Interception(interceptor, passer) -> hashPlayer (hashPlayer (fnv h 8UL) interceptor) passer
         | EventData.Tackle(winner, loser) -> hashPlayer (hashPlayer (fnv h 9UL) winner) loser
         | EventData.Save(gk, shooter) -> hashPlayer (hashPlayer (fnv h 10UL) gk) shooter
@@ -534,6 +629,7 @@ module MatchEvent =
         | EventData.ShootoutFinished -> EventKind.ShootoutFinished
         | EventData.PlayerBodyFlight _ -> EventKind.PlayerBodyFlight
         | EventData.FootContact _ -> EventKind.FootContact
+        | EventData.PhysicalContact _ -> EventKind.PhysicalContact
         | EventData.FootStrikeCancelled _ -> EventKind.FootStrikeCancelled
 
     /// EventData has no mutable identity. This deterministic key gives the
@@ -562,6 +658,8 @@ module MatchEvent =
         | EventData.RestartCommandIssued _ -> "Restart command issued"
         | EventData.RestartContact _ -> "Restart contact"
         | EventData.FootContact(player, foot, kind, _, _, _) -> $"{player} {foot} foot contact ({kind})"
+        | EventData.PhysicalContact contact ->
+            sprintf "Physical contact %A (%A/%A, impulse %.3f)" contact.Id contact.SurfaceA contact.SurfaceB contact.NormalImpulse
         | EventData.FootStrikeCancelled player -> $"{player} foot strike cancelled"
         | EventData.RestartCompleted _ -> "Restart completed"
         | EventData.RestartPlanChanged _ -> "Restart plan changed"

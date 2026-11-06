@@ -367,169 +367,86 @@ module ObservationTests =
                   Expect.isError
                       (Observation.chain (ObservationId 99UL) snapshot)
                       "unretained root does not fabricate a chain")
-              testCase "duel consequences retain the actual sampled resolution without changing RNG or events" (fun _ ->
-                  let mutable sawFoul, sawWin, sawLoss = false, false, false
+              testCase "physical contact observation retains the committed action identity" (fun _ ->
+                  let ctx = TestBuilders.formationCtx ()
+                  let system = { Ctx = ctx; Clock = SimulationClock.defaultClock }
+                  let world = MatchFactory.create ctx
+                  let homeId, awayId = world.Home.RosterIds[5], world.Away.RosterIds[5]
 
-                  for chance in [ 0.0; 1.0 ] do
-                      for seed in 1UL .. 16UL do
-                          let baseCtx = TestBuilders.defaultCtx ()
+                  for side in [ ClubSide.Home; ClubSide.Away ] do
+                      let team = MatchWorld.team world side
 
-                          let ctx =
-                              { baseCtx with
-                                  Config =
-                                      { baseCtx.Config with
-                                          Actions =
-                                              { baseCtx.Config.Actions with
-                                                  DuelFoulChance = chance } } }
+                      for slot in MatchWorld.activeSlots team.Frame do
+                          team.Frame.PosX[slot] <- if side = ClubSide.Home then -30.0f else 30.0f
+                          team.Frame.PosY[slot] <- 15.0f + float32 slot * 2.0f
 
-                          let sctx =
-                              { Ctx = ctx
-                                Clock = SimulationClock.defaultClock }
+                  world.Home.Frame.PosX[5] <- -0.22f
+                  world.Home.Frame.PosY[5] <- 0.0f
+                  world.Home.Frame.VelX[5] <- 8.0f
+                  world.Home.Frame.TargetVelX[5] <- 8.0f
+                  world.Away.Frame.PosX[5] <- 0.22f
+                  world.Away.Frame.PosY[5] <- 0.0f
+                  world.Away.Frame.VelX[5] <- -8.0f
+                  world.Away.Frame.TargetVelX[5] <- -8.0f
 
-                          let captured = TestBuilders.minimalWorld ()
-                          let plain = TestBuilders.minimalWorld ()
-                          plain.Observation.Enabled <- false
-                          let pid = ctx.HomeLineup.Profiles[1].Id
+                  world.State <-
+                      { world.State with
+                          Flow = MatchFlow.Live
+                          Ball =
+                              { world.State.Ball with
+                                  Control = BallControl.Controlled(ClubSide.Home, homeId)
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          X = 4.0<meter>
+                                          Y = 0.0<meter> } } }
 
-                          captured.Observation.Decision(
-                              0<subtick>,
-                              { Actor = pid
-                                ActionCode = 3
-                                TargetSlot = 0
-                                Condition = 1.0f
-                                Cognitive = 1.0f
-                                Pressure = 1
-                                OptionCount = 1
-                                ChosenValue = 0.5
-                                Temperature = 0.2
-                                Sample = 0.1 }
-                          )
+                  let actionId = ActionId 77UL
 
-                          captured.Observation.BeginAction pid
-
-                          let events =
-                              { Events = ResizeArray()
-                                Applied = ResizeArray()
-                                Flags = { Bits = 0UL } }
-
-                          let plainEvents =
-                              { Events = ResizeArray()
-                                Applied = ResizeArray()
-                                Flags = { Bits = 0UL } }
-
-                          let rng = Rng.ofSeed seed
-                          let actual = Duel.adjudicate sctx rng captured events ClubSide.Home 1
-                          let expected = Duel.adjudicate sctx rng plain plainEvents ClubSide.Home 1
-                          captured.Observation.EndAction()
-                          Expect.equal actual expected "observation consumes no sporting draws"
-
-                          Expect.equal
-                              (Seq.toArray events.Events)
-                              (Seq.toArray plainEvents.Events)
-                              "evidence does not replace current sporting outcomes"
-
-                          let resolution =
-                              captured.Observation.Snapshot().Entries
-                              |> Array.find (fun entry ->
-                                  match entry.Data with
-                                  | DuelResolved _ -> true
-                                  | _ -> false)
-
-                          match resolution.Data with
-                          | DuelResolved duel ->
-                              use json =
-                                  System.Text.Json.JsonDocument.Parse(
-                                      Observation.exportJson
-                                          { captured.Observation.Snapshot() with
-                                              Entries = [| resolution |] }
-                                  )
-
-                              let row = json.RootElement.GetProperty("Entries")[0]
-                              let data = row.GetProperty("Duel")[0]
-
-                              Expect.equal
-                                  (data.GetProperty("WinDraw").GetDouble())
-                                  duel.WinDraw
-                                  "JSON exports the actual draw, not only prose"
-
-                              Expect.equal
-                                  (data.GetProperty("FoulProbability").GetDouble())
-                                  chance
-                                  "JSON exports resolved configuration"
-
-                              Expect.equal
-                                  duel.Foul
-                                  (duel.FoulDraw < duel.FoulProbability)
-                                  "foul follows its actual draw"
-
-                              Expect.equal
-                                  duel.Won
-                                  (not duel.Foul && duel.WinDraw < duel.WinProbability)
-                                  "foul branch precedes win result"
-
-                              sawFoul <- sawFoul || duel.Foul
-                              sawWin <- sawWin || duel.Won
-                              sawLoss <- sawLoss || (not duel.Foul && not duel.Won)
-                          | _ -> failtest "expected duel evidence"
-
-                          for event in events.Events do
-                              let cause = captured.Observation.ConsumeCause event
-
-                              Expect.equal
-                                  cause
-                                  (ValueSome(ResolutionCause resolution.Id))
-                                  "each emitted consequence has its actual adjudication source"
-
-                              let root = captured.Observation.Record(event.Tick, cause, EventCommitted event)
-
-                              match root with
-                              | ValueSome id ->
-                                  Expect.hasLength
-                                      (Observation.chain id (captured.Observation.Snapshot()) |> unwrap).Entries
-                                      3
-                                      "decision to resolution to consequence"
-                              | ValueNone -> failtest "enabled capture rejected fixture evidence"
-
-                  Expect.isTrue sawFoul "forced foul cases exercise precedence"
-                  Expect.isTrue sawWin "fixture includes successful dribble"
-                  Expect.isTrue sawLoss "fixture includes failed dribble/tackle/possession")
-              testCase "duel without an eligible opponent is rejected without draws or invented contact" (fun _ ->
-                  let world = TestBuilders.minimalWorld ()
-
-                  for slot in 0 .. world.Away.Frame.SlotCount - 1 do
-                      world.Away.Frame.PosX[slot] <- 1000.0f
-
-                  let ctx = TestBuilders.defaultCtx ()
+                  world.Away.Frame.ContactActions[5] <-
+                      Some
+                          { Id = actionId
+                            Actor = awayId
+                            Generation = world.Away.Frame.ContactGeneration[5]
+                            Kind = ContactActionKind.ContactStandingTackle
+                            Target = Some homeId
+                            Phase = ContactActionPhase.ContactActionCommitted
+                            StartedAt = 0<subtick>
+                            CommitAt = 0<subtick>
+                            EndsAt = 20<subtick>
+                            Foot = Some ContactFoot.Right
+                            PredictedX = 0.0<meter>
+                            PredictedY = 0.0<meter>
+                            PredictedZ = 0.0<meter>
+                            ErrorX = 0.0f
+                            ErrorY = 0.0f
+                            ErrorZ = 0.0f }
 
                   let events =
                       { Events = ResizeArray()
                         Applied = ResizeArray()
                         Flags = { Bits = 0UL } }
 
-                  let rng = Rng.ofSeed 11UL
-                  let state = world.State
+                  let rng = Rng.ofSeed 17UL
+                  Expect.equal (ContactDynamics.step system rng world events) rng "recording contact consumes no random draws"
 
-                  Expect.equal
-                      (Duel.adjudicate
-                          { Ctx = ctx
-                            Clock = SimulationClock.defaultClock }
-                          rng
-                          world
-                          events
-                          ClubSide.Home
-                          1)
-                      rng
-                      "no candidate means no draws"
+                  let contactEvent =
+                      events.Events
+                      |> Seq.find (fun event ->
+                          match event.Data with
+                          | EventData.PhysicalContact record -> record.Other = Some homeId
+                          | _ -> false)
 
-                  Expect.equal world.State state "no adjudication changes sporting state"
-                  Expect.isEmpty events.Events "no invisible fabricated contact consequence"
-                  let evidence = world.Observation.Snapshot()
-                  Expect.hasLength evidence.Entries 1 "failed attempt remains observable"
+                  let cause = world.Observation.ConsumeCause contactEvent
+                  Expect.equal cause (ValueSome(ActionCause actionId)) "physical evidence carries the executed action identity"
 
-                  Expect.equal
-                      evidence.Entries[0].Data
-                      (ActionRejected(ctx.HomeLineup.Profiles[1].Id, NoDuelOpponent))
-                      "reason is the actual failed feasibility gate")
+                  let occurrence = world.Observation.Record(contactEvent.Tick, cause, EventCommitted contactEvent)
+                  Expect.isTrue occurrence.IsSome "the actual contact can be captured"
+                  use json = System.Text.Json.JsonDocument.Parse(Observation.exportJson (world.Observation.Snapshot()))
+                  let row = json.RootElement.GetProperty("Entries")[0]
+                  let source = row.GetProperty("Causes")[0]
+                  Expect.equal (source.GetProperty("Kind").GetString()) "action" "physical evidence exports a typed action link"
+                  Expect.equal (source.GetProperty("Id").GetUInt64()) 77UL "the exact contact action remains inspectable"
+                  Expect.isFalse (row.EnumerateObject() |> Seq.exists (fun property -> property.Name = "Duel")) "stochastic duel payloads are absent")
               testCase "cross attempt distinguishes an applied impulse from a rejected target search" (fun _ ->
                   let ctx = TestBuilders.defaultCtx ()
 

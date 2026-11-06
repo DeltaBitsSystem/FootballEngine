@@ -64,8 +64,7 @@ module MatchMetrics =
 
                         let onTarget =
                             match result with
-                            | ShotResult.OnTarget _
-                            | ShotResult.Post -> 1
+                            | ShotResult.OnTarget _ -> 1
                             | _ -> 0
 
                         if isHome then

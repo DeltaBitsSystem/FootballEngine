@@ -6,106 +6,7 @@ namespace FootballEngine.Core.Match
 /// someone eventually claims it.
 module BallPossession =
 
-    /// 50/50 duel for a loose ball. A small foul chance keeps free-ball
-    /// scrambles physical without making every contest a foul.
-    let private contest (ctx: MatchContext) (rng: Rng) (world: World) (tick: int<subtick>) (buffer: EventBuffer) : Rng =
-        let ball = world.State.Ball
-        let x = ball.Position.X
-        let y = ball.Position.Y
-
-        let side =
-            match ball.Control with
-            | BallControl.Contesting s -> s
-            | _ -> ClubSide.Home
-
-        let nearest =
-            (fun (s: ClubSide) ->
-                MatchWorld.nearestActive ctx world s x y (float ctx.Config.Ball.FootReach)
-                |> Option.filter (fun (slot, _) ->
-                    abs (float ball.Position.Z - float (MatchWorld.team world s).Frame.PosZ[slot])
-                    <= float ctx.Config.Ball.FootContactHeight)
-                |> Option.map (fun (slot, d) -> s, slot, d))
-
-        match nearest side, nearest (MatchWorld.oppOf side) with
-        | Some(s1, slot1, d1), Some(s2, slot2, d2) ->
-            let t1 = BallContact.timeToBall ctx world s1 slot1 x y
-            let t2 = BallContact.timeToBall ctx world s2 slot2 x y
-
-            let winSide, winSlot =
-                if t1 < t2 then s1, slot1
-                elif t2 < t1 then s2, slot2
-                elif d1 <= d2 then s1, slot1
-                else s2, slot2
-
-            let foul, rng' = Rng.bernoulli ctx.Config.Actions.ContestFoulChance rng
-
-            if foul then
-                let winPid = (MatchWorld.lineup ctx winSide).Profiles.[winSlot].Id
-                let loseSide = MatchWorld.oppOf winSide
-                let loseSlot = if winSide = s1 then slot2 else slot1
-                let losePid = (MatchWorld.lineup ctx loseSide).Profiles.[loseSlot].Id
-
-                buffer.Events.Add
-                    { Tick = tick
-                      Data = EventData.Foul(losePid, winPid, FoulSeverity.Minor, CardDecision.NoCard, (x, y)) }
-
-                rng'
-            else
-                let pid = (MatchWorld.lineup ctx winSide).Profiles.[winSlot].Id
-
-                buffer.Events.Add
-                    { Tick = tick
-                      Data = EventData.Possession(winSide, pid) }
-
-                rng
-        | Some(s1, slot1, _), None ->
-            let pid = (MatchWorld.lineup ctx s1).Profiles.[slot1].Id
-
-            buffer.Events.Add
-                { Tick = tick
-                  Data = EventData.Possession(s1, pid) }
-
-            rng
-        | None, Some(s2, slot2, _) ->
-            let pid = (MatchWorld.lineup ctx s2).Profiles.[slot2].Id
-
-            buffer.Events.Add
-                { Tick = tick
-                  Data = EventData.Possession(s2, pid) }
-
-            rng
-        | None, None -> rng
-
-    /// A reachable loose ball can be trapped while moving; waiting for an idle timer would invent dead play.
-    let private pickupFreeBall
-        (ctx: SystemContext)
-        (rng: Rng)
-        (world: World)
-        (tick: int<subtick>)
-        (buffer: EventBuffer)
-        : Rng =
-        let ball = world.State.Ball
-
-        let touchedThisTick =
-            ball.FootMotion
-            |> Option.exists (fun motion -> motion.ContactAt = tick + 1<subtick> && motion.Kind = FootTouchKind.Receive)
-
-        if ball.Trajectory.IsNone && ball.PendingStrike.IsNone && not touchedThisTick then
-            let excluded =
-                match ball.FootMotion with
-                | Some motion when tick <= motion.EndsAt -> Some motion.Actor
-                | _ -> None
-
-            match BallContact.tryReachableContact ctx.Ctx world ball.Position.X ball.Position.Y excluded with
-            | ValueSome struct (side, slot, pid, _) ->
-                BallFootContact.receive ctx world buffer side slot
-
-                buffer.Events.Add
-                    { Tick = tick
-                      Data = EventData.Possession(side, pid) }
-            | ValueNone -> ()
-
-        rng
+    /// A player can claim an uncontrolled ball only after ContactDynamics records an attainable touch.
 
     let private carry (ctx: SystemContext) (world: World) (buffer: EventBuffer) side slot pid =
         let ball = world.State.Ball
@@ -113,11 +14,10 @@ module BallPossession =
         let frame = (MatchWorld.team world side).Frame
         let cfg = ctx.Ctx.Config.Ball
 
-        if (MatchWorld.profileOf ctx.Ctx side slot).IsGK then
+        if (MatchWorld.profileOf ctx.Ctx side slot).IsGK && ball.GKHoldSince.IsSome then
             // A hand-held ball is an explicit attachment, unlike an outfield player's intermittent touches.
             MatchWorld.updateBall world (fun ball ->
                 { ball with
-                    GKHoldSince = ball.GKHoldSince |> Option.orElse (Some tick)
                     Position =
                         { ball.Position with
                             X = MatchWorld.posX frame slot
@@ -213,6 +113,6 @@ module BallPossession =
                           Data = EventData.Possession(side, pid) }
 
                 rng
-            | BallControl.Contesting _ -> contest ctx.Ctx rng world tick buffer
             | BallControl.Free
-            | BallControl.Airborne -> pickupFreeBall ctx rng world tick buffer
+            | BallControl.Airborne
+            | BallControl.Contesting _ -> rng

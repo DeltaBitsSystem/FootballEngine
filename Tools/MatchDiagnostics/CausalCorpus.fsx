@@ -19,7 +19,8 @@ let directory =
   |> Option.defaultValue "/tmp/opencode/causal-corpus"
 
 Directory.CreateDirectory directory |> ignore
-let retainedBudget = 131072
+// The current contact-dense fixtures retain 221134 occurrences in a Release count pass; this leaves over 2x headroom without allowing silent eviction.
+let retainedBudget = 524288
 
 let engineAssemblySha256 =
   typeof<World>.Assembly.Location
@@ -33,7 +34,7 @@ let run seed capture =
       Context = TestBuilders.defaultCtx ()
       Seed = seed
       EffectiveConfig = EffectiveConfig.defaultConfig
-      EngineVersion = "causal-corpus-2026-10-05" }
+      EngineVersion = "causal-contact-2026-11-04" }
 
   let session =
     MatchSession.create Scheduler.systems input MatchRunMode.Fast |> unwrap
@@ -96,44 +97,44 @@ let eventMatches predicate (entry: ObservationEntry) =
   | _ -> false
 
 let episodePredicates: (string * (ObservationEntry -> bool))[] =
-  [| "pass-result",
-     eventMatches (function
-       | EventData.Pass _ -> true
-       | _ -> false)
-     "possession-loss",
-     eventMatches (function
-       | EventData.Interception _
-       | EventData.Tackle _ -> true
-       | _ -> false)
-     "shot-result",
-     eventMatches (function
-       | EventData.Shot _ -> true
-       | _ -> false)
-     "foul-restart",
-     (fun entry ->
-       match entry.Data with
-       | RestartCreated { Cause = RestartCause.Foul _ } -> true
-       | _ -> false)
-     "recalled-advantage",
-     (fun entry ->
-       match entry.Data, entry.Cause with
-       | RestartCreated _, ValueSome(PairedEvents _) -> true
-       | _ -> false)
-     "duel-resolution",
-     (fun entry ->
-       match entry.Data with
-       | DuelResolved _ -> true
-       | _ -> false)
-     "rejected-cross",
-     (fun entry ->
-       match entry.Data with
-       | ActionRejected(_, NoCrossTarget) -> true
-       | _ -> false)
-     "effective-tactics",
-     (fun entry ->
-       match entry.Data with
-       | TacticsEffective _ -> true
-       | _ -> false) |]
+  [| ("pass-result",
+      eventMatches (function
+        | EventData.Pass _ -> true
+        | _ -> false));
+     ("possession-loss",
+      eventMatches (function
+        | EventData.Interception _
+        | EventData.Tackle _ -> true
+        | _ -> false));
+     ("shot-result",
+      eventMatches (function
+        | EventData.Shot _ -> true
+        | _ -> false));
+     ("foul-restart",
+      (fun entry ->
+        match entry.Data with
+        | RestartCreated { Cause = RestartCause.Foul _ } -> true
+        | _ -> false));
+     ("recalled-advantage",
+      (fun entry ->
+        match entry.Data, entry.Cause with
+        | RestartCreated _, ValueSome(PairedEvents _) -> true
+        | _ -> false));
+     ("physical-ball-contact",
+      (fun entry ->
+        match entry.Data with
+        | EventCommitted { Data = EventData.PhysicalContact contact } -> contact.BallTouched
+        | _ -> false));
+     ("rejected-cross",
+      (fun entry ->
+        match entry.Data with
+        | ActionRejected(_, NoCrossTarget) -> true
+        | _ -> false));
+     ("effective-tactics",
+      (fun entry ->
+        match entry.Data with
+        | TacticsEffective _ -> true
+        | _ -> false)) |]
 
 let reports =
   [| for seed in [ 11UL; 12UL; 13UL ] do

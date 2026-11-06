@@ -93,7 +93,6 @@ module ConfigTests =
                         "Referee.HomeCardBonus"
                         "Ball.SaveReflexWeight"
                         "Ball.SavePositioningWeight"
-                        "Actions.DuelFoulChance"
                         "Actions.GkPunchChance"
                         "Actions.GkParryChance"
                         "Actions.PassHeavyTouchChance"

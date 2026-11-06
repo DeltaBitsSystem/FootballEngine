@@ -13,7 +13,6 @@ module OutcomeTests =
           Clock = SimulationClock.defaultClock }
 
     let private shooter = ctx.HomeLineup.Profiles.[9].Id
-    let private gk = ctx.AwayLineup.Profiles.[0].Id
     let private awayOutfield = ctx.AwayLineup.Profiles.[5].Id
     let private homeOutfield = ctx.HomeLineup.Profiles.[5].Id
 
@@ -47,7 +46,7 @@ module OutcomeTests =
     let outcomeTests =
         testList
             "FootballEngine.Core.Systems.Ball.OutcomeTests"
-            [ testCase "Shot inside the frame always ends in save or goal" (fun _ ->
+            [ testCase "Shot inside the frame scores unless physical contact stopped it" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
 
                   let impulse =
@@ -81,47 +80,31 @@ module OutcomeTests =
 
                   let consequence =
                       buf.Events
-                      |> Seq.find (fun event ->
-                          match event.Data with
-                          | EventData.Goal _
-                          | EventData.Save _ -> true
-                          | _ -> false)
+                      |> Seq.find (fun event -> match event.Data with EventData.Goal _ -> true | _ -> false)
 
-                  let snapshot = world.Observation.Snapshot()
-                  let source = world.Observation.ConsumeCause consequence
+                  let cause = world.Observation.ConsumeCause consequence
 
-                  match source with
-                  | ValueSome(ResolutionCause id) ->
-                      let resolution = snapshot.Entries |> Array.find (fun entry -> entry.Id = id)
+                  Expect.equal
+                      cause
+                      (ValueSome(ActionCause impulse.ActionId))
+                      "the goal is linked directly to the committed strike, not a probability result"
 
-                      Expect.equal
-                          resolution.Cause
-                          (ValueSome(ActionCause impulse.ActionId))
-                          "resolution is tied to the actual impulse"
+                  world.Observation.Record(consequence.Tick, cause, EventCommitted consequence)
+                  |> ignore
 
+                  let filter =
+                      { Actor = Some shooter
+                        Action = Some impulse.ActionId
+                        Event = None
+                        FromTick = 0<subtick>
+                        UntilTick = world.State.Tick }
+
+                  match Observation.query filter (world.Observation.Snapshot()) with
+                  | Ok rows ->
                       Expect.isTrue
-                          ((Observation.explain resolution).Contains("not measured physical contact"))
-                          "current stochastic save is not explained as physical contact"
-
-                      Expect.hasLength (Observation.causes snapshot resolution) 1 "the execution is retained"
-
-                      world.Observation.Record(consequence.Tick, source, EventCommitted consequence)
-                      |> ignore
-
-                      let filter =
-                          { Actor = Some shooter
-                            Action = Some impulse.ActionId
-                            Event = None
-                            FromTick = 0<subtick>
-                            UntilTick = world.State.Tick }
-
-                      match Observation.query filter (world.Observation.Snapshot()) with
-                      | Ok rows ->
-                          Expect.isTrue
-                              (rows |> Array.exists (fun entry -> entry.Data = EventCommitted consequence))
-                              "actor/action query follows explicit resolution ancestry to the consequence"
-                      | Error error -> failtest error
-                  | other -> failtestf "outcome must reference its specific resolution, got %A" other
+                          (rows |> Array.exists (fun entry -> entry.Data = EventCommitted consequence))
+                          "actor/action query reaches the actual crossing consequence"
+                  | Error error -> failtest error
 
                   Expect.exists
                       buf.Events
@@ -135,10 +118,13 @@ module OutcomeTests =
                       buf.Events
                       (fun ev ->
                           match ev.Data with
-                          | EventData.Goal _ -> true
-                          | EventData.Save(g, s) -> g = gk && s = shooter
-                          | _ -> false)
-                      "goal or save emitted")
+                           | EventData.Goal _ -> true
+                           | _ -> false)
+                      "the unobstructed in-frame crossing is a goal"
+
+                  Expect.isFalse
+                      (buf.Events |> Seq.exists (fun event -> match event.Data with EventData.Save _ -> true | _ -> false))
+                      "goalkeeper attributes cannot create a save without physical contact")
 
               testCase "Shot wide of the post is off target" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
@@ -158,7 +144,7 @@ module OutcomeTests =
 
               testCase "Shot beyond the goal line with last touch Home is a goal kick for Away" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
-                  setShotBall world 60.0<meter> 1.0<meter>
+                  setShotBall world 60.0<meter> 5.0<meter>
                   lastTouch world homeOutfield
 
                   let buf = buffer ()
@@ -174,7 +160,7 @@ module OutcomeTests =
 
               testCase "Last touch by the defending side over the goal line is a corner" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
-                  setShotBall world 60.0<meter> 1.0<meter>
+                  setShotBall world 60.0<meter> 5.0<meter>
                   lastTouch world awayOutfield
 
                   let buf = buffer ()

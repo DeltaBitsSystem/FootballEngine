@@ -261,8 +261,7 @@ module SimulationSettings =
                     MaxShotSpeed = BalanceConfig.defaultConfig.Ball.MaxShotSpeed * 0.95 } }
 
     let private arcadeBalance: BalanceConfig =
-        // Arcade favours spectacle: faster shots, faster sprints, fewer fouls
-        // so play flows. Values chosen to be measurably different from
+        // Arcade favours spectacle with faster shots and sprints. Values are measurably different from
         // Classic/Realistic (see tests) while staying inside
         // ConfigValidation bounds.
         { BalanceConfig.defaultConfig with
@@ -271,10 +270,7 @@ module SimulationSettings =
                     MaxShotSpeed = 35.0<meterPerSecond> }
             Movement =
                 { BalanceConfig.defaultConfig.Movement with
-                    SprintSpeed = BalanceConfig.defaultConfig.Movement.SprintSpeed * 1.05 }
-            Actions =
-                { BalanceConfig.defaultConfig.Actions with
-                    ContestFoulChance = BalanceConfig.defaultConfig.Actions.ContestFoulChance * 0.7 } }
+                    SprintSpeed = BalanceConfig.defaultConfig.Movement.SprintSpeed * 1.05 } }
 
     let private presetBalance (preset: DifficultyPreset) : BalanceConfig =
         match preset with
