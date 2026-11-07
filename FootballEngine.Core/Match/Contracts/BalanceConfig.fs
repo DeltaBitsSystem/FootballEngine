@@ -190,7 +190,10 @@ type SetPieceConfig =
       CornerFarZoneDist: float<meter>
       ContactReadyRadius: float<meter>
       TargetTolerance: float<meter>
-      MaxTargetDistance: float<meter> }
+      MaxTargetDistance: float<meter>
+      /// How far inside the touchline a throw-in receiver is placed; the law needs the receiver on
+      /// the field, and a player chasing the ball out of play is often standing on the line itself.
+      ThrowInReceiverInset: float<meter> }
 
 /// The collective mind — utility weights, emergent loops, blackboard windows,
 /// shape. (was CollectiveWeights + UtilityWeights + MatchSituation + Influence +
@@ -741,7 +744,8 @@ module BalanceConfig =
           CornerFarZoneDist = 12.0<meter>
           ContactReadyRadius = 1.0<meter>
           TargetTolerance = 1.0<meter>
-          MaxTargetDistance = 70.0<meter> }
+          MaxTargetDistance = 70.0<meter>
+          ThrowInReceiverInset = 3.0<meter> }
 
     let defaultTeam: TeamConfig =
         { UtilityAttackingWeight = 1.0

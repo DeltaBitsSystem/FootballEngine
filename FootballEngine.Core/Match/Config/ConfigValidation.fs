@@ -555,7 +555,9 @@ module ConfigValidation =
           if s.TargetTolerance <= 0.0<meter> then
               yield "SetPiece.TargetTolerance must be positive"
           if s.MaxTargetDistance <= 0.0<meter> then
-              yield "SetPiece.MaxTargetDistance must be positive" ]
+              yield "SetPiece.MaxTargetDistance must be positive"
+          if s.ThrowInReceiverInset <= 0.0<meter> || s.ThrowInReceiverInset > 15.0<meter> then
+              yield "SetPiece.ThrowInReceiverInset must be in (0, 15] m" ]
 
     let validateTeam (t: TeamConfig) : string list =
         [ if t.UtilityAttackingWeight < 0.0 || t.UtilityAttackingWeight > 5.0 then

@@ -182,7 +182,16 @@ module RestartPlanner =
                                 | RestartAction.RestartPass receiverId' when receiverId' = player -> true
                                 | _ -> false)
                         then
-                            RestartRole.Receiver, current
+                            let receiverTarget =
+                                if kind = SetPieceKind.ThrowIn then
+                                    // The receiver must be on the field; planning his current spot froze the
+                                    // restart whenever he stood on the touchline the ball had just crossed.
+                                    let limit = float Pitch.HalfWidth - float ctx.Config.SetPiece.ThrowInReceiverInset
+                                    clampPoint (float current.X) (MatchMath.clamp -limit limit (float current.Y))
+                                else
+                                    current
+
+                            RestartRole.Receiver, receiverTarget
                         else
                             RestartRole.Support, current
 

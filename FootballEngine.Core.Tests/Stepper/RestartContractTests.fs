@@ -44,6 +44,81 @@ module RestartContractTests =
                           "the throw-in ball must sit inside the touchline"
                   | flow -> failtestf "expected a restart delay, got %A" flow)
 
+              testCase "a throw-in receiver standing on the touchline is planned inside the field" (fun _ ->
+                  let ctx = TestBuilders.defaultCtx ()
+                  let world = TestBuilders.minimalWorld ()
+
+                  // Everyone chased the ball out of play: the planned receiver starts on the line itself.
+                  for slot in MatchWorld.activeSlots world.Home.Frame do
+                      world.Home.Frame.PosX[slot] <- 20.0f + float32 slot
+                      world.Home.Frame.PosY[slot] <- float32 Pitch.HalfWidth
+
+                  match
+                      RestartPlanner.plan
+                          ctx
+                          world
+                          (RestartId 1UL)
+                          (RestartCause.BallCrossedTouchline None)
+                          SetPieceKind.ThrowIn
+                          ClubSide.Home
+                          20.0<meter>
+                          Pitch.HalfWidth
+                          0<subtick>
+                  with
+                  | Error error -> failtestf "planning failed: %A" error
+                  | Ok plan ->
+                      let receiver =
+                          plan.Targets |> Array.find (fun target -> target.Role = RestartRole.Receiver)
+
+                      Expect.isLessThanOrEqual
+                          (abs (float receiver.Position.Y))
+                          (float Pitch.HalfWidth - float ctx.Config.SetPiece.ThrowInReceiverInset + 1e-9)
+                          "the receiver is planned on the field, clear of the line"
+
+                      let geometry =
+                          (RestartRules.validate ctx world plan).Violations
+                          |> List.filter (fun violation -> violation.Rule = RestartRules.Rule.ThrowInGeometry)
+
+                      Expect.isEmpty geometry "positioning can satisfy the plan, so the restart cannot stall")
+
+              // A plan that no amount of positioning can make legal freezes the match with no events;
+              // full matches must keep every restart moving whatever geometry play produces.
+              testCase "seeded matches never stall inside a restart" (fun _ ->
+                  let ctx = TestBuilders.defaultCtx ()
+
+                  for seed in [ 101UL; 102UL; 103UL; 104UL; 105UL ] do
+                      let out =
+                          Simulator.runMatch Scheduler.systems ctx seed Simulator.RunMode.Fast
+                          |> TestBuilders.requireMatchOutcome
+
+                      let planned = System.Collections.Generic.Dictionary<RestartId, int<subtick>>()
+                      let mutable longest = 0<subtick>
+
+                      for event in out.Events do
+                          match event.Data with
+                          | EventData.RestartPlanned(id, _) -> planned[id] <- event.Tick
+                          // The whistle ends a period with the ball dead; abandoning that restart is the law.
+                          | EventData.HalfTime
+                          | EventData.FullTime -> planned.Clear()
+                          | EventData.RestartCompleted id ->
+                              match planned.TryGetValue id with
+                              | true, start ->
+                                  longest <- max longest (event.Tick - start)
+                                  planned.Remove id |> ignore
+                              | _ -> ()
+                          | _ -> ()
+
+                      let pending = planned |> Seq.map (fun pair -> pair.Key, int pair.Value) |> List.ofSeq
+
+                      Expect.isEmpty
+                          pending
+                          (sprintf "seed %d: every planned restart completes, pending %A (match ended at tick %d)" seed pending (int out.Final.State.Tick))
+
+                      Expect.isLessThan
+                          longest
+                          (SimulationClock.secondsToSubTicks SimulationClock.defaultClock 60.0<second>)
+                          (sprintf "seed %d: no restart takes a minute of match time" seed))
+
               testCase "restart preparation signals its football cause" (fun _ ->
                   let ctx = TestBuilders.defaultCtx ()
                   let world = TestBuilders.minimalWorld ()
