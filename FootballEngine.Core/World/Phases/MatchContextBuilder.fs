@@ -8,9 +8,22 @@ open FsToolkit.ErrorHandling
 /// World layer talks to the match engine.
 module MatchContextBuilder =
 
-    let private metersX (v: float) : float<meter> = (v - 0.5) * Pitch.Length
+    // Tactics-board slots are drawn with the team attacking up the screen: board X runs across the
+    // pitch (0 = left touchline) and board Y runs down it (0 = rival goal, 1 = own goal). The engine's
+    // team frame attacks +X with left at -Y, so board Y becomes pitch length and board X becomes width.
+    // Base positions are the neutral shape with the ball on the centre spot, which the formation then
+    // pulls toward the ball; the board's goalkeeper (Y 0.90) and striker (Y 0.15) rows land on that
+    // block's own-box and just-past-halfway depths instead of spanning both goal lines.
+    let private boardGoalkeeperRow = 0.90
+    let private boardStrikerRow = 0.15
+    let private neutralGoalkeeperDepth = -41.5<meter>
+    let private neutralStrikerDepth = 6.0<meter>
 
-    let private metersY (v: float) : float<meter> = (v - 0.5) * Pitch.Width
+    let private depthOf (boardY: float) : float<meter> =
+        let t = (boardGoalkeeperRow - boardY) / (boardGoalkeeperRow - boardStrikerRow)
+        neutralGoalkeeperDepth + t * (neutralStrikerDepth - neutralGoalkeeperDepth)
+
+    let private widthOf (boardX: float) : float<meter> = (boardX - 0.5) * Pitch.Width
 
     let private readinessOf (t: TrainingConfig) (p: Player) : float32 =
         let w = float32 t.ReadinessConditionWeight
@@ -99,8 +112,8 @@ module MatchContextBuilder =
                     let starterPositions =
                         starterData
                         |> List.map (fun (slot, _) ->
-                            { X = metersX slot.X
-                              Y = metersY slot.Y
+                            { X = depthOf slot.Y
+                              Y = widthOf slot.X
                               Z = 0.0<meter>
                               Vx = 0.0<meterPerSecond>
                               Vy = 0.0<meterPerSecond>

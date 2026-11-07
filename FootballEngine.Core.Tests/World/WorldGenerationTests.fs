@@ -237,6 +237,99 @@ module WorldGenerationTests =
                           (context.AwayParticipants.Substitutes |> Array.forall _.Eligible)
                           "away substitutes are eligible"
 
+              // Generated ratings are 1..20 while every engine formula reads 0..100; a raw copy made
+              // generated squads play as if every rating were near zero and real matches had no shots.
+              testCase "generated players reach the match engine on its 0..100 rating scale"
+              <| fun _ ->
+                  let state = generate 0xC02UL []
+
+                  let fixtureId, fixture =
+                      state.Competitions
+                      |> Map.toSeq
+                      |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
+                      |> Seq.head
+
+                  let ready = LineupOps.ensureForFixtures [ fixtureId, fixture ] state
+
+                  match MatchContextBuilder.build ready fixture BalanceConfig.defaultConfig with
+                  | None -> failtest "generated fixture could not cross the match boundary"
+                  | Some context ->
+                      let starters (lineup: Lineup) = lineup.Profiles |> Array.take lineup.StarterCount
+                      let profiles = Array.append (starters context.HomeLineup) (starters context.AwayLineup)
+
+                      let ratings (profile: PlayerProfile) =
+                          [ profile.Passing; profile.Finishing; profile.Dribbling; profile.Vision; profile.Composure ]
+
+                      for profile in profiles do
+                          for rating in ratings profile do
+                              Expect.isTrue (rating >= 0.0f && rating <= 100.0f) $"rating {rating} stays on the engine scale"
+
+                      let meanPassing = profiles |> Array.averageBy (fun p -> float p.Passing)
+                      Expect.isGreaterThan meanPassing 25.0 "an average professional is not rated near zero"
+
+                      let generatedPlayer = ready.Players |> Map.toSeq |> Seq.head |> snd
+                      let projected = Projection.toProfile generatedPlayer
+
+                      Expect.equal
+                          projected.Passing
+                          (float32 generatedPlayer.Technical.Passing * 5.0f)
+                          "a 1..20 rating maps linearly onto 0..100"
+
+              // The tactics board is drawn attacking up the screen; reading its width as pitch length put
+              // goalkeepers on the halfway line and full-backs near opposite goals, unevenly per side.
+              testCase "generated lineups enter the engine in the team's attacking frame"
+              <| fun _ ->
+                  let state = generate 0xC02UL []
+
+                  let fixtureId, fixture =
+                      state.Competitions
+                      |> Map.toSeq
+                      |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
+                      |> Seq.head
+
+                  let ready = LineupOps.ensureForFixtures [ fixtureId, fixture ] state
+
+                  match MatchContextBuilder.build ready fixture BalanceConfig.defaultConfig with
+                  | None -> failtest "generated fixture could not cross the match boundary"
+                  | Some context ->
+                      for lineup in [ context.HomeLineup; context.AwayLineup ] do
+                          let starters =
+                              Array.init lineup.StarterCount (fun i -> lineup.Profiles[i].Role, lineup.BasePositions[i])
+
+                          let keeperX =
+                              starters |> Array.find (fun (role, _) -> role = SlotRole.Goalkeeper) |> snd |> _.X
+
+                          let outfield = starters |> Array.filter (fun (role, _) -> role <> SlotRole.Goalkeeper)
+
+                          Expect.isLessThan keeperX -35.0<meter> "the goalkeeper starts in front of his own goal"
+
+                          Expect.isTrue
+                              (outfield |> Array.forall (fun (_, p) -> p.X > keeperX))
+                              "every outfield player starts ahead of the goalkeeper"
+
+                          let mostAdvanced = outfield |> Array.maxBy (fun (_, p) -> p.X) |> fst
+
+                          Expect.contains
+                              [ SlotRole.Striker; SlotRole.AttackingMid; SlotRole.Winger ]
+                              mostAdvanced
+                              "an attacker leads the shape"
+
+                          let meanDefenderX =
+                              outfield
+                              |> Array.filter (fun (role, _) -> role = SlotRole.Defender || role = SlotRole.FullBack)
+                              |> Array.averageBy (fun (_, p) -> float p.X)
+
+                          let meanAttackerX =
+                              outfield
+                              |> Array.filter (fun (role, _) -> role = SlotRole.Striker)
+                              |> Array.averageBy (fun (_, p) -> float p.X)
+
+                          Expect.isGreaterThan (meanAttackerX - meanDefenderX) 25.0 "the back line sits well behind the strikers"
+
+                          Expect.isTrue
+                              (starters |> Array.forall (fun (_, p) -> abs (float p.Y) <= float Pitch.HalfWidth))
+                              "the shape spans the width, inside the touchlines"
+
               testCase "applying one fixture outcome twice is idempotent"
               <| fun _ ->
                   let state = generate 0xC02UL []

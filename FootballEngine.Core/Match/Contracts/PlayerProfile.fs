@@ -40,9 +40,23 @@ type PlayerProfile =
 
 module Projection =
 
-    let private norm (v: int) = float32 v
+    /// Domain attributes are rated 1..20 (world generation, training caps); every engine formula
+    /// reads 0..100. Projecting here is the single crossing, so neither side changes scale.
+    [<Literal>]
+    let DomainAttributeMax = 20
 
-    let private norm01 (v: int) = float32 v / 100.0f
+    let EngineAttributeMax = 100.0f
+
+    let attribute (v: int) =
+        float32 (max 0 (min DomainAttributeMax v))
+        * (EngineAttributeMax / float32 DomainAttributeMax)
+
+    let private norm = attribute
+
+    let private norm01 (v: int) = attribute v / EngineAttributeMax
+
+    // Morale is already a 0..100 domain quantity, not a 1..20 rating.
+    let private morale01 (v: int) = float32 (max 0 (min 100 v)) / 100.0f
 
     let private roleOf (pos: FootballEngine.Domain.Position) : SlotRole =
         match pos with
@@ -116,5 +130,5 @@ module Projection =
               Flair = norm01 tech.BallControl
               Leadership = norm01 mental.Leadership
               Consistency = norm01 mental.Concentration
-              BigGameMentality = norm01 p.Morale }
+              BigGameMentality = morale01 p.Morale }
           InjuryProne = 0.1f }
