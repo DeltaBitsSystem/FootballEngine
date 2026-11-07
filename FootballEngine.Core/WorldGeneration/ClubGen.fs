@@ -117,7 +117,8 @@ module ClubGen =
               Morale = moraleForReputation reputation
               BoardObjective = boardObjectiveFor entry.LeagueLevel reputation
               CoordinationMemory = CoordinationMemory.defaultMemory
-              ScoutingMemory = Map.empty }
+              ScoutingMemory = Map.empty
+              Kit = entry.Kit }
 
 
         let playerMap = players |> List.map (fun p -> p.Id, p) |> Map.ofList

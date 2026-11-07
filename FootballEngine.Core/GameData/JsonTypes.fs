@@ -39,10 +39,17 @@ type NamePoolDto =
       LastNames: string list }
 
 [<CLIMutable>]
+type ClubKitDto =
+    { Primary: string
+      Secondary: string
+      Pattern: string }
+
+[<CLIMutable>]
 type ClubEntryDto =
     { Name: string
       LeagueLevel: int
-      Reputation: int option }
+      Reputation: int option
+      Kit: ClubKitDto option }
 
 /// Cup format with embedded name (unlike domain CupFormat which has no name).
 [<CLIMutable>]

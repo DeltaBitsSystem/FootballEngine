@@ -75,7 +75,8 @@ module TransferMarketTests =
           Morale = 70
           BoardObjective = LeagueObjective MidTable
           CoordinationMemory = CoordinationMemory.defaultMemory
-          ScoutingMemory = Map.empty }
+          ScoutingMemory = Map.empty
+          Kit = None }
 
     let private state (operation: TransferOperation) (buyer: Club) (seller: Club) =
         { CurrentDate = DateTime(2026, 7, 1)

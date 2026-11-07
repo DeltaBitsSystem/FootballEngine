@@ -116,7 +116,8 @@ module FinanceTests =
                         Morale = 60
                         BoardObjective = LeagueObjective MidTable
                         CoordinationMemory = CoordinationMemory.defaultMemory
-                        ScoutingMemory = Map.empty }
+                        ScoutingMemory = Map.empty
+                        Kit = None }
 
                   let state =
                       { CurrentDate = DateTime(2026, 9, 1)

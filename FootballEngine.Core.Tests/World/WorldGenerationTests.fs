@@ -330,6 +330,54 @@ module WorldGenerationTests =
                               (starters |> Array.forall (fun (_, p) -> abs (float p.Y) <= float Pitch.HalfWidth))
                               "the shape spans the width, inside the touchlines"
 
+              // Kits come from data mods; a club without one is drawn with a generated kit in the UI.
+              testCase "a data mod kit reaches the generated club and a malformed one is rejected"
+              <| fun _ ->
+                  let withKit (kitJson: string) =
+                      let json =
+                          countryJson.Replace(
+                              "{\"Name\":\"North FC\",\"LeagueLevel\":0,\"Reputation\":7000}",
+                              "{\"Name\":\"North FC\",\"LeagueLevel\":0,\"Reputation\":7000,\"Kit\":" + kitJson + "}"
+                          )
+
+                      Expect.notEqual json countryJson "the fixture club was found in the country document"
+
+                      ModSystem.resolve
+                          [ { RelativePath = "test-world.femod"
+                              Package =
+                                { package with
+                                    SportsContent = Map.add (ContentId "test.world:country/tst") json package.SportsContent } } ]
+
+                  match withKit "{\"Primary\":\"#FFFFFF\",\"Secondary\":\"#E2353B\",\"Pattern\":\"Sash\"}" with
+                  | Error error -> failtestf "a valid kit was rejected: %A" error
+                  | Ok dataset ->
+                      match WorldGen.generateNewGame dataset 0xC02UL startDate "TST" "Test Manager" [] with
+                      | Error error -> failtestf "generation failed: %A" error
+                      | Ok state ->
+                          let north = state.Clubs |> Map.toSeq |> Seq.map snd |> Seq.find (fun club -> club.Name = "North FC")
+                          let south = state.Clubs |> Map.toSeq |> Seq.map snd |> Seq.find (fun club -> club.Name = "South FC")
+
+                          Expect.equal
+                              north.Kit
+                              (Some
+                                  { Primary = "#FFFFFF"
+                                    Secondary = "#E2353B"
+                                    Pattern = Sash })
+                              "the mod's kit is the club's kit"
+
+                          Expect.isNone south.Kit "a club without a kit stays without one"
+
+                  // Content is validated when the world is materialized from the resolved mods.
+                  match withKit "{\"Primary\":\"red\",\"Secondary\":\"#E2353B\",\"Pattern\":\"Zigzag\"}" with
+                  | Error error -> Expect.stringContains (sprintf "%A" error) "MOD-CONTENT-VALUE" "colour and pattern are validated"
+                  | Ok dataset ->
+                      match WorldGen.generateNewGame dataset 0xC02UL startDate "TST" "Test Manager" [] with
+                      | Ok _ -> failtest "a malformed kit must not reach a career"
+                      | Error error ->
+                          let text = sprintf "%A" error
+                          Expect.stringContains text "MOD-CONTENT-VALUE" "colour and pattern are validated"
+                          Expect.stringContains text "/Kit/Primary" "the diagnostic points at the bad colour"
+
               testCase "applying one fixture outcome twice is idempotent"
               <| fun _ ->
                   let state = generate 0xC02UL []

@@ -44,7 +44,8 @@ module ResolvedWorldData =
     let private leagueRuleKeys =
         set [ "PointsForWin"; "PointsForDraw"; "Tiebreakers"; "Promotion"; "Relegation" ]
 
-    let private clubKeys = set [ "Name"; "LeagueLevel"; "Reputation" ]
+    let private clubKeys = set [ "Name"; "LeagueLevel"; "Reputation"; "Kit" ]
+    let private kitKeys = set [ "Primary"; "Secondary"; "Pattern" ]
     let private cupKeys = set [ "Name"; "Format" ]
 
     let private competitionDomainKeys =
@@ -703,6 +704,62 @@ module ResolvedWorldData =
                       Relegation = relegation }
             | _ -> None
 
+    /// Optional shirt colours: "#RRGGBB" pair plus a pattern; absent or null leaves the UI to generate one.
+    let private parseKit (ctx: Context) (path: string) (properties: JsonProperty list) : ClubKit option =
+        match properties |> List.tryFind (fun property -> property.Name = "Kit") with
+        | None -> None
+        | Some property when property.Value.ValueKind = JsonValueKind.Null -> None
+        | Some property ->
+            let kitPath = childPath path "Kit"
+
+            match objectProperties ctx kitPath property.Value with
+            | None -> None
+            | Some kitProperties ->
+                rejectUnknownProperties ctx kitPath kitKeys kitProperties
+
+                let color name =
+                    requiredNonEmptyString ctx kitPath kitProperties name
+                    |> Option.bind (fun value ->
+                        if Text.RegularExpressions.Regex.IsMatch(value, "^#[0-9A-Fa-f]{6}$") then
+                            Some value
+                        else
+                            addDiagnostic
+                                ctx
+                                "MOD-CONTENT-VALUE"
+                                (childPath kitPath name)
+                                "Kit colours must be #RRGGBB hex values."
+                                "Use a six-digit hex colour such as #E2353B."
+
+                            None)
+
+                let pattern =
+                    requiredNonEmptyString ctx kitPath kitProperties "Pattern"
+                    |> Option.bind (fun value ->
+                        match value with
+                        | "Plain" -> Some Plain
+                        | "Sash" -> Some Sash
+                        | "Stripes" -> Some Stripes
+                        | "Hoops" -> Some Hoops
+                        | "Band" -> Some Band
+                        | "Halves" -> Some Halves
+                        | _ ->
+                            addDiagnostic
+                                ctx
+                                "MOD-CONTENT-VALUE"
+                                (childPath kitPath "Pattern")
+                                "Unknown kit pattern."
+                                "Use Plain, Sash, Stripes, Hoops, Band or Halves."
+
+                            None)
+
+                match color "Primary", color "Secondary", pattern with
+                | Some primary, Some secondary, Some pattern ->
+                    Some
+                        { Primary = primary
+                          Secondary = secondary
+                          Pattern = pattern }
+                | _ -> None
+
     let private parseClubEntry (ctx: Context) (path: string) (element: JsonElement) =
         match objectProperties ctx path element with
         | None -> None
@@ -730,7 +787,8 @@ module ResolvedWorldData =
                 Some
                     { Name = name
                       LeagueLevel = level
-                      Reputation = reputation }
+                      Reputation = reputation
+                      Kit = parseKit ctx path properties }
             | _ -> None
 
     let private parseCupEntry (ctx: Context) (path: string) (element: JsonElement) =

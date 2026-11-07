@@ -28,7 +28,8 @@ module C07LongRunTests =
           Morale = 60
           BoardObjective = LeagueObjective MidTable
           CoordinationMemory = CoordinationMemory.defaultMemory
-          ScoutingMemory = Map.empty }
+          ScoutingMemory = Map.empty
+          Kit = None }
 
     let private competition id name level leagueRules clubs =
         let fixtures, _ = FixtureGen.forLeague id clubs (DateTime(2026, 8, 1)) (id * 100)

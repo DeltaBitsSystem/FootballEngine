@@ -3,7 +3,8 @@ namespace FootballEngine.Domain
 type ClubEntry =
     { Name: string
       LeagueLevel: int
-      Reputation: int option }
+      Reputation: int option
+      Kit: ClubKit option }
 
 type NamePool =
     { FirstNames: string list

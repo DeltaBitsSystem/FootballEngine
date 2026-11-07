@@ -190,7 +190,8 @@ module TrainingTests =
           Morale = 60
           BoardObjective = LeagueObjective MidTable
           CoordinationMemory = CoordinationMemory.defaultMemory
-          ScoutingMemory = Map.empty }
+          ScoutingMemory = Map.empty
+          Kit = None }
 
     let private makeLineup (playerIds: PlayerId list) : Lineup =
         { Formation = F442

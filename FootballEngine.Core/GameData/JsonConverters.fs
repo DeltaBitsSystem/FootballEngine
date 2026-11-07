@@ -33,15 +33,47 @@ module JsonConverters =
 
     // ─── ClubEntry ───
 
+    let private kitPatternName (pattern: KitPattern) =
+        match pattern with
+        | Plain -> "Plain"
+        | Sash -> "Sash"
+        | Stripes -> "Stripes"
+        | Hoops -> "Hoops"
+        | Band -> "Band"
+        | Halves -> "Halves"
+
+    // An unknown pattern name falls back to a plain shirt in the primary colour rather than failing the mod.
+    let private kitPatternOf (name: string) =
+        match name with
+        | "Sash" -> Sash
+        | "Stripes" -> Stripes
+        | "Hoops" -> Hoops
+        | "Band" -> Band
+        | "Halves" -> Halves
+        | _ -> Plain
+
     let clubEntryToDto (ce: ClubEntry) : ClubEntryDto =
         { Name = ce.Name
           LeagueLevel = ce.LeagueLevel
-          Reputation = ce.Reputation }
+          Reputation = ce.Reputation
+          Kit =
+            ce.Kit
+            |> Option.map (fun kit ->
+                { Primary = kit.Primary
+                  Secondary = kit.Secondary
+                  Pattern = kitPatternName kit.Pattern }) }
 
     let clubEntryFromDto (d: ClubEntryDto) : ClubEntry =
         { Name = d.Name
           LeagueLevel = d.LeagueLevel
-          Reputation = d.Reputation }
+          Reputation = d.Reputation
+          Kit =
+            d.Kit
+            |> Option.filter (fun kit -> not (isNull (box kit)))
+            |> Option.map (fun kit ->
+                { Primary = kit.Primary
+                  Secondary = kit.Secondary
+                  Pattern = kitPatternOf kit.Pattern }) }
 
     // ─── CupEntry ───
 

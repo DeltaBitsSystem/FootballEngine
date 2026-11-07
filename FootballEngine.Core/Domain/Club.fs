@@ -18,6 +18,20 @@ type BoardObjective =
     | Promotion
     | Relegation
 
+/// How a club's shirt looks. Data mods supply it; clubs without one get a generated kit in the UI.
+type KitPattern =
+    | Plain
+    | Sash
+    | Stripes
+    | Hoops
+    | Band
+    | Halves
+
+type ClubKit =
+    { Primary: string
+      Secondary: string
+      Pattern: KitPattern }
+
 type Club =
     { Id: ClubId
       Name: string
@@ -29,7 +43,8 @@ type Club =
       Morale: int
       BoardObjective: BoardObjective
       CoordinationMemory: CoordinationMemory
-      ScoutingMemory: Map<ClubId, OpponentMemory> }
+      ScoutingMemory: Map<ClubId, OpponentMemory>
+      Kit: ClubKit option }
 
 module Club =
 

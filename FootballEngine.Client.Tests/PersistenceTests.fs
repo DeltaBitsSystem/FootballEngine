@@ -639,7 +639,8 @@ let discriminatedUnionRoundtripTests =
               Morale = 60
               BoardObjective = LeagueObjective MidTable
               CoordinationMemory = CoordinationMemory.defaultMemory
-              ScoutingMemory = Map.empty }
+              ScoutingMemory = Map.empty
+              Kit = None }
 
         let game =
             { state date (dataLock None) with
@@ -1077,7 +1078,8 @@ let chunkTests =
               Morale = 60
               BoardObjective = LeagueObjective MidTable
               CoordinationMemory = CoordinationMemory.defaultMemory
-              ScoutingMemory = Map.empty }
+              ScoutingMemory = Map.empty
+              Kit = None }
 
         let first =
             { state date (dataLock None) with

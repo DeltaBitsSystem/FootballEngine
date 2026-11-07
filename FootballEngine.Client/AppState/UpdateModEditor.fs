@@ -28,7 +28,8 @@ module UpdateModEditor =
     let createEmptyClub name level =
         { ClubEntryDto.Name = name
           LeagueLevel = level
-          Reputation = Some 5000 }
+          Reputation = Some 5000
+          Kit = None }
 
     let pushHistory (state: ModEditorState) : ModEditorState =
         let item =
