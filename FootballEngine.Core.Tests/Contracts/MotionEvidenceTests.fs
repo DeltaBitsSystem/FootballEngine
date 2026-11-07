@@ -195,4 +195,42 @@ module MotionEvidenceTests =
                   Expect.equal
                       (track.Read(6UL, 4<subtick>, output))
                       (Error MotionFutureCursor)
-                      "invalid cursor rejected") ]
+                      "invalid cursor rejected")
+              // The live viewer stops a match on the first boundary it rejects, so every boundary a
+              // real match publishes must satisfy the shared contract, not only hand-built records.
+              testCase "full live matches publish only boundaries that satisfy the motion contract" (fun _ ->
+                  for seed in [ 7UL; 8UL; 21UL ] do
+                      let input =
+                          { MatchId = seed
+                            Context = TestBuilders.defaultCtx ()
+                            Seed = seed
+                            EffectiveConfig = EffectiveConfig.defaultConfig
+                            EngineVersion = "tests" }
+
+                      let session =
+                          match
+                              MatchSession.create
+                                  Scheduler.systems
+                                  input
+                                  (MatchRunMode.Live LiveExecutionPolicy.defaultPolicy)
+                          with
+                          | Ok session -> session
+                          | Error error -> failtestf "session: %A" error
+
+                      let mutable expected = 1UL
+
+                      let check (boundary: MotionBoundary) =
+                          match MotionContract.violation expected boundary with
+                          | Some reason -> failtestf "seed %d tick %d: %s" seed (int boundary.Tick) reason
+                          | None ->
+                              if boundary.Evidence.Length > 0 then
+                                  expected <- (Array.last boundary.Evidence).Sequence + 1UL
+
+                      match MatchSession.initialMotion session with
+                      | Ok boundary -> check boundary
+                      | Error error -> failtestf "initial motion: %A" error
+
+                      while session.World.State.Flow <> MatchFlow.MatchEnded do
+                          match MatchSession.advanceTo (session.World.State.Tick + 400<subtick>) session with
+                          | Ok advance -> advance.Motion |> Array.iter check
+                          | Error error -> failtestf "seed %d advance: %A" seed error) ]

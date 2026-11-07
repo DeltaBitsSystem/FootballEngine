@@ -94,6 +94,112 @@ type MotionBoundary =
       Roots: MotionRootSample[]
       Evidence: MotionEvidence[] }
 
+/// The one definition of a publishable motion boundary. Core systems produce it and every
+/// presentation consumes it, so the engine and the viewer cannot disagree on validity.
+module MotionContract =
+    let vector (v: Vector3) =
+        System.Single.IsFinite v.X
+        && System.Single.IsFinite v.Y
+        && System.Single.IsFinite v.Z
+        && v.LengthSquared() < 1e12f
+
+    let private optional =
+        function
+        | ValueNone -> true
+        | ValueSome v -> vector v
+
+    let private positiveFinite (value: float32) =
+        System.Single.IsFinite value && value > 0.0f
+
+    // Built from the enum once so new cases are accepted without a literal bound, and the
+    // per-record check stays allocation-free (Enum.IsDefined boxes on every call).
+    let private definedTable (values: int[]) =
+        let table = Array.zeroCreate<bool> (Array.max values + 1)
+
+        for value in values do
+            if value >= 0 then
+                table[value] <- true
+
+        table
+
+    let private families =
+        definedTable (System.Enum.GetValues<MotionFamily>() |> Array.map int)
+
+    let private effectors =
+        definedTable (System.Enum.GetValues<MotionEffector>() |> Array.map int)
+
+    let private phases =
+        definedTable (System.Enum.GetValues<MotionEvidencePhase>() |> Array.map int)
+
+    let private defined (table: bool[]) (value: int) =
+        value >= 0 && value < table.Length && table[value]
+
+    let root (sample: MotionRootSample) =
+        sample.Generation >= 0
+        && vector sample.Position
+        && vector sample.Velocity
+        && optional sample.AttentionTarget
+        && System.Single.IsFinite sample.Facing
+        && System.Single.IsFinite sample.AngularVelocity
+        && System.Single.IsFinite sample.Condition
+        && sample.Condition >= 0.0f
+        && sample.Condition <= 1.0f
+        && positiveFinite sample.Morphology.Height
+        && positiveFinite sample.Morphology.Mass
+        && positiveFinite sample.Morphology.ThighLength
+        && positiveFinite sample.Morphology.ShinLength
+        && positiveFinite sample.Morphology.FootLength
+        && positiveFinite sample.Morphology.ShoulderWidth
+
+    let evidence (value: MotionEvidence) =
+        value.Sequence > 0UL
+        && value.Sequence < System.UInt64.MaxValue
+        // Task 0 is the "no task" sentinel of foot overlays, so a published task must be numbered.
+        && value.TaskId > 0UL
+        && value.Generation >= 0
+        && defined families (int value.Family)
+        && defined effectors (int value.Effector)
+        && defined phases (int value.Phase)
+        && value.OccurredAt >= 0<subtick>
+        && value.OccurredAt <= value.AvailableAt
+        && value.StartedAt >= 0<subtick>
+        && value.StartedAt <= value.CommitAt
+        && value.CommitAt <= value.EndsAt
+        && vector value.PredictedPoint
+        && vector value.BallCenter
+        && optional value.ConfirmedPoint
+        && optional value.IncomingVelocity
+        && optional value.OutgoingVelocity
+
+    /// First contract violation of a boundary, given the next expected evidence sequence.
+    let violation (expectedSequence: uint64) (boundary: MotionBoundary) : string option =
+        let roots = boundary.Roots
+
+        let duplicate =
+            roots
+            |> Array.countBy (fun r -> r.Actor)
+            |> Array.tryFind (fun (_, count) -> count > 1)
+
+        match roots |> Array.tryFind (root >> not), duplicate with
+        | Some bad, _ -> Some $"invalid root %A{bad}"
+        | None, Some(actor, _) -> Some $"duplicate root %A{actor}"
+        | None, None ->
+            let mutable next = expectedSequence
+            let mutable error = None
+
+            for record in boundary.Evidence do
+                if error.IsNone then
+                    if not (evidence record) then
+                        error <- Some $"invalid evidence %A{record}"
+                    elif record.AvailableAt > boundary.Tick then
+                        error <- Some $"evidence available after its boundary %A{record}"
+                    elif record.Sequence <> next then
+                        error <- Some $"evidence sequence gap: expected {next}, got {record.Sequence}"
+
+                next <- record.Sequence + 1UL
+
+            error
+
 /// Systems write a bounded journal independent of pose sampling and observation settings.
 type MotionEvidenceJournal(capacity: int) =
     let records = Array.zeroCreate<MotionEvidence> (max 1 capacity)

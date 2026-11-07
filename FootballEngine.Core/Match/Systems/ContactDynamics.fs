@@ -720,7 +720,12 @@ module ContactDynamics =
 
         scratch.VelocityX[index] <- scratch.VelocityX[index] - impulseX * inversePlayer
         scratch.VelocityY[index] <- scratch.VelocityY[index] - impulseY * inversePlayer
-        scratch.VelocityZ[index] <- scratch.VelocityZ[index] - impulseZ * inversePlayer
+        // The pitch supports a standing body: the ground takes the vertical share of a ball impact,
+        // otherwise a rising ball would lift the player into a flight that no jump started.
+        let standing = scratch.StartZ[index] <= 0.0 && scratch.VelocityZ[index] <= 0.0
+
+        if not standing then
+            scratch.VelocityZ[index] <- scratch.VelocityZ[index] - impulseZ * inversePlayer
 
         let penetration = max 0.0 (surfaceRadius + float ball.Radius - distance)
         // An initially overlapping ball already leaving the boot clears naturally; pushing it again invents travel.

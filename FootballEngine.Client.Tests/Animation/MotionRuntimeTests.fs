@@ -131,10 +131,10 @@ module MotionRuntimeTests =
                       Expect.isLessThan hand.Y shoulder.Y "hand remains below shoulder"
                       Expect.isGreaterThan (shoulder.X * hand.X) 0.0f "hands remain on their own side"
                   Expect.isLessThan scratch.World[rig.LeftArm.End].Translation.Z scratch.World[rig.RightArm.End].Translation.Z "arms counter the opposite legs")
-              testCase "both feet consume strike reception and dribble contacts without moving the root" (fun _ ->
+              testCase "both feet consume strike reception dribble and physical contacts without moving the root" (fun _ ->
                   let path = System.IO.Path.Combine(System.AppContext.BaseDirectory, "Assets", "MatchViewer", "player.glb")
                   let rig = (CharacterAsset.load path |> unwrap).Rig
-                  for family in [| MotionFamily.FootStrike; MotionFamily.Reception; MotionFamily.Dribble |] do
+                  for family in [| MotionFamily.FootStrike; MotionFamily.Reception; MotionFamily.Dribble; MotionFamily.PhysicalContact |] do
                       for isLeft in [| true; false |] do
                           let runtime = MotionRuntime(config, identity)
                           let point = Vector3(0.20f, (if isLeft then 0.18f else -0.18f), 0.07f)

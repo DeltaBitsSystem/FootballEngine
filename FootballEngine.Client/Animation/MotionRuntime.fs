@@ -49,7 +49,7 @@ module MotionCheckpoint =
                 else
                     let root = checkpoint.Plans[index / config.TasksPerActor].Root
 
-                    MotionValidation.evidence task.Evidence
+                    MotionContract.evidence task.Evidence
                     && task.Evidence.Actor = root.Actor
                     && task.Evidence.Generation = root.Generation
                     && task.Evidence.Sequence < checkpoint.Cursor
@@ -192,7 +192,7 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
             Error(NonCanonicalBoundary(frontier + 1, tick))
         elif boundary.Roots.Length > config.MaxActors then
             Error(ActorCapacityExceeded(config.MaxActors, boundary.Roots.Length))
-        elif boundary.Roots |> Array.exists (fun root -> not (MotionValidation.root root)) then
+        elif boundary.Roots |> Array.exists (fun root -> not (MotionContract.root root)) then
             Error InvalidMotionBoundary
         else
             let mutable invalid = false
@@ -206,7 +206,7 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
             let mutable sequenceError = None
 
             for record in boundary.Evidence do
-                if not (MotionValidation.evidence record) || record.AvailableAt > boundary.Tick then
+                if not (MotionContract.evidence record) || record.AvailableAt > boundary.Tick then
                     invalid <- true
 
                 if record.Sequence <> nextCursor && sequenceError.IsNone then
