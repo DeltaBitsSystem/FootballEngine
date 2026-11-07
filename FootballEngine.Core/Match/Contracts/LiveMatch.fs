@@ -157,6 +157,9 @@ type LiveMatchCommandPayload =
     /// Presentation-only: the worker advances unpaced up to the tick. The match is deterministic, so
     /// skipping the wall-clock wait cannot change a sporting outcome.
     | SkipAhead of untilTick: int<subtick>
+    /// Presentation-only: the worker stops advancing at the tick until a later hold, so a capture
+    /// can step the match frame by frame however long each frame takes to grab.
+    | HoldAt of untilTick: int<subtick>
     | PauseMatch
     | ResumeMatch
 
@@ -339,6 +342,7 @@ module LiveMatchCommand =
         match payload with
         | SetLiveSpeed _
         | SkipAhead _
+        | HoldAt _
         | PauseMatch
         | ResumeMatch
         | IssueTouchlineInstruction _ -> Immediate

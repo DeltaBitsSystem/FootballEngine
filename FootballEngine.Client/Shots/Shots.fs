@@ -174,7 +174,7 @@ module Shots =
                   Pages = pages
                   SettleMs = settle
                   VideoPath = videoPath |> Option.map Path.GetFullPath
-                  VideoFps = positiveValue "--video-fps" 30
+                  VideoFps = positiveValue "--video-fps" 20
                   VideoStep = positiveValue "--video-step" 4
                   VideoFrames = positiveValue "--video-frames" 3600
                   MatchIndex = nonNegativeValue "--match-index" 0
@@ -657,6 +657,22 @@ module Shots =
                     return found
                 }
 
+            // Commands carry the revision they expect, so the next one waits until this one was applied.
+            let sendAcked dispatch payload =
+                async {
+                    let revision () = live () |> Option.map _.Revision |> Option.defaultValue 0UL
+                    let before = revision ()
+                    sendLive dispatch payload
+                    let deadline = Stopwatch.StartNew()
+
+                    while revision () <= before && deadline.ElapsedMilliseconds < 2000L do
+                        do! Async.Sleep 2
+                }
+
+            let ticksPerFrame = max 1 (SimulationClock.defaultClock.SubTicksPerSecond / ctx.Opts.VideoFps)
+            // Margin for the paced worker to publish the frame and the viewer clock to reach it.
+            let viewerCatchUpMs = 60
+
             let recordGoals dispatch (goalSeconds: int list) =
                 async {
                     do! openLiveMatch dispatch
@@ -669,6 +685,8 @@ module Shots =
 
                         Directory.CreateDirectory(framesDir) |> ignore
                         let start = max 0 (goalAt - ctx.Opts.VideoLeadSeconds)
+                        // Holding before the skip makes the worker stop exactly at the clip start.
+                        do! sendAcked dispatch (FootballEngine.LiveMatch.HoldAt(toTick start))
 
                         if liveTick () < toTick start then
                             do! skipTo dispatch start
@@ -677,8 +695,15 @@ module Shots =
                         let stopAt = toTick (goalAt + ctx.Opts.VideoTailSeconds)
                         let wall = Stopwatch.StartNew()
                         let mutable frame = 0
+                        let mutable tick = max (toTick start) (liveTick ())
 
-                        while frame < ctx.Opts.VideoFrames && liveTick () < stopAt && not (ended ()) do
+                        // Each frame releases the match by exactly one frame of match time and grabs it once
+                        // the viewer has caught up, so the clip runs at match speed however slow a capture is.
+                        while frame < ctx.Opts.VideoFrames && tick < stopAt && not (ended ()) do
+                            tick <- tick + ticksPerFrame * 1<subtick>
+                            do! sendAcked dispatch (FootballEngine.LiveMatch.HoldAt tick)
+                            do! Async.Sleep(ticksPerFrame * 1000 / SimulationClock.defaultClock.SubTicksPerSecond + viewerCatchUpMs)
+
                             do!
                                 Dispatcher.UIThread
                                     .InvokeAsync((fun () -> window.UpdateLayout()), DispatcherPriority.Render)
@@ -687,21 +712,16 @@ module Shots =
 
                             Dispatcher.UIThread.Invoke(fun () -> captureTo window (Path.Combine(framesDir, $"%06d{frame}.png")) true)
                             frame <- frame + 1
-                            do! Async.Sleep ctx.Opts.VideoStep
 
-                        // The clip plays at the measured capture cadence so the move is shown at real match speed.
-                        let fps =
-                            if wall.Elapsed.TotalSeconds > 0.0 then
-                                max 1 (int (Math.Round(float frame / wall.Elapsed.TotalSeconds)))
-                            else
-                                ctx.Opts.VideoFps
+                        do! sendAcked dispatch (FootballEngine.LiveMatch.HoldAt MatchSession.maxTicks)
+                        let fps = SimulationClock.defaultClock.SubTicksPerSecond / ticksPerFrame
 
                         let output = $"{stem}-%02d{index + 1}.mp4"
 
                         if goals () = scoreBefore then
                             eprintfn $"[video] warning: no goal was scored while recording around second {goalAt}"
 
-                        printfn $"[video] goal {index + 1} at {goalAt / 60}:%02d{goalAt % 60}: {frame} frames in {wall.Elapsed.TotalSeconds:F1}s, {fps} fps -> {output}"
+                        printfn $"[video] goal {index + 1} at {goalAt / 60}:%02d{goalAt % 60}: {frame} frames at {fps} fps, captured in {wall.Elapsed.TotalSeconds:F1}s -> {output}"
                         encodeVideo output fps framesDir
                         Directory.Delete(framesDir, true)
                 }

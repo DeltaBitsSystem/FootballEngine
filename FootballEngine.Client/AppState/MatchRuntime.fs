@@ -303,6 +303,7 @@ type private MatchRuntime
                         let mutable finished = Result.isError motionConfiguration
                         let mutable paused = false
                         let mutable skipUntil = 0<subtick>
+                        let mutable holdAt = MatchSession.maxTicks
                         let mutable accepted: LiveMatchCommand list = []
                         let mutable revision = 0UL
                         let mutable lastCommandId = 0UL
@@ -379,6 +380,10 @@ type private MatchRuntime
                                 enqueue dispatch (StatusChanged(if paused then Paused else Live speed))
                             | SkipAhead untilTick ->
                                 skipUntil <- untilTick
+                                acceptImmediate command
+                            | HoldAt untilTick ->
+                                holdAt <- untilTick
+                                nextAdvance <- Stopwatch.GetTimestamp()
                                 acceptImmediate command
                             | _ when source = RecordedReplay ->
                                 enqueue
@@ -475,8 +480,9 @@ type private MatchRuntime
                             | _ -> ()
 
                             let skipping = session.World.State.Tick < skipUntil
+                            let held = not skipping && session.World.State.Tick >= holdAt
 
-                            if paused || (not skipping && Stopwatch.GetTimestamp() < nextAdvance) then
+                            if paused || held || (not skipping && Stopwatch.GetTimestamp() < nextAdvance) then
                                 cancellation.Token.WaitHandle.WaitOne 5 |> ignore
                             else
                                 let current = session.World.State.Tick
@@ -492,7 +498,7 @@ type private MatchRuntime
                                             | command :: _ -> min target command.EffectiveTick
                                             | [] -> target
                                         // A skip never overshoots, so recording resumes exactly where it was asked to.
-                                        let target = if skipping then min target skipUntil else target
+                                        let target = if skipping then min target skipUntil else min target holdAt
                                         MatchSession.advanceTo target session)
 
                                 match advanceResult with

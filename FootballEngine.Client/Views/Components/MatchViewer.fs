@@ -693,7 +693,7 @@ module MatchViewer =
             |> List.rev
             |> List.tryFind (fun (_, pending) ->
                 match pending.Command.Payload with
-                | SetLiveSpeed _ | SkipAhead _ | PauseMatch | ResumeMatch -> false
+                | SetLiveSpeed _ | SkipAhead _ | HoldAt _ | PauseMatch | ResumeMatch -> false
                 | _ -> true)
 
         match latest with

@@ -312,7 +312,16 @@ type MainWindow(initialGlobal: GlobalSettings, resolvedData: Data.ResolvedDataSe
         match shots with
         | Some s ->
             Avalonia.Threading.Dispatcher.UIThread.Post(fun () ->
-                Async.StartImmediate(Shots.runLoop this (fun () -> dispatchCell) (fun () -> stateCell) s))
+                // A capture failure must be reported, not end the run as if it had succeeded.
+                Async.StartWithContinuations(
+                    Shots.runLoop this (fun () -> dispatchCell) (fun () -> stateCell) s,
+                    ignore,
+                    (fun error ->
+                        eprintfn $"[shots] failed: {error}"
+                        System.Environment.ExitCode <- 1
+                        this.Close()),
+                    ignore
+                ))
         | None -> ()
 
 type App() =
