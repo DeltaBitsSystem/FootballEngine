@@ -154,6 +154,9 @@ type LiveMatchCommandPayload =
     | ConfirmSubstitutions of changes: SubstitutionChange list
     | IssueTouchlineInstruction of TouchlineInstruction
     | SetLiveSpeed of LiveSpeed
+    /// Presentation-only: the worker advances unpaced up to the tick. The match is deterministic, so
+    /// skipping the wall-clock wait cannot change a sporting outcome.
+    | SkipAhead of untilTick: int<subtick>
     | PauseMatch
     | ResumeMatch
 
@@ -335,6 +338,7 @@ module LiveMatchCommand =
     let applicationPoint payload =
         match payload with
         | SetLiveSpeed _
+        | SkipAhead _
         | PauseMatch
         | ResumeMatch
         | IssueTouchlineInstruction _ -> Immediate

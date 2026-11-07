@@ -302,6 +302,7 @@ type private MatchRuntime
                         let mutable nextAdvance = Stopwatch.GetTimestamp()
                         let mutable finished = Result.isError motionConfiguration
                         let mutable paused = false
+                        let mutable skipUntil = 0<subtick>
                         let mutable accepted: LiveMatchCommand list = []
                         let mutable revision = 0UL
                         let mutable lastCommandId = 0UL
@@ -376,6 +377,9 @@ type private MatchRuntime
                                 presentation.SetPlayback(value, paused, Stopwatch.GetTimestamp())
                                 acceptImmediate command
                                 enqueue dispatch (StatusChanged(if paused then Paused else Live speed))
+                            | SkipAhead untilTick ->
+                                skipUntil <- untilTick
+                                acceptImmediate command
                             | _ when source = RecordedReplay ->
                                 enqueue
                                     dispatch
@@ -470,7 +474,9 @@ type private MatchRuntime
                                 Diagnostics.Trace.WriteLine($"Motion recovery held presentation: {message}")
                             | _ -> ()
 
-                            if paused || Stopwatch.GetTimestamp() < nextAdvance then
+                            let skipping = session.World.State.Tick < skipUntil
+
+                            if paused || (not skipping && Stopwatch.GetTimestamp() < nextAdvance) then
                                 cancellation.Token.WaitHandle.WaitOne 5 |> ignore
                             else
                                 let current = session.World.State.Tick
@@ -478,11 +484,15 @@ type private MatchRuntime
                                 let advanceResult =
                                     receiveRecordedCommands ()
                                     |> Result.bind (fun () ->
-                                        let target = min MatchSession.maxTicks (current + ticksPerSlice * 1<subtick>)
+                                        // Live slices are tiny to keep the viewer smooth; a skip has no viewer to feed.
+                                        let slice = if skipping then 400 else ticksPerSlice
+                                        let target = min MatchSession.maxTicks (current + slice * 1<subtick>)
                                         let target =
                                             match replayCommands with
                                             | command :: _ -> min target command.EffectiveTick
                                             | [] -> target
+                                        // A skip never overshoots, so recording resumes exactly where it was asked to.
+                                        let target = if skipping then min target skipUntil else target
                                         MatchSession.advanceTo target session)
 
                                 match advanceResult with
@@ -537,9 +547,17 @@ type private MatchRuntime
 
                                         capturedAt - int64 (secondsBehind * float Stopwatch.Frequency)
 
-                                    advance.Poses
+                                    // Skipped poses would only be drawn as a burst; the newest keeps the viewer current.
+                                    let published =
+                                        if skipping then
+                                            advance.Poses |> Array.tryLast |> Option.toArray
+                                        else
+                                            advance.Poses
+
+                                    published
                                     |> Array.iter (fun pose ->
-                                        presentation.Publish(pose.Tick, pose, poseTimestamp pose) |> ignore)
+                                        let timestamp = if skipping then capturedAt else poseTimestamp pose
+                                        presentation.Publish(pose.Tick, pose, timestamp) |> ignore)
 
                                     presentation.PublishEvents advance.Events |> ignore
                                     pendingEvents <- pendingEvents @ (Array.toList advance.Events)
@@ -550,7 +568,7 @@ type private MatchRuntime
                                     | MatchFlow.HalfTime _, MatchFlow.HalfTime _
                                     | MatchFlow.ExtraTimeBreak _, MatchFlow.ExtraTimeBreak _ -> ()
                                     | _, MatchFlow.HalfTime _
-                                    | _, MatchFlow.ExtraTimeBreak _ ->
+                                    | _, MatchFlow.ExtraTimeBreak _ when not skipping ->
                                         paused <- true
                                         presentation.SetPlayback(speed, true, Stopwatch.GetTimestamp())
                                         enqueue dispatch (StatusChanged HalfTime)
@@ -610,7 +628,10 @@ type private MatchRuntime
                                         / multiplier
 
                                     nextAdvance <-
-                                        Stopwatch.GetTimestamp() + int64 (seconds * float Stopwatch.Frequency)
+                                        if skipping then
+                                            Stopwatch.GetTimestamp()
+                                        else
+                                            Stopwatch.GetTimestamp() + int64 (seconds * float Stopwatch.Frequency)
         with
         | :? OperationCanceledException -> ()
         | _ when cancellation.IsCancellationRequested -> ()

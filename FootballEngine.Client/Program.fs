@@ -374,9 +374,19 @@ module Program =
             // World-gen + a full deterministic match sim take seconds; doing it upfront
             // keeps the window responsive once shown.
             printfn $"[shots] building demo career..."
+            ExecutionRandomness.seedOverride <- opts.MatchSeed
             Shots.Enabled <- true
 
             let demo = Shots.buildDemoState opts initialGlobal resolved
+
+            match args |> Array.tryFindIndex ((=) "--match-corpus") with
+            | Some index ->
+                let count =
+                    args |> Array.tryItem (index + 1) |> Option.bind (fun v -> match System.Int32.TryParse v with | true, n -> Some n | _ -> None) |> Option.defaultValue 5
+
+                Shots.runCorpus count demo
+                exit 0
+            | None -> ()
 
             AppState.shotsContext <- Some { Opts = opts; Demo = demo }
             printfn $"[shots] demo ready, capturing {opts.Pages.Length} pages into {opts.Dir}"

@@ -83,7 +83,34 @@ module MatchSessionTests =
     let tests =
         testList
             "FootballEngine.Core.Contracts.MatchSession"
-            [ testCase "Replay finish produces deterministic terminal state" (fun _ ->
+            [ // The live worker cuts advances wherever commands and wall-clock pacing fall, so the real
+              // systems must produce the same match for any cut; otherwise one seed gives many results.
+              testCase "real systems produce the same match however the advance is cut" (fun _ ->
+                  let run (cuts: int list) =
+                      let session =
+                          MatchSession.create
+                              Scheduler.systems
+                              { input 11 with Context = TestBuilders.defaultCtx () }
+                              (MatchRunMode.Live LiveExecutionPolicy.defaultPolicy)
+                          |> unwrap
+
+                      let mutable index = 0
+
+                      while session.World.State.Flow <> MatchFlow.MatchEnded do
+                          let cut = cuts[index % cuts.Length] * 1<subtick>
+                          index <- index + 1
+                          MatchSession.advanceTo (session.World.State.Tick + cut) session |> unwrap |> ignore
+
+                      MatchSession.finish session |> unwrap
+
+                  let whole = run [ int MatchSession.maxTicks ]
+                  let irregular = run [ 2; 400; 7; 2; 2; 133; 41 ]
+
+                  Expect.equal
+                      (irregular.EventsHash, irregular.Final.State.HomeScore, irregular.Final.State.AwayScore)
+                      (whole.EventsHash, whole.Final.State.HomeScore, whole.Final.State.AwayScore)
+                      "advance boundaries cannot change the sporting result")
+              testCase "Replay finish produces deterministic terminal state" (fun _ ->
                   let outcome =
                       create (Simulator.RunMode.Replay 11<tickDelta>) 11
                       |> MatchSession.finish

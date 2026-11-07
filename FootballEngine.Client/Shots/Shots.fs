@@ -47,12 +47,16 @@ module Shots =
           MatchIndex: int
           InspectMatch: bool
           MatchSeed: uint64 option
-          /// Fast-forward the live match and report the match second of its first goal; captures nothing.
-          VideoFindGoal: bool
-          /// Fast-forward to just before this match second, then record the move at normal speed.
-          VideoGoalAt: int option
+          /// Skip through the live match unpaced and write the match second of every goal; captures nothing.
+          VideoFindGoals: bool
+          /// Find every goal, then record each in a fresh run of the same seeded match.
+          VideoGoals: bool
+          /// Skip unpaced to just before each of these match seconds, then record the move at normal speed.
+          VideoGoalsAt: int list
+          VideoMaxGoals: int
           VideoLeadSeconds: int
-          VideoTailSeconds: int }
+          VideoTailSeconds: int
+          Args: string[] }
 
     type Context = { Opts: Options; Demo: State }
 
@@ -101,10 +105,12 @@ module Shots =
             |> Array.tryFindIndex (fun a -> a = flag)
             |> Option.bind (fun i -> if i + 1 < args.Length then Some args.[i + 1] else None)
 
-        let findGoal = args |> Array.contains "--video-find-goal"
+        let findGoals = args |> Array.contains "--video-find-goals"
+        let allGoals = args |> Array.contains "--video-goals"
+        let findGoal = findGoals || allGoals
 
         match getValue "--shots", getValue "--match-video" with
-        | None, None when not findGoal -> None
+        | None, None when not findGoal && not (args |> Array.contains "--video-goal-at") -> None
         | shotsDir, videoPath ->
             let dir =
                 shotsDir
@@ -174,15 +180,23 @@ module Shots =
                   MatchIndex = nonNegativeValue "--match-index" 0
                   InspectMatch = args |> Array.contains "--match-evidence"
                   MatchSeed = matchSeed
-                  VideoFindGoal = findGoal
-                  VideoGoalAt =
+                  VideoFindGoals = findGoals
+                  VideoGoals = allGoals
+                  VideoGoalsAt =
                     getValue "--video-goal-at"
-                    |> Option.bind (fun value ->
-                        match Int32.TryParse value with
-                        | true, parsed when parsed >= 0 -> Some parsed
-                        | _ -> None)
+                    |> Option.map (fun value ->
+                        value.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        |> Array.choose (fun item ->
+                            match Int32.TryParse(item.Trim()) with
+                            | true, parsed when parsed >= 0 -> Some parsed
+                            | _ -> None)
+                        |> Array.sort
+                        |> List.ofArray)
+                    |> Option.defaultValue []
+                  VideoMaxGoals = positiveValue "--video-max-goals" Int32.MaxValue
                   VideoLeadSeconds = positiveValue "--video-lead" 12
-                  VideoTailSeconds = positiveValue "--video-tail" 5 }
+                  VideoTailSeconds = positiveValue "--video-tail" 5
+                  Args = args }
 
     // Sync replica of UpdateTransfer.buildCacheAsync: the async Load races the screenshot
     // timer; pre-populating keeps Transfers deterministic and spinner-free.
@@ -417,10 +431,8 @@ module Shots =
             bmp.Render(window)
             bmp.Save(path)
 
-    let private encodeVideo (opts: Options) (fps: int) framesDir =
-        match opts.VideoPath with
-        | None -> ()
-        | Some output ->
+    let private encodeVideo (output: string) (fps: int) framesDir =
+        do
             let parent = Path.GetDirectoryName output
 
             if not (String.IsNullOrWhiteSpace parent) then
@@ -448,6 +460,46 @@ module Shots =
 
             if encoder.ExitCode <> 0 then
                 failwith $"ffmpeg failed with exit code {encoder.ExitCode}"
+
+    /// Headless corpus over the demo career's real squads and the game's own context builder, so match
+    /// calibration is measured on the data a player sees rather than on test fixtures.
+    let runCorpus (count: int) (state: State) =
+        match state.Mode with
+        | InGame(gs, _) ->
+            let fixtures =
+                gs.Competitions
+                |> Map.toSeq
+                |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
+                |> Seq.filter (fun (_, fixture) -> MatchFixture.isPending fixture)
+                |> Seq.sortBy (fun (id, fixture) -> fixture.ScheduledDate, id)
+                |> Seq.truncate count
+                |> Seq.toList
+
+            let mutable goals = 0
+            let mutable shots = 0
+            let mutable played = 0
+
+            for id, fixture in fixtures do
+                match MatchContextBuilder.build gs fixture BalanceConfig.defaultConfig with
+                | None -> printfn $"[corpus] fixture {id}: no context"
+                | Some ctx ->
+                    let seed = MatchContextBuilder.seedOf gs.ExecutionSeed id
+
+                    match Simulator.runMatch Scheduler.systems ctx seed MatchRunMode.Fast with
+                    | Error error -> printfn $"[corpus] fixture {id}: %A{error}"
+                    | Ok outcome ->
+                        let world = outcome.Final
+                        let home, away = world.Home.Stats, world.Away.Stats
+                        played <- played + 1
+                        goals <- goals + world.State.HomeScore + world.State.AwayScore
+                        shots <- shots + home.Shots + away.Shots
+
+                        printfn
+                            $"[corpus] {ctx.HomeClub.Name} {world.State.HomeScore}-{world.State.AwayScore} {ctx.AwayClub.Name} | shots {home.Shots}-{away.Shots} on target {home.OnTarget}-{away.OnTarget} xG {home.XgSum:F2}-{away.XgSum:F2} passes {home.PassesCompleted}/{home.Passes} {away.PassesCompleted}/{away.Passes}"
+
+            if played > 0 then
+                printfn $"[corpus] {played} matches: {float goals / float played:F2} goals and {float shots / float played:F1} shots per match"
+        | _ -> eprintfn "[corpus] demo state is not in game"
 
     let runLoop
         (window: Window)
@@ -519,24 +571,172 @@ module Shots =
                     do! waitForPitch window
                 }
 
-            let fastForwardUntil dispatch (until: unit -> bool) =
+            let liveTick () =
+                live () |> Option.map (fun state -> state.Clock.Elapsed) |> Option.defaultValue 0<subtick>
+
+            let ended () =
+                match live () |> Option.map _.Status with
+                | Some FootballEngine.LiveMatch.Finished
+                | Some(FootballEngine.LiveMatch.Failed _) -> true
+                | _ -> false
+
+            let toTick (second: int) =
+                second * SimulationClock.defaultClock.SubTicksPerSecond * 1<subtick>
+
+            // The match is deterministic, so skipping the wall-clock wait reaches the same state the
+            // paced viewer would; the worker advances unpaced and publishes only the newest pose.
+            let skipTo dispatch (second: int) =
                 async {
-                    sendLive dispatch (FootballEngine.LiveMatch.SetLiveSpeed FootballEngine.LiveMatch.VeryFast)
-                    // A full match at 4x is ~25 real minutes; the cap only stops a scoreless run from hanging.
+                    let target = toTick second
+                    sendLive dispatch (FootballEngine.LiveMatch.SkipAhead target)
                     let deadline = Stopwatch.StartNew()
 
-                    while not (until ()) && deadline.Elapsed < TimeSpan.FromMinutes 40.0 do
-                        do! Async.Sleep 100
+                    while liveTick () < target && not (ended ()) && deadline.Elapsed < TimeSpan.FromMinutes 5.0 do
+                        do! Async.Sleep 20
                 }
 
-            match ctx.Opts.VideoPath, ctx.Opts.VideoFindGoal, getDispatch () with
-            | _, true, Some dispatch ->
-                do! openLiveMatch dispatch
-                do! fastForwardUntil dispatch (fun () -> goals () > 0)
-                let second = int (matchSecond ())
-                File.WriteAllText(Path.Combine(ctx.Opts.Dir, "first-goal.txt"), string second)
-                printfn $"[video] first goal at match second {second} (score {live () |> Option.map _.Score})"
-            | Some _, false, Some dispatch ->
+            let videoBase () =
+                ctx.Opts.VideoPath
+                |> Option.defaultValue (Path.Combine(ctx.Opts.Dir, "goal.mp4"))
+
+            let findGoals dispatch =
+                async {
+                    do! openLiveMatch dispatch
+                    let goals = ResizeArray<int>()
+                    let mutable scored = 0
+
+                    // Live state keeps only the latest 128 events and contacts alone exceed that in a
+                    // minute, so the skip moves in short steps; a goal whose event already scrolled out
+                    // is still caught by the score and placed at the end of its step.
+                    let step = 5
+                    let mutable second = step
+
+                    while not (ended ()) && toTick second <= 400000<subtick> do
+                        do! skipTo dispatch second
+                        let stepStart = second - step
+
+                        live ()
+                        |> Option.iter (fun state ->
+                            let exact =
+                                state.Events
+                                |> List.choose (fun event ->
+                                    match event.Data with
+                                    | EventData.Goal _ ->
+                                        let at = int event.Tick / SimulationClock.defaultClock.SubTicksPerSecond
+                                        if at >= stepStart && at < second then Some at else None
+                                    | _ -> None)
+
+                            let total = fst state.Score + snd state.Score
+                            let added = total - scored
+                            goals.AddRange(exact |> List.truncate (max 0 added))
+
+                            for _ in 1 .. added - exact.Length do
+                                goals.Add second
+
+                            scored <- total)
+
+                        second <- second + step
+
+                    let score = live () |> Option.map _.Score
+                    let found = goals |> Seq.sort |> List.ofSeq
+
+                    match score with
+                    | Some(home, away) when home + away <> found.Length ->
+                        eprintfn $"[video] warning: final score {home}-{away} but {found.Length} goal events were read"
+                    | _ -> ()
+
+                    File.WriteAllLines(Path.Combine(ctx.Opts.Dir, "goals.txt"), found |> List.map string)
+                    let stats (team: TeamStats) =
+                        $"shots {team.Shots} on target {team.OnTarget} xG {team.XgSum:F2} passes {team.PassesCompleted}/{team.Passes}"
+
+                    live ()
+                    |> Option.iter (fun state ->
+                        printfn $"[video] home {stats state.Metrics.Home} | away {stats state.Metrics.Away}")
+
+                    printfn $"[video] goals at match seconds %A{found} (final score {score})"
+                    return found
+                }
+
+            let recordGoals dispatch (goalSeconds: int list) =
+                async {
+                    do! openLiveMatch dispatch
+                    let stem = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(videoBase ())), Path.GetFileNameWithoutExtension(videoBase ()))
+                    let framesDir = Path.Combine(ctx.Opts.Dir, "frames")
+
+                    for index, goalAt in goalSeconds |> List.truncate ctx.Opts.VideoMaxGoals |> List.indexed do
+                        if Directory.Exists framesDir then
+                            Directory.Delete(framesDir, true)
+
+                        Directory.CreateDirectory(framesDir) |> ignore
+                        let start = max 0 (goalAt - ctx.Opts.VideoLeadSeconds)
+
+                        if liveTick () < toTick start then
+                            do! skipTo dispatch start
+
+                        let scoreBefore = goals ()
+                        let stopAt = toTick (goalAt + ctx.Opts.VideoTailSeconds)
+                        let wall = Stopwatch.StartNew()
+                        let mutable frame = 0
+
+                        while frame < ctx.Opts.VideoFrames && liveTick () < stopAt && not (ended ()) do
+                            do!
+                                Dispatcher.UIThread
+                                    .InvokeAsync((fun () -> window.UpdateLayout()), DispatcherPriority.Render)
+                                    .GetTask()
+                                |> Async.AwaitTask
+
+                            Dispatcher.UIThread.Invoke(fun () -> captureTo window (Path.Combine(framesDir, $"%06d{frame}.png")) true)
+                            frame <- frame + 1
+                            do! Async.Sleep ctx.Opts.VideoStep
+
+                        // The clip plays at the measured capture cadence so the move is shown at real match speed.
+                        let fps =
+                            if wall.Elapsed.TotalSeconds > 0.0 then
+                                max 1 (int (Math.Round(float frame / wall.Elapsed.TotalSeconds)))
+                            else
+                                ctx.Opts.VideoFps
+
+                        let output = $"{stem}-%02d{index + 1}.mp4"
+
+                        if goals () = scoreBefore then
+                            eprintfn $"[video] warning: no goal was scored while recording around second {goalAt}"
+
+                        printfn $"[video] goal {index + 1} at {goalAt / 60}:%02d{goalAt % 60}: {frame} frames in {wall.Elapsed.TotalSeconds:F1}s, {fps} fps -> {output}"
+                        encodeVideo output fps framesDir
+                        Directory.Delete(framesDir, true)
+                }
+
+            // The finished match cannot be rewound in-process, so recording runs the same seeded match again.
+            let recordInFreshRun (goalSeconds: int list) =
+                let exe = Environment.ProcessPath
+
+                let prefix =
+                    if Path.GetFileNameWithoutExtension exe = "dotnet" then
+                        [ Reflection.Assembly.GetEntryAssembly().Location ]
+                    else
+                        []
+
+                let args =
+                    ctx.Opts.Args
+                    |> Array.filter (fun arg -> arg <> "--video-goals")
+                    |> List.ofArray
+
+                let info = ProcessStartInfo(exe, UseShellExecute = false)
+
+                for argument in prefix @ args @ [ "--video-goal-at"; goalSeconds |> List.map string |> String.concat "," ] do
+                    info.ArgumentList.Add argument
+
+                use child = Process.Start info
+                child.WaitForExit()
+
+            match ctx.Opts.VideoFindGoals || ctx.Opts.VideoGoals, ctx.Opts.VideoGoalsAt, ctx.Opts.VideoPath, getDispatch () with
+            | true, _, _, Some dispatch ->
+                let! found = findGoals dispatch
+
+                if ctx.Opts.VideoGoals && not found.IsEmpty then
+                    recordInFreshRun found
+            | false, (_ :: _ as goalSeconds), _, Some dispatch -> do! recordGoals dispatch goalSeconds
+            | false, [], Some output, Some dispatch ->
                 let framesDir = Path.Combine(ctx.Opts.Dir, "frames")
 
                 if Directory.Exists framesDir then
@@ -544,23 +744,9 @@ module Shots =
 
                 Directory.CreateDirectory(framesDir) |> ignore
                 do! openLiveMatch dispatch
-
-                match ctx.Opts.VideoGoalAt with
-                | Some goalAt ->
-                    let start = float (max 0 (goalAt - ctx.Opts.VideoLeadSeconds))
-                    do! fastForwardUntil dispatch (fun () -> matchSecond () >= start)
-                    sendLive dispatch (FootballEngine.LiveMatch.SetLiveSpeed FootballEngine.LiveMatch.Normal)
-                | None -> ()
-
-                let stopAt =
-                    ctx.Opts.VideoGoalAt |> Option.map (fun goalAt -> float (goalAt + ctx.Opts.VideoTailSeconds))
-
-                let wall = Stopwatch.StartNew()
                 let mutable frame = 0
 
-                while frame < ctx.Opts.VideoFrames
-                      && (stopAt |> Option.forall (fun stop -> matchSecond () < stop)) do
-
+                while frame < ctx.Opts.VideoFrames do
                     do!
                         Dispatcher.UIThread
                             .InvokeAsync((fun () -> window.UpdateLayout()), DispatcherPriority.Render)
@@ -571,19 +757,13 @@ module Shots =
                     frame <- frame + 1
                     do! Async.Sleep ctx.Opts.VideoStep
 
-                // A goal clip plays at the measured capture cadence so the move is shown at real match speed.
-                let fps =
-                    if ctx.Opts.VideoGoalAt.IsSome && wall.Elapsed.TotalSeconds > 0.0 then
-                        max 1 (int (Math.Round(float frame / wall.Elapsed.TotalSeconds)))
-                    else
-                        ctx.Opts.VideoFps
-
-                printfn $"[video] {frame} frames in {wall.Elapsed.TotalSeconds:F1}s, encoded at {fps} fps"
-                encodeVideo ctx.Opts fps framesDir
+                printfn $"[video] {frame} frames, encoded at {ctx.Opts.VideoFps} fps"
+                encodeVideo output ctx.Opts.VideoFps framesDir
                 Directory.Delete(framesDir, true)
-            | Some _, _, None
-            | _, true, None -> eprintfn "[video] no dispatch available"
-            | None, false, _ ->
+            | true, _, _, None
+            | false, _ :: _, _, None
+            | false, [], Some _, None -> eprintfn "[video] no dispatch available"
+            | false, [], None, _ ->
                 let mutable idx = 0
 
                 for page in ctx.Opts.Pages do
