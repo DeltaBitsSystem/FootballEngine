@@ -11,6 +11,7 @@ open FootballEngine.AppTypes
 open FootballEngine.AppMsgs
 open FootballEngine.Domain
 open FootballEngine.Routing
+open FootballEngine.Icons
 
 module CareerJourney =
     let private tr key = Localization.resolve key []
@@ -118,60 +119,238 @@ module CareerJourney =
 
         $"{name fixture.HomeClubId} · {name fixture.AwayClubId} — {date fixture.ScheduledDate}"
 
+    let private chip (label: string) (foreground: string) (background: string) : IView =
+        Border.create
+            [ Border.background background
+              Border.cornerRadius Theme.RadiusPill
+              Border.padding (12.0, 6.0)
+              Border.horizontalAlignment HorizontalAlignment.Left
+              Border.child (
+                  TextBlock.create
+                      [ TextBlock.text (label.ToUpperInvariant())
+                        TextBlock.fontSize 13.0
+                        TextBlock.fontWeight FontWeight.Bold
+                        TextBlock.foreground foreground ]
+              ) ]
+        :> IView
+
+    /// What the rival's staff actually learned about the user's side, from its persisted memory.
+    let private rivalCard (gs: GameState) (rivalId: ClubId) dispatch : IView =
+        let memory =
+            gs.Clubs
+            |> Map.tryFind rivalId
+            |> Option.bind (fun rival -> Map.tryFind gs.UserClubId rival.ScoutingMemory)
+            |> Option.filter (fun memory -> memory.MatchesSeen > 0.0)
+
+        let tags (pattern: PatternVector) =
+            [ let longest =
+                  [ pattern.PassShort, TranslationKey.StyleShortPassing
+                    pattern.PassMedium, TranslationKey.StyleMixedPassing
+                    pattern.PassLong, TranslationKey.StyleLongBalls ]
+                  |> List.maxBy fst
+
+              yield tr (snd longest)
+              if pattern.Directness > 0.55 then yield tr TranslationKey.StyleDirect
+              if pattern.CrossRate > 0.35 then yield tr TranslationKey.StyleCrosses ]
+
+        let title, body, chips =
+            match memory with
+            | Some memory ->
+                let pattern = memory.Weighted
+
+                let corridor =
+                    [ pattern.CorridorLeft, TranslationKey.CorridorLeft
+                      pattern.CorridorCenter, TranslationKey.CorridorCenter
+                      pattern.CorridorRight, TranslationKey.CorridorRight ]
+                    |> List.maxBy fst
+                    |> snd
+                    |> tr
+
+                tr TranslationKey.RivalStudiedTitle,
+                Localization.resolve
+                    TranslationKey.RivalStudiedBody
+                    [ "count", string (int (round memory.MatchesSeen)); "corridor", corridor ],
+                tags pattern
+            | None -> tr TranslationKey.RivalUnknownTitle, tr TranslationKey.RivalUnknownBody, []
+
+        Border.create
+            [ Border.background (Theme.withAlpha "8C" Theme.BgMain)
+              Border.borderBrush (Theme.withAlpha "55" Theme.Hot)
+              Border.borderThickness 1.0
+              Border.cornerRadius Theme.RadiusLg
+              Border.padding (20.0, 18.0)
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.spacing 12.0
+                        StackPanel.children
+                            [ StackPanel.create
+                                  [ StackPanel.orientation Orientation.Horizontal
+                                    StackPanel.spacing 10.0
+                                    StackPanel.children
+                                        [ Icons.icon Material.Icons.MaterialIconKind.History 20.0 Theme.Hot
+                                          TextBlock.create
+                                              [ TextBlock.text title
+                                                TextBlock.fontSize 15.0
+                                                TextBlock.fontWeight FontWeight.Bold
+                                                TextBlock.foreground Theme.TextMain
+                                                TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                              text 14.0 Theme.TextSub body
+                              if not chips.IsEmpty then
+                                  WrapPanel.create
+                                      [ WrapPanel.children
+                                            [ for label in chips ->
+                                                  Border.create
+                                                      [ Border.background (Theme.withAlpha "26" Theme.Hot)
+                                                        Border.cornerRadius Theme.RadiusSm
+                                                        Border.padding (10.0, 5.0)
+                                                        Border.margin (0.0, 0.0, 8.0, 0.0)
+                                                        Border.child (
+                                                            TextBlock.create
+                                                                [ TextBlock.text label
+                                                                  TextBlock.fontSize 13.0
+                                                                  TextBlock.fontWeight FontWeight.SemiBold
+                                                                  TextBlock.foreground "#FFB27A" ]
+                                                        ) ] ] ]
+                              Button.create
+                                  [ Button.background "Transparent"
+                                    Button.borderThickness 0.0
+                                    Button.padding 0.0
+                                    Button.horizontalAlignment HorizontalAlignment.Left
+                                    Button.onClick (fun _ -> dispatch (Navigate(Route.Tactics TacticsRoute.Overview)))
+                                    Button.content (
+                                        TextBlock.create
+                                            [ TextBlock.text (tr TranslationKey.AdjustTactics)
+                                              TextBlock.fontSize 14.0
+                                              TextBlock.fontWeight FontWeight.SemiBold
+                                              TextBlock.foreground Theme.Accent ]
+                                    ) ] ] ]
+              ) ]
+        :> IView
+
+    let private teamName (gs: GameState) (clubId: ClubId) =
+        gs.Clubs |> Map.tryFind clubId |> Option.map _.Name |> Option.defaultValue "—"
+
+    /// Match-day hero: the fixture in scoreboard type, lit like the pitch, with the rival's read beside it.
     let home (state: State) dispatch =
         match state.Mode with
         | InGame(gs, _) ->
             let pending = Inbox.pendingActionCount gs.Inbox
             let next = GameState.getUserNextFixture gs
 
-            panel
-                (tr TranslationKey.JourneyTitle)
-                [ match next with
-                  | Some(_, fixture) -> text 22.0 Theme.TextMain (fixtureTitle gs fixture)
-                  | None -> text 16.0 Theme.TextMain (tr TranslationKey.NoScheduledFixture)
-                  yield! lineupDetails gs
-                  if state.AdvanceTarget.IsSome then
-                      text 13.0 Theme.TextSub (tr TranslationKey.AdvanceNextEventHint)
-                  actions
-                      [ button (continueLabel state) true (canContinue state) (fun () ->
-                            dispatch (SimMsg ContinueCareer))
-                        button (tr TranslationKey.ReviewLineup) false (not state.IsProcessing) (fun () ->
-                            dispatch (Navigate(Route.Tactics TacticsRoute.Overview)))
-                        if pending > 0 then
-                            button
-                                (Localization.resolve TranslationKey.PendingDecisions [ "count", string pending ])
-                                false
-                                true
-                                (fun () ->
-                                    dispatch (InboxMsg(SetRequiresActionOnly true))
-                                    dispatch (Navigate(Route.Inbox(InboxRoute None))))
-                        if state.AdvanceTarget.IsSome then
-                            button (tr TranslationKey.StopAfterDay) false true (fun () ->
-                                dispatch (SimMsg CancelAdvance))
-                        elif
-                            next
-                            |> Option.exists (fun (_, fixture) -> fixture.ScheduledDate.Date > gs.CurrentDate.Date)
-                        then
-                            button (tr TranslationKey.AdvanceNextEvent) false (canContinue state) (fun () ->
-                                dispatch (SimMsg AdvanceToNextEvent))
-                        match CareerFlow.lastResult gs with
-                        | Some(id, _) ->
-                            button (tr TranslationKey.OpenLastResult) false true (fun () ->
-                                dispatch (Navigate(Route.Match(id, Postmatch))))
-                        | None -> () ]
-                  text
-                      12.0
-                      Theme.TextMuted
-                      (tr (
-                          if state.Match.PendingResult.IsSome then
-                              TranslationKey.ResultAwaitingConfirmation
-                          elif state.Match.RuntimeId.IsSome then
-                              TranslationKey.MatchSessionHint
-                          elif (CareerFlow.todayFixture gs).IsSome then
-                              TranslationKey.PreparationHint
-                          else
-                              TranslationKey.AdvanceNextEventHint
-                      )) ]
+            let headline: IView list =
+                match next with
+                | Some(_, fixture) ->
+                    let isToday = fixture.ScheduledDate.Date = gs.CurrentDate.Date
+                    let isHome = fixture.HomeClubId = gs.UserClubId
+
+                    let team (clubId: ClubId) (color: string) =
+                        StackPanel.create
+                            [ StackPanel.orientation Orientation.Horizontal
+                              StackPanel.spacing 14.0
+                              StackPanel.children
+                                  [ UI.crest (ClubIdentity.kitOf gs clubId) 46.0
+                                    UI.display (teamName gs clubId) 52.0 color ] ]
+                        :> IView
+
+                    [ (if isToday then
+                           chip (tr TranslationKey.MatchdayBadge) Theme.Accent (Theme.withAlpha "24" Theme.Accent)
+                       else
+                           chip
+                               (Localization.resolve TranslationKey.NextMatchBadge [ "date", date fixture.ScheduledDate ])
+                               Theme.TextSub
+                               (Theme.withAlpha "1F" Theme.TextMain))
+                      WrapPanel.create
+                          [ WrapPanel.children
+                                [ Border.create [ Border.margin (0.0, 0.0, 22.0, 6.0); Border.child (team fixture.HomeClubId Theme.TextMain) ]
+                                  Border.create
+                                      [ Border.margin (0.0, 0.0, 22.0, 6.0)
+                                        Border.verticalAlignment VerticalAlignment.Center
+                                        Border.child (UI.display (tr TranslationKey.Versus) 28.0 Theme.TextDim) ]
+                                  Border.create [ Border.margin (0.0, 0.0, 0.0, 6.0); Border.child (team fixture.AwayClubId "#CFE0D6") ] ] ]
+                      text
+                          15.0
+                          "#B9C7BF"
+                          ($"{date fixture.ScheduledDate} · "
+                           + tr (if isHome then TranslationKey.VenueHome else TranslationKey.VenueAway)) ]
+                | None -> [ text 18.0 Theme.TextMain (tr TranslationKey.NoScheduledFixture) ]
+
+            let hint =
+                tr (
+                    if state.Match.PendingResult.IsSome then
+                        TranslationKey.ResultAwaitingConfirmation
+                    elif state.Match.RuntimeId.IsSome then
+                        TranslationKey.MatchSessionHint
+                    elif (CareerFlow.todayFixture gs).IsSome then
+                        TranslationKey.PreparationHint
+                    else
+                        TranslationKey.AdvanceNextEventHint
+                )
+
+            let left =
+                StackPanel.create
+                    [ StackPanel.spacing 14.0
+                      StackPanel.children
+                          [ yield! headline
+                            yield! lineupDetails gs
+                            actions
+                                [ button (tr TranslationKey.ReviewLineup) false (not state.IsProcessing) (fun () ->
+                                      dispatch (Navigate(Route.Tactics TacticsRoute.Overview)))
+                                  if pending > 0 then
+                                      button
+                                          (Localization.resolve TranslationKey.PendingDecisions [ "count", string pending ])
+                                          false
+                                          true
+                                          (fun () ->
+                                              dispatch (InboxMsg(SetRequiresActionOnly true))
+                                              dispatch (Navigate(Route.Inbox(InboxRoute None))))
+                                  if state.AdvanceTarget.IsSome then
+                                      button (tr TranslationKey.StopAfterDay) false true (fun () ->
+                                          dispatch (SimMsg CancelAdvance))
+                                  elif
+                                      next
+                                      |> Option.exists (fun (_, fixture) -> fixture.ScheduledDate.Date > gs.CurrentDate.Date)
+                                  then
+                                      button (tr TranslationKey.AdvanceNextEvent) false (canContinue state) (fun () ->
+                                          dispatch (SimMsg AdvanceToNextEvent))
+                                  match CareerFlow.lastResult gs with
+                                  | Some(id, _) ->
+                                      button (tr TranslationKey.OpenLastResult) false true (fun () ->
+                                          dispatch (Navigate(Route.Match(id, Postmatch))))
+                                  | None -> () ]
+                            text 13.0 "#9FB3A8" hint ] ]
+
+            let rival =
+                next
+                |> Option.map (fun (_, fixture) ->
+                    let rivalId =
+                        if fixture.HomeClubId = gs.UserClubId then
+                            fixture.AwayClubId
+                        else
+                            fixture.HomeClubId
+
+                    rivalCard gs rivalId dispatch)
+
+            Border.create
+                [ Border.background (Theme.spotlightBrush "#2E7A46" "#154A2C" "#0F2240")
+                  Border.borderBrush "#3F8A57"
+                  Border.borderThickness 1.0
+                  Border.cornerRadius (Theme.RadiusXl + 2.0)
+                  Border.boxShadow (BoxShadow.Parse "0 18 50 0 #402E7A46")
+                  Border.padding (32.0, 28.0)
+                  Border.child (
+                      Grid.create
+                          [ Grid.columnDefinitions (if rival.IsSome then "*, 28, 360" else "*")
+                            Grid.children
+                                [ Border.create [ Grid.column 0; Border.child left ]
+                                  match rival with
+                                  | Some card ->
+                                      Border.create
+                                          [ Grid.column 2
+                                            Border.verticalAlignment VerticalAlignment.Center
+                                            Border.child card ]
+                                  | None -> () ] ]
+                  ) ]
+            :> IView
         | _ -> Border.create [] :> IView
 
     let preparation (state: State) matchId dispatch =

@@ -38,10 +38,10 @@ module FootballPitch =
 
     module Colors =
         // Premium broadcast green — deep, saturated, broadcast-quality
-        let grassDark = SolidColorBrush.Parse "#0d2b15"
-        let grassLight = SolidColorBrush.Parse "#113a1d"
-        let grassStripe = SolidColorBrush.Parse "#0f3219"
-        let lineWhite = SolidColorBrush.Parse "#CCffffff"
+        let grassDark = SolidColorBrush.Parse "#23793F"
+        let grassLight = SolidColorBrush.Parse "#2B8A4A"
+        let grassStripe = SolidColorBrush.Parse "#26833F"
+        let lineWhite = SolidColorBrush.Parse "#D9ffffff"
         let lineGlow = SolidColorBrush.Parse "#15ffffff"
         let centerDot = SolidColorBrush.Parse "#AAffffff"
 

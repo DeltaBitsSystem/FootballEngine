@@ -271,9 +271,9 @@ module Training =
                                     StackPanel.verticalAlignment VerticalAlignment.Center
                                     StackPanel.children
                                         [ TextBlock.create
-                                              [ TextBlock.text "TEAM EMPHASIS"
-                                                TextBlock.fontSize 11.0
-                                                TextBlock.fontWeight FontWeight.Black
+                                              [ TextBlock.text ((Localization.resolve TranslationKey.TrainingEmphasis []).ToUpperInvariant())
+                                                TextBlock.fontSize 14.0
+                                                TextBlock.fontWeight FontWeight.Bold
                                                 TextBlock.foreground Theme.TextMain
                                                 TextBlock.verticalAlignment VerticalAlignment.Center ]
                                           TextBlock.create
@@ -738,8 +738,8 @@ module Training =
                                             [ StackPanel.spacing 10.0
                                               StackPanel.children
                                                   [ TextBlock.create
-                                                        [ TextBlock.text "THIS WEEK"
-                                                          TextBlock.fontSize 10.0
+                                                        [ TextBlock.text ((Localization.resolve TranslationKey.TrainingThisWeek []).ToUpperInvariant())
+                                                          TextBlock.fontSize 12.0
                                                           TextBlock.fontWeight FontWeight.Black
                                                           TextBlock.foreground Theme.TextDim ]
                                                     Grid.create

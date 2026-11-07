@@ -591,29 +591,8 @@ module Settings =
         let g = state.Settings.Global.Appearance
 
         let rowsData: (string * string * string * IView * string) list =
-            [ let label = "Tema"
-              let desc = "Modo oscuro / claro / automático — aplica sin reinicio"
-
-              let ctl =
-                  ComboBox.create
-                      [ ComboBox.dataItems [ ThemeMode.Dark; ThemeMode.Light; ThemeMode.Auto ]
-                        ComboBox.selectedItem g.ThemeMode
-                        ComboBox.onSelectedItemChanged (fun obj ->
-                            if obj <> null then
-                                let v = obj :?> ThemeMode
-
-                                dispatch (
-                                    SettingsMsg(
-                                        UpdateGlobal(fun gs ->
-                                            { gs with
-                                                Appearance = { gs.Appearance with ThemeMode = v } })
-                                    )
-                                )) ]
-                  :> IView
-
-              yield (label, desc, "🎨", ctl, "ThemeMode")
-              let label2 = "Color de acento"
-              let desc2 = "Hex como #00d492 — usado en botones y enlaces, validado en vivo"
+            [ let label2 = "Color de acento"
+              let desc2 = "Hex como #C8F031 — usado en botones y enlaces, validado en vivo"
 
               let ctl2 =
                   TextBox.create
@@ -2270,9 +2249,6 @@ module Settings =
 
         let diffs: (string * string) list =
             [ if g.Appearance <> AppearanceSettings.defaults then
-                  if g.Appearance.ThemeMode <> AppearanceSettings.defaults.ThemeMode then
-                      yield ("Tema", $"{AppearanceSettings.defaults.ThemeMode} → {g.Appearance.ThemeMode}")
-
                   if g.Appearance.Accent <> AppearanceSettings.defaults.Accent then
                       yield ("Acento", $"{AppearanceSettings.defaults.Accent} → {g.Appearance.Accent}")
 
@@ -2451,15 +2427,14 @@ module Settings =
                                                                                             StackPanel.children
                                                                                                 [ TextBlock.create
                                                                                                       [ TextBlock.text
-                                                                                                            "Tema"
+                                                                                                            "Acento"
                                                                                                         TextBlock.fontSize
                                                                                                             9.0
                                                                                                         TextBlock.foreground
                                                                                                             Theme.TextDim ]
                                                                                                   TextBlock.create
                                                                                                       [ TextBlock.text (
-                                                                                                            string
-                                                                                                                g.Appearance.ThemeMode
+                                                                                                            g.Appearance.Accent
                                                                                                         )
                                                                                                         TextBlock.fontSize
                                                                                                             11.0

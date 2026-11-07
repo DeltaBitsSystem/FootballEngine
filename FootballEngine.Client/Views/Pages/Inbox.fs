@@ -184,13 +184,8 @@ module Inbox =
                                         StackPanel.spacing 6.0
                                         StackPanel.verticalAlignment VerticalAlignment.Center
                                         StackPanel.children
-                                            [ Icons.iconSm IconName.inbox Theme.Accent
-                                              TextBlock.create
-                                                  [ TextBlock.text "INBOX"
-                                                    TextBlock.fontSize 10.0
-                                                    TextBlock.fontWeight FontWeight.Black
-                                                    TextBlock.foreground Theme.TextMuted
-                                                    TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                                            [ Icons.icon IconName.inbox 18.0 Theme.Accent
+                                              UI.display (Localization.resolve TranslationKey.InboxTitle []) 22.0 Theme.TextMain ] ]
                                   if unreadCount > 0 then
                                       Border.create
                                           [ Grid.column 1

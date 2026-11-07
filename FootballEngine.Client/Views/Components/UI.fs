@@ -4,6 +4,7 @@ open System
 open Avalonia.Automation
 open Avalonia.Controls
 open Avalonia.Controls.Primitives
+open Avalonia.Controls.Shapes
 open Avalonia.FuncUI.Builder
 open Avalonia.FuncUI.Types
 open Avalonia.Layout
@@ -58,13 +59,117 @@ module UI =
         | ControlState.Loading -> false
         | _ -> true
 
+    /// Scoreboard type: condensed, upper case, heavy. Headings and the numbers a manager scans.
+    let display (text: string) (size: float) (color: string) : IView =
+        TextBlock.create
+            [ TextBlock.text (text.ToUpperInvariant())
+              TextBlock.fontFamily Theme.DisplayFont
+              TextBlock.fontSize size
+              TextBlock.fontWeight FontWeight.ExtraBold
+              TextBlock.foreground color
+              TextBlock.verticalAlignment VerticalAlignment.Center ]
+        :> IView
+
+    /// Small upper-case label that names a value (CAJA, MORAL, RACHA).
+    let eyebrow (text: string) (color: string) : IView =
+        TextBlock.create
+            [ TextBlock.text (text.ToUpperInvariant())
+              TextBlock.fontSize 12.0
+              TextBlock.fontWeight FontWeight.SemiBold
+              TextBlock.foreground color ]
+        :> IView
+
+    /// Ink that stays readable on a solid chip colour: night navy on light fills, white on dark ones.
+    let inkOn (background: string) =
+        if Theme.meetsAaTextContrast Theme.night.OnAccent background then
+            Theme.night.OnAccent
+        else
+            "#FFFFFF"
+
+    /// Paints a club kit: hard colour stops give a sash, stripes, hoops or halves on any shape.
+    let kitBrush (kit: ClubIdentity.Kit) : IBrush =
+        let bands (startX, startY) (endX, endY) (stops: (string * float) list) =
+            let gradient = LinearGradientBrush()
+            gradient.StartPoint <- Avalonia.RelativePoint(startX, startY, Avalonia.RelativeUnit.Relative)
+            gradient.EndPoint <- Avalonia.RelativePoint(endX, endY, Avalonia.RelativeUnit.Relative)
+
+            for color, offset in stops do
+                gradient.GradientStops.Add(GradientStop(Color.Parse color, offset))
+
+            gradient :> IBrush
+
+        let p, s = kit.Primary, kit.Secondary
+
+        let alternating count =
+            [ for band in 0 .. count - 1 do
+                  let color = if band % 2 = 0 then p else s
+                  yield color, float band / float count
+                  yield color, float (band + 1) / float count ]
+
+        match kit.Pattern with
+        | Plain -> SolidColorBrush(Color.Parse p) :> IBrush
+        | Sash ->
+            bands (0.0, 0.0) (1.0, 1.0) [ p, 0.0; p, 0.40; s, 0.40; s, 0.58; p, 0.58; p, 1.0 ]
+        | Stripes -> bands (0.0, 0.5) (1.0, 0.5) (alternating 5)
+        | Hoops -> bands (0.5, 0.0) (0.5, 1.0) (alternating 5)
+        | Band -> bands (0.5, 0.0) (0.5, 1.0) [ p, 0.0; p, 0.38; s, 0.38; s, 0.6; p, 0.6; p, 1.0 ]
+        | Halves -> bands (0.0, 0.5) (1.0, 0.5) [ p, 0.0; p, 0.5; s, 0.5; s, 1.0 ]
+
+    let crest (kit: ClubIdentity.Kit) (size: float) : IView =
+        Border.create
+            [ Border.width size
+              Border.height size
+              Border.cornerRadius (size * 0.28)
+              Border.background (kitBrush kit)
+              Border.borderBrush "#FFFFFF"
+              Border.borderThickness 2.0
+              Border.boxShadow (BoxShadow.Parse "0 4 14 0 #55000000") ]
+        :> IView
+
+    let private shirtGeometry =
+        "M16 4 L10 6 L2 13 L7 21 L12 18 L12 44 L36 44 L36 18 L41 21 L46 13 L38 6 L32 4 Q24 10 16 4 Z"
+
+    /// A football shirt in the club's kit with its squad number on the chest.
+    let shirt (kit: ClubIdentity.Kit) (number: string) (size: float) (outline: string) (outlineWidth: float) : IView =
+        Panel.create
+            [ Panel.width size
+              Panel.height size
+              Panel.children
+                  [ Path.create
+                        [ Path.data shirtGeometry
+                          Path.stretch Stretch.Uniform
+                          Path.fill (kitBrush kit)
+                          Path.stroke outline
+                          Path.strokeThickness outlineWidth
+                          Path.strokeJoin PenLineJoin.Round ]
+                    // The number sits on a white tag so it reads on stripes, hoops and dark kits alike.
+                    if number <> "" then
+                        Border.create
+                            [ Border.background "#F2FFFFFF"
+                              Border.cornerRadius (size * 0.08)
+                              Border.padding (size * 0.06, 0.0)
+                              Border.minWidth (size * 0.32)
+                              Border.horizontalAlignment HorizontalAlignment.Center
+                              Border.verticalAlignment VerticalAlignment.Top
+                              Border.margin (0.0, size * 0.3, 0.0, 0.0)
+                              Border.child (
+                                  TextBlock.create
+                                      [ TextBlock.text number
+                                        TextBlock.fontFamily Theme.DisplayFont
+                                        TextBlock.fontWeight FontWeight.ExtraBold
+                                        TextBlock.fontSize (size * 0.32)
+                                        TextBlock.foreground "#0A1020"
+                                        TextBlock.horizontalAlignment HorizontalAlignment.Center ]
+                              ) ] ] ]
+        :> IView
+
     let private colorWithState (variant: ButtonVariant) (state: ControlState) =
         let colors = Theme.currentTokens.Value.Colors
 
         let baseStyle =
             match variant with
             | Primary -> colors.Accent, colors.OnAccent, colors.Accent
-            | Secondary -> colors.Surface2, colors.TextPrimary, colors.BorderSubtle
+            | Secondary -> Theme.BgElevated, colors.TextPrimary, Theme.BorderLight
             | Ghost -> "Transparent", colors.TextSecondary, colors.BorderSubtle
             | Danger -> colors.Negative, colors.TextPrimary, colors.Negative
 
@@ -157,7 +262,16 @@ module UI =
               automationName accessibleName
               automationHelp help
               Button.content (buttonContent label icon state foreground) ]
-        :> IView
+        |> fun view ->
+            // The lit primary action is the one thing on a page that should pull the eye.
+            if variant = Primary && stateEnabled state then
+                Border.create
+                    [ Border.cornerRadius tokens.Radii.Control
+                      Border.boxShadow (Theme.accentGlow ())
+                      Border.child view ]
+                :> IView
+            else
+                view :> IView
 
     let primaryButtonWithState
         (label: string)
@@ -465,11 +579,7 @@ module UI =
                             [ StackPanel.create
                                   [ StackPanel.spacing tokens.Spacing.Xs
                                     StackPanel.children
-                                        [ TextBlock.create
-                                              [ TextBlock.text title
-                                                TextBlock.fontSize tokens.Typography.Page
-                                                TextBlock.fontWeight FontWeight.SemiBold
-                                                TextBlock.foreground tokens.Colors.TextPrimary ]
+                                        [ display title tokens.Typography.Page tokens.Colors.TextPrimary
                                           match context with
                                           | Some text ->
                                               TextBlock.create
@@ -501,11 +611,7 @@ module UI =
                             [ StackPanel.create
                                   [ StackPanel.spacing tokens.Spacing.Xs
                                     StackPanel.children
-                                        [ TextBlock.create
-                                              [ TextBlock.text title
-                                                TextBlock.fontSize tokens.Typography.Section
-                                                TextBlock.fontWeight FontWeight.SemiBold
-                                                TextBlock.foreground tokens.Colors.TextPrimary ]
+                                        [ display title tokens.Typography.Section tokens.Colors.TextPrimary
                                           match description with
                                           | Some text ->
                                               TextBlock.create
@@ -540,11 +646,7 @@ module UI =
         StackPanel.create
             [ StackPanel.spacing tokens.Spacing.Xs
               StackPanel.children
-                  [ TextBlock.create
-                        [ TextBlock.text valueText
-                          TextBlock.fontSize tokens.Typography.Emphasis
-                          TextBlock.fontWeight FontWeight.SemiBold
-                          TextBlock.foreground tokens.Colors.TextPrimary ]
+                  [ display valueText 30.0 tokens.Colors.TextPrimary
                     match data.Trend with
                     | Some trend ->
                         TextBlock.create
@@ -566,8 +668,8 @@ module UI =
             [ Border.background (Theme.withAlpha "18" color)
               Border.borderBrush color
               Border.borderThickness 1.0
-              Border.cornerRadius 8.0
-              Border.padding 15.0
+              Border.cornerRadius Theme.RadiusLg
+              Border.padding 16.0
               automationName text
               Border.child (
                   StackPanel.create
@@ -621,44 +723,46 @@ module UI =
     let badge (text: string) (color: string) =
         Border.create
             [ Border.background color
-              Border.cornerRadius 4.0
-              Border.padding (6.0, 2.0)
+              Border.cornerRadius Theme.RadiusSm
+              Border.padding (8.0, 3.0)
               Border.child (
                   TextBlock.create
                       [ TextBlock.text text
                         TextBlock.fontSize (Theme.currentTokens.Value.Typography.Detail)
                         TextBlock.fontWeight FontWeight.Bold
-                        TextBlock.foreground "#ffffff" ]
+                        TextBlock.foreground (inkOn color) ]
               ) ]
 
     let countBadge (count: int) =
         Border.create
-            [ Border.background Theme.Accent
+            [ Border.background Theme.Hot
               Border.cornerRadius Theme.RadiusPill
-              Border.padding (8.0, 2.0)
+              Border.minWidth 22.0
+              Border.padding (7.0, 2.0)
               Border.child (
                   TextBlock.create
                       [ TextBlock.text (string count)
                         TextBlock.fontSize (Theme.currentTokens.Value.Typography.Detail)
                         TextBlock.fontWeight FontWeight.Black
-                        TextBlock.foreground Theme.BgSidebar ]
+                        TextBlock.horizontalAlignment HorizontalAlignment.Center
+                        TextBlock.foreground (inkOn Theme.Hot) ]
               ) ]
 
     let positionBadge (pos: Position) =
         let color = Theme.positionColor pos
 
         Border.create
-            [ Border.background (Theme.withAlpha "1a" color)
-              Border.borderBrush (Theme.withAlpha "55" color)
-              Border.borderThickness 1.0
-              Border.cornerRadius 5.0
+            [ Border.background color
+              Border.cornerRadius Theme.RadiusSm
+              Border.minWidth 44.0
               Border.padding (7.0, 4.0)
               Border.child (
                   TextBlock.create
                       [ TextBlock.text $"%A{pos}"
                         TextBlock.fontSize (Theme.currentTokens.Value.Typography.Detail)
                         TextBlock.fontWeight FontWeight.Black
-                        TextBlock.foreground color ]
+                        TextBlock.horizontalAlignment HorizontalAlignment.Center
+                        TextBlock.foreground (inkOn color) ]
               ) ]
 
     let statCard (iconKind: Material.Icons.MaterialIconKind) (label: string) (value: string) (sub: string) =
@@ -666,8 +770,8 @@ module UI =
             [ Border.background Theme.BgCard
               Border.borderBrush Theme.Border
               Border.borderThickness 1.0
-              Border.cornerRadius Theme.RadiusLg
-              Border.padding (16.0, 14.0)
+              Border.cornerRadius (Theme.RadiusLg + 2.0)
+              Border.padding (18.0, 16.0)
               Border.child (
                   Grid.create
                       [ Grid.columnDefinitions "auto, *"
@@ -685,22 +789,17 @@ module UI =
                               TextBlock.create
                                   [ Grid.column 1
                                     Grid.row 0
-                                    TextBlock.text label
+                                    TextBlock.text (label.ToUpperInvariant())
                                     TextBlock.fontSize (Theme.currentTokens.Value.Typography.Detail)
-                                    TextBlock.fontWeight FontWeight.Bold
-                                    TextBlock.foreground Theme.TextDim
-                                    TextBlock.lineSpacing 0.8 ]
+                                    TextBlock.fontWeight FontWeight.SemiBold
+                                    TextBlock.foreground Theme.TextMuted ]
                               StackPanel.create
                                   [ Grid.column 1
                                     Grid.row 1
                                     StackPanel.orientation Orientation.Horizontal
                                     StackPanel.spacing 6.0
                                     StackPanel.children
-                                        [ TextBlock.create
-                                              [ TextBlock.text value
-                                                TextBlock.fontSize 20.0
-                                                TextBlock.fontWeight FontWeight.Black
-                                                TextBlock.foreground Theme.TextMain ]
+                                        [ display value 34.0 Theme.TextMain
                                           if sub <> "" then
                                               TextBlock.create
                                                   [ TextBlock.text sub
@@ -718,8 +817,8 @@ module UI =
             [ Border.background Theme.BgCard
               Border.borderBrush Theme.Border
               Border.borderThickness 1.0
-              Border.cornerRadius Theme.RadiusMd
-              Border.padding (14.0, 12.0)
+              Border.cornerRadius Theme.RadiusLg
+              Border.padding (16.0, 14.0)
               Border.child (
                   StackPanel.create
                       [ StackPanel.spacing 4.0
@@ -739,11 +838,7 @@ module UI =
                                                 TextBlock.fontSize (Theme.currentTokens.Value.Typography.Detail)
                                                 TextBlock.fontWeight FontWeight.Bold
                                                 TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
-                              TextBlock.create
-                                  [ TextBlock.text value
-                                    TextBlock.foreground Theme.TextMain
-                                    TextBlock.fontSize 22.0
-                                    TextBlock.fontWeight FontWeight.Black ] ] ]
+                              display value 30.0 Theme.TextMain ] ]
               ) ]
 
     let sectionTitle (label: string) (iconKind: Material.Icons.MaterialIconKind) =
@@ -753,54 +848,32 @@ module UI =
               StackPanel.margin (0.0, 0.0, 0.0, 10.0)
               StackPanel.children
                   [ Icons.iconSm iconKind Theme.Accent
-                    TextBlock.create
-                        [ TextBlock.text label
-                          TextBlock.fontSize (Theme.currentTokens.Value.Typography.Detail)
-                          TextBlock.fontWeight FontWeight.Black
-                          TextBlock.foreground Theme.TextMuted
-                          TextBlock.lineSpacing 1.2
-                          TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                    display label 22.0 Theme.TextMain ] ]
 
     let sectionHeader (iconKind: Material.Icons.MaterialIconKind) (label: string) : IView =
         Border.create
-            [ Border.background Theme.BgCard
-              Border.padding (16.0, 11.0)
-              Border.borderBrush Theme.Border
-              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+            [ Border.background "Transparent"
+              Border.padding (20.0, 16.0, 20.0, 10.0)
               Border.child (
                   StackPanel.create
                       [ StackPanel.orientation Orientation.Horizontal
-                        StackPanel.spacing 8.0
-                        StackPanel.children
-                            [ Icons.iconSm iconKind Theme.Accent
-                              TextBlock.create
-                                  [ TextBlock.text label
-                                    TextBlock.foreground Theme.TextMuted
-                                    TextBlock.fontSize (Theme.currentTokens.Value.Typography.Detail)
-                                    TextBlock.fontWeight FontWeight.Black
-                                    TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                        StackPanel.spacing 10.0
+                        StackPanel.children [ Icons.iconSm iconKind Theme.Accent; display label 22.0 Theme.TextMain ] ]
               ) ]
         :> IView
 
     let sectionHeaderWithBadge (iconKind: Material.Icons.MaterialIconKind) (label: string) (count: int) : IView =
         Border.create
-            [ Border.background Theme.BgCard
-              Border.padding (16.0, 11.0)
-              Border.borderBrush Theme.Border
-              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+            [ Border.background "Transparent"
+              Border.padding (20.0, 16.0, 20.0, 10.0)
               Border.child (
                   StackPanel.create
                       [ StackPanel.orientation Orientation.Horizontal
-                        StackPanel.spacing 8.0
+                        StackPanel.spacing 10.0
                         StackPanel.children
                             [ Icons.iconSm iconKind Theme.Accent
-                              TextBlock.create
-                                  [ TextBlock.text label
-                                    TextBlock.foreground Theme.TextMuted
-                                    TextBlock.fontSize (Theme.currentTokens.Value.Typography.Detail)
-                                    TextBlock.fontWeight FontWeight.Black
-                                    TextBlock.verticalAlignment VerticalAlignment.Center ]
-                              countBadge count ] ]
+                              display label 22.0 Theme.TextMain
+                              Border.create [ Border.verticalAlignment VerticalAlignment.Center; Border.child (countBadge count) ] ] ]
               ) ]
         :> IView
 
@@ -809,7 +882,7 @@ module UI =
             [ Border.background Theme.BgCard
               Border.borderBrush Theme.Border
               Border.borderThickness 1.0
-              Border.cornerRadius Theme.RadiusLg
+              Border.cornerRadius (Theme.RadiusLg + 2.0)
               Border.clipToBounds true
               Border.child (StackPanel.create [ StackPanel.spacing 0.0; StackPanel.children [ header; body ] ]) ]
         :> IView
@@ -1116,15 +1189,15 @@ module UI =
 
         Button.create
             [ Button.content label
-              Button.background (if isActive then Theme.Accent else "transparent")
-              Button.foreground (if isActive then Theme.BgSidebar else Theme.TextMuted)
-              Button.borderThickness (if isActive then 0.0 else 1.0)
-              Button.borderBrush Theme.Border
-              Button.padding (15.0, 5.0)
+              Button.background (if isActive then Theme.Accent else Theme.BgCard)
+              Button.foreground (if isActive then Theme.OnAccent else Theme.TextSub)
+              Button.borderThickness 1.0
+              Button.borderBrush (if isActive then Theme.Accent else Theme.BorderLight)
+              Button.padding (16.0, 8.0)
               Button.minHeight tokens.Controls.StandardHeight
               Button.fontSize tokens.Typography.Body
-              Button.fontWeight FontWeight.Bold
-              Button.cornerRadius 4.0
+              Button.fontWeight FontWeight.SemiBold
+              Button.cornerRadius Theme.RadiusPill
               Button.focusable true
               Button.isTabStop true
               automationName label
@@ -1135,16 +1208,12 @@ module UI =
         StackPanel.create
             [ StackPanel.spacing 10.0
               StackPanel.children
-                  [ TextBlock.create
-                        [ TextBlock.text title
-                          TextBlock.fontWeight FontWeight.Bold
-                          TextBlock.foreground Theme.TextMuted
-                          TextBlock.fontSize 12.0 ]
+                  [ display title 22.0 Theme.TextMain
                     Border.create
                         [ Border.background Theme.BgCard
                           Border.borderBrush Theme.Border
                           Border.borderThickness 1.0
-                          Border.cornerRadius 8.0
+                          Border.cornerRadius (Theme.RadiusLg + 2.0)
                           Border.clipToBounds true
                           Border.child content ] ] ]
 
@@ -1160,7 +1229,7 @@ module UI =
               Button.content (
                   Border.create
                       [ Border.background Theme.BgCard
-                        Border.cornerRadius 12.0
+                        Border.cornerRadius Theme.RadiusXl
                         Border.padding 30.0
                         Border.borderBrush Theme.Border
                         Border.borderThickness 1.0
@@ -1169,12 +1238,9 @@ module UI =
                                 [ StackPanel.spacing 10.0
                                   StackPanel.children
                                       [ Icons.iconXl icon Theme.TextMain
-                                        TextBlock.create
-                                            [ TextBlock.text title
-                                              TextBlock.fontSize 22.0
-                                              TextBlock.fontWeight FontWeight.Black
-                                              TextBlock.foreground Theme.Accent
-                                              TextBlock.horizontalAlignment HorizontalAlignment.Center ]
+                                        Border.create
+                                            [ Border.horizontalAlignment HorizontalAlignment.Center
+                                              Border.child (display title 26.0 Theme.Accent) ]
                                         TextBlock.create
                                             [ TextBlock.text description
                                               TextBlock.fontSize 12.0
@@ -1265,9 +1331,9 @@ module UI =
 
     let sidebarButton (isActive: bool) =
         [ Button.background (if isActive then Theme.Accent else "transparent")
-          Button.foreground (if isActive then Theme.BgSidebar else Theme.TextMain)
+          Button.foreground (if isActive then Theme.OnAccent else Theme.TextMain)
           Button.borderThickness 0.0
-          Button.cornerRadius 8.0
+          Button.cornerRadius Theme.RadiusMd
           Button.margin (10.0, 4.0)
           Button.padding (15.0, 10.0)
           Button.horizontalAlignment HorizontalAlignment.Stretch ]
@@ -1275,26 +1341,9 @@ module UI =
 
 module PlayerView =
 
-    let tableHeader () =
-        let col index label =
-            TextBlock.create
-                [ Grid.column index
-                  TextBlock.text label
-                  TextBlock.foreground Theme.TextMuted
-                  TextBlock.fontSize Theme.currentTokens.Value.Typography.Detail
-                  TextBlock.fontWeight FontWeight.Bold ]
+    let private tr key = Localization.resolve key []
 
-        Border.create
-            [ Border.padding (15.0, 8.0)
-              Border.borderBrush Theme.Border
-              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
-              Border.child (
-                  Grid.create
-                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.playerListCols)
-                        Grid.children [ col 0 "PLAYER"; col 1 "POS"; col 2 "AGE"; col 3 "CA / PA"; col 4 "VALUE" ] ]
-              ) ]
-
-    let private statusIndicator (p: Player) =
+    let private statusBadge (p: Player) : IView list =
         match p.Status with
         | Injured(severity, _) ->
             let color =
@@ -1303,328 +1352,284 @@ module PlayerView =
                 | Moderate -> Theme.Warning
                 | _ -> Theme.Danger
 
-            UI.badge "INJ" color
-        | Suspended days -> UI.badge $"SUS {days}" Theme.Warning
-        | Available -> Border.create [ Border.width 0.0 ]
+            [ UI.badge (tr TranslationKey.StatusInjured) color ]
+        | Suspended days ->
+            [ UI.badge (Localization.resolve TranslationKey.StatusSuspended [ "days", string days ]) Theme.Warning ]
+        | Available -> []
 
+    let private bar (value: float) (maximum: float) (color: string) (height: float) : IView =
+        ProgressBar.create
+            [ ProgressBar.minimum 0.0
+              ProgressBar.maximum maximum
+              ProgressBar.value value
+              ProgressBar.height height
+              ProgressBar.minHeight height
+              ProgressBar.cornerRadius (height / 2.0)
+              ProgressBar.background Theme.Border
+              ProgressBar.foreground color ]
+        :> IView
+
+    let private conditionColor (value: int) =
+        if value >= 75 then Theme.Accent
+        elif value >= 55 then Theme.Warning
+        else Theme.Hot
+
+    /// A squad row is a card: position chip, who, how fit, and the level a manager scans first.
     let row (p: Player) (currentDate: DateTime) (isSelected: bool) (isDragged: bool) onSelect =
-        let leftBorderColor =
-            if isSelected then Theme.Accent
-            elif isDragged then Theme.DragBorder
-            else "transparent"
-
-        let bg =
-            if isSelected then SelectionStyle.rowBg true
-            elif isDragged then Theme.DragOverlay
-            else "transparent"
-
         Border.create
-            [ Border.background bg
-              Border.borderBrush leftBorderColor
-              Border.borderThickness (3.0, 0.0, 0.0, 0.0)
-              Border.padding (12.0, 10.0)
+            [ Border.background (if isSelected then Theme.BgCardHover else Theme.BgCard)
+              Border.borderBrush (
+                  if isSelected then Theme.Accent
+                  elif isDragged then Theme.DragBorder
+                  else Theme.Border
+              )
+              Border.borderThickness 1.0
+              Border.cornerRadius Theme.RadiusLg
+              Border.padding (16.0, 12.0)
+              Border.margin (0.0, 0.0, 0.0, 8.0)
+              Border.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
               Border.onTapped (fun _ -> onSelect ())
               Border.child (
                   Grid.create
-                      [ Grid.columnDefinitions (ColumnDefs.toGridString ColumnDefs.playerListCols)
+                      [ Grid.columnDefinitions "Auto, 16, *, 16, 120, 16, 64, 12, 64"
                         Grid.children
-                            [ Grid.create
+                            [ Border.create
                                   [ Grid.column 0
-                                    Grid.columnDefinitions "*, Auto"
-                                    Grid.children
+                                    Border.verticalAlignment VerticalAlignment.Center
+                                    Border.child (UI.positionBadge p.Position) ]
+                              StackPanel.create
+                                  [ Grid.column 2
+                                    StackPanel.spacing 3.0
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
+                                    StackPanel.children
                                         [ StackPanel.create
-                                              [ Grid.column 0
-                                                StackPanel.verticalAlignment VerticalAlignment.Center
-                                                StackPanel.spacing 2.0
+                                              [ StackPanel.orientation Orientation.Horizontal
+                                                StackPanel.spacing 8.0
                                                 StackPanel.children
                                                     [ TextBlock.create
                                                           [ TextBlock.text p.Name
-                                                            TextBlock.fontWeight FontWeight.SemiBold
-                                                            TextBlock.fontSize 13.0 ]
-                                                      StackPanel.create
-                                                          [ StackPanel.orientation Orientation.Horizontal
-                                                            StackPanel.spacing 6.0
-                                                            StackPanel.children
-                                                                [ TextBlock.create
-                                                                      [ TextBlock.text $"Morale {p.Morale}%%"
-                                                                        TextBlock.fontSize
-                                                                            Theme.currentTokens.Value.Typography.Detail
-                                                                        TextBlock.foreground (
-                                                                            Theme.moraleColor p.Morale
-                                                                        ) ]
-                                                                  TextBlock.create
-                                                                      [ TextBlock.text
-                                                                            $"·  {(Player.contractOf p |> Option.map _.ExpiryYear |> Option.defaultValue 0)}"
-                                                                        TextBlock.fontSize
-                                                                            Theme.currentTokens.Value.Typography.Detail
-                                                                        TextBlock.foreground Theme.TextMuted ] ] ] ] ]
-                                          StackPanel.create
-                                              [ Grid.column 1
-                                                StackPanel.verticalAlignment VerticalAlignment.Center
-                                                StackPanel.margin (8.0, 0.0)
-                                                StackPanel.children [ statusIndicator p ] ] ] ]
-
-                              TextBlock.create
-                                  [ Grid.column 1
-                                    TextBlock.text $"%A{p.Position}"
-                                    TextBlock.fontSize Theme.currentTokens.Value.Typography.Detail
-                                    TextBlock.fontWeight FontWeight.Bold
-                                    TextBlock.foreground Theme.Accent
-                                    TextBlock.verticalAlignment VerticalAlignment.Center ]
-
-                              TextBlock.create
-                                  [ Grid.column 2
-                                    TextBlock.text (string (Player.age currentDate p))
-                                    TextBlock.fontSize 12.0
-                                    TextBlock.foreground Theme.TextMuted
-                                    TextBlock.verticalAlignment VerticalAlignment.Center ]
-
-                              StackPanel.create
-                                  [ Grid.column 3
-                                    StackPanel.verticalAlignment VerticalAlignment.Center
-                                    StackPanel.spacing 3.0
-                                    StackPanel.children
-                                        [ DockPanel.create
-                                              [ DockPanel.children
-                                                    [ TextBlock.create
-                                                          [ TextBlock.text (string p.CurrentSkill)
                                                             TextBlock.fontWeight FontWeight.Bold
-                                                            TextBlock.foreground Theme.Accent
-                                                            TextBlock.fontSize 12.0 ]
-                                                      TextBlock.create
-                                                          [ DockPanel.dock Dock.Right
-                                                            TextBlock.text (string p.PotentialSkill)
-                                                            TextBlock.fontSize
-                                                                Theme.currentTokens.Value.Typography.Detail
-                                                            TextBlock.foreground Theme.TextMuted
-                                                            TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
-                                          ProgressBar.create
-                                              [ ProgressBar.minimum 0.0
-                                                ProgressBar.maximum 200.0
-                                                ProgressBar.value (float p.CurrentSkill)
-                                                ProgressBar.height 3.0
-                                                ProgressBar.background Theme.BgSidebar
-                                                ProgressBar.foreground Theme.Accent ] ] ]
-
-                              TextBlock.create
+                                                            TextBlock.fontSize 15.0
+                                                            TextBlock.foreground Theme.TextMain
+                                                            TextBlock.textTrimming TextTrimming.CharacterEllipsis ]
+                                                      yield! statusBadge p ] ]
+                                          TextBlock.create
+                                              [ TextBlock.text (
+                                                    Localization.resolve
+                                                        TranslationKey.PlayerAgeMorale
+                                                        [ "age", string (Player.age currentDate p); "morale", string p.Morale ]
+                                                )
+                                                TextBlock.fontSize 13.0
+                                                TextBlock.foreground Theme.TextMuted ] ] ]
+                              StackPanel.create
                                   [ Grid.column 4
+                                    StackPanel.spacing 6.0
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
+                                    StackPanel.children
+                                        [ TextBlock.create
+                                              [ TextBlock.text (tr TranslationKey.PlayerCondition)
+                                                TextBlock.fontSize 12.0
+                                                TextBlock.foreground Theme.TextMuted ]
+                                          bar (float p.Condition) 100.0 (conditionColor p.Condition) 6.0 ] ]
+                              TextBlock.create
+                                  [ Grid.column 6
                                     TextBlock.text $"€{int (Player.playerValue p.CurrentSkill / 1_000_000m)}M"
-                                    TextBlock.fontSize Theme.currentTokens.Value.Typography.Detail
-                                    TextBlock.foreground Theme.TextMuted
-                                    TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                                    TextBlock.fontSize 13.0
+                                    TextBlock.foreground Theme.TextSub
+                                    TextBlock.horizontalAlignment HorizontalAlignment.Right
+                                    TextBlock.verticalAlignment VerticalAlignment.Center ]
+                              Border.create
+                                  [ Grid.column 8
+                                    Border.horizontalAlignment HorizontalAlignment.Right
+                                    Border.child (UI.display (string p.CurrentSkill) 32.0 Theme.TextMain) ] ] ]
               ) ]
 
     type private StatGroup =
         { Title: string
           Color: string
-          Stats: (string * int) list }
-
-    let private physicalGroup (p: Player) =
-        { Title = "PHYSICAL"
-          Color = Theme.Accent
-          Stats =
-            [ "Acceleration", p.Physical.Acceleration
-              "Pace", p.Physical.Pace
-              "Agility", p.Physical.Agility
-              "Balance", p.Physical.Balance
-              "Jumping Reach", p.Physical.JumpingReach
-              "Stamina", p.Physical.Stamina
-              "Strength", p.Physical.Strength ] }
-
-    let private mentalGroup (p: Player) =
-        { Title = "MENTAL"
-          Color = Theme.Accent
-          Stats =
-            [ "Aggression", p.Mental.Aggression
-              "Composure", p.Mental.Composure
-              "Concentration", p.Mental.Concentration
-              "Vision", p.Mental.Vision
-              "Positioning", p.Mental.Positioning
-              "Bravery", p.Mental.Bravery
-              "Work Rate", p.Mental.WorkRate
-              "Leadership", p.Mental.Leadership ] }
-
-    let private technicalGroup (p: Player) =
-        { Title = "TECHNICAL"
-          Color = Theme.Accent
-          Stats =
-            [ "Finishing", p.Technical.Finishing
-              "Long Shots", p.Technical.LongShots
-              "Dribbling", p.Technical.Dribbling
-              "Ball Control", p.Technical.BallControl
-              "Passing", p.Technical.Passing
-              "Crossing", p.Technical.Crossing
-              "Tackling", p.Technical.Tackling
-              "Marking", p.Technical.Marking
-              "Heading", p.Technical.Heading
-              "Free Kick", p.Technical.FreeKick
-              "Penalty", p.Technical.Penalty ] }
-
-    let private goalkeepingGroup (p: Player) =
-        { Title = "GOALKEEPING"
-          Color = Theme.DragBorder
-          Stats =
-            [ "Reflexes", p.Goalkeeping.Reflexes
-              "Handling", p.Goalkeeping.Handling
-              "Kicking", p.Goalkeeping.Kicking
-              "One On One", p.Goalkeeping.OneOnOne
-              "Aerial Reach", p.Goalkeeping.AerialReach ] }
+          Stats: (TranslationKey * int) list }
 
     let private statGroupsFor (p: Player) =
-        let base' = [ physicalGroup p; mentalGroup p; technicalGroup p ]
+        let physical =
+            { Title = tr TranslationKey.AttrGroupPhysical
+              Color = Theme.AccentAlt
+              Stats =
+                [ TranslationKey.AttrAcceleration, p.Physical.Acceleration
+                  TranslationKey.AttrPace, p.Physical.Pace
+                  TranslationKey.AttrAgility, p.Physical.Agility
+                  TranslationKey.AttrBalance, p.Physical.Balance
+                  TranslationKey.AttrJumpingReach, p.Physical.JumpingReach
+                  TranslationKey.AttrStamina, p.Physical.Stamina
+                  TranslationKey.AttrStrength, p.Physical.Strength ] }
+
+        let mental =
+            { Title = tr TranslationKey.AttrGroupMental
+              Color = Theme.Success
+              Stats =
+                [ TranslationKey.AttrAggression, p.Mental.Aggression
+                  TranslationKey.AttrComposure, p.Mental.Composure
+                  TranslationKey.AttrConcentration, p.Mental.Concentration
+                  TranslationKey.AttrVision, p.Mental.Vision
+                  TranslationKey.AttrPositioning, p.Mental.Positioning
+                  TranslationKey.AttrBravery, p.Mental.Bravery
+                  TranslationKey.AttrWorkRate, p.Mental.WorkRate
+                  TranslationKey.AttrLeadership, p.Mental.Leadership ] }
+
+        let technical =
+            { Title = tr TranslationKey.AttrGroupTechnical
+              Color = Theme.Hot
+              Stats =
+                [ TranslationKey.AttrFinishing, p.Technical.Finishing
+                  TranslationKey.AttrLongShots, p.Technical.LongShots
+                  TranslationKey.AttrDribbling, p.Technical.Dribbling
+                  TranslationKey.AttrBallControl, p.Technical.BallControl
+                  TranslationKey.AttrPassing, p.Technical.Passing
+                  TranslationKey.AttrCrossing, p.Technical.Crossing
+                  TranslationKey.AttrTackling, p.Technical.Tackling
+                  TranslationKey.AttrMarking, p.Technical.Marking
+                  TranslationKey.AttrHeading, p.Technical.Heading
+                  TranslationKey.AttrFreeKick, p.Technical.FreeKick
+                  TranslationKey.AttrPenalty, p.Technical.Penalty ] }
+
+        let goalkeeping =
+            { Title = tr TranslationKey.AttrGroupGoalkeeping
+              Color = Theme.Warning
+              Stats =
+                [ TranslationKey.AttrReflexes, p.Goalkeeping.Reflexes
+                  TranslationKey.AttrHandling, p.Goalkeeping.Handling
+                  TranslationKey.AttrKicking, p.Goalkeeping.Kicking
+                  TranslationKey.AttrOneOnOne, p.Goalkeeping.OneOnOne
+                  TranslationKey.AttrAerialReach, p.Goalkeeping.AerialReach ] }
 
         if p.Position = GK then
-            base' @ [ goalkeepingGroup p ]
+            [ goalkeeping; physical; mental ]
         else
-            base'
+            [ technical; physical; mental ]
 
-    let private statRow label value (color: string) =
-        StackPanel.create
-            [ StackPanel.margin (0.0, 2.0)
-              StackPanel.children
-                  [ DockPanel.create
-                        [ DockPanel.children
-                              [ TextBlock.create
-                                    [ TextBlock.text label
-                                      TextBlock.foreground Theme.TextMuted
-                                      TextBlock.fontSize Theme.currentTokens.Value.Typography.Detail ]
-                                TextBlock.create
-                                    [ TextBlock.text (string value)
-                                      TextBlock.fontWeight FontWeight.Bold
-                                      TextBlock.fontSize Theme.currentTokens.Value.Typography.Detail
-                                      DockPanel.dock Dock.Right ] ] ]
-                    ProgressBar.create
-                        [ ProgressBar.minimum 0.0
-                          ProgressBar.maximum 20.0
-                          ProgressBar.value (float value)
-                          ProgressBar.height 3.0
-                          ProgressBar.background Theme.BgMain
-                          ProgressBar.foreground color ] ] ]
-
-    let private renderGroup (g: StatGroup) : IView list =
-        [ TextBlock.create
-              [ TextBlock.text g.Title
-                TextBlock.fontSize Theme.currentTokens.Value.Typography.Detail
-                TextBlock.fontWeight FontWeight.Black
-                TextBlock.foreground g.Color
-                TextBlock.lineSpacing 1.5
-                TextBlock.margin (0, 14, 0, 6) ]
-          :> IView
-          yield! g.Stats |> List.map (fun (label, value) -> statRow label value g.Color :> IView) ]
-
-    let private miniBar label value (color: string) =
+    let private statRow (label: TranslationKey) (value: int) (color: string) : IView =
         Grid.create
-            [ Grid.rowDefinitions "Auto, 4"
+            [ Grid.columnDefinitions "120, 12, *, 12, 28"
+              Grid.margin (0.0, 4.0)
               Grid.children
-                  [ DockPanel.create
-                        [ Grid.row 0
-                          DockPanel.children
-                              [ TextBlock.create
-                                    [ TextBlock.text label
-                                      TextBlock.fontSize Theme.currentTokens.Value.Typography.Detail
-                                      TextBlock.foreground Theme.TextMuted ]
-                                TextBlock.create
-                                    [ TextBlock.text (string value)
-                                      TextBlock.fontSize Theme.currentTokens.Value.Typography.Detail
-                                      TextBlock.fontWeight FontWeight.Bold
-                                      DockPanel.dock Dock.Right ] ] ]
-                    ProgressBar.create
-                        [ Grid.row 1
-                          ProgressBar.minimum 0.0
-                          ProgressBar.maximum 100.0
-                          ProgressBar.value (float value)
-                          ProgressBar.height 4.0
-                          ProgressBar.background Theme.BgMain
-                          ProgressBar.foreground color ] ] ]
+                  [ TextBlock.create
+                        [ Grid.column 0
+                          TextBlock.text (tr label)
+                          TextBlock.fontSize 14.0
+                          TextBlock.foreground Theme.TextSub
+                          TextBlock.verticalAlignment VerticalAlignment.Center ]
+                    Border.create
+                        [ Grid.column 2
+                          Border.verticalAlignment VerticalAlignment.Center
+                          Border.child (bar (float value) 20.0 (if value >= 16 then Theme.Accent else color) 8.0) ]
+                    Border.create
+                        [ Grid.column 4
+                          Border.horizontalAlignment HorizontalAlignment.Right
+                          Border.child (UI.display (string value) 20.0 Theme.TextMain) ] ] ]
+        :> IView
 
-    let detail (player: Player option) (currentDate: DateTime) =
+    let private figure (label: TranslationKey) (value: string) (color: string) : IView =
+        Border.create
+            [ Border.background Theme.BgElevated
+              Border.cornerRadius Theme.RadiusMd
+              Border.padding (12.0, 10.0)
+              Border.margin (0.0, 0.0, 8.0, 8.0)
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.spacing 2.0
+                        StackPanel.children
+                            [ TextBlock.create
+                                  [ TextBlock.text (tr label)
+                                    TextBlock.fontSize 12.0
+                                    TextBlock.foreground Theme.TextMuted ]
+                              UI.display value 28.0 color ] ]
+              ) ]
+        :> IView
+
+    let detail (player: Player option) (currentDate: DateTime) (clubKit: ClubIdentity.Kit) =
         Border.create
             [ Border.background Theme.BgCard
               Border.borderBrush Theme.Border
-              Border.borderThickness (1.0, 0.0, 0.0, 0.0)
+              Border.borderThickness 1.0
+              Border.cornerRadius (Theme.RadiusXl + 2.0)
+              Border.clipToBounds true
               Border.child (
                   match player with
-                  | None -> UI.emptyState IconName.squad "Select a player" ""
+                  | None -> UI.emptyState IconName.squad (tr TranslationKey.SelectPlayer) (tr TranslationKey.SelectPlayerHint)
                   | Some p ->
+                      let kit = if p.Position = GK then ClubIdentity.keeperKit else clubKit
+
+                      let tint = Theme.positionColor p.Position
+
                       Grid.create
                           [ Grid.rowDefinitions "Auto, *"
                             Grid.children
                                 [ Border.create
                                       [ Grid.row 0
-                                        Border.padding (20.0, 20.0, 20.0, 16.0)
-                                        Border.borderBrush Theme.Border
-                                        Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                                        Border.background (
+                                            Theme.spotlightBrush (Theme.withAlpha "66" tint) (Theme.withAlpha "22" tint) Theme.BgCard
+                                        )
+                                        Border.padding (24.0, 24.0, 24.0, 18.0)
                                         Border.child (
                                             StackPanel.create
-                                                [ StackPanel.spacing 12.0
+                                                [ StackPanel.spacing 16.0
                                                   StackPanel.children
-                                                      [ DockPanel.create
-                                                            [ DockPanel.children
-                                                                  [ UI.badge $"%A{p.Position}" Theme.Accent
-                                                                    TextBlock.create
-                                                                        [ TextBlock.text p.Name
-                                                                          TextBlock.fontSize 20.0
-                                                                          TextBlock.fontWeight FontWeight.Bold
-                                                                          TextBlock.verticalAlignment
-                                                                              VerticalAlignment.Center
-                                                                          TextBlock.margin (10.0, 0.0, 0.0, 0.0) ] ] ]
-
-                                                        UniformGrid.create
-                                                            [ UniformGrid.columns 2
-                                                              UniformGrid.rows 2
-                                                              UniformGrid.children
-                                                                  [ UI.statMiniCard
-                                                                        PlayerIcon.age
-                                                                        "AGE"
-                                                                        (string (Player.age currentDate p))
-                                                                        Theme.Accent
-                                                                    UI.statMiniCard
-                                                                        PlayerIcon.condition
-                                                                        "CONDITION"
-                                                                        $"{p.Condition}%%"
-                                                                        Theme.Accent
-                                                                    UI.statMiniCard
-                                                                        PlayerIcon.skill
-                                                                        "CA / PA"
-                                                                        $"{p.CurrentSkill} / {p.PotentialSkill}"
-                                                                        Theme.Accent
-                                                                    UI.statMiniCard
-                                                                        PlayerIcon.contract
-                                                                        "CONTRACT"
+                                                      [ StackPanel.create
+                                                            [ StackPanel.orientation Orientation.Horizontal
+                                                              StackPanel.spacing 18.0
+                                                              StackPanel.children
+                                                                  [ UI.shirt kit "" 84.0 "#0A1020" 1.5
+                                                                    StackPanel.create
+                                                                        [ StackPanel.spacing 6.0
+                                                                          StackPanel.verticalAlignment VerticalAlignment.Center
+                                                                          StackPanel.children
+                                                                              [ UI.display p.Name 30.0 Theme.TextMain
+                                                                                StackPanel.create
+                                                                                    [ StackPanel.orientation Orientation.Horizontal
+                                                                                      StackPanel.spacing 8.0
+                                                                                      StackPanel.children
+                                                                                          [ UI.positionBadge p.Position
+                                                                                            TextBlock.create
+                                                                                                [ TextBlock.text (
+                                                                                                      Localization.resolve
+                                                                                                          TranslationKey.PlayerAgeMorale
+                                                                                                          [ "age", string (Player.age currentDate p)
+                                                                                                            "morale", string p.Morale ]
+                                                                                                  )
+                                                                                                  TextBlock.fontSize 14.0
+                                                                                                  TextBlock.foreground Theme.TextSub
+                                                                                                  TextBlock.verticalAlignment
+                                                                                                      VerticalAlignment.Center ] ] ] ] ] ] ]
+                                                        WrapPanel.create
+                                                            [ WrapPanel.children
+                                                                  [ figure TranslationKey.PlayerLevel (string p.CurrentSkill) Theme.TextMain
+                                                                    figure TranslationKey.PlayerPotential (string p.PotentialSkill) Theme.Accent
+                                                                    figure TranslationKey.PlayerCondition $"{p.Condition}%%" (conditionColor p.Condition)
+                                                                    figure TranslationKey.PlayerMatchFitness $"{p.MatchFitness}%%" Theme.TextMain
+                                                                    figure
+                                                                        TranslationKey.PlayerContract
                                                                         (Player.contractOf p
                                                                          |> Option.map (_.ExpiryYear >> string)
                                                                          |> Option.defaultValue "—")
-                                                                        Theme.Accent ] ]
-
-                                                        Grid.create
-                                                            [ Grid.columnDefinitions "*, 10, *"
-                                                              Grid.children
-                                                                  [ miniBar
-                                                                        "MORALE"
-                                                                        p.Morale
-                                                                        (Theme.moraleColor p.Morale)
-                                                                    Grid.create
-                                                                        [ Grid.column 2
-                                                                          Grid.children
-                                                                              [ miniBar
-                                                                                    "MATCH FIT"
-                                                                                    p.MatchFitness
-                                                                                    Theme.Accent ] ] ] ] ] ]
+                                                                        Theme.TextMain ] ] ] ]
                                         ) ]
-
                                   ScrollViewer.create
                                       [ Grid.row 1
-                                        ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Visible
-                                        ScrollViewer.padding (20.0, 4.0, 20.0, 20.0)
+                                        ScrollViewer.padding (24.0, 8.0, 24.0, 24.0)
                                         ScrollViewer.content (
                                             StackPanel.create
-                                                [ StackPanel.children
-                                                      [ yield! statGroupsFor p |> List.collect renderGroup
-                                                        Border.create [ Border.height 40.0 ] ] ]
+                                                [ StackPanel.spacing 4.0
+                                                  StackPanel.children
+                                                      [ for group in statGroupsFor p do
+                                                            Border.create
+                                                                [ Border.margin (0.0, 14.0, 0.0, 4.0)
+                                                                  Border.child (UI.eyebrow group.Title group.Color) ]
+                                                            :> IView
+
+                                                            for label, value in group.Stats do
+                                                                statRow label value group.Color ] ]
                                         ) ] ] ]
                       :> IView
               ) ]
-
 
 module Display =
 

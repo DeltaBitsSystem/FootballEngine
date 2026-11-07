@@ -1,6 +1,7 @@
 namespace FootballEngine.Pages
 
 open Avalonia.Controls
+open Avalonia.Controls.Primitives
 open Avalonia.FuncUI.DSL
 open Avalonia.FuncUI.Types
 open Avalonia.Layout
@@ -15,48 +16,50 @@ open FootballEngine.Icons
 module Finances =
     let private money value = Formatters.money value
 
-    let private stat label value detail color =
-        UI.iconStatCard label (money value) ClubIcon.finances detail
-        |> fun view ->
-            Border.create
-                [ Border.child view
-                  Border.margin 6.0
-                  Border.borderBrush (Theme.withAlpha "45" color)
-                  Border.borderThickness 1.0 ]
+    let private tr key = Localization.resolve key []
+
+    let private stat (label: TranslationKey) value (detail: TranslationKey) =
+        Border.create
+            [ Border.margin (0.0, 0.0, 12.0, 12.0)
+              Border.child (UI.iconStatCard (tr label) (money value) ClubIcon.finances (tr detail)) ]
+        :> IView
 
     let private ledgerRow (entry: LedgerEntry) =
-        let direction =
+        let direction, color =
             if entry.Debits |> List.exists (fun p -> p.Account = CashAccount) then
-                "Ingreso"
+                TranslationKey.LedgerIncome, Theme.Success
             elif entry.Credits |> List.exists (fun p -> p.Account = CashAccount) then
-                "Egreso"
+                TranslationKey.LedgerExpense, Theme.Hot
             else
-                "Compromiso"
+                TranslationKey.LedgerCommitment, Theme.AccentAlt
 
         Border.create
-            [ Border.padding (12.0, 8.0)
+            [ Border.padding (20.0, 12.0)
               Border.borderBrush Theme.Border
-              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+              Border.borderThickness (0.0, 1.0, 0.0, 0.0)
               Border.child (
                   Grid.create
-                      [ Grid.columnDefinitions "120, *, 130, 120"
+                      [ Grid.columnDefinitions "110, 120, *, 140"
                         Grid.children
                             [ TextBlock.create
                                   [ Grid.column 0
                                     TextBlock.text (entry.Date.ToString("dd/MM/yyyy"))
+                                    TextBlock.verticalAlignment VerticalAlignment.Center
                                     TextBlock.foreground Theme.TextMuted ]
-                              TextBlock.create
+                              Border.create
                                   [ Grid.column 1
-                                    TextBlock.text $"{direction} · {entry.Cause}"
-                                    TextBlock.foreground Theme.TextMain ]
+                                    Border.horizontalAlignment HorizontalAlignment.Left
+                                    Border.child (UI.badge ((tr direction).ToUpperInvariant()) color) ]
                               TextBlock.create
                                   [ Grid.column 2
-                                    TextBlock.text (money entry.Amount)
+                                    TextBlock.text entry.Cause
+                                    TextBlock.verticalAlignment VerticalAlignment.Center
+                                    TextBlock.textTrimming TextTrimming.CharacterEllipsis
                                     TextBlock.foreground Theme.TextMain ]
-                              TextBlock.create
+                              Border.create
                                   [ Grid.column 3
-                                    TextBlock.text entry.OperationId
-                                    TextBlock.foreground Theme.TextMuted ] ] ]
+                                    Border.horizontalAlignment HorizontalAlignment.Right
+                                    Border.child (UI.display (money entry.Amount) 22.0 Theme.TextMain) ] ] ]
               ) ]
         :> IView
 
@@ -73,48 +76,72 @@ module Finances =
 
             let rows = finance.Ledger |> List.sortByDescending _.Id |> List.truncate 12
 
+            let fact (label: TranslationKey) (value: string) =
+                Border.create
+                    [ Border.background Theme.BgCard
+                      Border.borderBrush Theme.Border
+                      Border.borderThickness 1.0
+                      Border.cornerRadius Theme.RadiusPill
+                      Border.padding (14.0, 8.0)
+                      Border.margin (0.0, 0.0, 10.0, 10.0)
+                      Border.child (
+                          TextBlock.create
+                              [ TextBlock.text $"{tr label}: {value}"
+                                TextBlock.fontSize 14.0
+                                TextBlock.foreground Theme.TextSub ]
+                      ) ]
+                :> IView
+
             ScrollViewer.create
-                [ ScrollViewer.padding 28.0
+                [ ScrollViewer.horizontalScrollBarVisibility Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
                   ScrollViewer.content (
                       StackPanel.create
-                          [ StackPanel.spacing 16.0
+                          [ StackPanel.margin (32.0, 8.0, 32.0, 32.0)
+                            StackPanel.spacing 14.0
                             StackPanel.children
-                                [ TextBlock.create
-                                      [ TextBlock.text "FINANZAS"
-                                        TextBlock.fontSize 24.0
-                                        TextBlock.fontWeight FontWeight.Black
-                                        TextBlock.foreground Theme.TextMain ]
-                                  TextBlock.create
-                                      [ TextBlock.text "Caja, autorizaciones y compromisos confirmados"
-                                        TextBlock.foreground Theme.TextMuted ]
-                                  Grid.create
-                                      [ Grid.columnDefinitions "*, *, *, *"
-                                        Grid.children
-                                            [ stat "CAJA" finance.Cash "Disponible hoy" Theme.Success
-                                              |> fun v -> v :> IView
+                                [ StackPanel.create
+                                      [ StackPanel.spacing 6.0
+                                        StackPanel.children
+                                            [ UI.display (tr TranslationKey.FinanceTitle) 44.0 Theme.TextMain
+                                              TextBlock.create
+                                                  [ TextBlock.text (tr TranslationKey.FinanceSubtitle)
+                                                    TextBlock.fontSize 14.0
+                                                    TextBlock.foreground Theme.TextMuted ] ] ]
+                                  UniformGrid.create
+                                      [ UniformGrid.columns 4
+                                        UniformGrid.children
+                                            [ stat TranslationKey.FinanceCash finance.Cash TranslationKey.FinanceCashSub
                                               stat
-                                                  "FICHAJES"
+                                                  TranslationKey.FinanceTransfers
                                                   (Finance.availableForTransfers finance)
-                                                  "Capacidad libre"
-                                                  Theme.Accent
-                                              |> fun v -> v :> IView
-                                              stat "SALARIOS" finance.WageCommitment "Compromiso" Theme.Warning
-                                              |> fun v -> v :> IView
-                                              stat "PREVISIÓN" forecast.ExpectedCash "30 días" Theme.AccentAlt
-                                              |> fun v -> v :> IView ] ]
-                                  TextBlock.create
-                                      [ TextBlock.text
-                                            $"Reservas activas: {finance.Reservations.Length} · Obligaciones pendientes: {obligations.Length} · Deuda: {money finance.Debt}"
-                                        TextBlock.foreground Theme.TextSub ]
-                                  TextBlock.create
-                                      [ TextBlock.text "DESGLOSE DE OPERACIONES"
-                                        TextBlock.fontWeight FontWeight.Bold
-                                        TextBlock.foreground Theme.TextMain ]
-                                  Border.create
-                                      [ Border.background Theme.BgSidebar
-                                        Border.child (
-                                            StackPanel.create [ StackPanel.children (rows |> List.map ledgerRow) ]
-                                        ) ] ] ]
+                                                  TranslationKey.FinanceTransfersSub
+                                              stat
+                                                  TranslationKey.FinanceWages
+                                                  finance.WageCommitment
+                                                  TranslationKey.FinanceWagesSub
+                                              stat
+                                                  TranslationKey.FinanceForecast
+                                                  forecast.ExpectedCash
+                                                  TranslationKey.FinanceForecastSub ] ]
+                                  WrapPanel.create
+                                      [ WrapPanel.children
+                                            [ fact TranslationKey.FinanceReservations (string finance.Reservations.Length)
+                                              fact TranslationKey.FinanceObligations (string obligations.Length)
+                                              fact TranslationKey.FinanceDebt (money finance.Debt) ] ]
+                                  UI.panelCard
+                                      (UI.sectionHeader ClubIcon.finances (tr TranslationKey.FinanceLedger))
+                                      (if rows.IsEmpty then
+                                           Border.create
+                                               [ Border.padding (20.0, 4.0, 20.0, 20.0)
+                                                 Border.child (
+                                                     TextBlock.create
+                                                         [ TextBlock.text (tr TranslationKey.FinanceLedgerEmpty)
+                                                           TextBlock.fontSize 14.0
+                                                           TextBlock.foreground Theme.TextMuted ]
+                                                 ) ]
+                                           :> IView
+                                       else
+                                           StackPanel.create [ StackPanel.children (rows |> List.map ledgerRow) ] :> IView) ] ]
                   ) ]
             :> IView
-        | _ -> TextBlock.create [ TextBlock.text "No hay una carrera cargada" ] :> IView
+        | _ -> TextBlock.create [ TextBlock.text (tr TranslationKey.NoCareerLoaded) ] :> IView

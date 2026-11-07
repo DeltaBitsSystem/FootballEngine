@@ -42,6 +42,7 @@
         <Compile Include="Shots\Shots.fs"/>
         <Compile Include="Views\Shared\Localization.fs"/>
         <Compile Include="Views\Theme.fs"/>
+        <Compile Include="Views\Shared\ClubIdentity.fs"/>
         <Compile Include="Views\Shared\Formatters.fs"/>
         <Compile Include="AppState\Projections.fs"/>
         <Compile Include="Views\Shared\PlayerPresenter.fs"/>
@@ -120,6 +121,7 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <Link>Data\%(RecursiveDir)%(Filename)%(Extension)</Link>
         </Content>
+        <AvaloniaResource Include="Assets\Fonts\*.ttf"/>
         <Content Include="Assets\MatchViewer\Surfaces\*.bin;Assets\MatchViewer\Surfaces\manifest.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
@@ -136,6 +138,7 @@
 
     <ItemGroup>
         <PackageReference Include="Avalonia.Desktop"/>
+        <PackageReference Include="Avalonia.Fonts.Inter"/>
         <PackageReference Include="Avalonia.FuncUI"/>
         <PackageReference Include="Avalonia.FuncUI.Elmish"/>
         <PackageReference Include="Avalonia.Skia"/>

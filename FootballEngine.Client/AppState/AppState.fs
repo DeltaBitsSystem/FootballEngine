@@ -104,7 +104,7 @@ module AppState =
 
         // why sync Theme here: ensures currentPalette matches preloaded Appearance before first view renders
         try
-            Theme.currentPalette.Value <- Theme.paletteForSettings preloaded.Appearance
+            Theme.usePalette(Theme.paletteForSettings preloaded.Appearance)
         with _ ->
             ()
 
@@ -1065,7 +1065,7 @@ module AppState =
                 let next = SettingsSlice.updateGlobal f state.Settings
                 // why sync palette: theme changes without restart via paletteForSettings
                 try
-                    Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                    Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
                 with _ ->
                     ()
 
@@ -1105,7 +1105,7 @@ module AppState =
                 let next = SettingsSlice.resetCategory cat state.Settings
                 // why sync palette: reset may affect Appearance, so palette must follow
                 try
-                    Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                    Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
                 with _ ->
                     ()
 
@@ -1122,7 +1122,7 @@ module AppState =
                 let next = SettingsSlice.resetAll state.Settings
                 // why sync palette: ResetAll restores default Appearance, so theme must reset without restart
                 try
-                    Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                    Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
                 with _ ->
                     ()
 
@@ -1151,7 +1151,7 @@ module AppState =
                 let next = SettingsSlice.undo state.Settings
                 // why sync palette: undo may revert Appearance change
                 try
-                    Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                    Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
                 with _ ->
                     ()
 
@@ -1160,7 +1160,7 @@ module AppState =
                 let next = SettingsSlice.redo state.Settings
                 // why sync palette: redo may reapply Appearance change
                 try
-                    Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                    Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
                 with _ ->
                     ()
 
@@ -1170,7 +1170,7 @@ module AppState =
                 | Ok next ->
                     // why sync palette: imported Appearance may differ, theme must update without restart
                     try
-                        Theme.currentPalette.Value <- Theme.paletteForSettings next.Global.Appearance
+                        Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
                     with _ ->
                         ()
 

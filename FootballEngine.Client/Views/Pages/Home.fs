@@ -12,6 +12,7 @@ open FootballEngine.AppMsgs
 open FootballEngine.Domain
 open FootballEngine.Components
 open FootballEngine.Icons
+open FootballEngine.Routing
 
 
 module HomePresenter =
@@ -42,7 +43,7 @@ module HomePresenter =
                 { LocalName = if isHome then userTeam.Name else rival.Name
                   VisitName = if isHome then rival.Name else userTeam.Name
                   Date = fixture.ScheduledDate
-                  LocationTag = if isHome then "HOME" else "AWAY" }
+                  LocationTag = if isHome then (Localization.resolve TranslationKey.HomeTag []) else (Localization.resolve TranslationKey.AwayTag []) }
 
     let getUpcomingFixtures (state: GameState) (count: int) =
         state.Competitions
@@ -170,11 +171,11 @@ module HomePresenter =
                 | _ -> None)
 
         [ if not leagues.IsEmpty then
-              "LEAGUES", IconName.league, leagues
+              ((Localization.resolve TranslationKey.HomeLeagues []).ToUpperInvariant()), IconName.league, leagues
           if not cups.IsEmpty then
-              "CUPS", ClubIcon.stadium, cups
+              ((Localization.resolve TranslationKey.HomeCups []).ToUpperInvariant()), ClubIcon.stadium, cups
           if not international.IsEmpty then
-              "INTERNATIONAL", IconName.league, international ]
+              ((Localization.resolve TranslationKey.HomeInternational []).ToUpperInvariant()), IconName.league, international ]
 
 
 module Home =
@@ -206,15 +207,129 @@ module Home =
                                   [ StackPanel.orientation Orientation.Horizontal
                                     StackPanel.spacing 6.0
                                     StackPanel.children
-                                        [ Icons.iconSm iconKind Theme.Accent
-                                          TextBlock.create
-                                              [ TextBlock.text label
-                                                TextBlock.fontSize 10.0
-                                                TextBlock.fontWeight FontWeight.Black
-                                                TextBlock.foreground Theme.TextMuted
-                                                TextBlock.verticalAlignment VerticalAlignment.Center ] ] ] ] ]
+                                        [ Icons.icon iconKind 18.0 Theme.Accent
+                                          UI.display label 22.0 Theme.TextMain ] ] ] ]
               ) ]
         :> IView
+
+    /// Messages the game surfaces on Home so the manager never has to read the whole inbox:
+    /// decisions waiting on them first, then the categories that change a squad or a job.
+    let private inboxPreview (gs: GameState) dispatch : IView =
+        let weight (message: InboxMessage) =
+            let pending = if message.RequiresAction && message.ActionTaken.IsNone then 0 else 10
+
+            let category =
+                match message.Category with
+                | InjuryMessage -> 0
+                | Contract -> 1
+                | Transfer -> 2
+                | BoardUpdate -> 3
+                | Development -> 4
+                | MatchReport -> 5
+
+            pending + category
+
+        let unread = gs.Inbox |> List.filter (fun message -> not message.IsRead)
+
+        let important =
+            unread
+            |> List.sortBy (fun message -> weight message, -message.Date.Ticks)
+            |> List.truncate 3
+
+        let categoryLabel, categoryColor =
+            fun (category: InboxMessageCategory) ->
+                match category with
+                | InjuryMessage -> Localization.resolve TranslationKey.CategoryInjury [], Theme.Danger
+                | Contract -> Localization.resolve TranslationKey.CategoryContract [], Theme.Hot
+                | Transfer -> Localization.resolve TranslationKey.CategoryTransfer [], Theme.AccentAlt
+                | BoardUpdate -> Localization.resolve TranslationKey.CategoryBoard [], Theme.Warning
+                | Development -> Localization.resolve TranslationKey.CategoryDevelopment [], Theme.Success
+                | MatchReport -> Localization.resolve TranslationKey.CategoryMatch [], Theme.TextMuted
+            |> fun f -> (fun c -> fst (f c)), (fun c -> snd (f c))
+
+        let row (message: InboxMessage) : IView =
+            let color = categoryColor message.Category
+
+            Border.create
+                [ Border.background Theme.BgElevated
+                  Border.borderBrush Theme.BorderLight
+                  Border.borderThickness 1.0
+                  Border.cornerRadius Theme.RadiusMd
+                  Border.padding (14.0, 12.0)
+                  Border.child (
+                      Grid.create
+                          [ Grid.columnDefinitions "Auto, 14, *, 14, Auto"
+                            Grid.children
+                                [ Border.create
+                                      [ Grid.column 0
+                                        Border.verticalAlignment VerticalAlignment.Center
+                                        Border.child (UI.badge ((categoryLabel message.Category).ToUpperInvariant()) color) ]
+                                  StackPanel.create
+                                      [ Grid.column 2
+                                        StackPanel.spacing 2.0
+                                        StackPanel.verticalAlignment VerticalAlignment.Center
+                                        StackPanel.children
+                                            [ TextBlock.create
+                                                  [ TextBlock.text message.Subject
+                                                    TextBlock.fontSize 15.0
+                                                    TextBlock.fontWeight FontWeight.Bold
+                                                    TextBlock.foreground Theme.TextMain
+                                                    TextBlock.textTrimming TextTrimming.CharacterEllipsis ]
+                                              TextBlock.create
+                                                  [ TextBlock.text $"{message.From} · {message.Body}"
+                                                    TextBlock.fontSize 13.0
+                                                    TextBlock.foreground Theme.TextMuted
+                                                    TextBlock.textTrimming TextTrimming.CharacterEllipsis ] ] ]
+                                  StackPanel.create
+                                      [ Grid.column 4
+                                        StackPanel.orientation Orientation.Horizontal
+                                        StackPanel.spacing 8.0
+                                        StackPanel.verticalAlignment VerticalAlignment.Center
+                                        StackPanel.children
+                                            [ UI.primaryButton (Localization.resolve TranslationKey.InboxOpen []) None (fun _ ->
+                                                  dispatch (InboxMsg(SelectMessage message.Id))
+                                                  dispatch (Navigate(Route.Inbox(InboxRoute(Some message.Id)))))
+                                              UI.ghostButton (Localization.resolve TranslationKey.InboxLater []) None (fun _ ->
+                                                  dispatch (InboxMsg(MarkAsRead message.Id))) ] ] ] ]
+                  ) ]
+            :> IView
+
+        let routine = unread.Length - important.Length
+
+        let seeAll =
+            Button.create
+                [ Button.background "Transparent"
+                  Button.borderThickness 0.0
+                  Button.padding 0.0
+                  Button.onClick (fun _ -> dispatch (Navigate(Route.Inbox(InboxRoute None))))
+                  Button.content (
+                      TextBlock.create
+                          [ TextBlock.text (Localization.resolve TranslationKey.InboxSeeAll [ "count", string gs.Inbox.Length ])
+                            TextBlock.fontSize 14.0
+                            TextBlock.fontWeight FontWeight.SemiBold
+                            TextBlock.foreground Theme.Accent ]
+                  ) ]
+
+        let body =
+            StackPanel.create
+                [ StackPanel.margin (20.0, 4.0, 20.0, 18.0)
+                  StackPanel.spacing 10.0
+                  StackPanel.children
+                      [ if important.IsEmpty then
+                            TextBlock.create
+                                [ TextBlock.text (Localization.resolve TranslationKey.InboxAllClear [])
+                                  TextBlock.fontSize 14.0
+                                  TextBlock.foreground Theme.TextMuted ]
+                            :> IView
+                        else
+                            yield! important |> List.map row
+                        if routine > 0 then
+                            TextBlock.create
+                                [ TextBlock.text (Localization.resolve TranslationKey.InboxRoutineHint [ "count", string routine ])
+                                  TextBlock.fontSize 13.0
+                                  TextBlock.foreground Theme.TextMuted ] ] ]
+
+        UI.panelCard (panelHeader IconName.inbox (Localization.resolve TranslationKey.InboxImportantTitle []) (Some seeAll)) body
 
     let private resultDot (userWon: bool option) =
         let color =
@@ -257,10 +372,10 @@ module Home =
             UI.iconStatCard (if compact then compactLabel else label) value icon (if compact then "" else sub)
 
         let cards: IView list =
-            [ statCard "CASH" "CASH" $"€{int (userTeam.Finance.Cash / 1_000_000m)}M" ClubIcon.finances "Available"
+            [ statCard (Localization.resolve TranslationKey.StatCash []) (Localization.resolve TranslationKey.StatCash []) $"€{int (userTeam.Finance.Cash / 1_000_000m)}M" ClubIcon.finances (Localization.resolve TranslationKey.StatCashSub [])
               statCard
-                  "POSITION"
-                  "POS"
+                  (Localization.resolve TranslationKey.StatPosition [])
+                  (Localization.resolve TranslationKey.StatPositionShort [])
                   (match pos, total with
                    | Some p, Some t -> $"{p} / {t}"
                    | _ -> "—")
@@ -272,8 +387,8 @@ module Home =
                        $"{s.Points} pts • {gdStr} GD"
                    | _ -> "")
               statCard
-                  "FORM"
-                  "FORM"
+                  (Localization.resolve TranslationKey.StatForm [])
+                  (Localization.resolve TranslationKey.StatForm [])
                   (match standing with
                    | Some s -> $"{s.Won}W {s.Drawn}D {s.Lost}L"
                    | None -> "—")
@@ -282,13 +397,13 @@ module Home =
                    | Some s -> $"Played {s.Played}"
                    | None -> "")
               statCard
-                  "MORALE"
-                  "MORALE"
+                  (Localization.resolve TranslationKey.StatMorale [])
+                  (Localization.resolve TranslationKey.StatMorale [])
                   $"{userTeam.Morale}%%"
                   PlayerIcon.morale
-                  (if userTeam.Morale > 70 then "High"
-                   elif userTeam.Morale > 45 then "Okay"
-                   else "Low") ]
+                  (if userTeam.Morale > 70 then (Localization.resolve TranslationKey.MoraleHigh [])
+                   elif userTeam.Morale > 45 then (Localization.resolve TranslationKey.MoraleOkay [])
+                   else (Localization.resolve TranslationKey.MoraleLow [])) ]
 
         if compact then
             Grid.create
@@ -359,7 +474,7 @@ module Home =
                   StackPanel.spacing 2.0
                   StackPanel.children
                       [ UI.iconOnlyButton
-                            "Copy notification"
+                            (Localization.resolve TranslationKey.CopyNotification [])
                             Material.Icons.MaterialIconKind.ContentCopy
                             UI.ButtonVariant.Ghost
                             UI.ControlState.Default
@@ -419,7 +534,7 @@ module Home =
                   Button.onClick (fun _ -> dispatch (NotificationMsg DismissAll))
                   Button.content (
                       TextBlock.create
-                          [ TextBlock.text "Clear all"
+                          [ TextBlock.text (Localization.resolve TranslationKey.ClearAll [])
                             TextBlock.fontSize 10.0
                             TextBlock.foreground Theme.TextMuted ]
                   ) ]
@@ -442,7 +557,7 @@ module Home =
                                         StackPanel.children
                                             [ Icons.iconSm IconName.info Theme.Accent
                                               TextBlock.create
-                                                  [ TextBlock.text "NOTIFICATIONS"
+                                                  [ TextBlock.text ((Localization.resolve TranslationKey.Notifications []).ToUpperInvariant())
                                                     TextBlock.fontSize 10.0
                                                     TextBlock.fontWeight FontWeight.Black
                                                     TextBlock.foreground Theme.TextMuted
@@ -458,7 +573,7 @@ module Home =
                     [ Border.padding (14.0, 16.0)
                       Border.child (
                           TextBlock.create
-                              [ TextBlock.text "No notifications"
+                              [ TextBlock.text (Localization.resolve TranslationKey.NoNotifications [])
                                 TextBlock.fontSize 12.0
                                 TextBlock.foreground Theme.TextMuted ]
                       ) ]
@@ -527,7 +642,7 @@ module Home =
               ) ]
 
     let private upcomingPanel (fixtures: (MatchId * MatchFixture) list) (gs: GameState) =
-        let header = panelHeader IconName.calendar "UPCOMING FIXTURES" None
+        let header = panelHeader IconName.calendar (Localization.resolve TranslationKey.UpcomingFixtures []) None
 
         let body =
             if fixtures.IsEmpty then
@@ -535,7 +650,7 @@ module Home =
                     [ Border.padding (14.0, 16.0)
                       Border.child (
                           TextBlock.create
-                              [ TextBlock.text "No upcoming fixtures"
+                              [ TextBlock.text (Localization.resolve TranslationKey.NoUpcomingFixtures [])
                                 TextBlock.fontSize 12.0
                                 TextBlock.foreground Theme.TextMuted ]
                       ) ]
@@ -599,7 +714,7 @@ module Home =
               ) ]
 
     let private recentResultsPanel (results: HomePresenter.RecentResultVM list) =
-        let header = panelHeader MatchEvent.goal "RECENT RESULTS" None
+        let header = panelHeader MatchEvent.goal (Localization.resolve TranslationKey.RecentResults []) None
 
         let body =
             if results.IsEmpty then
@@ -607,7 +722,7 @@ module Home =
                     [ Border.padding (14.0, 16.0)
                       Border.child (
                           TextBlock.create
-                              [ TextBlock.text "No results yet"
+                              [ TextBlock.text (Localization.resolve TranslationKey.NoResultsYet [])
                                 TextBlock.fontSize 12.0
                                 TextBlock.foreground Theme.TextMuted ]
                       ) ]
@@ -720,13 +835,13 @@ module Home =
                                         TextBlock.textAlignment TextAlignment.Center ]
                                   TextBlock.create
                                       [ Grid.column 1
-                                        TextBlock.text "CLUB"
+                                        TextBlock.text ((Localization.resolve TranslationKey.TableClub []).ToUpperInvariant())
                                         TextBlock.fontSize 9.0
                                         TextBlock.fontWeight FontWeight.Bold
                                         TextBlock.foreground Theme.TextDim ]
                                   TextBlock.create
                                       [ Grid.column 2
-                                        TextBlock.text "W-D-L"
+                                        TextBlock.text (Localization.resolve TranslationKey.TableRecord [])
                                         TextBlock.fontSize 9.0
                                         TextBlock.fontWeight FontWeight.Bold
                                         TextBlock.foreground Theme.TextDim
@@ -740,7 +855,7 @@ module Home =
                                         TextBlock.textAlignment TextAlignment.Center ]
                                   TextBlock.create
                                       [ Grid.column 4
-                                        TextBlock.text "PTS"
+                                        TextBlock.text ((Localization.resolve TranslationKey.TablePoints []).ToUpperInvariant())
                                         TextBlock.fontSize 9.0
                                         TextBlock.fontWeight FontWeight.Bold
                                         TextBlock.foreground Theme.TextDim
@@ -759,7 +874,7 @@ module Home =
                                 StackPanel.children
                                     [ Icons.iconSm IconName.league Theme.TextDim
                                       TextBlock.create
-                                          [ TextBlock.text "No standings available"
+                                          [ TextBlock.text (Localization.resolve TranslationKey.NoStandings [])
                                             TextBlock.fontSize 12.0
                                             TextBlock.foreground Theme.TextDim
                                             TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ]
@@ -938,10 +1053,11 @@ module Home =
             ScrollViewer.create
                 [ ScrollViewer.content (
                       StackPanel.create
-                          [ StackPanel.margin (24.0, 24.0)
-                            StackPanel.spacing 16.0
+                          [ StackPanel.margin (32.0, 8.0, 32.0, 32.0)
+                            StackPanel.spacing 20.0
                             StackPanel.children
                                 [ CareerJourney.home state dispatch
+                                  inboxPreview gs dispatch
                                   summaryBar compact userTeam pos total standing
                                   bodyColumns ] ]
                   ) ]

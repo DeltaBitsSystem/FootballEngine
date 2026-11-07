@@ -8,26 +8,6 @@ open FootballEngine.Core.Match
 // Simple DUs serialized as strings so JSON stays human-readable and
 // diffable without a numeric mapping table.
 
-type ThemeMode =
-    | Dark
-    | Light
-    | Auto
-
-module ThemeMode =
-
-    let toString =
-        function
-        | Dark -> "Dark"
-        | Light -> "Light"
-        | Auto -> "Auto"
-
-    let tryParse (s: string) : Result<ThemeMode, string> =
-        match s with
-        | s when String.Equals(s, "Dark", StringComparison.OrdinalIgnoreCase) -> Ok Dark
-        | s when String.Equals(s, "Light", StringComparison.OrdinalIgnoreCase) -> Ok Light
-        | s when String.Equals(s, "Auto", StringComparison.OrdinalIgnoreCase) -> Ok Auto
-        | _ -> Error $"Unknown ThemeMode '{s}'"
-
 type Density =
     | Comfortable
     | Compact
@@ -131,8 +111,7 @@ module DifficultyPreset =
 // ── Appearance ──────────────────────────────────────────────────────────
 
 type AppearanceSettings =
-    { ThemeMode: ThemeMode
-      Accent: string
+    { Accent: string
       Density: Density
       FontScale: float
       Language: string
@@ -143,8 +122,7 @@ type AppearanceSettings =
 module AppearanceSettings =
 
     let defaults: AppearanceSettings =
-        { ThemeMode = Dark
-          Accent = "#00d492"
+        { Accent = "#C8F031"
           Density = Comfortable
           FontScale = 1.0
           Language = "es"
@@ -572,7 +550,6 @@ module private JsonHelpers =
 
     let writeAppearance (writer: Utf8JsonWriter) (a: AppearanceSettings) =
         writer.WriteStartObject()
-        writer.WriteString("themeMode", ThemeMode.toString a.ThemeMode)
         writer.WriteString("accent", a.Accent)
         writer.WriteString("density", Density.toString a.Density)
         writer.WriteNumber("fontScale", a.FontScale)
@@ -583,8 +560,6 @@ module private JsonHelpers =
         writer.WriteEndObject()
 
     let readAppearance (elem: JsonElement) : Result<AppearanceSettings, string> =
-        let themeModeR = getString "themeMode" elem |> Result.bind ThemeMode.tryParse
-
         let accentR = getString "accent" elem
 
         let densityR = getString "density" elem |> Result.bind Density.tryParse
@@ -595,11 +570,10 @@ module private JsonHelpers =
         let highContrastR = getBool "highContrast" elem
         let pitchPaletteR = getString "pitchPalette" elem
 
-        match themeModeR, accentR, densityR, fontScaleR, languageR, animationsR, highContrastR, pitchPaletteR with
-        | Ok tm, Ok accent, Ok dens, Ok fs, Ok lang, Ok anim, Ok hc, Ok pitch ->
+        match accentR, densityR, fontScaleR, languageR, animationsR, highContrastR, pitchPaletteR with
+        | Ok accent, Ok dens, Ok fs, Ok lang, Ok anim, Ok hc, Ok pitch ->
             Ok
-                { ThemeMode = tm
-                  Accent = accent
+                { Accent = accent
                   Density = dens
                   FontScale = fs
                   Language = lang
@@ -608,10 +582,7 @@ module private JsonHelpers =
                   PitchPalette = pitch }
         | _ ->
             let errs =
-                [ match themeModeR with
-                  | Error e -> yield e
-                  | _ -> ()
-                  match accentR with
+                [ match accentR with
                   | Error e -> yield e
                   | _ -> ()
                   match densityR with

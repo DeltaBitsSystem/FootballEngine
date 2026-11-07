@@ -522,7 +522,7 @@ module Transfers =
                                                     StackPanel.spacing 2.0
                                                     StackPanel.children
                                                         [ TextBlock.create
-                                                              [ TextBlock.text "VALUE"
+                                                              [ TextBlock.text ((Localization.resolve TranslationKey.ColValue []).ToUpperInvariant())
                                                                 TextBlock.fontSize 9.0
                                                                 TextBlock.fontWeight FontWeight.Bold
                                                                 TextBlock.foreground Theme.TextMuted
@@ -539,7 +539,7 @@ module Transfers =
                                                     StackPanel.spacing 2.0
                                                     StackPanel.children
                                                         [ TextBlock.create
-                                                              [ TextBlock.text "WAGE"
+                                                              [ TextBlock.text ((Localization.resolve TranslationKey.ColWage []).ToUpperInvariant())
                                                                 TextBlock.fontSize 9.0
                                                                 TextBlock.fontWeight FontWeight.Bold
                                                                 TextBlock.foreground Theme.TextMuted
@@ -670,7 +670,7 @@ module Transfers =
                             [ Border.create [ Grid.column 0; Border.width 48.0 ]
                               TextBlock.create
                                   [ Grid.column 1
-                                    TextBlock.text "PLAYER"
+                                    TextBlock.text ((Localization.resolve TranslationKey.ColPlayer []).ToUpperInvariant())
                                     TextBlock.fontSize 10.0
                                     TextBlock.fontWeight FontWeight.Bold
                                     TextBlock.foreground Theme.TextMuted
@@ -693,7 +693,7 @@ module Transfers =
                                     TextBlock.horizontalAlignment HorizontalAlignment.Center ]
                               TextBlock.create
                                   [ Grid.column 4
-                                    TextBlock.text "VALUE"
+                                    TextBlock.text ((Localization.resolve TranslationKey.ColValue []).ToUpperInvariant())
                                     TextBlock.fontSize 10.0
                                     TextBlock.fontWeight FontWeight.Bold
                                     TextBlock.foreground Theme.TextMuted
@@ -902,7 +902,7 @@ module Transfers =
                                             StackPanel.children
                                                 [ Icons.iconSm ClubIcon.finances Theme.Accent
                                                   TextBlock.create
-                                                      [ TextBlock.text "BUDGET"
+                                                      [ TextBlock.text ((Localization.resolve TranslationKey.TransfersBudget []).ToUpperInvariant())
                                                         TextBlock.fontSize 10.0
                                                         TextBlock.fontWeight FontWeight.Bold
                                                         TextBlock.foreground Theme.TextMuted
@@ -916,15 +916,10 @@ module Transfers =
                                       StackPanel.create
                                           [ StackPanel.spacing 4.0
                                             StackPanel.children
-                                                [ TextBlock.create
-                                                      [ TextBlock.text "TRANSFERS"
-                                                        TextBlock.fontSize 18.0
-                                                        TextBlock.fontWeight FontWeight.Black
-                                                        TextBlock.foreground Theme.TextMain
-                                                        TextBlock.lineSpacing 2.0 ]
+                                                [ UI.display (Localization.resolve TranslationKey.TransfersTitle []) 44.0 Theme.TextMain
                                                   TextBlock.create
-                                                      [ TextBlock.text "Recruit, negotiate, and build your squad"
-                                                        TextBlock.fontSize 11.0
+                                                      [ TextBlock.text (Localization.resolve TranslationKey.TransfersSubtitle [])
+                                                        TextBlock.fontSize 14.0
                                                         TextBlock.foreground Theme.TextMuted ] ] ] ] ]
                       ) ]
 
@@ -1218,7 +1213,7 @@ module Transfers =
                                                 Grid.children
                                                     [ TextBlock.create
                                                           [ Grid.column 0
-                                                            TextBlock.text "PLAYER"
+                                                            TextBlock.text ((Localization.resolve TranslationKey.ColPlayer []).ToUpperInvariant())
                                                             TextBlock.fontSize 10.0
                                                             TextBlock.fontWeight FontWeight.Bold
                                                             TextBlock.foreground Theme.TextMuted
@@ -1232,7 +1227,7 @@ module Transfers =
                                                             TextBlock.lineSpacing 1.0 ]
                                                       TextBlock.create
                                                           [ Grid.column 2
-                                                            TextBlock.text "STATUS"
+                                                            TextBlock.text ((Localization.resolve TranslationKey.ColStatus []).ToUpperInvariant())
                                                             TextBlock.fontSize 10.0
                                                             TextBlock.fontWeight FontWeight.Bold
                                                             TextBlock.foreground Theme.TextMuted

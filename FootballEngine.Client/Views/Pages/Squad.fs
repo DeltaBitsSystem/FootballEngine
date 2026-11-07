@@ -39,25 +39,25 @@ module SquadPresenter =
 
         { TotalValue = $"€{int (totalValue / 1_000_000m)}M"
           AvgSkill = $"%.0f{avgSkill}"
-          TotalWages = $"€{int (totalWages / 1_000m)}K/pw"
+          TotalWages = $"€{totalWages / 1_000_000m:N1}M"
           SquadSize = string players.Length }
 
     let private positionLine (pos: Position) =
         match pos with
-        | GK -> 0, "GOALKEEPERS"
+        | GK -> 0, TranslationKey.LineGoalkeepers
         | DR
         | DC
         | DL
         | WBR
-        | WBL -> 1, "DEFENDERS"
+        | WBL -> 1, TranslationKey.LineDefenders
         | DM
         | MC
         | MR
         | ML
         | AMR
         | AMC
-        | AML -> 2, "MIDFIELDERS"
-        | ST -> 3, "ATTACKERS"
+        | AML -> 2, TranslationKey.LineMidfielders
+        | ST -> 3, TranslationKey.LineAttackers
 
     let getSortedPlayers (players: Player list) (currentDate: DateTime) (sortBy: SortField) =
         match sortBy with
@@ -77,185 +77,104 @@ module SquadPresenter =
             players
             |> List.groupBy (fun p -> positionLine p.Position)
             |> List.sortBy fst
-            |> List.map (fun ((_, label), ps) -> Some label, ps |> List.sortByDescending _.CurrentSkill)
+            |> List.map (fun ((_, label), ps) ->
+                Some(Localization.resolve label []), ps |> List.sortByDescending _.CurrentSkill)
 
 
 module Squad =
 
-    let private positionGroupHeader (label: string) =
-        Grid.create
-            [ Grid.columnDefinitions "auto, *"
-              Grid.margin (0.0, 8.0, 0.0, 4.0)
-              Grid.children
-                  [ Border.create
-                        [ Grid.column 0
-                          Border.background Theme.Accent
-                          Border.cornerRadius 3.0
-                          Border.width 3.0
-                          Border.margin (0.0, 0.0, 8.0, 0.0) ]
-                    TextBlock.create
-                        [ Grid.column 1
-                          TextBlock.text label
-                          TextBlock.fontSize 10.0
-                          TextBlock.fontWeight FontWeight.Black
-                          TextBlock.foreground Theme.Accent
-                          TextBlock.lineSpacing 1.5
-                          TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+    let private tr key = Localization.resolve key []
 
-    let private sectionHeader (squadCount: int) (dispatch: Msg -> unit) (state: State) =
-        DockPanel.create
-            [ DockPanel.margin (0.0, 0.0, 0.0, 10.0)
-              DockPanel.children
-                  [ StackPanel.create
-                        [ StackPanel.dock Dock.Right
-                          StackPanel.orientation Orientation.Horizontal
-                          StackPanel.spacing 4.0
-                          StackPanel.children
-                              [ let a = state.Squad.SortBy
+    let private sortPill (label: string) (isActive: bool) onClick : IView =
+        Border.create [ Border.margin (0.0, 0.0, 8.0, 8.0); Border.child (UI.tabButton label isActive onClick) ]
+        :> IView
 
-                                UI.iconToggleButton "Line" PlayerIcon.position (a = ByPosition) (fun _ ->
-                                    dispatch (SquadMsg(SquadMsg.SetSort ByPosition)))
-
-                                UI.iconToggleButton "Skill" PlayerIcon.skill (a = ByCA) (fun _ ->
-                                    dispatch (SquadMsg(SquadMsg.SetSort ByCA)))
-
-                                UI.iconToggleButton "Age" PlayerIcon.age (a = ByAge) (fun _ ->
-                                    dispatch (SquadMsg(SquadMsg.SetSort ByAge)))
-
-                                UI.iconToggleButton "Value" PlayerIcon.value (a = ByValue) (fun _ ->
-                                    dispatch (SquadMsg(SquadMsg.SetSort ByValue)))
-
-                                UI.iconToggleButton "Name" IconName.sort (a = ByName) (fun _ ->
-                                    dispatch (SquadMsg(SquadMsg.SetSort ByName))) ] ]
-
-                    StackPanel.create
-                        [ StackPanel.orientation Orientation.Horizontal
-                          StackPanel.spacing 10.0
-                          StackPanel.verticalAlignment VerticalAlignment.Center
-                          StackPanel.margin (8.0, 8.0, 8.0, 8.0)
-                          StackPanel.children
-                              [ Icons.iconMd IconName.squad Theme.Accent
-                                TextBlock.create
-                                    [ TextBlock.text "First Team"
-                                      TextBlock.fontSize 18.0
-                                      TextBlock.fontWeight FontWeight.Black
-                                      TextBlock.foreground Theme.TextMain
-                                      TextBlock.verticalAlignment VerticalAlignment.Center ]
-                                UI.countBadge squadCount ] ] ] ]
+    let private lineHeader (label: string) : IView =
+        Border.create
+            [ Border.margin (4.0, 14.0, 0.0, 8.0)
+              Border.child (UI.eyebrow label Theme.TextDim) ]
+        :> IView
 
     let squadView (state: State) dispatch =
         match state.Mode with
         | InGame(gs, _) ->
             let squad = GameState.getSquad gs.UserClubId gs
             let stats = SquadPresenter.getTeamStats squad
+            let groups = SquadPresenter.getGroupedPlayers squad gs.CurrentDate state.Squad.SortBy
 
-            let groups =
-                SquadPresenter.getGroupedPlayers squad gs.CurrentDate state.Squad.SortBy
+            let clubKit = ClubIdentity.kitOf gs gs.UserClubId
+
+            let sort = state.Squad.SortBy
+            let setSort field = fun _ -> dispatch (SquadMsg(SquadMsg.SetSort field))
+
+            let header =
+                DockPanel.create
+                    [ DockPanel.lastChildFill false
+                      DockPanel.margin (0.0, 0.0, 0.0, 12.0)
+                      DockPanel.children
+                          [ StackPanel.create
+                                [ DockPanel.dock Dock.Left
+                                  StackPanel.spacing 6.0
+                                  StackPanel.children
+                                      [ UI.display (tr TranslationKey.SquadTitle) 44.0 Theme.TextMain
+                                        TextBlock.create
+                                            [ TextBlock.text (
+                                                  Localization.resolve
+                                                      TranslationKey.SquadSummary
+                                                      [ "count", stats.SquadSize
+                                                        "value", stats.TotalValue
+                                                        "wages", stats.TotalWages ]
+                                              )
+                                              TextBlock.fontSize 14.0
+                                              TextBlock.foreground Theme.TextMuted ] ] ]
+                            WrapPanel.create
+                                [ DockPanel.dock Dock.Right
+                                  WrapPanel.verticalAlignment VerticalAlignment.Bottom
+                                  WrapPanel.children
+                                      [ sortPill (tr TranslationKey.SortByLine) (sort = ByPosition) (setSort ByPosition)
+                                        sortPill (tr TranslationKey.SortBySkill) (sort = ByCA) (setSort ByCA)
+                                        sortPill (tr TranslationKey.SortByAge) (sort = ByAge) (setSort ByAge)
+                                        sortPill (tr TranslationKey.SortByValue) (sort = ByValue) (setSort ByValue)
+                                        sortPill (tr TranslationKey.SortByName) (sort = ByName) (setSort ByName) ] ] ] ]
+
+            let list =
+                ScrollViewer.create
+                    [ ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Auto
+                      ScrollViewer.padding (0.0, 0.0, 12.0, 0.0)
+                      ScrollViewer.content (
+                          StackPanel.create
+                              [ StackPanel.children
+                                    [ for label, players in groups do
+                                          match label with
+                                          | Some text -> lineHeader text
+                                          | None -> ()
+
+                                          for player in players do
+                                              let isSelected =
+                                                  state.Squad.SelectedPlayer |> Option.exists (fun id -> id = player.Id)
+
+                                              PlayerView.row
+                                                  player
+                                                  gs.CurrentDate
+                                                  isSelected
+                                                  (state.Squad.DraggedPlayer = Some player.Id)
+                                                  (fun () -> dispatch (SquadMsg(SquadMsg.SelectPlayer player.Id)))
+                                              |> View.withKey (string player.Id) ] ]
+                      ) ]
+
+            let selected =
+                state.Squad.SelectedPlayer |> Option.bind (fun id -> gs.Players |> Map.tryFind id)
 
             Grid.create
-                [ Grid.columnDefinitions "*, 440"
-                  Grid.verticalAlignment VerticalAlignment.Stretch
-                  Grid.background Theme.BgMain
+                [ Grid.columnDefinitions "*, 24, 420"
+                  Grid.rowDefinitions "Auto, *"
+                  Grid.margin (32.0, 8.0, 32.0, 24.0)
                   Grid.children
-                      [ Border.create
-                            [ Grid.column 0
-                              Border.padding (20.0, 16.0, 16.0, 16.0)
-                              Border.child (
-                                  Grid.create
-                                      [ Grid.rowDefinitions "auto, auto, auto, *"
-                                        Grid.children
-                                            [ UniformGrid.create
-                                                  [ Grid.row 0
-                                                    UniformGrid.columns 4
-                                                    UniformGrid.margin (0.0, 0.0, 0.0, 14.0)
-                                                    UniformGrid.horizontalAlignment HorizontalAlignment.Stretch
-                                                    UniformGrid.children
-                                                        [ UI.iconStatCard "SQUAD SIZE" stats.SquadSize IconName.squad ""
-                                                          UI.iconStatCard
-                                                              "TEAM VALUE"
-                                                              stats.TotalValue
-                                                              PlayerIcon.value
-                                                              "Market"
-                                                          UI.iconStatCard
-                                                              "AVG SKILL"
-                                                              stats.AvgSkill
-                                                              PlayerIcon.skill
-                                                              "CA"
-                                                          UI.iconStatCard
-                                                              "WAGE BILL"
-                                                              stats.TotalWages
-                                                              ClubIcon.finances
-                                                              "Weekly" ] ]
-
-                                              (sectionHeader squad.Length dispatch state)
-                                              |> fun h -> Border.create [ Grid.row 1; Border.child h ]
-
-                                              PlayerView.tableHeader ()
-                                              |> fun h ->
-                                                  Border.create
-                                                      [ Grid.row 2
-                                                        Border.background Theme.BgElevated
-                                                        Border.cornerRadius (6.0, 6.0, 0.0, 0.0)
-                                                        Border.borderBrush Theme.Border
-                                                        Border.borderThickness (1.0, 1.0, 1.0, 0.0)
-                                                        Border.child h ]
-
-                                              Border.create
-                                                  [ Grid.row 3
-                                                    Border.background Theme.BgCard
-                                                    Border.borderBrush Theme.Border
-                                                    Border.borderThickness 1.0
-                                                    Border.cornerRadius (0.0, 0.0, 8.0, 8.0)
-                                                    Border.clipToBounds true
-                                                    Border.child (
-                                                        ScrollViewer.create
-                                                            [ ScrollViewer.verticalScrollBarVisibility
-                                                                  ScrollBarVisibility.Auto
-                                                              ScrollViewer.content (
-                                                                  StackPanel.create
-                                                                      [ StackPanel.spacing 0.0
-                                                                        StackPanel.children
-                                                                            [ for label, players in groups do
-                                                                                  match label with
-                                                                                  | Some l -> positionGroupHeader l
-                                                                                  | None -> ()
-
-                                                                                  for player in players do
-                                                                                      let isSelected =
-                                                                                          state.Squad.SelectedPlayer
-                                                                                          |> Option.exists (fun id ->
-                                                                                              id = player.Id)
-
-                                                                                      PlayerView.row
-                                                                                          player
-                                                                                          gs.CurrentDate
-                                                                                          isSelected
-                                                                                          (state.Squad.DraggedPlayer = Some
-                                                                                              player.Id)
-                                                                                          (fun () ->
-                                                                                              dispatch (
-                                                                                                  SquadMsg(
-                                                                                                      SquadMsg.SelectPlayer
-                                                                                                          player.Id
-                                                                                                  )
-                                                                                              ))
-                                                                                      |> View.withKey (string player.Id) ] ]
-                                                              ) ]
-                                                    ) ] ] ]
-                              ) ]
-
+                      [ Border.create [ Grid.row 0; Grid.columnSpan 3; Border.child header ]
+                        Border.create [ Grid.row 1; Grid.column 0; Border.child list ]
                         Border.create
-                            [ Grid.column 1
-                              Border.background Theme.BgCard
-                              Border.borderBrush Theme.Border
-                              Border.borderThickness (1.0, 0.0, 0.0, 0.0)
-                              Border.child (
-                                  match
-                                      state.Squad.SelectedPlayer
-                                      |> Option.bind (fun id -> gs.Players |> Map.tryFind id)
-                                  with
-                                  | Some player -> PlayerView.detail (Some player) gs.CurrentDate
-                                  | None -> PlayerView.detail None gs.CurrentDate
-                              ) ] ] ]
+                            [ Grid.row 1
+                              Grid.column 2
+                              Border.child (PlayerView.detail selected gs.CurrentDate clubKit) ] ] ]
             :> IView
         | _ -> Border.create [] :> IView

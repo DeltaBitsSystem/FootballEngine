@@ -36,20 +36,6 @@ module Tactics =
 
     // ── Helpers ───────────────────────────────────────────────────────
 
-    let private sliderLabels = [ "Low"; "Mid"; "High" ]
-
-    let private sliderValueToIndex (v: int) =
-        if v <= 0 then 0
-        elif v <= 2 then 1
-        else 2
-
-    let private indexToSliderValue (idx: int) =
-        match idx with
-        | 0 -> 0
-        | 1 -> 2
-        | 2 -> 4
-        | _ -> 2
-
     let private positionJerseyNumber (pos: Position) =
         match pos with
         | GK -> 1
@@ -119,42 +105,36 @@ module Tactics =
         let skillText =
             player |> Option.map (fun p -> string p.CurrentSkill) |> Option.defaultValue ""
 
-        // Jersey shirt
-        let shirt =
-            Border.create
-                [ Border.width 56.0
-                  Border.height 46.0
-                  Border.background (if isEmpty then "#08ffffff" else nodeCol)
-                  Border.borderBrush (
-                      if isEmpty then
-                          "#12ffffff"
-                      else
-                          (Theme.withAlpha "66" nodeCol)
-                  )
-                  Border.borderThickness (if isEmpty then 1.0 else 1.5)
-                  Border.cornerRadius (6.0, 6.0, 2.0, 2.0)
-                  Border.verticalAlignment VerticalAlignment.Bottom
-                  Border.horizontalAlignment HorizontalAlignment.Center
-                  Border.child (
-                      Grid.create
-                          [ Grid.children
-                                [ TextBlock.create
-                                      [ TextBlock.text jerseyNumber
-                                        TextBlock.fontSize 16.0
-                                        TextBlock.fontWeight FontWeight.Black
-                                        TextBlock.foreground (if isEmpty then "#25ffffff" else "#ffffff")
-                                        TextBlock.horizontalAlignment HorizontalAlignment.Center
-                                        TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
-                  ) ]
+        let isSelected = state.Tactics.SelectedSlot = Some slot.Index
+
+        // Shirts in the club's kit make the pitch read as a team sheet, not a diagram.
+        let shirt: IView =
+            let kit =
+                match player, state.Mode with
+                | Some p, _ when p.Position = GK -> ClubIdentity.keeperKit
+                | Some _, InGame(gs, _) -> ClubIdentity.kitOf gs gs.UserClubId
+                | _ ->
+                    { Primary = "#33FFFFFF"
+                      Secondary = "#33FFFFFF"
+                      Pattern = Plain }
+
+            UI.shirt kit jerseyNumber 58.0 (if isSelected then Theme.Accent else "#0A1020") (if isSelected then 3.0 else 1.5)
 
         // Name
         let nameLabel =
             TextBlock.create
                 [ TextBlock.text shortName
-                  TextBlock.fontSize 9.0
+                  TextBlock.fontSize 12.0
                   TextBlock.fontWeight FontWeight.Bold
                   TextBlock.foreground (if isEmpty then "#30ffffff" else Theme.TextMain)
                   TextBlock.horizontalAlignment HorizontalAlignment.Center ]
+            |> fun label ->
+                Border.create
+                    [ Border.background (if isEmpty then "Transparent" else "#D10A1020")
+                      Border.cornerRadius Theme.RadiusXs
+                      Border.padding (6.0, 2.0)
+                      Border.horizontalAlignment HorizontalAlignment.Center
+                      Border.child label ]
 
         // Position badge
         let posBadge =
@@ -222,13 +202,8 @@ module Tactics =
         Border.create
             [ Border.width 96.0
               Border.background "Transparent"
-              Border.borderBrush (
-                  if state.Tactics.SelectedSlot = Some slot.Index then
-                      Theme.Accent
-                  else
-                      "Transparent"
-              )
-              Border.borderThickness 2.0
+              Border.borderBrush "Transparent"
+              Border.borderThickness 0.0
               Border.cornerRadius 6.0
               Control.allowDrop true
               Control.onDragOver (fun e -> e.DragEffects <- DragDropEffects.Move)
@@ -289,7 +264,7 @@ module Tactics =
             [ Border.background Theme.BgCard
               Border.borderBrush Theme.Border
               Border.borderThickness 1.0
-              Border.cornerRadius Theme.RadiusLg
+              Border.cornerRadius (Theme.RadiusLg + 2.0)
               Border.clipToBounds true
               Border.child (
                   StackPanel.create [ StackPanel.spacing 0.0; StackPanel.children [ headerContent; bodyContent ] ]
@@ -298,44 +273,43 @@ module Tactics =
 
     let private sectionHeader (icon: Material.Icons.MaterialIconKind) (color: string) (label: string) =
         Border.create
-            [ Border.background Theme.BgElevated
-              Border.padding (14.0, 10.0)
-              Border.borderBrush Theme.Border
-              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+            [ Border.background "Transparent"
+              Border.padding (18.0, 16.0, 18.0, 6.0)
               Border.child (
                   StackPanel.create
                       [ StackPanel.orientation Orientation.Horizontal
                         StackPanel.spacing 8.0
                         StackPanel.children
-                            [ Icons.iconSm icon color
-                              TextBlock.create
-                                  [ TextBlock.text label
-                                    TextBlock.fontSize 10.0
-                                    TextBlock.fontWeight FontWeight.Black
-                                    TextBlock.foreground Theme.TextMuted
-                                    TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                            [ Icons.icon icon 18.0 color; UI.display label 22.0 Theme.TextMain ] ]
               ) ]
         :> IView
 
     // ── Left panel sections ───────────────────────────────────────────
 
+    /// "F4231" reads as "4-2-3-1": the shape a manager says out loud.
+    let private formationLabel (formation: Formation) =
+        let raw = (sprintf "%A" formation).TrimStart('F')
+        let digits = raw |> Seq.takeWhile System.Char.IsDigit |> Seq.map string |> String.concat "-"
+        let suffix = raw |> Seq.skipWhile System.Char.IsDigit |> Seq.toArray |> System.String
+
+        if suffix = "" then digits else $"{digits} {suffix}"
+
     let private formationSection (currentFormation: Formation) dispatch =
-        let header = sectionHeader IconName.tactics Theme.Accent "FORMATION"
+        let header =
+            sectionHeader IconName.tactics Theme.Accent (Localization.resolve TranslationKey.TacticsFormation [])
 
         let body =
-            Border.create
-                [ Border.padding (12.0, 10.0)
-                  Border.child (
-                      ComboBox.create
-                          [ ComboBox.dataItems FormationLineups.all
-                            ComboBox.selectedItem currentFormation
-                            ComboBox.onSelectedItemChanged (fun obj ->
-                                if obj <> null then
-                                    dispatch (AppMsgs.TacticsMsg(TacticsMsg.SetFormation(obj :?> Formation))))
-                            ComboBox.horizontalAlignment HorizontalAlignment.Stretch
-                            ComboBox.fontSize 13.0
-                            ComboBox.fontWeight FontWeight.Bold ]
-                  ) ]
+            WrapPanel.create
+                [ WrapPanel.margin (18.0, 6.0, 10.0, 12.0)
+                  WrapPanel.children
+                      [ for formation in FormationLineups.all ->
+                            Border.create
+                                [ Border.margin (0.0, 0.0, 8.0, 8.0)
+                                  Border.child (
+                                      UI.tabButton (formationLabel formation) (formation = currentFormation) (fun _ ->
+                                          dispatch (AppMsgs.TacticsMsg(TacticsMsg.SetFormation formation)))
+                                  ) ]
+                            :> IView ] ]
 
         sectionCard header body
 
@@ -347,7 +321,8 @@ module Tactics =
         | TacticalSituation.OpenLowBlock -> Material.Icons.MaterialIconKind.ExpandAll
 
     let private presetSection (currentInstructions: TacticalInstructions) dispatch =
-        let header = sectionHeader IconName.lightning Theme.Warning "PLAYBOOKS CONTEXTUALES"
+        let header =
+            sectionHeader IconName.lightning Theme.Warning (Localization.resolve TranslationKey.TacticsPlaybooks [])
 
         let makePlaybookCard (playbook: TacticalPlaybook) =
             let target = TacticalPlaybooks.applyToInstructions playbook currentInstructions
@@ -371,7 +346,11 @@ module Tactics =
                                         DockPanel.children
                                             [ Button.create
                                                   [ DockPanel.dock Dock.Right
-                                                    Button.content (if changed then "Aplicar" else "Activo")
+                                                    Button.content (
+                                                        Localization.resolve
+                                                            (if changed then TranslationKey.TacticsApply else TranslationKey.TacticsActive)
+                                                            []
+                                                    )
                                                     Button.isEnabled changed
                                                     Button.padding (8.0, 4.0)
                                                     Button.fontSize 10.0
@@ -400,17 +379,17 @@ module Tactics =
                                         TextBlock.foreground Theme.TextDim
                                         TextBlock.textWrapping TextWrapping.Wrap ]
                                   TextBlock.create
-                                      [ TextBlock.text ($"Efectos: {effectsText}")
+                                      [ TextBlock.text (Localization.resolve TranslationKey.PlaybookEffects [ "text", effectsText ])
                                         TextBlock.fontSize 9.0
                                         TextBlock.foreground Theme.Success
                                         TextBlock.textWrapping TextWrapping.Wrap ]
                                   TextBlock.create
-                                      [ TextBlock.text ($"Compromisos: {commitmentsText}")
+                                      [ TextBlock.text (Localization.resolve TranslationKey.PlaybookCommitments [ "text", commitmentsText ])
                                         TextBlock.fontSize 9.0
                                         TextBlock.foreground Theme.Warning
                                         TextBlock.textWrapping TextWrapping.Wrap ]
                                   TextBlock.create
-                                      [ TextBlock.text ($"Recomendación basada en: {playbook.RecommendationBasis}")
+                                      [ TextBlock.text (Localization.resolve TranslationKey.PlaybookBasis [ "text", playbook.RecommendationBasis ])
                                         TextBlock.fontSize 9.0
                                         TextBlock.foreground Theme.TextMuted
                                         TextBlock.textWrapping TextWrapping.Wrap ] ] ]
@@ -424,13 +403,25 @@ module Tactics =
 
         sectionCard header body
 
-    let private instructionSlider (id: string) (currentValue: int) (dispatch: AppMsgs.Msg -> unit) =
-        let idx = sliderValueToIndex currentValue
-        let label = sliderLabels.[idx]
+    let private instructionTitle (id: string) =
+        match id with
+        | "Mentality" -> TranslationKey.InstrMentality
+        | "DefensiveLine" -> TranslationKey.InstrDefensiveLine
+        | "PressingIntensity" -> TranslationKey.InstrPressingIntensity
+        | "Width" -> TranslationKey.InstrWidth
+        | "Tempo" -> TranslationKey.InstrTempo
+        | _ -> TranslationKey.InstrDirectness
 
-        // ids are camelCase ("DefensiveLine"); the header needs spaces.
-        let title =
-            System.Text.RegularExpressions.Regex.Replace(id, "([a-z])([A-Z])", "$1 $2").ToUpperInvariant()
+    let private levelNames =
+        [ TranslationKey.Level1
+          TranslationKey.Level2
+          TranslationKey.Level3
+          TranslationKey.Level4
+          TranslationKey.Level5 ]
+
+    /// Instructions run 0..4; five steps show the whole range instead of three coarse presets.
+    let private instructionSlider (id: string) (currentValue: int) (dispatch: AppMsgs.Msg -> unit) =
+        let value = max 0 (min 4 currentValue)
 
         let registryInfo = TacticalInstructionRegistry.tryFind id
 
@@ -439,97 +430,57 @@ module Tactics =
             |> Option.map (fun (spec, _) -> spec.Description)
             |> Option.defaultValue ""
 
-        let tradeoff = registryInfo |> Option.map snd
-
-        let cost =
-            tradeoff
-            |> Option.map (fun t -> $"Condición: {t.Condition} · Ventaja: {t.Advantage} · Costo: {t.Cost}")
-            |> Option.defaultValue ""
-
-        let accentColor =
-            if idx = 0 then Theme.AccentAlt
-            elif idx = 1 then Theme.Accent
-            else Theme.Danger
-
-        let makeSliderButton (i: int) (lbl: string) =
-            let isSelected = i = idx
-
+        let step (level: int) : IView =
             Button.create
-                [ Button.padding (4.0, 5.0)
-                  Button.cornerRadius 4.0
-                  Button.background (if isSelected then accentColor else "Transparent")
+                [ Grid.column level
+                  Button.height 28.0
+                  Button.margin (0.0, 0.0, (if level < 4 then 4.0 else 0.0), 0.0)
+                  Button.horizontalAlignment HorizontalAlignment.Stretch
+                  Button.cornerRadius Theme.RadiusXs
                   Button.borderThickness 0.0
-                  Button.cursor Avalonia.Input.Cursor.Default
+                  Button.background (
+                      if level <= value then
+                          Theme.withAlpha (sprintf "%02X" (115 + level * 35)) Theme.Accent
+                      else
+                          Theme.Border
+                  )
+                  ToolTip.tip (Localization.resolve levelNames[level] [])
                   Button.onClick (fun _ ->
-                      let newValue = indexToSliderValue i
-
-                      dispatch (
-                          AppMsgs.TacticsMsg(
-                              TacticsMsg.SetInstruction(fun instr -> TacticalInstructions.set id newValue instr)
-                          )
-                      ))
-                  Button.content (
-                      TextBlock.create
-                          [ TextBlock.text lbl
-                            TextBlock.fontSize 10.0
-                            TextBlock.fontWeight (if isSelected then FontWeight.Bold else FontWeight.Medium)
-                            TextBlock.foreground (if isSelected then "#ffffff" else Theme.TextDim)
-                            TextBlock.horizontalAlignment HorizontalAlignment.Center ]
-                  ) ]
+                      dispatch (AppMsgs.TacticsMsg(TacticsMsg.SetInstruction(TacticalInstructions.set id level)))) ]
             :> IView
 
-        Border.create
-            [ Border.background Theme.BgCard
-              Border.borderBrush Theme.Border
-              Border.borderThickness 1.0
-              Border.cornerRadius Theme.RadiusMd
-              Border.padding (12.0, 10.0)
-              Border.child (
-                  StackPanel.create
-                      [ StackPanel.spacing 6.0
-                        StackPanel.children
-                            [ DockPanel.create
-                                  [ DockPanel.lastChildFill true
-                                    DockPanel.children
-                                        [ TextBlock.create
-                                              [ TextBlock.text title
-                                                TextBlock.fontSize 10.0
-                                                TextBlock.fontWeight FontWeight.Black
-                                                TextBlock.foreground Theme.TextSub
-                                                TextBlock.verticalAlignment VerticalAlignment.Center ]
-                                          Border.create
-                                              [ DockPanel.dock Dock.Right
-                                                Border.background (Theme.withAlpha "22" accentColor)
-                                                Border.cornerRadius 4.0
-                                                Border.padding (6.0, 2.0)
-                                                Border.child (
-                                                    TextBlock.create
-                                                        [ TextBlock.text label
-                                                          TextBlock.fontSize 9.0
-                                                          TextBlock.fontWeight FontWeight.Bold
-                                                          TextBlock.foreground accentColor ]
-                                                ) ] ] ]
-                              TextBlock.create
-                                  [ TextBlock.text desc
-                                    TextBlock.fontSize 10.0
-                                    TextBlock.foreground Theme.TextDim
-                                    TextBlock.textWrapping TextWrapping.Wrap ]
-                              Grid.create
-                                  [ Grid.columnDefinitions "*, *, *"
-                                    Grid.children (sliderLabels |> List.mapi makeSliderButton) ]
-                              if cost <> "" then
-                                  Border.create
-                                      [ Border.background Theme.BgElevated
-                                        Border.cornerRadius 4.0
-                                        Border.padding (6.0, 4.0)
-                                        Border.child (
-                                            TextBlock.create
-                                                [ TextBlock.text cost
-                                                  TextBlock.fontSize 9.0
-                                                  TextBlock.foreground Theme.TextDim
-                                                  TextBlock.textWrapping TextWrapping.Wrap ]
-                                        ) ] ] ]
-              ) ]
+        StackPanel.create
+            [ StackPanel.spacing 6.0
+              StackPanel.margin (0.0, 0.0, 0.0, 8.0)
+              StackPanel.children
+                  [ DockPanel.create
+                        [ DockPanel.children
+                              [ TextBlock.create
+                                    [ DockPanel.dock Dock.Right
+                                      TextBlock.text (Localization.resolve levelNames[value] [])
+                                      TextBlock.fontSize 13.0
+                                      TextBlock.foreground Theme.TextMuted ]
+                                TextBlock.create
+                                    [ TextBlock.text (Localization.resolve (instructionTitle id) [])
+                                      TextBlock.fontSize 14.0
+                                      TextBlock.fontWeight FontWeight.SemiBold
+                                      TextBlock.foreground Theme.TextMain ] ] ]
+                    Grid.create [ Grid.columnDefinitions "*, *, *, *, *"; Grid.children [ for level in 0..4 -> step level ] ]
+                    if desc <> "" then
+                        TextBlock.create
+                            [ TextBlock.text desc
+                              TextBlock.fontSize 12.0
+                              TextBlock.foreground Theme.TextDim
+                              TextBlock.textWrapping TextWrapping.Wrap ] ] ]
+
+    /// Names the idea behind the five dials, the way a commentator would.
+    let private styleName (i: TacticalInstructions) =
+        if i.PressingIntensity >= 3 && i.DefensiveLine >= 3 then TranslationKey.StyleTotalPress
+        elif i.PressingIntensity >= 3 && i.Tempo >= 3 then TranslationKey.StyleHuntBall
+        elif i.Mentality <= 1 && i.DefensiveLine <= 1 then TranslationKey.StyleLowBlock
+        elif i.Tempo <= 1 then TranslationKey.StylePatient
+        elif i.Width >= 3 then TranslationKey.StyleWideGame
+        else TranslationKey.StyleBalanced
 
     let private instructionsPanel (currentLineup: Lineup option) dispatch =
         let instructions =
@@ -540,7 +491,25 @@ module Tactics =
         let currentTactics =
             currentLineup |> Option.map _.Tactics |> Option.defaultValue Balanced
 
-        let header = sectionHeader IconName.tactics Theme.Accent "INSTRUCTIONS"
+        let header =
+            DockPanel.create
+                [ DockPanel.children
+                      [ Border.create
+                            [ DockPanel.dock Dock.Right
+                              Border.margin (0.0, 16.0, 18.0, 0.0)
+                              Border.verticalAlignment VerticalAlignment.Center
+                              Border.background (Theme.withAlpha "24" Theme.Accent)
+                              Border.cornerRadius Theme.RadiusPill
+                              Border.padding (12.0, 5.0)
+                              Border.child (
+                                  TextBlock.create
+                                      [ TextBlock.text ((Localization.resolve (styleName instructions) []).ToUpperInvariant())
+                                        TextBlock.fontSize 13.0
+                                        TextBlock.fontWeight FontWeight.Bold
+                                        TextBlock.foreground Theme.Accent ]
+                              ) ]
+                        sectionHeader IconName.tactics Theme.Accent (Localization.resolve TranslationKey.TacticsHowWePlay []) ] ]
+            :> IView
 
         let body =
             StackPanel.create
@@ -564,7 +533,7 @@ module Tactics =
                                         ComboBox.fontWeight FontWeight.Bold ]
                               ) ]
                         Border.create
-                            [ Border.padding (10.0, 8.0)
+                            [ Border.padding (18.0, 12.0, 18.0, 10.0)
                               Border.child (
                                   StackPanel.create
                                       [ StackPanel.spacing 6.0
@@ -768,22 +737,15 @@ module Tactics =
 
         let header =
             Border.create
-                [ Border.background Theme.BgElevated
-                  Border.padding (14.0, 10.0)
-                  Border.borderBrush Theme.Border
-                  Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                [ Border.background "Transparent"
+                  Border.padding (16.0, 16.0, 16.0, 8.0)
                   Border.child (
                       StackPanel.create
                           [ StackPanel.orientation Orientation.Horizontal
-                            StackPanel.spacing 8.0
+                            StackPanel.spacing 10.0
                             StackPanel.children
-                                [ Icons.iconSm IconName.squad Theme.Accent
-                                  TextBlock.create
-                                      [ TextBlock.text "SELECTION INFO"
-                                        TextBlock.fontSize 10.0
-                                        TextBlock.fontWeight FontWeight.Black
-                                        TextBlock.foreground Theme.TextMuted
-                                        TextBlock.verticalAlignment VerticalAlignment.Center ]
+                                [ Icons.icon IconName.squad 18.0 Theme.Accent
+                                  UI.display (Localization.resolve TranslationKey.TacticsSelection []) 22.0 Theme.TextMain
                                   UI.countBadge (starterIds.Count + benchPlayers.Length) ] ]
                   ) ]
 
@@ -799,26 +761,26 @@ module Tactics =
                             Grid.children
                                 [ TextBlock.create
                                       [ Grid.column 0
-                                        TextBlock.text "POS"
+                                        TextBlock.text ((Localization.resolve TranslationKey.ColPosition []).ToUpperInvariant())
                                         TextBlock.fontSize 8.0
                                         TextBlock.fontWeight FontWeight.Black
                                         TextBlock.foreground Theme.TextDim ]
                                   TextBlock.create
                                       [ Grid.column 1
-                                        TextBlock.text "PLAYER"
+                                        TextBlock.text ((Localization.resolve TranslationKey.ColPlayer []).ToUpperInvariant())
                                         TextBlock.fontSize 8.0
                                         TextBlock.fontWeight FontWeight.Black
                                         TextBlock.foreground Theme.TextDim ]
                                   TextBlock.create
                                       [ Grid.column 2
-                                        TextBlock.text "SUIT"
+                                        TextBlock.text ((Localization.resolve TranslationKey.ColSuitability []).ToUpperInvariant())
                                         TextBlock.fontSize 8.0
                                         TextBlock.fontWeight FontWeight.Black
                                         TextBlock.foreground Theme.TextDim
                                         TextBlock.margin (6.0, 0.0) ]
                                   TextBlock.create
                                       [ Grid.column 3
-                                        TextBlock.text "FIT"
+                                        TextBlock.text ((Localization.resolve TranslationKey.ColFitness []).ToUpperInvariant())
                                         TextBlock.fontSize 8.0
                                         TextBlock.fontWeight FontWeight.Black
                                         TextBlock.foreground Theme.TextDim ] ] ]
@@ -914,14 +876,18 @@ module Tactics =
                                     StackPanel.margin (0.0, 0.0, 8.0, 0.0)
                                     StackPanel.children
                                         [ TextBlock.create
-                                              [ TextBlock.text "SUBSTITUTES"
-                                                TextBlock.fontSize 9.0
-                                                TextBlock.fontWeight FontWeight.Black
-                                                TextBlock.foreground Theme.TextMuted ]
+                                              [ TextBlock.text ((Localization.resolve TranslationKey.Substitutes []).ToUpperInvariant())
+                                                TextBlock.fontSize 13.0
+                                                TextBlock.fontWeight FontWeight.Bold
+                                                TextBlock.foreground Theme.TextMain ]
                                           TextBlock.create
-                                              [ TextBlock.text $"{benchPlayers.Length} available"
-                                                TextBlock.fontSize 8.0
-                                                TextBlock.foreground Theme.TextDim ] ] ]
+                                              [ TextBlock.text (
+                                                    Localization.resolve
+                                                        TranslationKey.SubstitutesAvailable
+                                                        [ "count", string benchPlayers.Length ]
+                                                )
+                                                TextBlock.fontSize 12.0
+                                                TextBlock.foreground Theme.TextMuted ] ] ]
                               // Slot grid
                               yield! slots |> List.mapi (fun i p -> substituteSlot p i dispatch :> IView) ] ]
               ) ]
@@ -1021,7 +987,7 @@ module Tactics =
 
         let nextText =
             match HomePresenter.getNextMatch gs with
-            | None -> "No fixture scheduled"
+            | None -> (Localization.resolve TranslationKey.NoFixtureScheduled [])
             | Some m -> $"{m.LocalName} vs {m.VisitName} · " + m.Date.ToString("dd MMM")
 
         let famColor =
@@ -1045,17 +1011,21 @@ module Tactics =
                                     StackPanel.verticalAlignment VerticalAlignment.Center
                                     StackPanel.children
                                         [ TextBlock.create
-                                              [ TextBlock.text $"FAMILIARITY · {string formation}"
-                                                TextBlock.fontSize 10.0
-                                                TextBlock.fontWeight FontWeight.Black
-                                                TextBlock.foreground Theme.TextMuted
+                                              [ TextBlock.text (
+                                                    Localization.resolve
+                                                        TranslationKey.TacticsFamiliarity
+                                                        [ "formation", formationLabel formation ]
+                                                )
+                                                TextBlock.fontSize 14.0
+                                                TextBlock.fontWeight FontWeight.SemiBold
+                                                TextBlock.foreground Theme.TextSub
                                                 TextBlock.verticalAlignment VerticalAlignment.Center ]
                                           ProgressBar.create
                                               [ ProgressBar.minimum 0.0
                                                 ProgressBar.maximum 1.0
                                                 ProgressBar.value familiarity
-                                                ProgressBar.width 110.0
-                                                ProgressBar.height 6.0
+                                                ProgressBar.width 160.0
+                                                ProgressBar.height 8.0
                                                 ProgressBar.cornerRadius 3.0
                                                 ProgressBar.background Theme.BgElevated
                                                 ProgressBar.foreground famColor

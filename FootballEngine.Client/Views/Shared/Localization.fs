@@ -58,6 +58,7 @@ type TranslationKey =
     | Back
     | Forward
     | ManualSave
+    | SearchPlaceholder
     | NewCareer
     | LoadGame
     | NoSaveSlots
@@ -95,6 +96,186 @@ type TranslationKey =
     | MatchNoEligibleSubstitute
     | MatchStartersAndSubstitutes
     | JourneyTitle
+    | TransfersTitle
+    | TransfersSubtitle
+    | InboxTitle
+    | TrainingEmphasis
+    | TrainingThisWeek
+    | ColValue
+    | ColWage
+    | ColStatus
+    | TransfersBudget
+    | FinanceTitle
+    | FinanceSubtitle
+    | FinanceCash
+    | FinanceCashSub
+    | FinanceTransfers
+    | FinanceTransfersSub
+    | FinanceWages
+    | FinanceWagesSub
+    | FinanceForecast
+    | FinanceForecastSub
+    | FinanceReservations
+    | FinanceObligations
+    | FinanceDebt
+    | FinanceLedger
+    | FinanceLedgerEmpty
+    | LedgerIncome
+    | LedgerExpense
+    | LedgerCommitment
+    | CalendarTitle
+    | CalendarSummary
+    | FixturePending
+    | FixtureNext
+    | NoCareerLoaded
+    | TacticsFamiliarity
+    | TacticsSelection
+    | ColPosition
+    | ColPlayer
+    | ColSuitability
+    | ColFitness
+    | Substitutes
+    | SubstitutesAvailable
+    | NoFixtureScheduled
+    | TacticsFormation
+    | TacticsHowWePlay
+    | TacticsPlaybooks
+    | TacticsApply
+    | TacticsActive
+    | InstrMentality
+    | InstrDefensiveLine
+    | InstrPressingIntensity
+    | InstrWidth
+    | InstrTempo
+    | InstrDirectness
+    | Level1
+    | Level2
+    | Level3
+    | Level4
+    | Level5
+    | StyleTotalPress
+    | StyleHuntBall
+    | StyleLowBlock
+    | StylePatient
+    | StyleWideGame
+    | StyleBalanced
+    | PlaybookEffects
+    | PlaybookCommitments
+    | PlaybookBasis
+    | AttrGroupPhysical
+    | AttrGroupMental
+    | AttrGroupTechnical
+    | AttrGroupGoalkeeping
+    | AttrAcceleration
+    | AttrPace
+    | AttrAgility
+    | AttrBalance
+    | AttrJumpingReach
+    | AttrStamina
+    | AttrStrength
+    | AttrAggression
+    | AttrComposure
+    | AttrConcentration
+    | AttrVision
+    | AttrPositioning
+    | AttrBravery
+    | AttrWorkRate
+    | AttrLeadership
+    | AttrFinishing
+    | AttrLongShots
+    | AttrDribbling
+    | AttrBallControl
+    | AttrPassing
+    | AttrCrossing
+    | AttrTackling
+    | AttrMarking
+    | AttrHeading
+    | AttrFreeKick
+    | AttrPenalty
+    | AttrReflexes
+    | AttrHandling
+    | AttrKicking
+    | AttrOneOnOne
+    | AttrAerialReach
+    | SquadTitle
+    | SquadSummary
+    | SortByLine
+    | SortBySkill
+    | SortByAge
+    | SortByValue
+    | SortByName
+    | LineGoalkeepers
+    | LineDefenders
+    | LineMidfielders
+    | LineAttackers
+    | PlayerAgeMorale
+    | PlayerCondition
+    | PlayerLevel
+    | PlayerPotential
+    | PlayerMorale
+    | PlayerMatchFitness
+    | PlayerContract
+    | PlayerAge
+    | SelectPlayer
+    | SelectPlayerHint
+    | StatusInjured
+    | StatusSuspended
+    | HomeLeagues
+    | HomeCups
+    | HomeInternational
+    | StatCash
+    | StatCashSub
+    | StatPosition
+    | StatPositionShort
+    | StatForm
+    | StatMorale
+    | MoraleHigh
+    | MoraleOkay
+    | MoraleLow
+    | CopyNotification
+    | ClearAll
+    | Notifications
+    | NoNotifications
+    | UpcomingFixtures
+    | NoUpcomingFixtures
+    | RecentResults
+    | NoResultsYet
+    | TableClub
+    | TableRecord
+    | TablePoints
+    | NoStandings
+    | HomeTag
+    | AwayTag
+    | MatchdayBadge
+    | NextMatchBadge
+    | VenueHome
+    | VenueAway
+    | Versus
+    | RivalStudiedTitle
+    | RivalStudiedBody
+    | RivalUnknownTitle
+    | RivalUnknownBody
+    | CorridorLeft
+    | CorridorCenter
+    | CorridorRight
+    | StyleShortPassing
+    | StyleMixedPassing
+    | StyleLongBalls
+    | StyleDirect
+    | StyleCrosses
+    | AdjustTactics
+    | InboxImportantTitle
+    | InboxSeeAll
+    | InboxRoutineHint
+    | InboxAllClear
+    | InboxOpen
+    | InboxLater
+    | CategoryDevelopment
+    | CategoryTransfer
+    | CategoryBoard
+    | CategoryMatch
+    | CategoryInjury
+    | CategoryContract
     | PrepareNextMatch
     | AdvanceNextEvent
     | AdvanceNextEventHint
@@ -194,6 +375,7 @@ module Localization =
           TranslationKey.Back, "Atrás", "Back"
           TranslationKey.Forward, "Adelante", "Forward"
           TranslationKey.ManualSave, "Guardar", "Save"
+          TranslationKey.SearchPlaceholder, "Buscar jugadores, clubes o mensajes", "Search players, clubs or messages"
           TranslationKey.NewCareer, "Nueva carrera", "New career"
           TranslationKey.LoadGame, "Cargar partida", "Load game"
           TranslationKey.NoSaveSlots, "No hay partidas guardadas", "No saved careers"
@@ -233,6 +415,186 @@ module Localization =
           "{starters} titulares · {substitutes} suplentes",
           "{starters} starters · {substitutes} substitutes"
           TranslationKey.JourneyTitle, "Tu próxima decisión", "Your next decision"
+          TranslationKey.TransfersTitle, "Mercado", "Transfers"
+          TranslationKey.TransfersSubtitle, "Buscá, negociá y armá tu plantel", "Recruit, negotiate and build your squad"
+          TranslationKey.InboxTitle, "Bandeja", "Inbox"
+          TranslationKey.TrainingEmphasis, "Énfasis del equipo", "Team emphasis"
+          TranslationKey.TrainingThisWeek, "Esta semana", "This week"
+          TranslationKey.ColValue, "Valor", "Value"
+          TranslationKey.ColWage, "Salario", "Wage"
+          TranslationKey.ColStatus, "Estado", "Status"
+          TranslationKey.TransfersBudget, "Presupuesto", "Budget"
+          TranslationKey.FinanceTitle, "Finanzas", "Finances"
+          TranslationKey.FinanceSubtitle, "Caja, autorizaciones y compromisos confirmados", "Cash, authorisations and confirmed commitments"
+          TranslationKey.FinanceCash, "Caja", "Cash"
+          TranslationKey.FinanceCashSub, "Disponible hoy", "Available today"
+          TranslationKey.FinanceTransfers, "Fichajes", "Transfers"
+          TranslationKey.FinanceTransfersSub, "Capacidad libre", "Free capacity"
+          TranslationKey.FinanceWages, "Salarios", "Wages"
+          TranslationKey.FinanceWagesSub, "Compromiso", "Commitment"
+          TranslationKey.FinanceForecast, "Previsión", "Forecast"
+          TranslationKey.FinanceForecastSub, "30 días", "30 days"
+          TranslationKey.FinanceReservations, "Reservas activas", "Active reservations"
+          TranslationKey.FinanceObligations, "Obligaciones pendientes", "Pending obligations"
+          TranslationKey.FinanceDebt, "Deuda", "Debt"
+          TranslationKey.FinanceLedger, "Últimas operaciones", "Recent operations"
+          TranslationKey.FinanceLedgerEmpty, "Todavía no hubo movimientos de caja esta temporada.", "No cash movements yet this season."
+          TranslationKey.LedgerIncome, "Ingreso", "Income"
+          TranslationKey.LedgerExpense, "Egreso", "Expense"
+          TranslationKey.LedgerCommitment, "Compromiso", "Commitment"
+          TranslationKey.CalendarTitle, "Calendario", "Calendar"
+          TranslationKey.CalendarSummary, "Temporada {season} · {count} partidos", "Season {season} · {count} matches"
+          TranslationKey.FixturePending, "Pendiente", "Pending"
+          TranslationKey.FixtureNext, "Próximo", "Next"
+          TranslationKey.NoCareerLoaded, "No hay una carrera cargada", "No career loaded"
+          TranslationKey.TacticsFamiliarity, "Familiaridad con el {formation}", "Familiarity with {formation}"
+          TranslationKey.TacticsSelection, "Elección del once", "Selection"
+          TranslationKey.ColPosition, "Pos", "Pos"
+          TranslationKey.ColPlayer, "Jugador", "Player"
+          TranslationKey.ColSuitability, "Encaje", "Fit"
+          TranslationKey.ColFitness, "Físico", "Fitness"
+          TranslationKey.Substitutes, "Suplentes", "Substitutes"
+          TranslationKey.SubstitutesAvailable, "{count} disponibles", "{count} available"
+          TranslationKey.NoFixtureScheduled, "Sin partido programado", "No fixture scheduled"
+          TranslationKey.TacticsFormation, "Formación", "Formation"
+          TranslationKey.TacticsHowWePlay, "Cómo jugamos", "How we play"
+          TranslationKey.TacticsPlaybooks, "Planes según el partido", "Match-situation playbooks"
+          TranslationKey.TacticsApply, "Aplicar", "Apply"
+          TranslationKey.TacticsActive, "Activo", "Active"
+          TranslationKey.InstrMentality, "Mentalidad", "Mentality"
+          TranslationKey.InstrDefensiveLine, "Línea defensiva", "Defensive line"
+          TranslationKey.InstrPressingIntensity, "Presión", "Pressing"
+          TranslationKey.InstrWidth, "Amplitud", "Width"
+          TranslationKey.InstrTempo, "Ritmo", "Tempo"
+          TranslationKey.InstrDirectness, "Juego directo", "Directness"
+          TranslationKey.Level1, "Muy bajo", "Very low"
+          TranslationKey.Level2, "Bajo", "Low"
+          TranslationKey.Level3, "Medio", "Medium"
+          TranslationKey.Level4, "Alto", "High"
+          TranslationKey.Level5, "Muy alto", "Very high"
+          TranslationKey.StyleTotalPress, "Presión total", "Total press"
+          TranslationKey.StyleHuntBall, "Ir a buscarlos", "Hunt the ball"
+          TranslationKey.StyleLowBlock, "Cerrojo y contra", "Low block and counter"
+          TranslationKey.StylePatient, "Tenencia paciente", "Patient possession"
+          TranslationKey.StyleWideGame, "Juego por las bandas", "Wide game"
+          TranslationKey.StyleBalanced, "Equilibrio", "Balanced"
+          TranslationKey.PlaybookEffects, "Efectos: {text}", "Effects: {text}"
+          TranslationKey.PlaybookCommitments, "Compromisos: {text}", "Commitments: {text}"
+          TranslationKey.PlaybookBasis, "Recomendado por: {text}", "Recommended because: {text}"
+          TranslationKey.AttrGroupPhysical, "Físico", "Physical"
+          TranslationKey.AttrGroupMental, "Mental", "Mental"
+          TranslationKey.AttrGroupTechnical, "Técnica", "Technical"
+          TranslationKey.AttrGroupGoalkeeping, "Arquero", "Goalkeeping"
+          TranslationKey.AttrAcceleration, "Aceleración", "Acceleration"
+          TranslationKey.AttrPace, "Velocidad", "Pace"
+          TranslationKey.AttrAgility, "Agilidad", "Agility"
+          TranslationKey.AttrBalance, "Equilibrio", "Balance"
+          TranslationKey.AttrJumpingReach, "Salto", "Jumping reach"
+          TranslationKey.AttrStamina, "Resistencia", "Stamina"
+          TranslationKey.AttrStrength, "Fuerza", "Strength"
+          TranslationKey.AttrAggression, "Agresividad", "Aggression"
+          TranslationKey.AttrComposure, "Serenidad", "Composure"
+          TranslationKey.AttrConcentration, "Concentración", "Concentration"
+          TranslationKey.AttrVision, "Visión", "Vision"
+          TranslationKey.AttrPositioning, "Colocación", "Positioning"
+          TranslationKey.AttrBravery, "Valentía", "Bravery"
+          TranslationKey.AttrWorkRate, "Sacrificio", "Work rate"
+          TranslationKey.AttrLeadership, "Liderazgo", "Leadership"
+          TranslationKey.AttrFinishing, "Definición", "Finishing"
+          TranslationKey.AttrLongShots, "Tiro lejano", "Long shots"
+          TranslationKey.AttrDribbling, "Regate", "Dribbling"
+          TranslationKey.AttrBallControl, "Control", "Ball control"
+          TranslationKey.AttrPassing, "Pase", "Passing"
+          TranslationKey.AttrCrossing, "Centros", "Crossing"
+          TranslationKey.AttrTackling, "Entrada", "Tackling"
+          TranslationKey.AttrMarking, "Marca", "Marking"
+          TranslationKey.AttrHeading, "Cabezazo", "Heading"
+          TranslationKey.AttrFreeKick, "Tiro libre", "Free kick"
+          TranslationKey.AttrPenalty, "Penal", "Penalty"
+          TranslationKey.AttrReflexes, "Reflejos", "Reflexes"
+          TranslationKey.AttrHandling, "Blocaje", "Handling"
+          TranslationKey.AttrKicking, "Saque", "Kicking"
+          TranslationKey.AttrOneOnOne, "Mano a mano", "One on one"
+          TranslationKey.AttrAerialReach, "Juego aéreo", "Aerial reach"
+          TranslationKey.SquadTitle, "Plantel", "Squad"
+          TranslationKey.SquadSummary, "{count} jugadores · valor {value} · masa salarial {wages} por semana", "{count} players · value {value} · wage bill {wages} per week"
+          TranslationKey.SortByLine, "Por línea", "By line"
+          TranslationKey.SortBySkill, "Nivel", "Level"
+          TranslationKey.SortByAge, "Edad", "Age"
+          TranslationKey.SortByValue, "Valor", "Value"
+          TranslationKey.SortByName, "Nombre", "Name"
+          TranslationKey.LineGoalkeepers, "Arqueros", "Goalkeepers"
+          TranslationKey.LineDefenders, "Defensores", "Defenders"
+          TranslationKey.LineMidfielders, "Mediocampistas", "Midfielders"
+          TranslationKey.LineAttackers, "Delanteros", "Attackers"
+          TranslationKey.PlayerAgeMorale, "{age} años · moral {morale}%", "{age} yrs · morale {morale}%"
+          TranslationKey.PlayerCondition, "Estado", "Condition"
+          TranslationKey.PlayerLevel, "Nivel", "Level"
+          TranslationKey.PlayerPotential, "Potencial", "Potential"
+          TranslationKey.PlayerMorale, "Moral", "Morale"
+          TranslationKey.PlayerMatchFitness, "Ritmo", "Match fitness"
+          TranslationKey.PlayerContract, "Contrato", "Contract"
+          TranslationKey.PlayerAge, "Edad", "Age"
+          TranslationKey.SelectPlayer, "Elegí un jugador", "Select a player"
+          TranslationKey.SelectPlayerHint, "Tocá una fila para ver su ficha", "Pick a row to see their profile"
+          TranslationKey.StatusInjured, "Lesionado", "Injured"
+          TranslationKey.StatusSuspended, "Suspendido {days}", "Suspended {days}"
+          TranslationKey.HomeLeagues, "Ligas", "Leagues"
+          TranslationKey.HomeCups, "Copas", "Cups"
+          TranslationKey.HomeInternational, "Internacional", "International"
+          TranslationKey.StatCash, "Caja", "Cash"
+          TranslationKey.StatCashSub, "Disponible", "Available"
+          TranslationKey.StatPosition, "Posición", "Position"
+          TranslationKey.StatPositionShort, "Pos", "Pos"
+          TranslationKey.StatForm, "Racha", "Form"
+          TranslationKey.StatMorale, "Moral", "Morale"
+          TranslationKey.MoraleHigh, "Alta", "High"
+          TranslationKey.MoraleOkay, "Bien", "Okay"
+          TranslationKey.MoraleLow, "Baja", "Low"
+          TranslationKey.CopyNotification, "Copiar notificación", "Copy notification"
+          TranslationKey.ClearAll, "Limpiar todo", "Clear all"
+          TranslationKey.Notifications, "Notificaciones", "Notifications"
+          TranslationKey.NoNotifications, "Sin notificaciones", "No notifications"
+          TranslationKey.UpcomingFixtures, "Próximos partidos", "Upcoming fixtures"
+          TranslationKey.NoUpcomingFixtures, "No hay partidos programados", "No upcoming fixtures"
+          TranslationKey.RecentResults, "Últimos resultados", "Recent results"
+          TranslationKey.NoResultsYet, "Todavía no hay resultados", "No results yet"
+          TranslationKey.TableClub, "Club", "Club"
+          TranslationKey.TableRecord, "G-E-P", "W-D-L"
+          TranslationKey.TablePoints, "Pts", "Pts"
+          TranslationKey.NoStandings, "Sin tabla disponible", "No standings available"
+          TranslationKey.HomeTag, "L", "H"
+          TranslationKey.AwayTag, "V", "A"
+          TranslationKey.MatchdayBadge, "Día de partido", "Matchday"
+          TranslationKey.NextMatchBadge, "Próximo partido · {date}", "Next match · {date}"
+          TranslationKey.VenueHome, "Local", "Home"
+          TranslationKey.VenueAway, "De visitante", "Away"
+          TranslationKey.Versus, "vs", "vs"
+          TranslationKey.RivalStudiedTitle, "El rival te estudió", "Your rival has studied you"
+          TranslationKey.RivalStudiedBody, "Vio {count} de tus partidos y espera que ataques sobre todo por {corridor}.", "They have watched {count} of your matches and expect you to attack mostly down {corridor}."
+          TranslationKey.RivalUnknownTitle, "El rival todavía no te conoce", "Your rival hasn't studied you yet"
+          TranslationKey.RivalUnknownBody, "Es el primer cruce: no tiene informes de tu equipo.", "First meeting: they have no reports on your side."
+          TranslationKey.CorridorLeft, "la izquierda", "the left"
+          TranslationKey.CorridorCenter, "el centro", "the middle"
+          TranslationKey.CorridorRight, "la derecha", "the right"
+          TranslationKey.StyleShortPassing, "Toque corto", "Short passing"
+          TranslationKey.StyleMixedPassing, "Pase variado", "Mixed passing"
+          TranslationKey.StyleLongBalls, "Pelotazo", "Long balls"
+          TranslationKey.StyleDirect, "Juego directo", "Direct play"
+          TranslationKey.StyleCrosses, "Mucho centro", "Lots of crosses"
+          TranslationKey.AdjustTactics, "Ajustar la táctica", "Adjust tactics"
+          TranslationKey.InboxImportantTitle, "Bandeja — lo importante", "Inbox — what matters"
+          TranslationKey.InboxSeeAll, "Ver los {count} mensajes", "See all {count} messages"
+          TranslationKey.InboxRoutineHint, "Los otros {count} son de rutina: el juego los resume y no hace falta abrirlos.", "The other {count} are routine: the game sums them up, no need to open them."
+          TranslationKey.InboxAllClear, "Nada urgente: la bandeja está al día.", "Nothing urgent: your inbox is up to date."
+          TranslationKey.InboxOpen, "Abrir", "Open"
+          TranslationKey.InboxLater, "Después", "Later"
+          TranslationKey.CategoryDevelopment, "Desarrollo", "Development"
+          TranslationKey.CategoryTransfer, "Mercado", "Transfers"
+          TranslationKey.CategoryBoard, "Directiva", "Board"
+          TranslationKey.CategoryMatch, "Partido", "Match"
+          TranslationKey.CategoryInjury, "Lesión", "Injury"
+          TranslationKey.CategoryContract, "Contrato", "Contract"
           TranslationKey.PrepareNextMatch, "Preparar partido", "Prepare match"
           TranslationKey.AdvanceNextEvent, "Hasta el próximo partido", "Until the next match"
           TranslationKey.AdvanceNextEventHint,

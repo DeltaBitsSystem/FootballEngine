@@ -181,6 +181,15 @@ module Views =
             | Route.Match _ -> true
             | _ -> false
 
+        // Pages stay transparent so the floodlit night shows through every route.
+        let backdrop (child: IView) : IView =
+            Panel.create
+                [ Panel.children
+                      [ for brush in Theme.floodlightBrushes () do
+                            Border.create [ Border.background brush; Border.isHitTestVisible false ] :> IView
+                        child ] ]
+
+        backdrop <|
         if not shellVisible then
             content
         elif isMatchRoute then
@@ -188,18 +197,15 @@ module Views =
                 content
             else
                 DockPanel.create
-                    [ DockPanel.background Theme.BgMain
-                      DockPanel.lastChildFill true
+                    [ DockPanel.lastChildFill true
                       DockPanel.children [ sidebar state dispatch; content ] ]
         elif viewportWidth () < compactThreshold then
             DockPanel.create
-                [ DockPanel.background Theme.BgMain
-                  DockPanel.lastChildFill true
+                [ DockPanel.lastChildFill true
                   DockPanel.children [ compactHeader; content ] ]
         else
             DockPanel.create
-                [ DockPanel.background Theme.BgMain
-                  DockPanel.children
+                [ DockPanel.children
                       [ sidebar state dispatch
                         DockPanel.create
                             [ DockPanel.lastChildFill true
@@ -407,4 +413,11 @@ module Program =
         if AppState.shotsContext.IsNone then
             Db.initTables () |> Async.AwaitTask |> Async.RunSynchronously
 
-        AppBuilder.Configure<App>().UsePlatformDetect().UseSkia().StartWithClassicDesktopLifetime(args)
+        AppBuilder
+            .Configure<App>()
+            .UsePlatformDetect()
+            .UseSkia()
+            .WithInterFont()
+            // Inter is the reading face everywhere; the condensed display face is chosen per element.
+            .With(FontManagerOptions(DefaultFamilyName = "fonts:Inter#Inter"))
+            .StartWithClassicDesktopLifetime(args)

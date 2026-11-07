@@ -78,14 +78,15 @@ module Navigation =
                   Icon = IconName.league }
                 { Route = Route.News
                   Label = TranslationKey.News
-                  Icon = IconName.bullhorn } ] }
-          { Title = TranslationKey.Settings
-            Items =
-              [ { Route = Route.Settings SettingsRoute.Overview
-                  Label = TranslationKey.Settings
-                  Icon = IconName.settings } ] } ]
+                  Icon = IconName.bullhorn } ] } ]
 
-    let menuItems = menuSections |> List.collect _.Items
+    /// Settings sits apart at the foot of the sidebar: it configures the game, it is not a place in the club.
+    let settingsItem: NavItem =
+        { Route = Route.Settings SettingsRoute.Overview
+          Label = TranslationKey.Settings
+          Icon = IconName.settings }
+
+    let menuItems = (menuSections |> List.collect _.Items) @ [ settingsItem ]
 
 module Sidebar =
     let private sameDestination (left: Route) (right: Route) =
@@ -119,69 +120,97 @@ module Sidebar =
         (badgeCount: int option)
         (dispatch: Msg -> unit)
         : IView =
-        let badge =
+        let badge: IView list =
             match badgeCount with
-            | Some count when count > 0 ->
-                Border.create
-                    [ Border.background Theme.Accent
-                      Border.cornerRadius 8.0
-                      Border.padding (4.0, 1.0)
-                      Border.margin (4.0, 0.0)
-                      Border.child (
-                          TextBlock.create
-                              [ TextBlock.text (string count)
-                                TextBlock.fontSize 10.0
-                                TextBlock.fontWeight FontWeight.Bold
-                                TextBlock.foreground Theme.BgSidebar ]
-                      ) ]
-                :> IView
-            | _ -> TextBlock.create [ TextBlock.text "" ] :> IView
+            | Some count when count > 0 -> [ UI.countBadge count |> fun view -> Border.create [ Border.dock Dock.Right; Border.verticalAlignment VerticalAlignment.Center; Border.child view ] ]
+            | _ -> []
 
         Button.create
-            [ Button.background (
-                  if isActive then
-                      Theme.withAlpha "18" Theme.Accent
-                  else
-                      "Transparent"
-              )
-              Button.borderBrush (if isActive then Theme.Accent else "Transparent")
-              Button.borderThickness (
-                  if isActive then
-                      Avalonia.Thickness(3.0, 0.0, 0.0, 0.0)
-                  else
-                      Avalonia.Thickness(0.0)
-              )
-              Button.cornerRadius 0.0
-              Button.padding (18.0, 11.0)
+            [ Button.background (if isActive then Theme.BgCardHover else "Transparent")
+              Button.borderThickness 0.0
+              Button.cornerRadius Theme.RadiusMd
+              Button.padding (14.0, 11.0)
+              Button.margin (12.0, 1.0)
               Button.horizontalAlignment HorizontalAlignment.Stretch
-              Button.horizontalContentAlignment HorizontalAlignment.Left
+              Button.horizontalContentAlignment HorizontalAlignment.Stretch
               Button.onClick (fun _ -> dispatch (Navigate item.Route))
               Button.content (
                   DockPanel.create
                       [ DockPanel.lastChildFill true
                         DockPanel.children
-                            [ badge
-                              |> fun value -> Border.create [ Border.child value; Border.dock Dock.Right ]
+                            [ yield! badge
                               StackPanel.create
                                   [ StackPanel.orientation Orientation.Horizontal
                                     StackPanel.spacing 12.0
                                     StackPanel.verticalAlignment VerticalAlignment.Center
                                     StackPanel.children
-                                        [ Icons.icon item.Icon 18.0 (if isActive then Theme.Accent else Theme.TextSub)
+                                        [ Icons.icon item.Icon 20.0 (if isActive then Theme.Accent else Theme.TextMuted)
                                           TextBlock.create
                                               [ TextBlock.text (Localization.resolve item.Label [])
-                                                TextBlock.fontSize 13.0
+                                                TextBlock.fontSize 15.0
                                                 TextBlock.fontWeight (
-                                                    if isActive then FontWeight.SemiBold else FontWeight.Normal
+                                                    if isActive then FontWeight.SemiBold else FontWeight.Medium
                                                 )
-                                                TextBlock.foreground (
-                                                    if isActive then Theme.TextMain else Theme.TextSub
-                                                )
+                                                TextBlock.foreground (if isActive then Theme.TextMain else Theme.TextSub)
                                                 TextBlock.verticalAlignment VerticalAlignment.Center ] ] ] ] ]
               ) ]
 
+    /// The club's own colours tint its card, so a manager always sees whose dugout they are in.
+    let private clubCard (gs: GameState) (dispatch: Msg -> unit) : IView =
+        let club = gs.Clubs |> Map.tryFind gs.UserClubId
+        let name = club |> Option.map _.Name |> Option.defaultValue ""
+        let kit = ClubIdentity.kitOf gs gs.UserClubId
+
+        let tint =
+            if UI.inkOn kit.Primary = Theme.night.OnAccent then
+                kit.Secondary
+            else
+                kit.Primary
+
+        let leagueLine =
+            match ClubIdentity.leagueStanding gs gs.UserClubId with
+            | Some(league, Some position) -> $"{position}.º · {league}"
+            | Some(league, None) -> league
+            | None -> ""
+
+        let background =
+            let gradient = LinearGradientBrush()
+            gradient.StartPoint <- Avalonia.RelativePoint(0.0, 0.0, Avalonia.RelativeUnit.Relative)
+            gradient.EndPoint <- Avalonia.RelativePoint(1.0, 1.0, Avalonia.RelativeUnit.Relative)
+            gradient.GradientStops.Add(GradientStop(Color.Parse(Theme.withAlpha "40" tint), 0.0))
+            gradient.GradientStops.Add(GradientStop(Color.Parse(Theme.withAlpha "0A" tint), 0.75))
+            gradient
+
+        Button.create
+            [ Button.background background
+              Button.borderBrush (Theme.withAlpha "66" tint)
+              Button.borderThickness 1.0
+              Button.cornerRadius Theme.RadiusLg
+              Button.padding (12.0, 10.0)
+              Button.horizontalAlignment HorizontalAlignment.Stretch
+              Button.horizontalContentAlignment HorizontalAlignment.Left
+              Button.onClick (fun _ -> dispatch (Navigate Route.Home))
+              Button.content (
+                  StackPanel.create
+                      [ StackPanel.orientation Orientation.Horizontal
+                        StackPanel.spacing 12.0
+                        StackPanel.children
+                            [ UI.crest kit 44.0
+                              StackPanel.create
+                                  [ StackPanel.spacing 3.0
+                                    StackPanel.verticalAlignment VerticalAlignment.Center
+                                    StackPanel.children
+                                        [ UI.display name 22.0 Theme.TextMain
+                                          TextBlock.create
+                                              [ TextBlock.text leagueLine
+                                                TextBlock.fontSize 12.0
+                                                TextBlock.foreground Theme.TextSub
+                                                TextBlock.textTrimming TextTrimming.CharacterEllipsis
+                                                TextBlock.maxWidth 140.0 ] ] ] ] ]
+              ) ]
+
     let sidebar (state: State) (dispatch: Msg -> unit) =
-        let unreadCount, visibleItems =
+        let unreadCount, visibleItems, gameState =
             match state.Mode with
             | InGame(gs, employment) ->
                 let isEmployed =
@@ -191,71 +220,62 @@ module Sidebar =
 
                 GameState.unreadInboxCount gs,
                 Navigation.menuItems
-                |> List.filter (fun item -> Route.canNavigate isEmployed item.Route)
-            | _ -> 0, []
+                |> List.filter (fun item -> Route.canNavigate isEmployed item.Route),
+                Some gs
+            | _ -> 0, [], None
+
+        let item (navItem: Navigation.NavItem) =
+            let badge =
+                match navItem.Route with
+                | Route.Inbox _ -> Some unreadCount
+                | _ -> None
+
+            navButton navItem (sameDestination navItem.Route state.Navigation.Current) badge dispatch
 
         Border.create
-            [ Border.width 220.0
-              Border.background Theme.BgSidebar
+            [ Border.width 240.0
+              Border.background (Theme.withAlpha "E6" Theme.BgSidebar)
               Border.borderBrush Theme.Border
               Border.borderThickness (0.0, 0.0, 1.0, 0.0)
               Border.child (
                   DockPanel.create
-                      [ DockPanel.lastChildFill false
+                      [ DockPanel.lastChildFill true
                         DockPanel.children
                             [ Border.create
                                   [ DockPanel.dock Dock.Top
-                                    Border.padding (20.0, 24.0, 20.0, 20.0)
-                                    Border.borderBrush Theme.Border
-                                    Border.borderThickness (0.0, 0.0, 0.0, 1.0)
+                                    Border.padding (14.0, 20.0, 14.0, 12.0)
                                     Border.child (
-                                        StackPanel.create
-                                            [ StackPanel.spacing 2.0
-                                              StackPanel.children
-                                                  [ TextBlock.create
-                                                        [ TextBlock.text "FOOTBALL"
-                                                          TextBlock.fontSize 16.0
-                                                          TextBlock.fontWeight FontWeight.Black
-                                                          TextBlock.foreground Theme.TextMain
-                                                          TextBlock.lineSpacing 2.0 ]
-                                                    TextBlock.create
-                                                        [ TextBlock.text "ENGINE"
-                                                          TextBlock.fontSize 16.0
-                                                          TextBlock.fontWeight FontWeight.Black
-                                                          TextBlock.foreground Theme.Accent
-                                                          TextBlock.lineSpacing 2.0 ] ] ]
+                                        match gameState with
+                                        | Some gs -> clubCard gs dispatch
+                                        | None -> UI.display "Football Engine" 22.0 Theme.TextMain
                                     ) ]
-                              StackPanel.create
-                                  [ DockPanel.dock Dock.Top
-                                    StackPanel.margin (0.0, 4.0)
-                                    StackPanel.children
-                                        [ for section in Navigation.menuSections do
-                                              let sectionItems =
-                                                  section.Items
-                                                  |> List.filter (fun item -> List.contains item visibleItems)
+                              if List.contains Navigation.settingsItem visibleItems then
+                                  Border.create
+                                      [ DockPanel.dock Dock.Bottom
+                                        Border.padding (0.0, 8.0, 0.0, 16.0)
+                                        Border.borderBrush Theme.Border
+                                        Border.borderThickness (0.0, 1.0, 0.0, 0.0)
+                                        Border.child (item Navigation.settingsItem) ]
+                              ScrollViewer.create
+                                  [ ScrollViewer.horizontalScrollBarVisibility Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
+                                    ScrollViewer.content (
+                                        StackPanel.create
+                                            [ StackPanel.margin (0.0, 0.0, 0.0, 12.0)
+                                              StackPanel.children
+                                                  [ for section in Navigation.menuSections do
+                                                        let sectionItems =
+                                                            section.Items
+                                                            |> List.filter (fun navItem -> List.contains navItem visibleItems)
 
-                                              if not sectionItems.IsEmpty then
-                                                  Border.create
-                                                      [ Border.padding (18.0, 12.0, 18.0, 4.0)
-                                                        Border.child (
-                                                            TextBlock.create
-                                                                [ TextBlock.text (Localization.resolve section.Title [])
-                                                                  TextBlock.fontSize 10.0
-                                                                  TextBlock.fontWeight FontWeight.Bold
-                                                                  TextBlock.foreground Theme.TextDim
-                                                                  TextBlock.opacity 0.7 ]
-                                                        ) ]
-                                                  :> IView
+                                                        if not sectionItems.IsEmpty then
+                                                            Border.create
+                                                                [ Border.padding (26.0, 14.0, 18.0, 6.0)
+                                                                  Border.child (
+                                                                      UI.eyebrow (Localization.resolve section.Title []) Theme.TextDim
+                                                                  ) ]
+                                                            :> IView
 
-                                              for item in sectionItems do
-                                                  let badge =
-                                                      match item.Route with
-                                                      | Route.Inbox _ -> Some unreadCount
-                                                      | _ -> None
-
-                                                  navButton
-                                                      item
-                                                      (sameDestination item.Route state.Navigation.Current)
-                                                      badge
-                                                      dispatch ] ] ] ]
+                                                        for navItem in sectionItems do
+                                                            item navItem ] ]
+                                    ) ] ] ]
               ) ]

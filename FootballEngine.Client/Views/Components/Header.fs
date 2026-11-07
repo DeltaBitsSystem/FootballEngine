@@ -50,27 +50,30 @@ module Header =
         : IView =
         Button.create
             [ Button.isEnabled enabled
-              Button.background (if enabled then Theme.BgCard else Theme.BgElevated)
+              Button.background Theme.BgCard
               Button.borderBrush Theme.BorderLight
               Button.borderThickness 1.0
               Button.cornerRadius Theme.RadiusMd
-              Button.padding (8.0, 7.0)
-              Button.opacity (if enabled then 1.0 else 0.45)
+              Button.width 44.0
+              Button.height 44.0
+              Button.opacity (if enabled then 1.0 else 0.4)
+              ToolTip.tip label
               Button.onClick (fun event ->
                   event.Handled <- true
                   onClick ())
               Button.content (
-                  StackPanel.create
-                      [ StackPanel.orientation Orientation.Horizontal
-                        StackPanel.spacing 5.0
-                        StackPanel.children
-                            [ Icons.iconSm icon Theme.TextSub
-                              TextBlock.create
-                                  [ TextBlock.text label
-                                    TextBlock.fontSize 11.0
-                                    TextBlock.foreground Theme.TextSub
-                                    TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                  Icons.icon icon 18.0 Theme.TextSub
+                  |> fun view ->
+                      Border.create
+                          [ Border.horizontalAlignment HorizontalAlignment.Center
+                            Border.verticalAlignment VerticalAlignment.Center
+                            Border.child view ]
               ) ]
+
+    let private culture () =
+        match Localization.active () with
+        | Locale.Es -> System.Globalization.CultureInfo.GetCultureInfo "es-AR"
+        | Locale.En -> System.Globalization.CultureInfo.GetCultureInfo "en-GB"
 
     let header (state: State) (dispatch: Msg -> unit) : IView =
         let gameState =
@@ -78,96 +81,73 @@ module Header =
             | InGame(gs, _) -> Some gs
             | _ -> None
 
-        let clubName, competitionName =
-            gameState
-            |> Option.map clubContext
-            |> Option.defaultValue ("Football Engine", "")
+        // The day is the headline of a career: everything the manager does is "before the next match".
+        let dayText, seasonText =
+            match gameState with
+            | Some gs ->
+                let culture = culture ()
+                let day = gs.CurrentDate.ToString("dddd d MMMM", culture)
+                let competition = snd (clubContext gs)
 
-        let dateText =
-            gameState
-            |> Option.map (fun gs -> gs.CurrentDate.ToString("ddd dd MMM yyyy").ToUpperInvariant())
-            |> Option.defaultValue ""
+                let season =
+                    [ string gs.CurrentDate.Year; competition ]
+                    |> List.filter (fun part -> part <> "")
+                    |> String.concat " · "
+
+                day, season
+            | None -> "", ""
 
         let saveText, saveColor = saveStatus state.SaveStatus
         let isProcessing = state.IsProcessing
         let canContinue = CareerJourney.canContinue state
 
-        let saveBadge: IView =
+        let saveBadge: IView list =
             if saveText = "" then
-                TextBlock.create [ TextBlock.text "" ] :> IView
+                []
             else
-                Border.create
-                    [ Border.padding (8.0, 4.0)
-                      Border.child (
-                          TextBlock.create
-                              [ TextBlock.text saveText
-                                TextBlock.fontSize 11.0
-                                TextBlock.fontWeight FontWeight.SemiBold
-                                TextBlock.foreground saveColor ]
-                      ) ]
-                :> IView
+                [ TextBlock.create
+                      [ TextBlock.text saveText
+                        TextBlock.fontSize 12.0
+                        TextBlock.fontWeight FontWeight.SemiBold
+                        TextBlock.foreground saveColor
+                        TextBlock.verticalAlignment VerticalAlignment.Center ] ]
 
-        let clubInitial =
-            if clubName.Length > 0 then
-                clubName.Substring(0, 1).ToUpperInvariant()
-            else
-                "F"
-
-        let identityBadge: IView =
-            Border.create
-                [ Border.width 34.0
-                  Border.height 34.0
-                  Border.cornerRadius 8.0
-                  Border.background Theme.BgCard
-                  Border.borderBrush Theme.BorderLight
-                  Border.borderThickness 1.0
-                  Border.child (
-                      TextBlock.create
-                          [ TextBlock.text clubInitial
-                            TextBlock.fontSize 14.0
-                            TextBlock.fontWeight FontWeight.Black
-                            TextBlock.foreground Theme.Accent
-                            TextBlock.horizontalAlignment HorizontalAlignment.Center
-                            TextBlock.verticalAlignment VerticalAlignment.Center ]
-                  ) ]
-
-        let identityText: IView =
+        let today =
             StackPanel.create
-                [ StackPanel.spacing 1.0
+                [ StackPanel.spacing 2.0
                   StackPanel.verticalAlignment VerticalAlignment.Center
                   StackPanel.children
-                      [ TextBlock.create
-                            [ TextBlock.text clubName
-                              TextBlock.fontSize 13.5
-                              TextBlock.fontWeight FontWeight.Bold
-                              TextBlock.foreground Theme.TextMain ]
+                      [ UI.display dayText 30.0 Theme.TextMain
                         TextBlock.create
-                            [ TextBlock.text competitionName
-                              TextBlock.fontSize 11.0
-                              TextBlock.foreground Theme.TextDim ] ] ]
-
-        let identity =
-            StackPanel.create
-                [ StackPanel.orientation Orientation.Horizontal
-                  StackPanel.verticalAlignment VerticalAlignment.Center
-                  StackPanel.spacing 12.0
-                  StackPanel.children [ identityBadge; identityText ] ]
+                            [ TextBlock.text seasonText
+                              TextBlock.fontSize 13.0
+                              TextBlock.foreground Theme.TextMuted ] ] ]
 
         let search =
             Border.create
-                [ Border.width 190.0
+                [ Border.width 260.0
+                  Border.height 44.0
                   Border.background Theme.BgCard
                   Border.borderBrush Theme.BorderLight
                   Border.borderThickness 1.0
-                  Border.cornerRadius Theme.RadiusMd
+                  Border.cornerRadius Theme.RadiusPill
+                  Border.verticalAlignment VerticalAlignment.Center
                   Border.child (
-                      TextBox.create
-                          [ TextBox.text state.GlobalSearchQuery
-                            TextBox.watermark "Search players, clubs or messages"
-                            TextBox.padding (10.0, 7.0)
-                            TextBox.background "Transparent"
-                            TextBox.borderThickness 0.0
-                            TextBox.onTextChanged (fun query -> dispatch (SearchGlobal query)) ]
+                      DockPanel.create
+                          [ DockPanel.children
+                                [ Border.create
+                                      [ DockPanel.dock Dock.Left
+                                        Border.padding (14.0, 0.0, 0.0, 0.0)
+                                        Border.verticalAlignment VerticalAlignment.Center
+                                        Border.child (Icons.icon IconName.search 16.0 Theme.TextMuted) ]
+                                  TextBox.create
+                                      [ TextBox.text state.GlobalSearchQuery
+                                        TextBox.watermark (Localization.resolve TranslationKey.SearchPlaceholder [])
+                                        TextBox.padding (8.0, 10.0)
+                                        TextBox.background "Transparent"
+                                        TextBox.borderThickness 0.0
+                                        TextBox.verticalContentAlignment VerticalAlignment.Center
+                                        TextBox.onTextChanged (fun query -> dispatch (SearchGlobal query)) ] ] ]
                   ) ]
 
         let left =
@@ -175,8 +155,43 @@ module Header =
                 [ Grid.column 0
                   StackPanel.orientation Orientation.Horizontal
                   StackPanel.verticalAlignment VerticalAlignment.Center
-                  StackPanel.spacing 16.0
-                  StackPanel.children [ identity; search ] ]
+                  StackPanel.spacing 24.0
+                  StackPanel.children [ today; search ] ]
+
+        let continueButton =
+            Button.create
+                [ Button.isEnabled canContinue
+                  Button.background (if canContinue then Theme.Accent else Theme.BgElevated)
+                  Button.borderThickness 0.0
+                  Button.cornerRadius Theme.RadiusMd
+                  Button.padding (24.0, 0.0)
+                  Button.height 52.0
+                  Button.onClick (fun event ->
+                      event.Handled <- true
+                      dispatch (SimMsg ContinueCareer))
+                  Button.content (
+                      StackPanel.create
+                          [ StackPanel.orientation Orientation.Horizontal
+                            StackPanel.spacing 10.0
+                            StackPanel.verticalAlignment VerticalAlignment.Center
+                            StackPanel.children
+                                [ UI.display
+                                      (CareerJourney.continueLabel state)
+                                      22.0
+                                      (if canContinue then Theme.OnAccent else Theme.TextMuted)
+                                  Icons.icon
+                                      (if isProcessing then IconName.refresh else Nav.next)
+                                      20.0
+                                      (if canContinue then Theme.OnAccent else Theme.TextMuted) ] ]
+                  ) ]
+            |> fun view ->
+                // The one action that moves the career forward glows like the mockup's "Continuar".
+                Border.create
+                    [ Border.cornerRadius Theme.RadiusMd
+                      Border.verticalAlignment VerticalAlignment.Center
+                      if canContinue then
+                          Border.boxShadow (Theme.accentGlow ())
+                      Border.child view ]
 
         let right =
             StackPanel.create
@@ -195,87 +210,23 @@ module Header =
                             (Localization.resolve TranslationKey.Forward [])
                             (not state.Navigation.Forward.IsEmpty)
                             (fun () -> dispatch GoForward)
-                        saveBadge
-                        Border.create
-                            [ Border.background Theme.BgCard
-                              Border.cornerRadius 999.0
-                              Border.borderBrush Theme.BorderLight
-                              Border.borderThickness 1.0
-                              Border.padding (10.0, 7.0)
-                              Border.child (
-                                  StackPanel.create
-                                      [ StackPanel.orientation Orientation.Horizontal
-                                        StackPanel.spacing 6.0
-                                        StackPanel.children
-                                            [ Icons.iconSm IconName.calendar Theme.TextMuted
-                                              TextBlock.create
-                                                  [ TextBlock.text dateText
-                                                    TextBlock.fontSize 11.0
-                                                    TextBlock.fontWeight FontWeight.SemiBold
-                                                    TextBlock.foreground Theme.TextSub ] ] ]
-                              ) ]
-                        Button.create
-                            [ Button.isEnabled (
-                                  gameState.IsSome
-                                  && not isProcessing
-                                  && state.Match.RuntimeId.IsNone
-                                  && state.Match.PendingResult.IsNone
-                              )
-                              ToolTip.tip (
-                                  if state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome then
-                                      Localization.resolve TranslationKey.SaveAfterMatch []
-                                  else
-                                      Localization.resolve TranslationKey.ManualSave []
-                              )
-                              Button.background Theme.BgCard
-                              Button.borderBrush Theme.BorderLight
-                              Button.borderThickness 1.0
-                              Button.cornerRadius Theme.RadiusMd
-                              Button.padding (10.0, 8.0)
-                              Button.onClick (fun event ->
-                                  event.Handled <- true
-                                  dispatch (PersistenceMsg SaveCurrent))
-                              Button.content (
-                                  StackPanel.create
-                                      [ StackPanel.orientation Orientation.Horizontal
-                                        StackPanel.spacing 5.0
-                                        StackPanel.children
-                                            [ Icons.iconSm IconName.save Theme.TextSub
-                                              TextBlock.create
-                                                  [ TextBlock.text (Localization.resolve TranslationKey.ManualSave [])
-                                                    TextBlock.fontSize 11.0
-                                                    TextBlock.foreground Theme.TextSub ] ] ]
-                              ) ]
-                        Button.create
-                            [ Button.isEnabled canContinue
-                              Button.background (if canContinue then Theme.Accent else Theme.BgElevated)
-                              Button.borderThickness 0.0
-                              Button.cornerRadius Theme.RadiusMd
-                              Button.padding (16.0, 9.0)
-                              Button.onClick (fun event ->
-                                  event.Handled <- true
-                                  dispatch (SimMsg ContinueCareer))
-                              Button.content (
-                                  StackPanel.create
-                                      [ StackPanel.orientation Orientation.Horizontal
-                                        StackPanel.spacing 6.0
-                                        StackPanel.children
-                                            [ Icons.iconSm
-                                                  (if isProcessing then IconName.refresh else Nav.next)
-                                                  (if canContinue then Theme.BgSidebar else Theme.TextMuted)
-                                              TextBlock.create
-                                                  [ TextBlock.text (CareerJourney.continueLabel state)
-                                                    TextBlock.fontSize 11.5
-                                                    TextBlock.fontWeight FontWeight.Black
-                                                    TextBlock.foreground (
-                                                        if canContinue then Theme.BgSidebar else Theme.TextMuted
-                                                    ) ] ] ]
-                              ) ] ] ]
+                        yield! saveBadge
+                        navButton
+                            IconName.save
+                            (if state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome then
+                                 Localization.resolve TranslationKey.SaveAfterMatch []
+                             else
+                                 Localization.resolve TranslationKey.ManualSave [])
+                            (gameState.IsSome
+                             && not isProcessing
+                             && state.Match.RuntimeId.IsNone
+                             && state.Match.PendingResult.IsNone)
+                            (fun () -> dispatch (PersistenceMsg SaveCurrent))
+                        Border.create [ Border.width 8.0 ]
+                        continueButton ] ]
 
         Border.create
-            [ Border.height 64.0
-              Border.background Theme.BgSidebar
-              Border.borderThickness (0.0, 0.0, 0.0, 1.0)
-              Border.borderBrush Theme.Border
-              Border.padding (16.0, 0.0, 14.0, 0.0)
+            [ Border.height 88.0
+              Border.background "Transparent"
+              Border.padding (32.0, 0.0, 28.0, 0.0)
               Border.child (Grid.create [ Grid.columnDefinitions "*, Auto"; Grid.children [ left; right ] ]) ]

@@ -1,82 +1,50 @@
 namespace FootballEngine
 
 open System
+open Avalonia
 open Avalonia.Controls
 open Avalonia.Media
 open FootballEngine.Settings
 
+/// "Stadium at night": a navy night sky, cards lit from above, one electric accent for actions,
+/// and broadcast-style condensed numerals. Every view reads colours from the values below, and
+/// `usePalette` swaps them at runtime, so an accent or contrast change reaches the whole app.
 module Theme =
 
-    // Semantic dark palette. Legacy names below intentionally remain as aliases
-    // until later gates migrate individual pages to ThemeTokens.
-    let Canvas = "#09111D"
-    let Surface1 = "#0E1928"
-    let Surface2 = "#142338"
-    let Surface3 = "#1B2D45"
-    let BorderSubtle = "#263A52"
-    let TextPrimary = "#F3F7FA"
-    let TextSecondary = "#B5C2D0"
-    let TextMuted = "#77889D"
-    let Accent = "#19D3A2"
-    let AccentStrong = "#00B98B"
-    let Positive = "#43D18A"
-    let Warning = "#F2B84B"
-    let Negative = "#F06A72"
-    let Info = "#68A9FF"
-    let FocusRing = "#F3F7FA"
-
-    let BgMain = Canvas
-    let BgSidebar = Surface1
-    let BgCard = Surface2
-    let BgCardHover = Surface3
-    let BgElevated = "#182A40"
-    let BgHover = Surface3
-    let BgSubtle = "#101D2E"
-
-    let Border = BorderSubtle
-    let BorderLight = "#38516C"
-    let BorderStrong = "#5B7590"
-
-    let TextMain = TextPrimary
-    let TextSub = TextSecondary
-    let TextDim = "#91A1B2"
-    let TextFaint = "#5B6C80"
-
-    let AccentHover = "#43E0B5"
-    let AccentPressed = AccentStrong
-    let AccentLight = "#2419D3A2"
-    let AccentAlt = Info
-    let AccentAltLight = "#2468A9FF"
-
-    let Success = Positive
-    let SuccessLight = "#2443D18A"
-    let WarningLight = "#24F2B84B"
-    let Danger = Negative
-    let DangerLight = "#24F06A72"
-
-    let DragBorder = Info
-    let DragOverlay = "#2268A9FF"
-
-    // Compatibility aliases used by the current views.
-    let RadiusXs = 4.0
-    let RadiusSm = 6.0
-    let RadiusMd = 8.0
-    let RadiusLg = 10.0
-    let RadiusXl = 14.0
-    let RadiusPill = 999.0
-
-    // Shadows — CSS-like box shadows for Avalonia (use via BoxShadow property where needed)
-    let shadowCard = "0 4 16 0 #40000000"
-    let shadowElevated = "0 8 24 0 #55000000"
-    let shadowSubtle = "0 1 3 0 #30000000"
+    type ThemePalette =
+        { BgMain: string
+          BgSidebar: string
+          BgCard: string
+          BgCardHover: string
+          BgElevated: string
+          BgSubtle: string
+          Border: string
+          BorderLight: string
+          BorderStrong: string
+          TextMain: string
+          TextSub: string
+          TextMuted: string
+          TextDim: string
+          TextFaint: string
+          Accent: string
+          AccentHover: string
+          AccentPressed: string
+          OnAccent: string
+          AccentAlt: string
+          Success: string
+          Warning: string
+          Danger: string
+          Hot: string
+          FocusRing: string
+          DisabledSurface: string
+          DisabledText: string }
 
     // Avalonia parses 8-digit hex as AARRGGBB, not CSS RRGGBBAA: appending an alpha
     // suffix ("#rrggbb" + "18") used to render as an opaque muddy tone. Centralize the
     // conversion so call sites can't get the order wrong.
     let withAlpha (alphaHex: string) (hex: string) : string =
         let value = hex.TrimStart('#')
-        let rgb = if value.Length = 8 then value.Substring(0, 6) else value
-
+        let rgb = if value.Length = 8 then value.Substring(2, 6) else value
         $"#{alphaHex.TrimStart('#')}{rgb}"
 
     let private relativeLuminance (color: Color) =
@@ -99,6 +67,133 @@ module Theme =
 
     let meetsAaTextContrast (foreground: string) (background: string) =
         contrastRatio foreground background >= 4.5
+
+    let night: ThemePalette =
+        { BgMain = "#0A1020"
+          BgSidebar = "#0C1428"
+          BgCard = "#121C33"
+          BgCardHover = "#1C2A4A"
+          BgElevated = "#182442"
+          BgSubtle = "#0F1830"
+          Border = "#22304F"
+          BorderLight = "#2A3A5E"
+          BorderStrong = "#3D5078"
+          TextMain = "#EEF2F6"
+          TextSub = "#CDD7EA"
+          TextMuted = "#A3B1CC"
+          TextDim = "#93A3C4"
+          TextFaint = "#5F6F92"
+          Accent = "#C8F031"
+          AccentHover = "#D8FF5A"
+          AccentPressed = "#A9D016"
+          OnAccent = "#0A1020"
+          AccentAlt = "#4DA3FF"
+          Success = "#2EE6A6"
+          Warning = "#FFC83D"
+          Danger = "#FF5A6A"
+          Hot = "#FF7A2F"
+          FocusRing = "#EEF2F6"
+          DisabledSurface = "#182442"
+          DisabledText = "#5F6F92" }
+
+    // Accents shipped before the redesign were defaults, not choices; they map to the new default.
+    let private retiredDefaultAccents = set [ "#00d492"; "#19d3a2" ]
+
+    let paletteForSettings (settings: AppearanceSettings) : ThemePalette =
+        let configured = if isNull settings.Accent then "" else settings.Accent.Trim()
+
+        let accent =
+            let valid =
+                configured.StartsWith "#"
+                && (try
+                        Color.Parse configured |> ignore
+                        true
+                    with _ ->
+                        false)
+
+            if not valid || retiredDefaultAccents.Contains(configured.ToLowerInvariant()) then
+                night.Accent
+            else
+                configured
+
+        let custom = accent <> night.Accent
+
+        // A custom accent keeps text on it readable: dark ink on light accents, white on dark ones.
+        let onAccent =
+            if meetsAaTextContrast night.OnAccent accent then
+                night.OnAccent
+            else
+                "#FFFFFF"
+
+        let palette =
+            { night with
+                Accent = accent
+                AccentHover = if custom then accent else night.AccentHover
+                AccentPressed = if custom then accent else night.AccentPressed
+                OnAccent = onAccent }
+
+        if settings.HighContrast then
+            { palette with
+                Border = "#5C7099"
+                BorderLight = "#7487B0"
+                BorderStrong = "#A3B1CC"
+                TextMain = "#FFFFFF"
+                TextSub = "#EEF2F6"
+                TextMuted = "#CDD7EA"
+                TextDim = "#BCC8DE"
+                TextFaint = "#93A3C4"
+                FocusRing = "#FFFFFF"
+                DisabledText = "#A3B1CC" }
+        else
+            palette
+
+    // Runtime colour values. Views read these names at render time; `usePalette` rewrites them.
+    let mutable BgMain = night.BgMain
+    let mutable BgSidebar = night.BgSidebar
+    let mutable BgCard = night.BgCard
+    let mutable BgCardHover = night.BgCardHover
+    let mutable Surface3 = night.BgCardHover
+    let mutable BgElevated = night.BgElevated
+    let mutable BgSubtle = night.BgSubtle
+    let mutable Border = night.Border
+    let mutable BorderLight = night.BorderLight
+    let mutable BorderStrong = night.BorderStrong
+    let mutable TextMain = night.TextMain
+    let mutable TextSub = night.TextSub
+    let mutable TextMuted = night.TextMuted
+    let mutable TextDim = night.TextDim
+    let mutable TextFaint = night.TextFaint
+    let mutable Accent = night.Accent
+    let mutable AccentHover = night.AccentHover
+    let mutable AccentPressed = night.AccentPressed
+    let mutable AccentLight = withAlpha "24" night.Accent
+    let mutable OnAccent = night.OnAccent
+    let mutable AccentAlt = night.AccentAlt
+    let mutable Info = night.AccentAlt
+    let mutable Success = night.Success
+    let mutable Positive = night.Success
+    let mutable Warning = night.Warning
+    let mutable WarningLight = withAlpha "24" night.Warning
+    let mutable Danger = night.Danger
+    let mutable Negative = night.Danger
+    let mutable Hot = night.Hot
+    let mutable DragBorder = night.AccentAlt
+    let mutable DragOverlay = withAlpha "22" night.AccentAlt
+    let mutable FocusRing = night.FocusRing
+
+    // Radii follow the mockup: soft controls, generous cards, pill chips.
+    let RadiusXs = 6.0
+    let RadiusSm = 8.0
+    let RadiusMd = 12.0
+    let RadiusLg = 16.0
+    let RadiusXl = 20.0
+    let RadiusPill = 999.0
+
+    /// Inter for reading, Barlow Condensed for scoreboard numerals and headings.
+    let TextFontName = "fonts:Inter#Inter, $Default"
+
+    let DisplayFont =
+        FontFamily("avares://FootballEngine.Client/Assets/Fonts#Barlow Condensed")
 
     type ColorTokens =
         { Canvas: string
@@ -186,184 +281,6 @@ module Theme =
           Density: DensityTokens
           Motion: MotionTokens }
 
-    // ── Dynamic palette — why record: centralized theme so AppearanceSettings can derive full palette without touching every view ──
-    type ThemePalette =
-        { BgMain: string
-          BgSidebar: string
-          BgCard: string
-          BgCardHover: string
-          BgElevated: string
-          BgHover: string
-          BgSubtle: string
-          Border: string
-          BorderLight: string
-          BorderStrong: string
-          TextMain: string
-          TextSub: string
-          TextMuted: string
-          TextDim: string
-          TextFaint: string
-          Accent: string
-          AccentHover: string
-          AccentPressed: string
-          AccentLight: string
-          AccentAlt: string
-          AccentAltLight: string
-          Success: string
-          SuccessLight: string
-          Warning: string
-          WarningLight: string
-          Danger: string
-          DangerLight: string
-          Info: string
-          DragBorder: string
-          DragOverlay: string
-          FocusRing: string
-          OnAccent: string
-          DisabledSurface: string
-          DisabledText: string }
-
-    // why defaultPalette mirrors const lets: keeps old Theme.BgMain fallback during transition while new code uses paletteForSettings
-    let defaultPalette: ThemePalette =
-        { BgMain = BgMain
-          BgSidebar = BgSidebar
-          BgCard = BgCard
-          BgCardHover = BgCardHover
-          BgElevated = BgElevated
-          BgHover = BgHover
-          BgSubtle = BgSubtle
-          Border = Border
-          BorderLight = BorderLight
-          BorderStrong = BorderStrong
-          TextMain = TextMain
-          TextSub = TextSub
-          TextMuted = TextMuted
-          TextDim = TextDim
-          TextFaint = TextFaint
-          Accent = Accent
-          AccentHover = AccentHover
-          AccentPressed = AccentPressed
-          AccentLight = AccentLight
-          AccentAlt = AccentAlt
-          AccentAltLight = AccentAltLight
-          Success = Success
-          SuccessLight = SuccessLight
-          Warning = Warning
-          WarningLight = WarningLight
-          Danger = Danger
-          DangerLight = DangerLight
-          Info = Info
-          DragBorder = DragBorder
-          DragOverlay = DragOverlay
-          FocusRing = FocusRing
-          OnAccent = BgSidebar
-          DisabledSurface = BgElevated
-          DisabledText = TextMuted }
-
-    // why currentPalette ref: allows runtime theme switch without restart; views reading old consts still get fallback until migrated
-    let currentPalette: ThemePalette ref = ref defaultPalette
-
-    let private lightPalette (accent: string) : ThemePalette =
-        // Light is a separate hierarchy, not an inversion of the dark palette.
-        let lightAccent = if accent = Accent then "#007A63" else accent
-
-        { defaultPalette with
-            BgMain = "#F7F9FC"
-            BgSidebar = "#FFFFFF"
-            BgCard = "#ffffff"
-            BgCardHover = "#E8EEF5"
-            BgElevated = "#FFFFFF"
-            BgHover = "#DDE7F0"
-            BgSubtle = "#EEF3F8"
-            Border = "#C9D5E2"
-            BorderLight = "#DCE5EE"
-            BorderStrong = "#8EA3B8"
-            TextMain = "#17212B"
-            TextSub = "#394A59"
-            TextMuted = "#536579"
-            TextDim = "#687B8F"
-            TextFaint = "#9AAABD"
-            Accent = lightAccent
-            AccentAlt = "#155AA6"
-            AccentAltLight = "#18155AA6"
-            AccentHover = if accent = Accent then "#00634F" else accent
-            AccentPressed = if accent = Accent then "#004E3F" else accent
-            AccentLight = withAlpha "18" lightAccent
-            Success = "#157347"
-            SuccessLight = "#18157347"
-            Warning = "#8A5A00"
-            WarningLight = "#188A5A00"
-            Danger = "#B4232C"
-            DangerLight = "#18B4232C"
-            Info = "#155AA6"
-            DragBorder = "#155AA6"
-            DragOverlay = "#18155AA6"
-            FocusRing = "#005A9C"
-            OnAccent = "#FFFFFF"
-            DisabledSurface = "#E1E8F0"
-            DisabledText = "#687B8F" }
-
-    let private darkPalette (accent: string) : ThemePalette =
-        // why dark reuses defaultPalette: default is already dark premium, only accent may be overridden
-        { defaultPalette with
-            Accent = accent
-            AccentHover = if accent = Accent then AccentHover else accent
-            AccentPressed = if accent = Accent then AccentPressed else accent
-            AccentLight = withAlpha "18" accent }
-
-    let private effectiveAccent (settings: AppearanceSettings) =
-        // The old persisted default is still #00d492. Treat it as the old default,
-        // while preserving any genuinely custom accent selected by the user.
-        let configured =
-            if String.IsNullOrWhiteSpace settings.Accent then
-                ""
-            else
-                settings.Accent.Trim()
-
-        if
-            String.IsNullOrWhiteSpace configured
-            || String.Equals(configured, "#00d492", StringComparison.OrdinalIgnoreCase)
-        then
-            defaultPalette.Accent
-        else
-            configured
-
-    let paletteForSettings (settings: AppearanceSettings) : ThemePalette =
-        let accent = effectiveAccent settings
-
-        let isLight =
-            match settings.ThemeMode with
-            | ThemeMode.Light -> true
-            | ThemeMode.Dark -> false
-            // why Auto -> Dark: no OS preference detection yet, defaults to dark for consistency with previous behavior
-            | ThemeMode.Auto -> false
-
-        let basePalette = if isLight then lightPalette accent else darkPalette accent
-
-        if settings.HighContrast then
-            if isLight then
-                // why high-contrast light uses near-black borders: increases border contrast against white BgMain
-                { basePalette with
-                    Border = "#17212B"
-                    BorderLight = "#394A59"
-                    BorderStrong = "#020617"
-                    TextMain = "#020617"
-                    TextSub = "#17212B"
-                    FocusRing = "#003B73"
-                    DisabledText = "#536579" }
-            else
-                // why high-contrast dark uses lighter borders: lifts border visibility on navy background
-                { basePalette with
-                    Border = "#475569"
-                    BorderLight = "#64748b"
-                    BorderStrong = "#94a3b8"
-                    TextMain = "#ffffff"
-                    TextFaint = "#94a3b8"
-                    FocusRing = "#ffffff"
-                    DisabledText = "#B5C2D0" }
-        else
-            basePalette
-
     let private colorsFromPalette (palette: ThemePalette) : ColorTokens =
         { Canvas = palette.BgMain
           Surface1 = palette.BgSidebar
@@ -378,7 +295,7 @@ module Theme =
           Positive = palette.Success
           Warning = palette.Warning
           Negative = palette.Danger
-          Info = palette.Info
+          Info = palette.AccentAlt
           FocusRing = palette.FocusRing
           OnAccent = palette.OnAccent
           DisabledSurface = palette.DisabledSurface
@@ -393,16 +310,16 @@ module Theme =
 
         let readable minimum baseSize = max minimum (baseSize * scale)
 
-        { Family = "Segoe UI"
+        { Family = TextFontName
           Detail = readable 12.0 12.0
           Body = readable 12.0 14.0
           Emphasis = readable 12.0 16.0
-          Section = readable 20.0 20.0
-          Page = readable 28.0 28.0
-          Hero = readable 36.0 44.0
+          Section = readable 20.0 22.0
+          Page = readable 30.0 40.0
+          Hero = readable 40.0 56.0
           LineDetail = readable 16.0 16.0
           LineBody = readable 20.0 20.0
-          LineHeading = readable 26.0 26.0
+          LineHeading = readable 26.0 28.0
           TabularNumerals = "tnum" }
 
     let private spacingFor (mode: LayoutMode) : SpacingTokens =
@@ -415,14 +332,7 @@ module Theme =
               Xl = 20.0
               Xxl = 24.0
               Xxxl = 32.0 }
-        | LayoutMode.Standard ->
-            { Xs = 4.0
-              Sm = 8.0
-              Md = 12.0
-              Lg = 16.0
-              Xl = 24.0
-              Xxl = 32.0
-              Xxxl = 48.0 }
+        | LayoutMode.Standard
         | LayoutMode.Wide ->
             { Xs = 4.0
               Sm = 8.0
@@ -436,18 +346,18 @@ module Theme =
         match mode with
         | LayoutMode.Compact ->
             { Mode = mode
-              RowHeight = 32.0
-              PanelPadding = 16.0
+              RowHeight = 40.0
+              PanelPadding = 18.0
               ControlGap = 8.0 }
         | LayoutMode.Standard ->
             { Mode = mode
-              RowHeight = 40.0
-              PanelPadding = 24.0
+              RowHeight = 48.0
+              PanelPadding = 22.0
               ControlGap = 12.0 }
         | LayoutMode.Wide ->
             { Mode = mode
-              RowHeight = 40.0
-              PanelPadding = 32.0
+              RowHeight = 52.0
+              PanelPadding = 28.0
               ControlGap = 16.0 }
 
     let layoutModeForWidth (width: float) : LayoutMode =
@@ -466,15 +376,15 @@ module Theme =
           Typography = typographyFor settings.FontScale
           Spacing = spacingFor mode
           Radii =
-            { Control = 6.0
-              Panel = 10.0
-              Hero = 14.0
-              Pill = 999.0 }
+            { Control = RadiusMd
+              Panel = RadiusLg + 2.0
+              Hero = RadiusXl + 2.0
+              Pill = RadiusPill }
           Controls =
-            { CompactHeight = 32.0
-              StandardHeight = 40.0
-              ActionHeight = 48.0
-              MinimumTarget = 32.0 }
+            { CompactHeight = 36.0
+              StandardHeight = 44.0
+              ActionHeight = 52.0
+              MinimumTarget = 44.0 }
           Focus =
             { RingColor = palette.FocusRing
               RingWidth = 2.0
@@ -505,95 +415,124 @@ module Theme =
 
     let defaultTokens = tokensForSettings AppearanceSettings.defaults
     let currentTokens: ThemeTokens ref = ref defaultTokens
+    let currentPalette: ThemePalette ref = ref (paletteForSettings AppearanceSettings.defaults)
 
     let colorsForSettings (settings: AppearanceSettings) = (tokensForSettings settings).Colors
     let currentColors () = currentTokens.Value.Colors
 
-    // why helpers bgMainFor etc not added per-field: paletteForSettings covers all cases, old consts kept for fallback during migration
-    let bgMainFor (settings: AppearanceSettings) = (paletteForSettings settings).BgMain
-    let bgSidebarFor (settings: AppearanceSettings) = (paletteForSettings settings).BgSidebar
-    let bgCardFor (settings: AppearanceSettings) = (paletteForSettings settings).BgCard
-    let textMainFor (settings: AppearanceSettings) = (paletteForSettings settings).TextMain
-    let accentFor (settings: AppearanceSettings) = (paletteForSettings settings).Accent
-
-    // Runtime tokens are updated here; legacy constants remain for pages that have
-    // not yet moved to the dynamic record.
-    let applyToApp (settings: AppearanceSettings) (window: Window) : unit =
-        let palette = paletteForSettings settings
-        currentTokens.Value <- tokensForSettings settings
+    /// Makes the palette current everywhere: the named colours views read, the token record and
+    /// the Fluent resources native controls (sliders, checkboxes, combo highlights) draw with.
+    let usePalette (palette: ThemePalette) =
         currentPalette.Value <- palette
 
-        // Fluent controls (Slider, CheckBox, ComboBox highlight) read SystemAccentColor,
-        // default blue. Point it at the palette accent so native controls match the theme.
-        try
-            match Avalonia.Application.Current with
-            | null -> ()
-            | app ->
-                app.Resources.["SystemAccentColor"] <- Color.Parse(palette.Accent)
-                app.Resources.["FootballEngine.Canvas"] <- palette.BgMain
-                app.Resources.["FootballEngine.Surface1"] <- palette.BgSidebar
-                app.Resources.["FootballEngine.Surface2"] <- palette.BgCard
-                app.Resources.["FootballEngine.Surface3"] <- palette.BgCardHover
-                app.Resources.["FootballEngine.BorderSubtle"] <- palette.Border
-                app.Resources.["FootballEngine.TextPrimary"] <- palette.TextMain
-                app.Resources.["FootballEngine.TextSecondary"] <- palette.TextSub
-                app.Resources.["FootballEngine.TextMuted"] <- palette.TextMuted
-                app.Resources.["FootballEngine.Accent"] <- palette.Accent
-                app.Resources.["FootballEngine.AccentStrong"] <- palette.AccentPressed
-                app.Resources.["FootballEngine.FocusRing"] <- palette.FocusRing
-        with _ ->
-            ()
+        currentTokens.Value <-
+            { currentTokens.Value with
+                Colors = colorsFromPalette palette }
 
-        try
-            // why SolidColorBrush + Color.Parse: Window.Background expects IBrush, hex parsing keeps Theme single-sourced
-            window.Background <- SolidColorBrush(Color.Parse(palette.BgMain))
-        with _ ->
-            // why ignore parse failure: malformed accent or palette hex should not crash startup, fallback to dark BgMain keeps window visible
-            try
-                window.Background <- SolidColorBrush(Color.Parse(defaultPalette.BgMain))
-            with _ ->
-                ()
+        BgMain <- palette.BgMain
+        BgSidebar <- palette.BgSidebar
+        BgCard <- palette.BgCard
+        BgCardHover <- palette.BgCardHover
+        Surface3 <- palette.BgCardHover
+        BgElevated <- palette.BgElevated
+        BgSubtle <- palette.BgSubtle
+        Border <- palette.Border
+        BorderLight <- palette.BorderLight
+        BorderStrong <- palette.BorderStrong
+        TextMain <- palette.TextMain
+        TextSub <- palette.TextSub
+        TextMuted <- palette.TextMuted
+        TextDim <- palette.TextDim
+        TextFaint <- palette.TextFaint
+        Accent <- palette.Accent
+        AccentHover <- palette.AccentHover
+        AccentPressed <- palette.AccentPressed
+        AccentLight <- withAlpha "24" palette.Accent
+        OnAccent <- palette.OnAccent
+        AccentAlt <- palette.AccentAlt
+        Info <- palette.AccentAlt
+        Success <- palette.Success
+        Positive <- palette.Success
+        Warning <- palette.Warning
+        WarningLight <- withAlpha "24" palette.Warning
+        Danger <- palette.Danger
+        Negative <- palette.Danger
+        Hot <- palette.Hot
+        DragBorder <- palette.AccentAlt
+        DragOverlay <- withAlpha "22" palette.AccentAlt
+        FocusRing <- palette.FocusRing
+
+        match Application.Current with
+        | null -> ()
+        | app ->
+            app.Resources.["SystemAccentColor"] <- Color.Parse palette.Accent
+            app.Resources.["SystemAccentColorLight1"] <- Color.Parse palette.AccentHover
+            app.Resources.["SystemAccentColorDark1"] <- Color.Parse palette.AccentPressed
+
+    let applyToApp (settings: AppearanceSettings) (window: Window) : unit =
+        currentTokens.Value <- tokensForSettings settings
+        usePalette (paletteForSettings settings)
+        window.Background <- SolidColorBrush(Color.Parse BgMain)
+
+    let private brush (hex: string) = SolidColorBrush(Color.Parse hex) :> IBrush
+
+    let private stop (hex: string) (offset: float) = GradientStop(Color.Parse hex, offset)
+
+    /// Stadium floodlights behind every page: a cool glow from the stands, a hint of accent low left.
+    let floodlightBrushes () : IBrush list =
+        let glow (centerX: float) (centerY: float) (radius: float) (color: string) =
+            let gradient = RadialGradientBrush()
+            gradient.Center <- RelativePoint(centerX, centerY, RelativeUnit.Relative)
+            gradient.GradientOrigin <- RelativePoint(centerX, centerY, RelativeUnit.Relative)
+            gradient.RadiusX <- RelativeScalar(radius, RelativeUnit.Relative)
+            gradient.RadiusY <- RelativeScalar(radius * 0.75, RelativeUnit.Relative)
+            gradient.GradientStops.Add(stop color 0.0)
+            gradient.GradientStops.Add(stop (withAlpha "00" color) 1.0)
+            gradient :> IBrush
+
+        [ brush BgMain
+          glow 0.78 -0.08 0.55 (withAlpha "38" AccentAlt)
+          glow -0.04 1.06 0.45 (withAlpha "1A" Accent) ]
+
+    /// A lit card: vivid at the top-left corner, fading into the night.
+    let spotlightBrush (from: string) (middle: string) (until: string) : IBrush =
+        let gradient = RadialGradientBrush()
+        gradient.Center <- RelativePoint(0.0, 0.0, RelativeUnit.Relative)
+        gradient.GradientOrigin <- RelativePoint(0.0, 0.0, RelativeUnit.Relative)
+        gradient.RadiusX <- RelativeScalar(1.25, RelativeUnit.Relative)
+        gradient.RadiusY <- RelativeScalar(1.45, RelativeUnit.Relative)
+        gradient.GradientStops.Add(stop from 0.0)
+        gradient.GradientStops.Add(stop middle 0.42)
+        gradient.GradientStops.Add(stop until 1.0)
+        gradient :> IBrush
+
+    /// Matches the glow under primary actions in the mockup.
+    let accentGlow () =
+        let glow = withAlpha "70" Accent
+        BoxShadow.Parse $"0 8 26 0 {glow}"
+
+    let cardShadow () =
+        BoxShadow.Parse "0 10 30 0 #55000000"
 
     let moraleColor morale =
         if morale > 72 then Success
         elif morale > 45 then Warning
         else Danger
 
-    let moraleColorFor (palette: ThemePalette) morale =
-        if morale > 72 then palette.Success
-        elif morale > 45 then palette.Warning
-        else palette.Danger
-
+    /// Position chips: amber keepers, blue defenders, mint midfield, orange attack.
     let positionColor (pos: Domain.Position) =
         match pos with
-        | Domain.GK -> Warning // amber — standout for keeper
+        | Domain.GK -> Warning
         | Domain.DC
         | Domain.DL
         | Domain.DR
         | Domain.WBL
-        | Domain.WBR -> AccentAlt // blue — defensive line
+        | Domain.WBR -> AccentAlt
         | Domain.DM
         | Domain.MC
         | Domain.ML
-        | Domain.MR -> Accent // emerald — engine room
+        | Domain.MR -> Success
         | Domain.AMC
         | Domain.AML
         | Domain.AMR
-        | Domain.ST -> Danger // red — attacking threat
-
-    let positionColorFor (palette: ThemePalette) (pos: Domain.Position) =
-        match pos with
-        | Domain.GK -> palette.Warning
-        | Domain.DC
-        | Domain.DL
-        | Domain.DR
-        | Domain.WBL
-        | Domain.WBR -> palette.AccentAlt
-        | Domain.DM
-        | Domain.MC
-        | Domain.ML
-        | Domain.MR -> palette.Accent
-        | Domain.AMC
-        | Domain.AML
-        | Domain.AMR
-        | Domain.ST -> palette.Danger
+        | Domain.ST -> Hot

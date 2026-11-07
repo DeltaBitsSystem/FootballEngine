@@ -433,8 +433,10 @@ module Scouting =
 
         let assignments = ScoutingSlice.assignmentRows gs
 
+        // Horizontal scrolling would hand the centred column infinite width and push it off-screen.
         ScrollViewer.create
             [ ScrollViewer.verticalScrollBarVisibility ScrollBarVisibility.Auto
+              ScrollViewer.horizontalScrollBarVisibility ScrollBarVisibility.Disabled
               ScrollViewer.content (
                   StackPanel.create
                       [ StackPanel.maxWidth 980.0
@@ -442,11 +444,7 @@ module Scouting =
                         StackPanel.margin (24.0, 20.0)
                         StackPanel.spacing 14.0
                         StackPanel.children
-                            [ TextBlock.create
-                                  [ TextBlock.text "SCOUTING"
-                                    TextBlock.fontSize 22.0
-                                    TextBlock.fontWeight FontWeight.Black
-                                    TextBlock.foreground Theme.TextMain ]
+                            [ UI.display "Scouting" 44.0 Theme.TextMain
                               createPanel
                               shortlistPanel
                               TextBlock.create
@@ -459,8 +457,9 @@ module Scouting =
                                       "Sin encargos"
                                       "Elegí un objetivo y confirmá el primer encargo de scouting."
                               else
+                                  // No explicit yield: one would silently drop every implicit element above it.
                                   for row in assignments do
-                                      yield assignmentCard row gs ] ]
+                                      assignmentCard row gs ] ]
               ) ]
         :> IView
 
