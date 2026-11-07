@@ -6,7 +6,7 @@
 
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](#)
 [![F#](https://img.shields.io/badge/F%23-10.1-378BBA)](#)
-[![AvaloniaUI](https://img.shields.io/badge/Avalonia-11.3-purple)](#)
+[![AvaloniaUI](https://img.shields.io/badge/Avalonia-12.1-purple)](#)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 </div>
@@ -45,12 +45,35 @@ Requires [.NET 10.0 SDK](https://dotnet.microsoft.com/download). League data is 
 
 <div align="center">
 
+<img src="docs/media/goal.webp" width="800" alt="A goal move in the live 3D match viewer, recorded at real match speed">
+
+*A goal from the live 3D viewer, recorded at real speed with `--video-goals` (see [Recording media](#recording-media)).*
+
 | | |
 |---|---|
-| <img src="screenshots/1.png" width="400"> | <img src="screenshots/2.png" width="400"> |
-| <img src="screenshots/3.png" width="400"> | <img src="screenshots/4.png" width="400"> |
+| <img src="docs/media/home.png" width="400" alt="Home"> | <img src="docs/media/squad.png" width="400" alt="Squad"> |
+| <img src="docs/media/tactics.png" width="400" alt="Tactics"> | <img src="docs/media/training.png" width="400" alt="Training"> |
+| <img src="docs/media/transfers.png" width="400" alt="Transfer market"> | <img src="docs/media/match-live.webp" width="400" alt="Live match, broadcast camera"> |
+
+**Player model** (procedural ProAthlete pack, WebGPU renderer probe):
+
+| | |
+|---|---|
+| <img src="docs/media/player-close-up.webp" width="400" alt="Player close-up"> | <img src="docs/media/player-broadcast.webp" width="400" alt="Players at broadcast distance"> |
 
 </div>
+
+### What still looks bad
+
+An honest list of what you will notice today, so the screenshots above are not mistaken for a finished game:
+
+- **Scorelines swing too far.** Ten fixtures of the generated Argentine league average 3.4 goals and 20 shots per match with a sensible home/away split, but two of them ended 0-8 and 0-6 with the losing side barely shooting. One-sided collapses like that are not yet explained.
+- **The ball is loose more than it should be.** The contact engine keeps controlled possession for a small share of match time, so play has more scrambles and second balls than real football.
+- **Several pages are thin.** Finances shows a forecast and an empty breakdown; Calendar is a long list of fixtures with little context; Inbox and Scouting show a large empty panel until something is selected.
+- **Mixed languages.** Parts of the UI are in Spanish and parts in English.
+- **Player close-ups.** Faces and hair are generic and identical across players, shirts have no names or numbers, and the HUD player card uses a placeholder avatar.
+- **Crowd and stadium.** The crowd is a repeated low-detail figure and the advertising boards repeat a single banner.
+- **Animation.** Movement is driven by 18 procedural clips; turns, traps and tackles can look abrupt at broadcast distance.
 
 ## Match Engine
 
@@ -186,7 +209,7 @@ World layer (daily / weekly / monthly) -- FootballEngine.Core/World
 |-------|------------|
 | Language | F# (.NET 10), Units of Measure for physics |
 | UI | Avalonia FuncUI + Elmish (MVU, unidirectional data flow) |
-| Rendering | SkiaSharp via ICustomDrawOperation for live pitch |
+| Rendering | WebGPU (Silk.NET) 3D match viewer embedded in Avalonia |
 | Statistics | Deterministic distributions (Normal, Beta, Poisson) seeded from the match RNG |
 | Persistence | SQLite (sqlite-net-pcl), transactional save/load |
 | Error Handling | Result types and FsToolkit.ErrorHandling |
@@ -238,18 +261,34 @@ dotnet run --project FootballEngine.Benchmarks/FootballEngine.Benchmarks.fsproj 
 
 The benchmark runner reports median/p95 time, allocations, GC collections, event/tick counts, replay size and same-seed determinism. `--profile` additionally writes CPU/GC trace files and per-system timings under `artifacts/benchmarks/<run>/`.
 
-### Deterministic match video
+The test suite covers physics invariants (ball trajectory, restitution), offside detection, match determinism (same seed produces identical scoreline and events), and world state integrity (no orphaned player IDs, no budget underflow, valid standing computations).
+
+### Recording media
+
+The client has a screenshot, video and calibration mode built on a fixed demo career. Video needs a display and `ffmpeg` on `PATH`; `--match-seed` fixes the live match so a search and a recording see the same game.
 
 ```bash
+# Screenshots of every page (or a subset with --shots-pages home,squad,match)
 dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release -- \
-  --match-video artifacts/match-motion.mp4 \
-  --video-fps 30 --video-step 4 --video-frames 3600 \
-  --shots-size 1600x900
+  --shots artifacts/shots --shots-size 1600x900
+
+# Find every goal (skips through the match unpaced, ~2 minutes) and record each one at real speed
+dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release -- \
+  --shots artifacts/goals --match-video artifacts/goals/goal.mp4 --video-goals \
+  --match-seed 7 --video-max-goals 3 --video-lead 10 --video-tail 4
+
+# Only list the goals (writes goals.txt), or record known match seconds
+dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release -- \
+  --shots artifacts/goals --video-find-goals --match-seed 7
+dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release -- \
+  --shots artifacts/goals --match-video artifacts/goals/goal.mp4 --match-seed 7 --video-goal-at 529,1355
+
+# Headless calibration: simulate the first N fixtures of the demo league with real squads
+dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release -- \
+  --shots artifacts/corpus --match-corpus 10
 ```
 
-`--video-step` controls how many replay snapshots advance per encoded frame. Lower values make movement easier to inspect; higher values cover more match time. Frames come from the fixed screenshot career and replay seed rather than wall-clock recording, so repeated runs remain comparable. The workflow requires `ffmpeg` on `PATH` and removes temporary PNGs after successful encoding.
-
-The test suite covers physics invariants (ball trajectory, restitution), offside detection, match determinism (same seed produces identical scoreline and events), and world state integrity (no orphaned player IDs, no budget underflow, valid standing computations).
+Clips are written as `goal-01.mp4`, `goal-02.mp4`, ... next to `--match-video`. The skip is presentation-only: the worker advances the deterministic match without waiting for the wall clock, so it reaches the same state the paced viewer would. Without a goal option, `--match-video` captures `--video-frames` frames of the live match, `--video-step` milliseconds apart, encoded at `--video-fps`.
 
 ## Roadmap
 
