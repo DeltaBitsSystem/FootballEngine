@@ -62,7 +62,8 @@ module TransferMarketTests =
           Reputation = 1000
           Affiliation = Contracted(1, { Salary = 1000m; ExpiryYear = 2028 })
           TrainingPlan = Perform
-          ExperienceModifiers = ExperienceModifiers.defaultModifiers }
+          ExperienceModifiers = ExperienceModifiers.defaultModifiers
+          Unrest = None }
 
     let private club id name players finance =
         { Id = id
@@ -76,7 +77,11 @@ module TransferMarketTests =
           BoardObjective = LeagueObjective MidTable
           CoordinationMemory = CoordinationMemory.defaultMemory
           ScoutingMemory = Map.empty
-          Kit = None }
+          Kit = None
+          BoardConfidence = 60
+          FansMood = 60
+          RecentResults = []
+          ManagerSince = None }
 
     let private state (operation: TransferOperation) (buyer: Club) (seller: Club) =
         { CurrentDate = DateTime(2026, 7, 1)
@@ -104,7 +109,9 @@ module TransferMarketTests =
           SeasonHistory = []
           CareerHistory = []
           ExecutionSeed = 1UL
-          MatchSeeds = Map.empty }
+          MatchSeeds = Map.empty
+          News = []
+          NextNewsId = 1 }
 
     let tests =
         testList

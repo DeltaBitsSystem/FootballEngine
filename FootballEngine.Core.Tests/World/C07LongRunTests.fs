@@ -29,7 +29,11 @@ module C07LongRunTests =
           BoardObjective = LeagueObjective MidTable
           CoordinationMemory = CoordinationMemory.defaultMemory
           ScoutingMemory = Map.empty
-          Kit = None }
+          Kit = None
+          BoardConfidence = 60
+          FansMood = 60
+          RecentResults = []
+          ManagerSince = None }
 
     let private competition id name level leagueRules clubs =
         let fixtures, _ = FixtureGen.forLeague id clubs (DateTime(2026, 8, 1)) (id * 100)
@@ -95,7 +99,9 @@ module C07LongRunTests =
           SeasonHistory = []
           CareerHistory = []
           ExecutionSeed = 1UL
-          MatchSeeds = Map.empty }
+          MatchSeeds = Map.empty
+          News = []
+          NextNewsId = 1 }
 
     let private finishFixtures (gs: GameState) =
         { gs with
@@ -185,7 +191,8 @@ module C07LongRunTests =
           Reputation = 400
           Affiliation = Contracted(1, { Salary = 1000m; ExpiryYear = 2030 })
           TrainingPlan = Perform
-          ExperienceModifiers = ExperienceModifiers.defaultModifiers }
+          ExperienceModifiers = ExperienceModifiers.defaultModifiers
+          Unrest = None }
 
     let c07Tests =
         testList

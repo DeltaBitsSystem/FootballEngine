@@ -210,7 +210,8 @@ module PlayerGen =
                   ExpiryYear = contractExpiryFor year age }
             )
           TrainingPlan = TrainingPlans.defaultPlanFor position age
-          ExperienceModifiers = ExperienceModifiers.defaultModifiers }
+          ExperienceModifiers = ExperienceModifiers.defaultModifiers
+          Unrest = None }
 
     let createYouthProspect
         (id: PlayerId)

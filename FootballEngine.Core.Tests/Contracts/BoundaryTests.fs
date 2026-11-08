@@ -89,7 +89,9 @@ module BoundaryTests =
                         SeasonHistory = []
                         CareerHistory = []
                         ExecutionSeed = 1UL
-                        MatchSeeds = Map.empty }
+                        MatchSeeds = Map.empty
+                        News = []
+                        NextNewsId = 1 }
 
                   let invalid: SaveEnvelope =
                       { ConfirmedState = state

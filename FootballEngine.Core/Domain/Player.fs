@@ -89,7 +89,8 @@ type Player =
       Reputation: int
       Affiliation: PlayerAffiliation
       TrainingPlan: IndividualPlan
-      ExperienceModifiers: ExperienceModifiers }
+      ExperienceModifiers: ExperienceModifiers
+      Unrest: UnrestReason option }
 
 module PlayerHealth =
 

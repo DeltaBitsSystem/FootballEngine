@@ -150,6 +150,8 @@ let matchNavigationTests =
                     CareerHistory = []
                     ExecutionSeed = 1UL
                     MatchSeeds = Map.empty
+                    News = []
+                    NextNewsId = 1
                     Market = MarketState.empty }
 
               let initial =

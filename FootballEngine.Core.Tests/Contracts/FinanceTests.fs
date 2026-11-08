@@ -117,7 +117,11 @@ module FinanceTests =
                         BoardObjective = LeagueObjective MidTable
                         CoordinationMemory = CoordinationMemory.defaultMemory
                         ScoutingMemory = Map.empty
-                        Kit = None }
+                        Kit = None
+                        BoardConfidence = 60
+                        FansMood = 60
+                        RecentResults = []
+                        ManagerSince = None }
 
                   let state =
                       { CurrentDate = DateTime(2026, 9, 1)
@@ -143,7 +147,9 @@ module FinanceTests =
                         SeasonHistory = []
                         CareerHistory = []
                         ExecutionSeed = 1UL
-                        MatchSeeds = Map.empty }
+                        MatchSeeds = Map.empty
+                        News = []
+                        NextNewsId = 1 }
 
                   let result =
                       WorldScheduler.executeDayWithBalance (

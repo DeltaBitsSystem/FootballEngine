@@ -452,7 +452,7 @@ module WorldGen =
                             { CurrentDate = startDate
                               Season = year
                               TrainingWeeksApplied = 0
-                              Clubs = world.Clubs
+                              Clubs = world.Clubs |> Map.map (fun _ club -> { club with ManagerSince = Some startDate })
                               Players = world.Players
                               Staff = world.Staff |> Map.add userStaffId userManager
                               Competitions = world.Competitions
@@ -471,5 +471,7 @@ module WorldGen =
                               TeamEmphasis = EmPossession
                               SeasonHistory = []
                               CareerHistory = []
+                              News = []
+                              NextNewsId = 1
                               ExecutionSeed = seed
                               MatchSeeds = Map.empty })

@@ -69,7 +69,8 @@ module TacticalStaffAnalysisTests =
           Reputation = 50
           Affiliation = Contracted(1, { Salary = 10000m; ExpiryYear = 2030 })
           TrainingPlan = Perform
-          ExperienceModifiers = ExperienceModifiers.defaultModifiers }
+          ExperienceModifiers = ExperienceModifiers.defaultModifiers
+          Unrest = None }
 
     let private config = BalanceConfig.defaultConfig.TacticalTradeoffs
 

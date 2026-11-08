@@ -118,7 +118,12 @@ module ClubGen =
               BoardObjective = boardObjectiveFor entry.LeagueLevel reputation
               CoordinationMemory = CoordinationMemory.defaultMemory
               ScoutingMemory = Map.empty
-              Kit = entry.Kit }
+              Kit = entry.Kit
+              BoardConfidence = WorldPulseConfig.defaultWorldPulse.InitialBoardConfidence
+              FansMood = WorldPulseConfig.defaultWorldPulse.InitialFansMood
+              RecentResults = []
+              // WorldGen stamps the career start date; ClubGen has no calendar.
+              ManagerSince = None }
 
 
         let playerMap = players |> List.map (fun p -> p.Id, p) |> Map.ofList

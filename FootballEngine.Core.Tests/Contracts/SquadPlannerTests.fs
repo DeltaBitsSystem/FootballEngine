@@ -80,7 +80,8 @@ module SquadPlannerTests =
           Reputation = 40
           Affiliation = FreeAgent
           TrainingPlan = Perform
-          ExperienceModifiers = ExperienceModifiers.defaultModifiers }
+          ExperienceModifiers = ExperienceModifiers.defaultModifiers
+          Unrest = None }
 
     let squadPlannerTests =
         testList

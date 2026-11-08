@@ -526,4 +526,34 @@ module WorldGenerationTests =
                           { result with
                               HomeScore = result.HomeScore + 1 })
                       (Error "Match result hash is invalid")
-                      "result facts are validated" ]
+                      "result facts are validated"
+
+              testCase "a generated world starts with pulse state and a quiet day publishes no news yet"
+              <| fun _ ->
+                  let world = generate 0xC02UL []
+                  Expect.isEmpty world.News "new careers start without news"
+                  Expect.equal world.NextNewsId 1 "ids start at one"
+
+                  Expect.all
+                      world.Clubs.Values
+                      (fun club ->
+                          club.BoardConfidence = WorldPulseConfig.defaultWorldPulse.InitialBoardConfidence
+                          && club.FansMood = WorldPulseConfig.defaultWorldPulse.InitialFansMood
+                          && club.RecentResults.IsEmpty
+                          && club.ManagerSince = Some startDate)
+                      "every club starts with configured pressure state"
+
+                  Expect.all world.Players.Values (fun p -> p.Unrest.IsNone) "nobody starts unhappy"
+
+                  match
+                      WorldScheduler.executeDayWithBalance (
+                          BalanceConfig.defaultConfig,
+                          RunThroughMatches,
+                          WorldClockOps.init world.Season,
+                          world
+                      )
+                  with
+                  | Error failure -> failtest failure.Message
+                  | Ok day ->
+                      Expect.isEmpty day.State.News "no detectors are registered in phase 1"
+                      Expect.equal day.State.NextNewsId 1 "no ids are consumed" ]

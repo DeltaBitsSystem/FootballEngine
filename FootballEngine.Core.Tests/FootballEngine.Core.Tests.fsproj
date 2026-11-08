@@ -84,7 +84,8 @@
      <Compile Include="World\CompetitionTests.fs"/>
      <Compile Include="World\C07LongRunTests.fs"/>
      <Compile Include="World\WorldGenerationTests.fs"/>
-     <Compile Include="Program.fs"/>
+     <Compile Include="World\Pulse\WorldPulseTests.fs"/>
+    <Compile Include="Program.fs"/>
   </ItemGroup>
 
   <ItemGroup>

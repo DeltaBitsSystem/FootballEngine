@@ -27,7 +27,9 @@ type GameState =
       PlayerExperiences: Map<PlayerId, PlayerExperience>
       TeamEmphasis: TeamEmphasis
       SeasonHistory: SeasonRecord list
-      CareerHistory: ManagerCareerEvent list }
+      CareerHistory: ManagerCareerEvent list
+      News: NewsItem list
+      NextNewsId: int }
 
 module GameState =
 

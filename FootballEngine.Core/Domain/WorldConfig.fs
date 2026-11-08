@@ -114,3 +114,45 @@ module WorldConfig =
               yield "World.MemoryRetention.RivalTacticsDays must be >= 1"
           if config.MemoryRetention.MatchTraceDays < 1 then
               yield "World.MemoryRetention.MatchTraceDays must be >= 1" ]
+
+/// Tuning for the World Pulse story engine; kept apart from WorldConfig so saves and mods are unaffected.
+[<Struct>]
+type WorldPulseConfig =
+    { NewsRetention: int
+      DailyBudgetUserClub: int
+      DailyBudgetUserLeague: int
+      DailyBudgetWorld: int
+      DuplicateWindowDays: int
+      InitialBoardConfidence: int
+      InitialFansMood: int
+      RecentResultsKept: int }
+
+module WorldPulseConfig =
+
+    let defaultWorldPulse =
+        { NewsRetention = 500
+          DailyBudgetUserClub = 4
+          DailyBudgetUserLeague = 4
+          DailyBudgetWorld = 3
+          DuplicateWindowDays = 14
+          InitialBoardConfidence = 60
+          InitialFansMood = 60
+          RecentResultsKept = 10 }
+
+    let validate (config: WorldPulseConfig) : string list =
+        [ if config.NewsRetention < 1 then
+              yield "WorldPulse.NewsRetention must be >= 1"
+          if config.DailyBudgetUserClub < 0 then
+              yield "WorldPulse.DailyBudgetUserClub must be >= 0"
+          if config.DailyBudgetUserLeague < 0 then
+              yield "WorldPulse.DailyBudgetUserLeague must be >= 0"
+          if config.DailyBudgetWorld < 0 then
+              yield "WorldPulse.DailyBudgetWorld must be >= 0"
+          if config.DuplicateWindowDays < 0 then
+              yield "WorldPulse.DuplicateWindowDays must be >= 0"
+          if config.InitialBoardConfidence < 0 || config.InitialBoardConfidence > 100 then
+              yield "WorldPulse.InitialBoardConfidence must be in [0, 100]"
+          if config.InitialFansMood < 0 || config.InitialFansMood > 100 then
+              yield "WorldPulse.InitialFansMood must be in [0, 100]"
+          if config.RecentResultsKept < 1 then
+              yield "WorldPulse.RecentResultsKept must be >= 1" ]

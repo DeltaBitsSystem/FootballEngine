@@ -107,6 +107,8 @@ let private state date dataLock =
       CareerHistory = []
       ExecutionSeed = 1UL
       MatchSeeds = Map.empty
+      News = []
+      NextNewsId = 1
       Market = MarketState.empty }
 
 let private saveSettings = SaveSettings.defaults
@@ -640,7 +642,11 @@ let discriminatedUnionRoundtripTests =
               BoardObjective = LeagueObjective MidTable
               CoordinationMemory = CoordinationMemory.defaultMemory
               ScoutingMemory = Map.empty
-              Kit = None }
+              Kit = None
+              BoardConfidence = 60
+              FansMood = 60
+              RecentResults = []
+              ManagerSince = None }
 
         let game =
             { state date (dataLock None) with
@@ -706,8 +712,45 @@ let fullStateTests =
                 TotalMatchesPlayed = 37
                 RivalRecord = Map.ofList [ 2, {| Wins = 2; Losses = 1; Draws = 3 |} ] }
 
+        let pulseClub =
+            { Id = 7
+              Name = "Pulse FC"
+              Nationality = "ARG"
+              Reputation = 50
+              PlayerIds = []
+              StaffIds = []
+              Finance = Finance.initial 100000m
+              Morale = 60
+              BoardObjective = LeagueObjective MidTable
+              CoordinationMemory = CoordinationMemory.defaultMemory
+              ScoutingMemory = Map.empty
+              Kit = None
+              BoardConfidence = 37
+              FansMood = 81
+              RecentResults = [ MatchOutcomeTag.Won; MatchOutcomeTag.Drawn; MatchOutcomeTag.Lost ]
+              ManagerSince = Some date }
+
+        let news =
+            [ { Id = 2
+                Date = date
+                Kind = NewsKind.TransferDone(3, Some 7, 8, 12500000.5m)
+                Importance = NewsImportance.Major
+                Scope = NewsScope.UserLeague
+                Clubs = [ 7; 8 ]
+                Players = [ 3 ] }
+              { Id = 1
+                Date = date
+                Kind = NewsKind.TransferRequest(3, 7, UnrestReason.BiggerClubInterest)
+                Importance = NewsImportance.Headline
+                Scope = NewsScope.UserClub
+                Clubs = [ 7 ]
+                Players = [ 3 ] } ]
+
         let first =
             { state date (dataLock None) with
+                Clubs = Map.ofList [ pulseClub.Id, pulseClub ]
+                News = news
+                NextNewsId = 3
                 PendingNegotiations = Map.ofList [ negotiation.Id, negotiation ]
                 NextNegotiationId = 10
                 PlayerExperiences = Map.ofList [ 3, experience ]
@@ -1079,7 +1122,11 @@ let chunkTests =
               BoardObjective = LeagueObjective MidTable
               CoordinationMemory = CoordinationMemory.defaultMemory
               ScoutingMemory = Map.empty
-              Kit = None }
+              Kit = None
+              BoardConfidence = 60
+              FansMood = 60
+              RecentResults = []
+              ManagerSince = None }
 
         let first =
             { state date (dataLock None) with

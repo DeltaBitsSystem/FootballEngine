@@ -110,7 +110,8 @@ module TrainingTests =
           Reputation = 40
           Affiliation = affiliation
           TrainingPlan = plan
-          ExperienceModifiers = ExperienceModifiers.defaultModifiers }
+          ExperienceModifiers = ExperienceModifiers.defaultModifiers
+          Unrest = None }
 
     let private contracted id pos age plan condition fitness skill potential =
         makePlayer
@@ -191,7 +192,11 @@ module TrainingTests =
           BoardObjective = LeagueObjective MidTable
           CoordinationMemory = CoordinationMemory.defaultMemory
           ScoutingMemory = Map.empty
-          Kit = None }
+          Kit = None
+          BoardConfidence = 60
+          FansMood = 60
+          RecentResults = []
+          ManagerSince = None }
 
     let private makeLineup (playerIds: PlayerId list) : Lineup =
         { Formation = F442
@@ -239,7 +244,9 @@ module TrainingTests =
           SeasonHistory = []
           CareerHistory = []
           ExecutionSeed = 1UL
-          MatchSeeds = Map.empty }
+          MatchSeeds = Map.empty
+          News = []
+          NextNewsId = 1 }
 
     let private makeOutcome (homeId: ClubId) (awayId: ClubId) : MatchOutcome.FixtureOutcome =
         let fixture: MatchFixture =

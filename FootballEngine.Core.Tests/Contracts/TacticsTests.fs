@@ -98,7 +98,8 @@ module TacticsTests =
           Reputation = 50
           Affiliation = FreeAgent
           TrainingPlan = Perform
-          ExperienceModifiers = ExperienceModifiers.defaultModifiers }
+          ExperienceModifiers = ExperienceModifiers.defaultModifiers
+          Unrest = None }
 
     // A genuine finisher: elite finishing/pace, no defensive craft.
     let private striker =

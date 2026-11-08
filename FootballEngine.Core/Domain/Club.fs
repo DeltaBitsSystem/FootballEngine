@@ -1,5 +1,7 @@
 namespace FootballEngine.Domain
 
+open System
+
 type CupObjective =
     | WinDomesticCup
     | WinContinentalCup
@@ -44,7 +46,11 @@ type Club =
       BoardObjective: BoardObjective
       CoordinationMemory: CoordinationMemory
       ScoutingMemory: Map<ClubId, OpponentMemory>
-      Kit: ClubKit option }
+      Kit: ClubKit option
+      BoardConfidence: int
+      FansMood: int
+      RecentResults: MatchOutcomeTag list
+      ManagerSince: DateTime option }
 
 module Club =
 

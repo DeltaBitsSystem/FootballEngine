@@ -20,6 +20,7 @@
     <Compile Include="Domain\Country.fs"/>
     <Compile Include="Domain\Training.fs"/>
     <Compile Include="Domain\ExperienceModifiers.fs"/>
+    <Compile Include="Domain\News.fs"/>
     <Compile Include="Domain\Player.fs"/>
     <Compile Include="Domain\TrainingPlans.fs"/>
     <Compile Include="Domain\PlayerExperience.fs"/>
@@ -163,6 +164,9 @@
     <Compile Include="World\Phases\TrainingPhase.fs"/>
     <Compile Include="World\Phases\FinancePhase.fs"/>
     <Compile Include="World\Phases\SeasonPhase.fs"/>
+    <Compile Include="World\Pulse\PulseRandom.fs"/>
+    <Compile Include="World\Pulse\NewsDesk.fs"/>
+    <Compile Include="World\Pulse\WorldPulse.fs"/>
     <Compile Include="World\WorldScheduler.fs"/>
     <Compile Include="World\WorldRunner.fs"/>
   </ItemGroup>

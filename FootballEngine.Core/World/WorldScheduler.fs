@@ -140,7 +140,12 @@ module WorldScheduler =
                 |> Result.bind (fun (s2, c2, t) ->
                     run SettleObligations s2 c2 (fun c s -> FinancePhase.make.Run c s, c)
                     |> Result.bind (fun (s3, c3, t2) ->
-                        run ResolveDecisions s3 c3 (fun c s -> runAgents balance s c, c)
+                        // Pulse runs after the agents so it sees the day's transfers; no config carrier exists
+                        // for it yet, so the scheduler is the single place that supplies the defaults.
+                        run ResolveDecisions s3 c3 (fun c s ->
+                            runAgents balance s c
+                            |> FootballEngine.World.Pulse.WorldPulse.run WorldPulseConfig.defaultWorldPulse date,
+                            c)
                         |> Result.bind (fun (s4, c4, t3) ->
                             run CloseDay s4 c4 (fun c s ->
                                 let nextClock = WorldClockOps.advance c
