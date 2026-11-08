@@ -96,7 +96,7 @@ module SeasonPhase =
     let private refreshAiLineups (gs: GameState) : GameState =
         gs.Clubs
         |> Map.toList
-        |> List.filter (fun (id, _) -> id <> gs.UserClubId)
+        |> List.filter (fun (id, _) -> GameState.managedClub gs <> Some id)
         |> List.fold (fun acc (clubId, _) -> LineupOps.ensureForClub clubId acc) gs
 
     let private applyLeagueConsequences (gs: GameState) : GameState =

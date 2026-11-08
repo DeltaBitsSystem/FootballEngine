@@ -483,8 +483,9 @@ module TrainingPhaseEngine =
         for KeyValue(_, p) in gs.Players do
             match p.Affiliation with
             | Contracted(clubId, _) ->
-                let playerTilt = if clubId = gs.UserClubId then tilt else None
-                let recovery = recoveryWeek && clubId = gs.UserClubId
+                let managed = GameState.managedClub gs = Some clubId
+                let playerTilt = if managed then tilt else None
+                let recovery = recoveryWeek && managed
 
                 let trained =
                     seeded gs.ExecutionSeed date "training-week" p.Id (fun () ->

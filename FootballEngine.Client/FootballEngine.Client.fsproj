@@ -101,6 +101,7 @@
         <Compile Include="Views\Pages\Setup.fs"/>
         <Compile Include="Views\Pages\News.fs"/>
         <Compile Include="Views\Pages\Board.fs"/>
+        <Compile Include="Views\Pages\Jobs.fs"/>
         <Compile Include="Views\Pages\Home.fs"/>
         <Compile Include="Views\Pages\Calendar.fs"/>
         <Compile Include="Views\Pages\Inbox.fs"/>

@@ -150,6 +150,7 @@ let main argv =
               FootballEngine.Core.Tests.World.Pulse.WorldPulseTests.tests
               FootballEngine.Core.Tests.World.Pulse.MatchStoriesTests.tests
               FootballEngine.Core.Tests.World.Pulse.PressureTests.tests
+              FootballEngine.Core.Tests.World.Pulse.JobMarketTests.tests
               FootballEngine.Core.Tests.World.Pulse.PlayerStoriesTests.tests
               FootballEngine.Core.Tests.World.Pulse.MarketStoriesTests.tests
               FootballEngine.Core.Tests.World.Pulse.SeasonCeremonyTests.tests ]

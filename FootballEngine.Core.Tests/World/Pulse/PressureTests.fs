@@ -446,7 +446,7 @@ module PressureTests =
                   Expect.equal (subjects ulted) [ "Board ultimatum" ] "ultimatum once, superseding the warning"
                   Expect.equal ulted.Staff[ulted.UserStaffId] gs0.Staff[gs0.UserStaffId] "still employed"
 
-              testCase "the user is never dismissed, even far below every threshold, and gets the ultimatum once"
+              testCase "the user is not dismissed on the matchday of the ultimatum, even far below every threshold"
               <| fun _ ->
                   let gs0 = baseWorld ()
                   let user = gs0.UserClubId

@@ -115,7 +115,9 @@ module MatchStoriesTests =
           News = []
           NextNewsId = 1
           PulseProcessed = Set.empty
-          PulseQueues = PulseQueues.empty }
+          PulseQueues = PulseQueues.empty
+          JobOffers = []
+          NextJobOfferId = 1 }
 
     let private withResults id results (gs: GameState) =
         { gs with

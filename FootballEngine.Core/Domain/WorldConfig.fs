@@ -178,7 +178,13 @@ type WorldPulseConfig =
       AwardAssistWeight: float
       AwardSkillWeight: float
       AwardPositionWeight: float
-      SeasonDeskBudget: int }
+      SeasonDeskBudget: int
+      SackReputationFactor: float
+      JobReputationReach: int
+      JobOffersPerWeek: int
+      MaxJobOffers: int
+      JobOfferDays: int
+      JobContractYears: int }
 
 module WorldPulseConfig =
 
@@ -277,7 +283,17 @@ module WorldPulseConfig =
           // The ceremony publishes every champion, award, promotion, relegation and retirement of the world in one
           // burst, per scope; far above a plausible season so only importance ordering ever decides, never the
           // daily cap that would silently drop them.
-          SeasonDeskBudget = 250 }
+          SeasonDeskBudget = 250
+          // A sacking is public failure: the next jobs come from a rung below the club that fired you.
+          SackReputationFactor = 0.85
+          // Boards look at clubs up to this much above the manager's own standing (0-9999 scale), so a sacked
+          // first-division coach is wanted in the second division and by weak top-flight sides, not by giants.
+          JobReputationReach = 1500
+          JobOffersPerWeek = 2
+          MaxJobOffers = 3
+          // Two weeks: long enough to compare offers, short enough that a board in crisis does not wait forever.
+          JobOfferDays = 14
+          JobContractYears = 2 }
 
     let validate (config: WorldPulseConfig) : string list =
         [ if config.NewsRetention < 1 then
@@ -425,4 +441,14 @@ module WorldPulseConfig =
           then
               yield "WorldPulse award weights must be >= 0"
           if config.SeasonDeskBudget < 0 then
-              yield "WorldPulse.SeasonDeskBudget must be >= 0" ]
+              yield "WorldPulse.SeasonDeskBudget must be >= 0"
+          if config.SackReputationFactor <= 0.0 || config.SackReputationFactor > 1.0 then
+              yield "WorldPulse.SackReputationFactor must be in (0, 1]"
+          if config.JobReputationReach < 0 then
+              yield "WorldPulse.JobReputationReach must be >= 0"
+          if config.JobOffersPerWeek < 1 || config.MaxJobOffers < config.JobOffersPerWeek then
+              yield "WorldPulse job offers must satisfy 1 <= JobOffersPerWeek <= MaxJobOffers"
+          if config.JobOfferDays < 1 then
+              yield "WorldPulse.JobOfferDays must be >= 1"
+          if config.JobContractYears < 1 then
+              yield "WorldPulse.JobContractYears must be >= 1" ]

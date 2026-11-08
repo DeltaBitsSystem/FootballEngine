@@ -111,6 +111,8 @@ let private state date dataLock =
       NextNewsId = 1
       PulseProcessed = Set.empty
       PulseQueues = PulseQueues.empty
+      JobOffers = []
+      NextJobOfferId = 1
       Market = MarketState.empty }
 
 let private saveSettings = SaveSettings.defaults
@@ -1559,7 +1561,16 @@ let generatedCareerTests =
         let gs =
             { gs with
                 Clubs = gs.Clubs |> Map.map (fun _ club ->
-                    { club with CoordinationMemory = { club.CoordinationMemory with AttackLearning = prior } }) }
+                    { club with CoordinationMemory = { club.CoordinationMemory with AttackLearning = prior } })
+                // An open job offer must survive the save: it is the only way back into work after a dismissal.
+                JobOffers =
+                    [ { Id = 7
+                        ClubId = gs.Clubs.Keys |> Seq.max
+                        Offered = gs.CurrentDate
+                        Expires = gs.CurrentDate.AddDays 14.0
+                        Salary = 75_000m
+                        ContractYears = 2 } ]
+                NextJobOfferId = 8 }
         let root = tempRoot ()
         let matchId, fixture =
             gs.Competitions

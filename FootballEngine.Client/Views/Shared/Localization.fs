@@ -137,6 +137,27 @@ type TranslationKey =
     | ObjectiveChampionsLeague
     | ObjectivePromotion
     | ObjectiveRelegation
+    | JobsTitle
+    | JobsSubtitle
+    | JobsOffersTitle
+    | JobsNoOffersTitle
+    | JobsNoOffersSub
+    | JobsBoardMood
+    | JobsTerms
+    | JobsExpires
+    | JobsAccept
+    | JobsDecline
+    | JobsCareerTitle
+    | JobsReputation
+    | CareerHiredEvent
+    | CareerDismissedEvent
+    | CareerResignedEvent
+    | CareerObjectiveMet
+    | CareerObjectiveMissed
+    | NoClub
+    | FormerClub
+    | JobAcceptedTitle
+    | JobAcceptedBody
     | TransfersTitle
     | TransfersSubtitle
     | InboxTitle
@@ -497,6 +518,27 @@ module Localization =
           TranslationKey.ObjectiveChampionsLeague, "Ganar la Champions League", "Win the Champions League"
           TranslationKey.ObjectivePromotion, "Conseguir el ascenso", "Win promotion"
           TranslationKey.ObjectiveRelegation, "Evitar el descenso de categoría", "Avoid dropping a division"
+          TranslationKey.JobsTitle, "Sin club", "Out of work"
+          TranslationKey.JobsSubtitle, "{club} prescindió de tus servicios. Las directivas en crisis buscan técnico: elegí tu próximo desafío.", "{club} has dispensed with your services. Boards in crisis are looking for a manager: choose your next challenge."
+          TranslationKey.JobsOffersTitle, "Ofertas de trabajo", "Job offers"
+          TranslationKey.JobsNoOffersTitle, "Todavía nadie llamó", "No calls yet"
+          TranslationKey.JobsNoOffersSub, "Seguí avanzando: cada semana los clubes en crisis revisan el mercado de técnicos.", "Keep advancing: every week clubs in crisis look at the managers available."
+          TranslationKey.JobsBoardMood, "Confianza de su directiva en el técnico actual: {value}", "Their board's confidence in the current manager: {value}"
+          TranslationKey.JobsTerms, "{salary} por año · contrato de {years} años", "{salary} a year · {years}-year contract"
+          TranslationKey.JobsExpires, "La oferta vence en {days} días", "The offer expires in {days} days"
+          TranslationKey.JobsAccept, "Aceptar", "Accept"
+          TranslationKey.JobsDecline, "Rechazar", "Decline"
+          TranslationKey.JobsCareerTitle, "Tu carrera", "Your career"
+          TranslationKey.JobsReputation, "Reputación como técnico: {value}", "Reputation as a manager: {value}"
+          TranslationKey.CareerHiredEvent, "Llegaste a {club}", "Joined {club}"
+          TranslationKey.CareerDismissedEvent, "Despedido de {club}", "Dismissed by {club}"
+          TranslationKey.CareerResignedEvent, "Renunciaste a {club}", "Resigned from {club}"
+          TranslationKey.CareerObjectiveMet, "Objetivo cumplido en {club}", "Objective met at {club}"
+          TranslationKey.CareerObjectiveMissed, "Objetivo no cumplido en {club}", "Objective missed at {club}"
+          TranslationKey.NoClub, "Sin club", "No club"
+          TranslationKey.FormerClub, "Último club: {club}", "Last club: {club}"
+          TranslationKey.JobAcceptedTitle, "Nuevo club: {club}", "New club: {club}"
+          TranslationKey.JobAcceptedBody, "La directiva de {club} te presentó como nuevo técnico. Arranca la luna de miel.", "The {club} board has presented you as the new manager. The honeymoon begins."
           TranslationKey.TransfersTitle, "Mercado", "Transfers"
           TranslationKey.TransfersSubtitle, "Buscá, negociá y armá tu plantel", "Recruit, negotiate and build your squad"
           TranslationKey.InboxTitle, "Bandeja", "Inbox"

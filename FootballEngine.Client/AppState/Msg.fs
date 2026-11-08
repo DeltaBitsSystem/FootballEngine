@@ -93,6 +93,10 @@ module AppMsgs =
 
     type NewsMsg = SetNewsFilter of NewsFilter
 
+    type CareerMsg =
+        | AcceptJobOffer of offerId: int
+        | DeclineJobOffer of offerId: int
+
     type SquadMsg =
         | SetSort of SortField
         | SelectPlayer of PlayerId
@@ -198,6 +202,7 @@ module AppMsgs =
         | FinanceMsg of FinanceMsg
         | CalendarMsg of CalendarMsg
         | NewsMsg of NewsMsg
+        | CareerMsg of CareerMsg
         | NotificationMsg of NotificationMsg
         | ModEditorMsg of ModEditorMsg
         | SettingsMsg of SettingsMsg
@@ -219,6 +224,13 @@ module AppMsgs =
         | LiveMsg of LiveMsg
 
 module SimHelpers =
+    let leagueOf (gs: GameState) (clubId: ClubId) : CompetitionId option =
+        gs.Competitions
+        |> Map.tryFindKey (fun _ comp ->
+            match comp.Type with
+            | NationalLeague _ -> List.contains clubId comp.ClubIds
+            | _ -> false)
+
     let primaryLeagueId (gs: GameState) =
         gs.Competitions
         |> Map.tryFindKey (fun _ comp ->

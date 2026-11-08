@@ -95,9 +95,17 @@ module Route =
 
     let requiresEmployment (route: Route) =
         match route with
+        // Pages that act on or show the club as "yours"; with no club they would edit someone else's team.
         | Route.Squad _
         | Route.Tactics _
-        | Route.Training _ -> true
+        | Route.Training _
+        | Route.Staff _
+        | Route.Scouting _
+        | Route.Transfers _
+        | Route.Finances _
+        | Route.Board
+        | Route.Youth
+        | Route.Calendar -> true
         | _ -> false
 
     let canNavigate (isEmployed: bool) (route: Route) =

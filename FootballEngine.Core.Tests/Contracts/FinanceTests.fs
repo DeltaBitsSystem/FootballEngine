@@ -151,7 +151,9 @@ module FinanceTests =
                         News = []
                         NextNewsId = 1
                         PulseProcessed = Set.empty
-                        PulseQueues = PulseQueues.empty }
+                        PulseQueues = PulseQueues.empty
+                        JobOffers = []
+                        NextJobOfferId = 1 }
 
                   let result =
                       WorldScheduler.executeDayWithBalance (

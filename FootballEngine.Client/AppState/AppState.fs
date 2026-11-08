@@ -541,6 +541,42 @@ module AppState =
 
         | NewsMsg(SetNewsFilter filter) -> { state with News = { Filter = filter } }, Cmd.none
 
+        | CareerMsg msg ->
+            match state.Mode, msg with
+            | InGame(gs, _), DeclineJobOffer offerId ->
+                let gs = FootballEngine.World.Pulse.JobMarket.decline offerId gs
+
+                { state with
+                    Mode = InGame(gs, managerEmployment gs) },
+                Cmd.none
+            | InGame(gs, _), AcceptJobOffer offerId ->
+                match
+                    FootballEngine.World.Pulse.JobMarket.accept
+                        WorldPulseConfig.defaultWorldPulse
+                        gs.CurrentDate
+                        offerId
+                        gs
+                with
+                | Ok hired ->
+                    let clubName = hired.Clubs[hired.UserClubId].Name
+
+                    { state with
+                        Mode = InGame(hired, managerEmployment hired)
+                        SelectedLeagueId =
+                            SimHelpers.leagueOf hired hired.UserClubId
+                            |> Option.defaultValue state.SelectedLeagueId
+                        Navigation =
+                            { Current = Route.Home
+                              Back = []
+                              Forward = [] } }
+                    |> pushNotification
+                        FootballEngine.Icons.NotificationIcons.newCareer
+                        (Localization.resolve TranslationKey.JobAcceptedTitle [ "club", clubName ])
+                        (Localization.resolve TranslationKey.JobAcceptedBody [ "club", clubName ]),
+                    Cmd.none
+                | Error error -> state |> pushNotification FootballEngine.Icons.NotificationIcons.error error "", Cmd.none
+            | _ -> state, Cmd.none
+
         | NotificationMsg nm ->
             match nm with
             | DismissNotification id ->

@@ -3,6 +3,15 @@ namespace FootballEngine.Domain
 open System
 open Inbox
 
+/// A board's standing invitation to the unemployed user; accepting it replaces that club's head coach.
+type JobOffer =
+    { Id: int
+      ClubId: ClubId
+      Offered: DateTime
+      Expires: DateTime
+      Salary: decimal
+      ContractYears: int }
+
 type GameState =
     { ExecutionSeed: uint64
       MatchSeeds: Map<MatchId, uint64>
@@ -32,7 +41,9 @@ type GameState =
       NextNewsId: int
       /// Played fixtures the pulse already absorbed; results can be committed after the day they are scheduled.
       PulseProcessed: Set<MatchId>
-      PulseQueues: PulseQueues }
+      PulseQueues: PulseQueues
+      JobOffers: JobOffer list
+      NextJobOfferId: int }
 
 module GameState =
 
@@ -80,11 +91,22 @@ module GameState =
     let userManagerName (gs: GameState) : string =
         userManager gs |> Option.map _.Name |> Option.defaultValue ""
 
+    /// `UserClubId` keeps the last club after a dismissal (history, news, the season's finishing line); only this
+    /// says whether the user actually runs it, and therefore whether its matches wait for the user.
+    let managedClub (gs: GameState) : ClubId option =
+        userManager gs
+        |> Option.filter Staff.isEmployed
+        |> Option.bind Staff.clubId
+        |> Option.filter ((=) gs.UserClubId)
+
+    let isUserFixture (gs: GameState) (fixture: MatchFixture) : bool =
+        managedClub gs |> Option.exists (fun club -> MatchFixture.involves club fixture)
+
     let getUserNextFixture (gs: GameState) : (MatchId * MatchFixture) option =
         gs.Competitions
         |> Map.toSeq
         |> Seq.collect (fun (_, comp) -> comp.Fixtures |> Map.toSeq)
-        |> Seq.filter (fun (_, f) -> MatchFixture.isPending f && MatchFixture.involves gs.UserClubId f)
+        |> Seq.filter (fun (_, f) -> MatchFixture.isPending f && isUserFixture gs f)
         |> Seq.sortBy (fun (_, f) -> f.ScheduledDate)
         |> Seq.tryHead
 

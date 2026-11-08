@@ -475,5 +475,7 @@ module WorldGen =
                               NextNewsId = 1
                               PulseProcessed = Set.empty
                               PulseQueues = PulseQueues.empty
+                              JobOffers = []
+                              NextJobOfferId = 1
                               ExecutionSeed = seed
                               MatchSeeds = Map.empty })

@@ -47,6 +47,8 @@ module Shots =
           MatchIndex: int
           /// Days the demo world runs before capture, so world pages (news, board) show real stories, not empty states.
           WorldDays: int
+          /// Capture the career right after a dismissal, so the job hunt is reviewable.
+          Unemployed: bool
           InspectMatch: bool
           MatchSeed: uint64 option
           /// Skip through the live match unpaced and write the match second of every goal; captures nothing.
@@ -185,6 +187,7 @@ module Shots =
                   VideoFrames = positiveValue "--video-frames" 3600
                   MatchIndex = nonNegativeValue "--match-index" 0
                   WorldDays = nonNegativeValue "--shots-days" 0
+                  Unemployed = args |> Array.contains "--shots-unemployed"
                   InspectMatch = args |> Array.contains "--match-evidence"
                   MatchSeed = matchSeed
                   VideoFindGoals = findGoals
@@ -267,6 +270,16 @@ module Shots =
                 gs
             else
                 (WorldRunner.advanceDays opts.WorldDays (WorldClockOps.init gs.Season) gs).GameState
+
+        let gs =
+            if opts.Unemployed then
+                Career.dismiss gs.CurrentDate "Board confidence collapsed" gs.UserStaffId gs
+                |> FootballEngine.World.Pulse.JobMarket.refresh
+                    WorldPulseConfig.defaultWorldPulse
+                    true
+                    gs.CurrentDate
+            else
+                gs
 
         // An advanced world already sits on its own date; jumping to a fixture would hide the days just simulated.
         let gs =

@@ -37,6 +37,8 @@ let private emptyState: GameState =
       NextNewsId = 1
       PulseProcessed = Set.empty
       PulseQueues = PulseQueues.empty
+      JobOffers = []
+      NextJobOfferId = 1
       Market = MarketState.empty }
 
 /// One sample per NewsKind case; the reflection count below fails the suite when a new case lacks a sample.
@@ -213,8 +215,11 @@ let tests =
               Expect.equal (fst (Board.fansBand p.FansRestlessBelow)) TranslationKey.FansBandContent "content"
               Expect.equal (fst (Board.fansBand p.FansEuphoricFrom)) TranslationKey.FansBandEuphoric "euphoric"
 
-          testCase "News and Board are real routes that employment does not gate"
+          testCase "News stays open without a club; the Board belongs to the club you manage"
           <| fun _ ->
               for route in [ Route.News; Route.Board ] do
                   Expect.equal (Route.fromPath (Route.toPath route)) (Some route) "round-trips"
-                  Expect.isTrue (Route.canNavigate false route) "available while unemployed" ]
+
+              Expect.isTrue (Route.canNavigate false Route.News) "news while unemployed"
+              Expect.isFalse (Route.canNavigate false Route.Board) "no board without a club"
+              Expect.isTrue (Route.canNavigate true Route.Board) "board when employed" ]

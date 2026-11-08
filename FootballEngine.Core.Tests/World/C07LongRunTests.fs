@@ -103,7 +103,9 @@ module C07LongRunTests =
           News = []
           NextNewsId = 1
           PulseProcessed = Set.empty
-          PulseQueues = PulseQueues.empty }
+          PulseQueues = PulseQueues.empty
+          JobOffers = []
+          NextJobOfferId = 1 }
 
     let private finishFixtures (gs: GameState) =
         { gs with

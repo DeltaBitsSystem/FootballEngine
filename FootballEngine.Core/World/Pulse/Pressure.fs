@@ -181,7 +181,7 @@ module Pressure =
         kind, importance, NewsDesk.classifyScope gs [ clubId ], [ clubId ], []
 
     /// Replaces the head coach of `clubId`. The old coach is removed first so he cannot be re-hired by the club.
-    let private replaceCoach
+    let replaceCoach
         (config: WorldPulseConfig)
         (date: DateTime)
         (clubId: ClubId)
@@ -202,7 +202,14 @@ module Pressure =
                         coach.Id
                         { coach with
                             Contract = None
-                            Status = StaffStatus.Unemployed } }
+                            Status = StaffStatus.Unemployed }
+                Clubs =
+                    gs.Clubs
+                    |> Map.change
+                        clubId
+                        (Option.map (fun c ->
+                            { c with
+                                StaffIds = c.StaffIds |> List.filter ((<>) coach.Id) })) }
 
         // New games seed the user's club with its generated head coach beside the user; in that case the existing
         // coach already runs the team and a third one must not be created.
@@ -248,6 +255,33 @@ module Pressure =
             (Inbox.create date "Board of Directors" subject body InboxMessageCategory.BoardUpdate false)
             gs
 
+    /// The club keeps playing under a successor; `UserClubId` stays on it as the user's last club until a new job.
+    let private dismissUser (config: WorldPulseConfig) (date: DateTime) (taken: Set<StaffId>) (gs: GameState) =
+        let clubId = gs.UserClubId
+
+        match GameState.userManager gs with
+        | Some manager ->
+            match replaceCoach config date clubId manager taken gs with
+            | Some(next, news, _) ->
+                // The lineup names the old club's players; the next club builds its own on appointment.
+                let unemployed =
+                    { next.Staff[manager.Id] with
+                        Attributes.Coaching.Lineup = None
+                        Reputation = int (float manager.Reputation * config.SackReputationFactor) }
+
+                { next with
+                    Staff = next.Staff |> Map.add manager.Id unemployed
+                    CareerHistory =
+                        ManagerCareerEvent.ManagerDismissed(date, clubId, "Board confidence collapsed")
+                        :: next.CareerHistory }
+                |> boardMessage
+                    date
+                    "Dismissed"
+                    "The board has terminated your contract. Clubs looking for a manager will contact you.",
+                news
+            | None -> gs, []
+        | None -> gs, []
+
     let apply
         (config: WorldPulseConfig)
         (date: DateTime)
@@ -268,7 +302,7 @@ module Pressure =
         let userClub = before |> Map.tryFind gs.UserClubId
         let userWasEmployed = userEmployed gs
 
-        let (sackedAi, _), gs, sackNews =
+        let (sackedAi, taken), gs, sackNews =
             gs.Clubs
             |> Map.toList
             |> List.filter (fun (id, club) ->
@@ -287,15 +321,26 @@ module Pressure =
                     | None -> (clubs, taken), state, news)
                 ((Set.empty, Set.empty), gs, [])
 
-        // User: ultimatum supersedes a same-day warning.
+        // User: dismissal supersedes the ultimatum, which supersedes a same-day warning.
         let gs, userNews =
             match userClub, userWasEmployed with
             | Some previous, true ->
                 let now = gs.Clubs[gs.UserClubId]
 
-                // The user path stops at the ultimatum: the client has no flow for an unemployed manager, so a
-                // mid-season dismissal would strand the career.
-                if crossedDown config.UltimatumThreshold previous.BoardConfidence now.BoardConfidence then
+                // Confidence already below the ultimatum line before today's matches means the ultimatum was
+                // delivered on an earlier matchday: the user is never fired without having been warned.
+                // Boards decide after a match, never on a quiet Tuesday.
+                let playedToday =
+                    fresh |> List.exists (fun m -> MatchFixture.involves gs.UserClubId m.Fixture)
+
+                if
+                    playedToday
+                    && previous.BoardConfidence < config.UltimatumThreshold
+                    && now.BoardConfidence < config.SackThreshold
+                    && matchesInCharge date now gs >= config.MinMatchesBeforeSack
+                then
+                    dismissUser config date taken gs
+                elif crossedDown config.UltimatumThreshold previous.BoardConfidence now.BoardConfidence then
                     boardMessage
                         date
                         "Board ultimatum"

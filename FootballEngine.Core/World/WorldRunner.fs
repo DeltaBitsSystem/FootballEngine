@@ -246,7 +246,7 @@ module WorldRunner =
 
                     if errs.IsEmpty then
                         for outcome, input in outcomes do
-                            if MatchFixture.involves gs.UserClubId outcome.Fixture then
+                            if GameState.isUserFixture gs outcome.Fixture then
                                 executions <- executions |> Map.add outcome.FixtureId (MatchInput.snapshot input, [])
 
                         let outcomes = outcomes |> List.map fst
@@ -341,7 +341,7 @@ module WorldRunner =
                 fixtureId = matchId
                 && fixture.ScheduledDate.Date = gs.CurrentDate.Date
                 && MatchFixture.isPending fixture
-                && MatchFixture.involves gs.UserClubId fixture)
+                && GameState.isUserFixture gs fixture)
 
         match fixtureOpt with
         | None -> Error "No pending user match today"
@@ -585,7 +585,7 @@ module WorldRunner =
                 if
                     fixture.ScheduledDate.Date = gs.CurrentDate.Date
                     && MatchFixture.isPending fixture
-                    && MatchFixture.involves gs.UserClubId fixture
+                    && GameState.isUserFixture gs fixture
                 then
                     Some fixtureId
                 else
@@ -630,7 +630,7 @@ module WorldRunner =
             |> Map.exists (fun _ f ->
                 f.ScheduledDate.Date = gs.CurrentDate.Date
                 && MatchFixture.isPending f
-                && MatchFixture.involves gs.UserClubId f))
+                && GameState.isUserFixture gs f))
 
     let runAiFixturesWithBalance
         (balance: FootballEngine.Core.Match.BalanceConfig)

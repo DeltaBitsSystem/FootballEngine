@@ -11,6 +11,7 @@
   <ItemGroup>
     <Compile Include="RoutingTests.fs" />
     <Compile Include="NewsPageTests.fs" />
+    <Compile Include="JobsPageTests.fs" />
     <Compile Include="PersistenceTests.fs" />
     <Compile Include="TacticsDraftTests.fs" />
     <Compile Include="ModEditorTests.fs" />

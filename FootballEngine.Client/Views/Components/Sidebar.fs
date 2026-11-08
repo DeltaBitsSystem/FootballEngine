@@ -209,6 +209,37 @@ module Sidebar =
                                                 TextBlock.maxWidth 140.0 ] ] ] ] ]
               ) ]
 
+    let private unemployedCard (gs: GameState) (dispatch: Msg -> unit) : IView =
+        let former =
+            gs.Clubs |> Map.tryFind gs.UserClubId |> Option.map _.Name |> Option.defaultValue ""
+
+        Button.create
+            [ Button.background Theme.BgCard
+              Button.borderBrush Theme.BorderLight
+              Button.borderThickness 1.0
+              Button.cornerRadius Theme.RadiusLg
+              Button.padding (12.0, 10.0)
+              Button.horizontalAlignment HorizontalAlignment.Stretch
+              Button.horizontalContentAlignment HorizontalAlignment.Left
+              Button.onClick (fun _ -> dispatch (Navigate Route.Home))
+              Button.content (
+                  StackPanel.create
+                      [ StackPanel.spacing 3.0
+                        StackPanel.children
+                            [ UI.display (GameState.userManagerName gs) 20.0 Theme.TextMain
+                              TextBlock.create
+                                  [ TextBlock.text (Localization.resolve TranslationKey.NoClub [])
+                                    TextBlock.fontSize 12.0
+                                    TextBlock.fontWeight FontWeight.SemiBold
+                                    TextBlock.foreground Theme.Warning ]
+                              TextBlock.create
+                                  [ TextBlock.text (Localization.resolve TranslationKey.FormerClub [ "club", former ])
+                                    TextBlock.fontSize 12.0
+                                    TextBlock.foreground Theme.TextSub
+                                    TextBlock.textTrimming TextTrimming.CharacterEllipsis
+                                    TextBlock.maxWidth 180.0 ] ] ]
+              ) ]
+
     let sidebar (state: State) (dispatch: Msg -> unit) =
         let unreadCount, visibleItems, gameState =
             match state.Mode with
@@ -245,9 +276,10 @@ module Sidebar =
                                   [ DockPanel.dock Dock.Top
                                     Border.padding (14.0, 20.0, 14.0, 12.0)
                                     Border.child (
-                                        match gameState with
-                                        | Some gs -> clubCard gs dispatch
-                                        | None -> UI.display "Football Engine" 22.0 Theme.TextMain
+                                        match state.Mode, gameState with
+                                        | InGame(_, NotEmployed), Some gs -> unemployedCard gs dispatch
+                                        | _, Some gs -> clubCard gs dispatch
+                                        | _, None -> UI.display "Football Engine" 22.0 Theme.TextMain
                                     ) ]
                               if List.contains Navigation.settingsItem visibleItems then
                                   Border.create

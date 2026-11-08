@@ -72,10 +72,18 @@ module Views =
                                         ) ] ] ]
                   ) ]
 
+        let unemployed =
+            match state.Mode with
+            | InGame(_, NotEmployed) -> true
+            | _ -> false
+
         let content: IView =
             match state.Navigation.Current with
             | Route.Loading -> loadingView ()
             | Route.Setup -> setupView state dispatch
+            // A dismissal can land while a club page is open; without a club, home and those pages are the job hunt.
+            | Route.Home when unemployed -> Jobs.view state dispatch
+            | route when unemployed && Route.requiresEmployment route -> Jobs.view state dispatch
             | Route.Home ->
                 homeView state state.SelectedLeagueId (fun leagueId -> dispatch (ChangeLeague leagueId)) dispatch
             | Route.Calendar -> Calendar.view state dispatch
@@ -106,6 +114,7 @@ module Views =
         let compactHeader: IView =
             let clubName =
                 match state.Mode with
+                | InGame(_, NotEmployed) -> Some(Localization.resolve TranslationKey.NoClub [])
                 | InGame(gs, _) -> gs.Clubs |> Map.tryFind gs.UserClubId |> Option.map _.Name
                 | _ -> None
 

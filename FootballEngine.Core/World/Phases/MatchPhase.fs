@@ -534,8 +534,7 @@ module MatchPhase =
             |> Seq.filter (fun (_, f) ->
                 f.ScheduledDate.Date = state.CurrentDate.Date
                 && not f.Played
-                && f.HomeClubId <> state.UserClubId
-                && f.AwayClubId <> state.UserClubId))
+                && not (GameState.isUserFixture state f)))
         |> List.ofSeq
 
     /// Per-match memory seam: one club watches the other. The watcher is the
@@ -782,7 +781,7 @@ module MatchPhase =
         let acceptedInputs =
             executions
             |> Array.choose (fun (outcome, input) ->
-                if Set.contains outcome.FixtureId acceptedIds && MatchFixture.involves state.UserClubId outcome.Fixture then
+                if Set.contains outcome.FixtureId acceptedIds && GameState.isUserFixture state outcome.Fixture then
                     Some(outcome.FixtureId, (MatchInput.snapshot input, []))
                 else
                     None)

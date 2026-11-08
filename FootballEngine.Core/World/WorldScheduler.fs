@@ -120,7 +120,7 @@ module WorldScheduler =
                 let fixtures = allFixturesOn date s
 
                 let hasUserMatch =
-                    fixtures |> List.exists (fun (_, f) -> MatchFixture.involves s.UserClubId f)
+                    fixtures |> List.exists (fun (_, f) -> GameState.isUserFixture s f)
 
                 if policy = PauseBeforeUserMatch && hasUserMatch then
                     Ok(s, c, traces, fixtures)
@@ -189,7 +189,7 @@ module WorldScheduler =
                 if policy = PauseBeforeUserMatch then
                     fixtures
                     |> List.tryFind (fun (_, fixture) ->
-                        MatchFixture.involves nextState.UserClubId fixture && not fixture.Played)
+                        GameState.isUserFixture nextState fixture && not fixture.Played)
                     |> Option.map fst
                 else
                     None })

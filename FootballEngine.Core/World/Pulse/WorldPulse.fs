@@ -18,6 +18,8 @@ module WorldPulse =
         let fresh = MatchFacts.newlyPlayed date gs
         // Pressure shares the ledger's fresh set, so a fixture moves confidence exactly once.
         let gs, pressureNews = Pressure.apply config date fresh gs
+        // Right after pressure so a manager dismissed today already has offers to read tonight.
+        let gs = JobMarket.refresh config weekly date gs
 
         let gs, milestoneNews = PlayerStories.milestones config date gs
         // Transfers settle before the weekly pass so a player who just moved is not judged on his old club.
