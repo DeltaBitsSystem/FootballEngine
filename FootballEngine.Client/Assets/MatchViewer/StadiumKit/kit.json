@@ -3,6 +3,7 @@
  "units": "metres",
  "axes": "glTF Y-up; every piece faces the pitch along glTF -Z (Blender +Y)",
  "lodRule": "use the highest lod whose fromDistance <= camera distance to the instance bounds centre",
+ "emitterRule": "floodlight lamps in Blender piece space (Z up, +Y faces the pitch); one runtime spot light per emitter: a 2 kW-class sports luminaire (~150,000 lm), beam half-angle 12-30 degrees; runtime may cluster nearby emitters into fewer lights in lower quality tiers",
  "pieces": [
   {
    "id": "seat",
@@ -27,6 +28,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -0.2173,
     -0.2623,
@@ -65,6 +67,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -0.06,
     -0.06,
@@ -102,6 +105,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -0.0228,
     -0.024,
@@ -145,6 +149,7 @@
      "heightMetres": 0.8
     }
    ],
+   "emitters": [],
    "boundsMin": [
     0.0,
     -0.575,
@@ -189,6 +194,7 @@
      "heightMetres": 0.75
     }
    ],
+   "emitters": [],
    "boundsMin": [
     0.0,
     -0.3,
@@ -227,6 +233,296 @@
     }
    ],
    "screens": [],
+   "emitters": [
+    {
+     "position": [
+      -2.0,
+      0.4572,
+      43.1931
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      -1.2,
+      0.4572,
+      43.1931
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      -0.4,
+      0.4572,
+      43.1931
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      0.4,
+      0.4572,
+      43.1931
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      1.2,
+      0.4572,
+      43.1931
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      2.0,
+      0.4572,
+      43.1931
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      -2.0,
+      0.7858,
+      43.8112
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      -1.2,
+      0.7858,
+      43.8112
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      -0.4,
+      0.7858,
+      43.8112
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      0.4,
+      0.7858,
+      43.8112
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      1.2,
+      0.7858,
+      43.8112
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      2.0,
+      0.7858,
+      43.8112
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      -2.0,
+      1.1144,
+      44.4292
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      -1.2,
+      1.1144,
+      44.4292
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      -0.4,
+      1.1144,
+      44.4292
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      0.4,
+      1.1144,
+      44.4292
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      1.2,
+      1.1144,
+      44.4292
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      2.0,
+      1.1144,
+      44.4292
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      -2.0,
+      1.443,
+      45.0473
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      -1.2,
+      1.443,
+      45.0473
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      -0.4,
+      1.443,
+      45.0473
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      0.4,
+      1.443,
+      45.0473
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      1.2,
+      1.443,
+      45.0473
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    },
+    {
+     "position": [
+      2.0,
+      1.443,
+      45.0473
+     ],
+     "direction": [
+      0.0,
+      0.8829,
+      -0.4695
+     ]
+    }
+   ],
    "boundsMin": [
     -2.8,
     -1.9,
@@ -267,6 +563,104 @@
     }
    ],
    "screens": [],
+   "emitters": [
+    {
+     "position": [
+      0.625,
+      0.4893,
+      -0.4475
+     ],
+     "direction": [
+      0.0,
+      0.8192,
+      -0.5736
+     ]
+    },
+    {
+     "position": [
+      1.875,
+      0.4893,
+      -0.4475
+     ],
+     "direction": [
+      0.0,
+      0.8192,
+      -0.5736
+     ]
+    },
+    {
+     "position": [
+      3.125,
+      0.4893,
+      -0.4475
+     ],
+     "direction": [
+      0.0,
+      0.8192,
+      -0.5736
+     ]
+    },
+    {
+     "position": [
+      4.375,
+      0.4893,
+      -0.4475
+     ],
+     "direction": [
+      0.0,
+      0.8192,
+      -0.5736
+     ]
+    },
+    {
+     "position": [
+      5.625,
+      0.4893,
+      -0.4475
+     ],
+     "direction": [
+      0.0,
+      0.8192,
+      -0.5736
+     ]
+    },
+    {
+     "position": [
+      6.875,
+      0.4893,
+      -0.4475
+     ],
+     "direction": [
+      0.0,
+      0.8192,
+      -0.5736
+     ]
+    },
+    {
+     "position": [
+      8.125,
+      0.4893,
+      -0.4475
+     ],
+     "direction": [
+      0.0,
+      0.8192,
+      -0.5736
+     ]
+    },
+    {
+     "position": [
+      9.375,
+      0.4893,
+      -0.4475
+     ],
+     "direction": [
+      0.0,
+      0.8192,
+      -0.5736
+     ]
+    }
+   ],
    "boundsMin": [
     0.0,
     -0.86,
@@ -306,6 +700,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -0.2853,
     -8.0548,
@@ -345,6 +740,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -0.2853,
     -8.0553,
@@ -384,6 +780,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -0.2853,
     -8.0557,
@@ -423,6 +820,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -3.78,
     -2.025,
@@ -460,6 +858,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -3.66,
     -2.0,
@@ -497,6 +896,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -0.016,
     -0.016,
@@ -535,6 +935,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -0.1,
     -1.9,
@@ -575,6 +976,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -1.5346,
     -0.04,
@@ -614,6 +1016,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -2.06,
     -1.16,
@@ -657,6 +1060,7 @@
      "heightMetres": 6.4
     }
    ],
+   "emitters": [],
    "boundsMin": [
     -8.3,
     -1.2,
@@ -695,6 +1099,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -0.25,
     -0.7526,
@@ -734,6 +1139,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -0.25,
     -0.35,
@@ -772,6 +1178,7 @@
     }
    ],
    "screens": [],
+   "emitters": [],
    "boundsMin": [
     -1.5,
     -4.05,

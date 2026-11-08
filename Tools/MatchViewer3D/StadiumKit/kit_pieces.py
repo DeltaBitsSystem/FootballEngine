@@ -154,6 +154,12 @@ def led_ribbon(lod=0, length=10.0, height=0.8):
 def _lamp(b, centre, frame, lod):
     """One sports floodlight: housing, cooling fins and an emissive lens facing the frame's +Y."""
     c = Vector(centre)
+    # Each lens is also a runtime light: its position and aim go to kit.json as an emitter.
+    if not hasattr(b, "emitters"):
+        b.emitters = []
+    aim = (frame @ Vector((0, 1, 0))).normalized()
+    b.emitters.append({"position": [round(x, 4) for x in c + frame @ Vector((0, 0.17, 0))],
+                       "direction": [round(x, 4) for x in aim]})
     b.box(tuple(c), (0.62, 0.32, 0.52), DARK, tile=0.5, rot=frame)
     lens = [Vector(p) for p in ((-0.27, 0.165, -0.22), (0.27, 0.165, -0.22), (0.27, 0.165, 0.22), (-0.27, 0.165, 0.22))]
     b.quad([tuple(c + frame @ p) for p in lens], "lamp_lens", uv_rect=[(0, 0), (1, 0), (1, 1), (0, 1)])

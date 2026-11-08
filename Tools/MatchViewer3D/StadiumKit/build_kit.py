@@ -180,6 +180,7 @@ def build(opts):
             b = maker(lod)
             if lod == 0:
                 screens = [{"widthMetres": w, "heightMetres": h} for (w, h) in getattr(b, "screens", [])]
+                emitters = getattr(b, "emitters", [])
             for mid in b.materials:
                 if mid not in mats:
                     mats[mid] = textured_material(mid, tex_dir)
@@ -194,7 +195,7 @@ def build(opts):
                 hi = Vector(map(max, *[v.co for v in obj.data.vertices]))
                 piece_mats = sorted({s.material["fe_material"] for s in obj.material_slots})
             lods.append({"lod": lod, "node": obj.name, "triangles": tris, "fromDistance": LOD_DISTANCE[lod]})
-        pieces_meta.append({"id": pid, "lods": lods, "screens": screens,
+        pieces_meta.append({"id": pid, "lods": lods, "screens": screens, "emitters": emitters,
                             "boundsMin": [round(c, 4) for c in lo], "boundsMax": [round(c, 4) for c in hi],
                             "materials": piece_mats})
         print("piece", pid, [l["triangles"] for l in lods])
@@ -218,6 +219,9 @@ def export(mats, pieces_meta, lib):
         "units": "metres",
         "axes": "glTF Y-up; every piece faces the pitch along glTF -Z (Blender +Y)",
         "lodRule": "use the highest lod whose fromDistance <= camera distance to the instance bounds centre",
+        "emitterRule": "floodlight lamps in Blender piece space (Z up, +Y faces the pitch); one runtime spot light "
+                       "per emitter: a 2 kW-class sports luminaire (~150,000 lm), beam half-angle 12-30 degrees; runtime may "
+                       "cluster nearby emitters into fewer lights in lower quality tiers",
         "pieces": pieces_meta,
         "materials": [material_entry(m, lib) for m in sorted(mats)],
         "files": {"stadium-kit.glb": sha(glb), **textures},
