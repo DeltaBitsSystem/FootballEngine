@@ -1,0 +1,43 @@
+{
+ "schema": 1,
+ "styles": [
+  {
+   "id": "buzz",
+   "node": "FE Hair buzz",
+   "triangles": 492
+  },
+  {
+   "id": "crop",
+   "node": "FE Hair crop",
+   "triangles": 492
+  },
+  {
+   "id": "textured",
+   "node": "FE Hair textured",
+   "triangles": 1968
+  },
+  {
+   "id": "fade",
+   "node": "FE Hair fade",
+   "triangles": 1968
+  },
+  {
+   "id": "curly",
+   "node": "FE Hair curly",
+   "triangles": 1968
+  },
+  {
+   "id": "bun",
+   "node": "FE Hair bun",
+   "triangles": 812
+  }
+ ],
+ "replaces": "FE Hair",
+ "uvTile": "hair (same atlas tile as FE Hair)",
+ "seed": 7731,
+ "files": {
+  "player-hair.glb": "e7c846a0f3dd6d7354a647f7cc33eaaef176a1379f0a747f4f2a77f4f2f080b4"
+ },
+ "source": "Tools/MatchViewer3D/ProAthlete/build_hair_styles.py",
+ "provenance": "Original styles grown from the pack's own scalp area; shapes, profiles and noise are authored in the script. Weights/UVs transferred from the pack's FE Hair."
+}
