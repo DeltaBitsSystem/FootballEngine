@@ -436,11 +436,17 @@ def _pieces(p, rng, stands, hx, hy, lighting, facade):
         back = top["front_offset"] + top["rows"] * top["row_depth"] + 1.4
         height = top["base_height"] + top["rows"] * top["riser"] + 1.0
         fr10 = front_frames(d, 10.0)
-        for ((px, py), (nx, ny)), ((qx, qy), _) in zip(fr10, fr10[1:]):
-            length = math.hypot(qx - px, qy - py)
+        for ((px, py), (pnx, pny)), ((qx, qy), (qnx, qny)) in zip(fr10, fr10[1:]):
+            # Measure on the facade line itself: around a bowl corner the facade, `back` metres outside the
+            # front line, runs a much longer chord than the front; modules sized on the front leave gaps.
+            ax, ay = px + pnx * back, py + pny * back
+            bx, by = qx + qnx * back, qy + qny * back
+            length = math.hypot(bx - ax, by - ay)
+            # Facing outwards: the chord runs counter-clockwise, so its outward normal is (dy, -dx).
+            ox, oy = (by - ay) / length, -(bx - ax) / length
             for level in range(max(1, int(height / 5.0))):
-                put(f"facade_{facade}", qx + nx * back, qy + ny * back, level * 5.0,
-                    math.degrees(math.atan2(ny, nx)) - 90.0, "none", (length / 10.0, 1.0, 1.0))
+                put(f"facade_{facade}", bx, by, level * 5.0,
+                    math.degrees(math.atan2(oy, ox)) - 90.0, "none", (length / 10.0, 1.0, 1.0))
     main = next(s for s in stands if s.main)
     my = main.start[1]
     # One bench per club, symmetric about the halfway line, fronts 3 m off the touchline (technical areas).

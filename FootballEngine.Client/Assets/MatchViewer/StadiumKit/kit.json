@@ -1112,7 +1112,7 @@
    ],
    "materials": [
     "concrete",
-    "glass",
+    "curtain_glass",
     "painted_steel:white"
    ]
   },
@@ -1211,6 +1211,18 @@
     1,
     1
    ]
+  },
+  {
+   "id": "curtain_glass",
+   "baseColor": [
+    0.05,
+    0.075,
+    0.09
+   ],
+   "roughness": 0.06,
+   "metallic": 0.0,
+   "transmission": 0.0,
+   "emissive": 0.0
   },
   {
    "id": "flag_cloth",

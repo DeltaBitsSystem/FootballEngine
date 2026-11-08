@@ -381,7 +381,8 @@ def facade(lod=0, kind="fins", width=10.0, height=5.0):
     b.box((0, -0.1, height / 2), (0.5, 0.5, height), "concrete", tile=2.0)
     b.box((width / 2, 0.15, height - 0.15), (width, 0.3, 0.3), "concrete", tile=2.0)
     if kind == "fins":
-        b.box((width / 2, 0.3, height / 2), (width, 0.05, height), "glass", tile=2.0)
+        # Opaque reflective curtain wall: see-through glass showed the raw stand structure from aerial cameras.
+        b.box((width / 2, 0.3, height / 2), (width, 0.05, height), "curtain_glass", tile=2.0)
         n = int(width / 0.5) if lod == 0 else int(width / 1.0)
         for i in range(n):
             x = width * (i + 0.5) / n
