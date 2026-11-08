@@ -37,7 +37,8 @@ module WorldKernelTests =
           ExecutionSeed = 1UL
           MatchSeeds = Map.empty
           News = []
-          NextNewsId = 1 }
+          NextNewsId = 1
+          PulseProcessed = Set.empty }
 
     let worldKernelTests =
         testList

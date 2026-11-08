@@ -152,6 +152,7 @@ let matchNavigationTests =
                     MatchSeeds = Map.empty
                     News = []
                     NextNewsId = 1
+                    PulseProcessed = Set.empty
                     Market = MarketState.empty }
 
               let initial =

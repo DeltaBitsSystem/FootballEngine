@@ -29,7 +29,9 @@ type GameState =
       SeasonHistory: SeasonRecord list
       CareerHistory: ManagerCareerEvent list
       News: NewsItem list
-      NextNewsId: int }
+      NextNewsId: int
+      /// Played fixtures the pulse already absorbed; results can be committed after the day they are scheduled.
+      PulseProcessed: Set<MatchId> }
 
 module GameState =
 

@@ -473,5 +473,6 @@ module WorldGen =
                               CareerHistory = []
                               News = []
                               NextNewsId = 1
+                              PulseProcessed = Set.empty
                               ExecutionSeed = seed
                               MatchSeeds = Map.empty })

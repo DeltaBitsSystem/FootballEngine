@@ -294,7 +294,8 @@ module WorldRunner =
         (gs: GameState)
         : SeasonResult =
         let summary = SeasonPhase.computeSeasonSummary gs
-        let nextGs = SeasonPhase.runEndOfSeason balance gs
+        // A new season issues new fixtures; carried-over ids could make the pulse skip a result.
+        let nextGs = { SeasonPhase.runEndOfSeason balance gs with PulseProcessed = Set.empty }
         let nextClock =
             { WorldClockOps.init nextGs.Season with MatchExecutions = clock.MatchExecutions }
 

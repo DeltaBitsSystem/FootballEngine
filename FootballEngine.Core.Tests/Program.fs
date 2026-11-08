@@ -147,6 +147,7 @@ let main argv =
               competitionTests
               c07Tests
               worldGenerationTests
-              FootballEngine.Core.Tests.World.Pulse.WorldPulseTests.tests ]
+              FootballEngine.Core.Tests.World.Pulse.WorldPulseTests.tests
+              FootballEngine.Core.Tests.World.Pulse.MatchStoriesTests.tests ]
 
     runTestsWithCLIArgs [] argv tests

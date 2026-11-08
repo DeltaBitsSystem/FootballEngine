@@ -125,7 +125,18 @@ type WorldPulseConfig =
       DuplicateWindowDays: int
       InitialBoardConfidence: int
       InitialFansMood: int
-      RecentResultsKept: int }
+      RecentResultsKept: int
+      BigWinMargin: int
+      UpsetReputationGap: int
+      StreakThresholds: int list
+      StreakMajorLength: int
+      NewLeaderMinRound: int
+      HatTrickGoals: int
+      ScoringRunMatches: int
+      ClasicoLookaheadDays: int
+      ClasicoTopReputationCount: int
+      ClasicoMinMeetings: int
+      ClasicoMaxGoalDifference: int }
 
 module WorldPulseConfig =
 
@@ -137,7 +148,22 @@ module WorldPulseConfig =
           DuplicateWindowDays = 14
           InitialBoardConfidence = 60
           InitialFansMood = 60
-          RecentResultsKept = 10 }
+          RecentResultsKept = 10
+          BigWinMargin = 3
+          // Club reputation spans 500..9999 (ClubGen); 1500 is roughly the gap between a mid-table side and a
+          // top club, so a win across it is surprising without making upsets daily events.
+          UpsetReputationGap = 1500
+          // Capped by RecentResultsKept: a streak longer than the retained history can never be observed.
+          StreakThresholds = [ 3; 5; 8; 10 ]
+          StreakMajorLength = 8
+          // Two or three rounds of a table say nothing about who really leads.
+          NewLeaderMinRound = 3
+          HatTrickGoals = 3
+          ScoringRunMatches = 3
+          ClasicoLookaheadDays = 2
+          ClasicoTopReputationCount = 2
+          ClasicoMinMeetings = 4
+          ClasicoMaxGoalDifference = 2 }
 
     let validate (config: WorldPulseConfig) : string list =
         [ if config.NewsRetention < 1 then
@@ -155,4 +181,30 @@ module WorldPulseConfig =
           if config.InitialFansMood < 0 || config.InitialFansMood > 100 then
               yield "WorldPulse.InitialFansMood must be in [0, 100]"
           if config.RecentResultsKept < 1 then
-              yield "WorldPulse.RecentResultsKept must be >= 1" ]
+              yield "WorldPulse.RecentResultsKept must be >= 1"
+          if config.BigWinMargin < 2 then
+              yield "WorldPulse.BigWinMargin must be >= 2"
+          if config.UpsetReputationGap < 1 then
+              yield "WorldPulse.UpsetReputationGap must be >= 1"
+          if
+              config.StreakThresholds.IsEmpty
+              || config.StreakThresholds |> List.exists (fun n -> n < 2 || n > config.RecentResultsKept)
+              || config.StreakThresholds <> (config.StreakThresholds |> List.distinct |> List.sort)
+          then
+              yield "WorldPulse.StreakThresholds must be a non-empty ascending list within [2, RecentResultsKept]"
+          if config.StreakMajorLength < 2 then
+              yield "WorldPulse.StreakMajorLength must be >= 2"
+          if config.NewLeaderMinRound < 1 then
+              yield "WorldPulse.NewLeaderMinRound must be >= 1"
+          if config.HatTrickGoals < 2 then
+              yield "WorldPulse.HatTrickGoals must be >= 2"
+          if config.ScoringRunMatches < 2 then
+              yield "WorldPulse.ScoringRunMatches must be >= 2"
+          if config.ClasicoLookaheadDays < 1 then
+              yield "WorldPulse.ClasicoLookaheadDays must be >= 1"
+          if config.ClasicoTopReputationCount < 2 then
+              yield "WorldPulse.ClasicoTopReputationCount must be >= 2"
+          if config.ClasicoMinMeetings < 1 then
+              yield "WorldPulse.ClasicoMinMeetings must be >= 1"
+          if config.ClasicoMaxGoalDifference < 0 then
+              yield "WorldPulse.ClasicoMaxGoalDifference must be >= 0" ]

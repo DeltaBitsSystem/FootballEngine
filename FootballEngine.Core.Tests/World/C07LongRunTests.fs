@@ -101,7 +101,8 @@ module C07LongRunTests =
           ExecutionSeed = 1UL
           MatchSeeds = Map.empty
           News = []
-          NextNewsId = 1 }
+          NextNewsId = 1
+          PulseProcessed = Set.empty }
 
     let private finishFixtures (gs: GameState) =
         { gs with

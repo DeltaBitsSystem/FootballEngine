@@ -109,6 +109,7 @@ let private state date dataLock =
       MatchSeeds = Map.empty
       News = []
       NextNewsId = 1
+      PulseProcessed = Set.empty
       Market = MarketState.empty }
 
 let private saveSettings = SaveSettings.defaults
@@ -751,6 +752,7 @@ let fullStateTests =
                 Clubs = Map.ofList [ pulseClub.Id, pulseClub ]
                 News = news
                 NextNewsId = 3
+                PulseProcessed = Set.ofList [ 4; 9 ]
                 PendingNegotiations = Map.ofList [ negotiation.Id, negotiation ]
                 NextNegotiationId = 10
                 PlayerExperiences = Map.ofList [ 3, experience ]

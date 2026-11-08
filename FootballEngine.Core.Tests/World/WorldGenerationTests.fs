@@ -42,9 +42,9 @@ module WorldGenerationTests =
         | Ok value -> value
         | Error error -> failwithf "test dataset did not resolve: %A" error
 
-    let private startDate = DateTime(2034, 3, 17, 9, 30, 0, DateTimeKind.Utc)
+    let startDate = DateTime(2034, 3, 17, 9, 30, 0, DateTimeKind.Utc)
 
-    let private generate seed secondary =
+    let generate seed secondary =
         match WorldGen.generateNewGame resolved seed startDate "TST" "Test Manager" secondary with
         | Ok value -> value
         | Error error -> failtestf "generation failed: %A" error

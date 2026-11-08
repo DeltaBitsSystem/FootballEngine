@@ -5,6 +5,9 @@ open FootballEngine.Domain
 
 type NewsCandidate = NewsKind * NewsImportance * NewsScope * ClubId list * PlayerId list
 
+/// A detector reads confirmed facts and proposes stories; it never mutates state or decides visibility.
+type PulseDetector = GameState -> DateTime -> NewsCandidate list
+
 module NewsDesk =
 
     /// The user's top-flight league mirrors how the client shows "your league".
