@@ -21,36 +21,21 @@ module MatchPitchOverlay =
     let intelligenceWidth = 285.0
     let intelligenceHeight = 390.0
 
-module private WgpuNative =
-    [<UnmanagedFunctionPointer(CallingConvention.Cdecl)>]
-    type DevicePoll = delegate of nativeint * byte * nativeint -> byte
+module private GpuFacade =
+    /// The one place a GpuError becomes an exception; the viewer reports it through RenderWorker's onError.
+    let unwrap (result: Result<'T, GpuError>) : 'T =
+        match result with
+        | Ok value -> value
+        | Error error -> invalidOp (GpuError.describe error)
 
-    let nativeLibraryPath () =
-        let fileName =
-            if OperatingSystem.IsWindows() then "wgpu_native.dll"
-            elif OperatingSystem.IsMacOS() then "libwgpu_native.dylib"
-            else "libwgpu_native.so"
+    let dispose (value: #IDisposable) = value.Dispose()
 
-        let path =
-            Path.Combine(AppContext.BaseDirectory, "runtimes", RuntimeInformation.RuntimeIdentifier, "native", fileName)
-
-        if not (File.Exists path) then
-            invalidOp $"The WebGPU native runtime library was not packaged at {path}."
-
-        path
-
-module private SharedWebGpu =
-    let context = new DefaultNativeContext(WgpuNative.nativeLibraryPath ())
-    let api = new WebGPU(context)
-
-    let devicePoll =
-        context.Library.LoadFunction("wgpuDevicePoll")
-        |> Marshal.GetDelegateForFunctionPointer<WgpuNative.DevicePoll>
+open GpuFacade
 
 type private GpuDrawBatch =
     { MaterialName: string
-      VertexBuffer: nativeptr<Buffer>
-      IndexBuffer: nativeptr<Buffer>
+      VertexBuffer: GpuBuffer<GpuVertex>
+      IndexBuffer: GpuBuffer<uint32>
       IndexCount: uint32
       InstanceCount: uint32 }
 
@@ -103,7 +88,6 @@ type WebGpuStadiumRenderer
     let rootTransformCount = 25
     let carrierMarkerRoot = 24u
     let mutable cameraMode = defaultArg camera ViewerCamera.Broadcast
-    let api = SharedWebGpu.api
     let performanceClock = Diagnostics.Stopwatch.StartNew()
     let mutable lastPresentation: float option = None
     let mutable sampleMilliseconds = 0.0
@@ -132,20 +116,17 @@ type WebGpuStadiumRenderer
 
         lastPresentation <- Some now
 
-    let devicePoll = SharedWebGpu.devicePoll
     let mutable display = 0n
     let mutable window = 0un
-    let mutable instance = NativePtr.nullPtr<Instance>
-    let mutable surface = NativePtr.nullPtr<Surface>
-    let mutable adapter = NativePtr.nullPtr<Adapter>
-    let mutable device = NativePtr.nullPtr<Device>
-    let mutable queue = NativePtr.nullPtr<Queue>
+    let mutable gpu: GpuContext option = None
+    let mutable pipelines: RenderPipelineCache option = None
     let mutable shader = NativePtr.nullPtr<ShaderModule>
-    let mutable bindGroupLayout = NativePtr.nullPtr<BindGroupLayout>
-    let mutable pipelineLayout = NativePtr.nullPtr<PipelineLayout>
-    let mutable cameraBuffer = NativePtr.nullPtr<Buffer>
-    let mutable jointBuffer = NativePtr.nullPtr<Buffer>
+    let mutable sceneLayout = NativePtr.nullPtr<BindGroupLayout>
+    let mutable scenePipelineLayout = NativePtr.nullPtr<PipelineLayout>
+    let mutable scenePipeline = NativePtr.nullPtr<RenderPipeline>
     let mutable cameraBindGroup = NativePtr.nullPtr<BindGroup>
+    let mutable cameraBuffer: GpuBuffer<float32> option = None
+    let mutable jointBuffer: GpuBuffer<Matrix4x4> option = None
     let mutable shadows: DirectionalShadowPass option = None
     let mutable grassDetail: ProceduralScenePass option = None
     let mutable skyBackground: ProceduralScenePass option = None
@@ -159,20 +140,20 @@ type WebGpuStadiumRenderer
     let cameraUniformData =
         Array.zeroCreate<float32> (16 + rootTransformCount * 16 + 12 + 16 + 16)
 
-    let mutable characterAlbedo = NativePtr.nullPtr<Texture>
-    let mutable characterAlbedoView = NativePtr.nullPtr<TextureView>
-    let mutable characterDetail = NativePtr.nullPtr<Texture>
-    let mutable characterDetailView = NativePtr.nullPtr<TextureView>
-    let mutable characterSampler = NativePtr.nullPtr<Sampler>
-    let surfaceTextures = Array.create 3 (NativePtr.nullPtr<Texture>)
-    let surfaceViews = Array.create 3 (NativePtr.nullPtr<TextureView>)
-    let mutable surfaceSampler = NativePtr.nullPtr<Sampler>
-    let environmentTextures = Array.create 3 (NativePtr.nullPtr<Texture>)
-    let environmentViews = Array.create 3 (NativePtr.nullPtr<TextureView>)
-    let mutable environmentSampler = NativePtr.nullPtr<Sampler>
+    let environmentTextures = ResizeArray<GpuTexture>()
+    let mutable environmentSampler: GpuSampler option = None
+    let surfaceTextures = ResizeArray<GpuTexture>()
+    let mutable surfaceSampler: GpuSampler option = None
+    let mutable characterAlbedo: GpuTexture option = None
+    let mutable characterDetail: GpuTexture option = None
+    let mutable characterSampler: GpuSampler option = None
     let mutable hdrOutput: HdrOutputPass option = None
+
     let quality =
-        match ViewerQuality.ofTier (ViewerQualitySelection.current ()) |> ViewerQuality.validated with
+        match
+            ViewerQuality.ofTier (ViewerQualitySelection.current ())
+            |> ViewerQuality.validated
+        with
         | Ok selected -> selected
         // Presets are validated by tests; an invalid one must not cost the player the match view.
         | Error _ -> ViewerQuality.ultra
@@ -180,30 +161,26 @@ type WebGpuStadiumRenderer
     let environment = environmentPackage.Environment
 
     let surfacePack =
-        match timedLoad "surfaces" (fun () -> SurfaceTexturePack.load (Path.Combine(Path.GetDirectoryName assetPath, "Surfaces"))) with
+        match
+            timedLoad "surfaces" (fun () ->
+                SurfaceTexturePack.load (Path.Combine(Path.GetDirectoryName assetPath, "Surfaces")))
+        with
         | Ok pack -> pack
         | Error message -> invalidOp $"Cannot load stadium surface materials: {message}"
 
-    let mutable pipeline = NativePtr.nullPtr<RenderPipeline>
     let mutable hudShader = NativePtr.nullPtr<ShaderModule>
-    let mutable hudBindGroupLayout = NativePtr.nullPtr<BindGroupLayout>
+    let mutable hudLayout = NativePtr.nullPtr<BindGroupLayout>
     let mutable hudPipelineLayout = NativePtr.nullPtr<PipelineLayout>
     let mutable hudBindGroup = NativePtr.nullPtr<BindGroup>
     let mutable hudPipeline = NativePtr.nullPtr<RenderPipeline>
-    let mutable hudTexture = NativePtr.nullPtr<Texture>
+    let mutable hudTexture: GpuTexture option = None
+    let mutable hudSampler: GpuSampler option = None
     let mutable retainedHud: RetainedMatchHud option = None
     let mutable hudUploadBytes = 0L
-    let mutable hudTextureView = NativePtr.nullPtr<TextureView>
-    let mutable hudSampler = NativePtr.nullPtr<Sampler>
-    let mutable hudQuadVertexBuffer = NativePtr.nullPtr<Buffer>
-    let mutable hudQuadIndexBuffer = NativePtr.nullPtr<Buffer>
-    let mutable multisampleColorTexture = NativePtr.nullPtr<Texture>
-    let mutable multisampleColorView = NativePtr.nullPtr<TextureView>
-    let mutable depthTexture = NativePtr.nullPtr<Texture>
-    let mutable depthView = NativePtr.nullPtr<TextureView>
-    let mutable targetFormat = TextureFormat.Undefined
-    let mutable targetWidth = 0u
-    let mutable targetHeight = 0u
+    let mutable hudQuadVertexBuffer: GpuBuffer<GpuVertex> option = None
+    let mutable hudQuadIndexBuffer: GpuBuffer<uint32> option = None
+    let mutable multisampleColor: GpuTexture option = None
+    let mutable depthTarget: GpuTexture option = None
     let mutable lastBounds = PixelRect(0, 0, 0, 0)
     let mutable lastShapeBounds: PixelRect option = None
     let mutable lastCutouts: PixelRect array = [||]
@@ -218,53 +195,21 @@ type WebGpuStadiumRenderer
 
     let jointMatrices = Array.create (22 * character.JointCount) Matrix4x4.Identity
 
-    let nullVoid = NativePtr.toVoidPtr (NativePtr.nullPtr<byte>)
+    let mutable staticBatches: GpuDrawBatch array = [||]
+    let mutable dynamicBatches: GpuDrawBatch array = [||]
+    let mutable carrierMarkerBatch: GpuDrawBatch option = None
 
-    let errorCallback =
-        ErrorCallback(fun errorType message _ ->
-            let text = Marshal.PtrToStringUTF8(NativePtr.toNativeInt message)
-            Diagnostics.Trace.WriteLine($"WebGPU uncaptured error ({errorType}): {text}"))
+    let context () =
+        gpu
+        |> Option.defaultWith (fun () -> invalidOp "The WebGPU context was not created.")
 
-    let errorCallbackPointer = PfnErrorCallback.From(errorCallback)
+    let pipelineCache () =
+        pipelines
+        |> Option.defaultWith (fun () -> invalidOp "The WebGPU pipeline cache was not created.")
 
-    let checkPointer label pointer =
-        if NativePtr.toNativeInt pointer = 0n then
-            invalidOp $"WebGPU failed to create {label}."
-
-    let requestAdapter () =
-        let mutable requested = NativePtr.nullPtr<Adapter>
-
-        let callback =
-            RequestAdapterCallback(fun status value _ _ ->
-                if status = RequestAdapterStatus.Success then
-                    requested <- value)
-
-        use callbackPointer = PfnRequestAdapterCallback.From(callback)
-        let mutable options = RequestAdapterOptions()
-        options.CompatibleSurface <- surface
-        options.PowerPreference <- PowerPreference.HighPerformance
-        api.InstanceRequestAdapter(instance, &options, callbackPointer, nullVoid)
-        checkPointer "a surface-compatible adapter" requested
-        requested
-
-    let requestDevice () =
-        let mutable requested = NativePtr.nullPtr<Device>
-
-        let callback =
-            RequestDeviceCallback(fun status value _ _ ->
-                if status = RequestDeviceStatus.Success then
-                    requested <- value)
-
-        use callbackPointer = PfnRequestDeviceCallback.From(callback)
-        api.AdapterRequestDevice(adapter, NativePtr.nullPtr<DeviceDescriptor>, callbackPointer, nullVoid)
-        checkPointer "a device" requested
-        requested
-
-    let pinAndWrite buffer data =
-        GpuBuffer.write api queue buffer data
-
-    let createBuffer label usage data =
-        GpuBuffer.create api device queue label usage data
+    let releaseBatch (batch: GpuDrawBatch) =
+        (batch.VertexBuffer :> IDisposable).Dispose()
+        (batch.IndexBuffer :> IDisposable).Dispose()
 
     let createGpuBatch
         (materialName: string)
@@ -274,12 +219,20 @@ type WebGpuStadiumRenderer
         if indices.Length = 0 then
             None
         else
+            let ctx = context ()
+
             let vertexBuffer =
-                createBuffer $"{materialName} vertices" (BufferUsage.Vertex ||| BufferUsage.CopyDst) vertices
+                unwrap (
+                    GpuBuffer<GpuVertex>
+                        .Create(ctx, $"{materialName} vertices", BufferUsage.Vertex ||| BufferUsage.CopyDst, vertices)
+                )
 
             try
                 let indexBuffer =
-                    createBuffer $"{materialName} indices" (BufferUsage.Index ||| BufferUsage.CopyDst) indices
+                    unwrap (
+                        GpuBuffer<uint32>
+                            .Create(ctx, $"{materialName} indices", BufferUsage.Index ||| BufferUsage.CopyDst, indices)
+                    )
 
                 Some
                     { MaterialName = materialName
@@ -288,16 +241,8 @@ type WebGpuStadiumRenderer
                       IndexCount = uint32 indices.Length
                       InstanceCount = 1u }
             with _ ->
-                api.BufferRelease(vertexBuffer)
+                (vertexBuffer :> IDisposable).Dispose()
                 reraise ()
-
-    let mutable staticBatches: GpuDrawBatch array = [||]
-    let mutable dynamicBatches: GpuDrawBatch array = [||]
-    let mutable carrierMarkerBatch: GpuDrawBatch option = None
-
-    let releaseBatch batch =
-        api.BufferRelease(batch.VertexBuffer)
-        api.BufferRelease(batch.IndexBuffer)
 
     let createGpuBatches (batches: (string * GpuVertex[] * uint32[])[]) =
         let created = ResizeArray<GpuDrawBatch>()
@@ -364,293 +309,525 @@ type WebGpuStadiumRenderer
 
         createGpuBatch "ball-carrier focus marker" (vertices.ToArray()) (indices.ToArray())
 
-    let mutable surfaceConfigured = false
-
     let configureSurface (width: uint32) (height: uint32) =
-        let mutable capabilities = SurfaceCapabilities()
-        api.SurfaceGetCapabilities(surface, adapter, &capabilities)
+        let ctx = context ()
+        unwrap (ctx.Configure(width, height))
 
-        let formats =
-            Array.init (int capabilities.FormatCount) (fun index ->
-                NativePtr.read (NativePtr.add capabilities.Formats index))
-
-        let alphaModes =
-            Array.init (int capabilities.AlphaModeCount) (fun index ->
-                NativePtr.read (NativePtr.add capabilities.AlphaModes index))
-
-        let presentModes =
-            Array.init (int capabilities.PresentModeCount) (fun index ->
-                NativePtr.read (NativePtr.add capabilities.PresentModes index))
-
-        // Hardware sRGB encoding keeps both scene output and premultiplied HUD blending in linear light.
-        let outputFormat =
-            [ TextureFormat.Bgra8UnormSrgb; TextureFormat.Rgba8UnormSrgb ]
-            |> List.tryFind (fun format -> Array.contains format formats)
-
-        let previousFormat = targetFormat
-
-        let alphaMode =
-            if Array.contains CompositeAlphaMode.Opaque alphaModes then
-                CompositeAlphaMode.Opaque
-            else
-                alphaModes
-                |> Array.tryHead
-                |> Option.defaultWith (fun () -> invalidOp "The WebGPU surface reports no supported alpha modes.")
-
-        let presentMode =
-            if Array.contains PresentMode.Mailbox presentModes then
-                PresentMode.Mailbox
-            // FIFO remains a supported presentation mode, not a legacy renderer or quality fallback.
-            else if Array.contains PresentMode.Fifo presentModes then
-                PresentMode.Fifo
-            else
-                invalidOp "The WebGPU renderer requires tear-free mailbox or FIFO presentation."
-
-        api.SurfaceCapabilitiesFreeMembers(capabilities)
-
-        targetFormat <-
-            outputFormat
-            |> Option.defaultWith (fun () -> invalidOp "The HDR renderer requires an sRGB presentation surface.")
-
-        if previousFormat <> TextureFormat.Undefined && previousFormat <> targetFormat then
-            invalidOp
-                "The presentation format changed; recreate the HDR renderer instead of reusing incompatible pipelines."
-
-        let mutable configuration = SurfaceConfiguration()
-        configuration.Device <- device
-        configuration.Format <- targetFormat
-        configuration.Usage <- TextureUsage.RenderAttachment
-        configuration.AlphaMode <- alphaMode
-        configuration.Width <- width
-        configuration.Height <- height
-        configuration.PresentMode <- presentMode
-        Diagnostics.Trace.WriteLine($"WebGPU presentation: {presentMode}, {width}x{height}.")
-        api.SurfaceConfigure(surface, &configuration)
-        surfaceConfigured <- true
-        targetWidth <- width
-        targetHeight <- height
-
+        // The HDR pass owns the scene target and bloom chain; it is created once and resized on every surface change.
         let output =
             match hdrOutput with
             | Some output -> output
             | None ->
                 let output =
-                    new HdrOutputPass(api, device, queue, targetFormat, lighting, quality, BroadcastGrade.standard)
+                    unwrap (
+                        HdrOutputPass.Create(
+                            ctx,
+                            pipelineCache (),
+                            lighting,
+                            quality,
+                            BroadcastGrade.standard,
+                            ctx.Format
+                        )
+                    )
 
                 hdrOutput <- Some output
                 output
 
-        if NativePtr.toNativeInt multisampleColorView <> 0n then
-            api.TextureViewRelease(multisampleColorView)
-            multisampleColorView <- NativePtr.nullPtr<TextureView>
+        multisampleColor |> Option.iter dispose
+        multisampleColor <- None
+        depthTarget |> Option.iter dispose
+        depthTarget <- None
 
-        if NativePtr.toNativeInt multisampleColorTexture <> 0n then
-            api.TextureDestroy(multisampleColorTexture)
-            api.TextureRelease(multisampleColorTexture)
-            multisampleColorTexture <- NativePtr.nullPtr<Texture>
+        let color =
+            unwrap (
+                GpuTexture.Create(
+                    ctx,
+                    { Label = $"a {multisampleCount}x multisampled color texture"
+                      Format = TextureFormat.Rgba16float
+                      Width = width
+                      Height = height
+                      Layers = 1u
+                      MipLevels = 1u
+                      Samples = multisampleCount
+                      Usage = TextureUsage.RenderAttachment }
+                )
+            )
 
-        if NativePtr.toNativeInt depthView <> 0n then
-            api.TextureViewRelease(depthView)
-            depthView <- NativePtr.nullPtr<TextureView>
+        multisampleColor <- Some color
 
-        if NativePtr.toNativeInt depthTexture <> 0n then
-            api.TextureDestroy(depthTexture)
-            api.TextureRelease(depthTexture)
-            depthTexture <- NativePtr.nullPtr<Texture>
-
-        let mutable colorDescriptor = TextureDescriptor()
-        colorDescriptor.Usage <- TextureUsage.RenderAttachment
-        colorDescriptor.Dimension <- TextureDimension.Dimension2D
-        colorDescriptor.Size <- Extent3D(width, height, 1u)
-        colorDescriptor.Format <- TextureFormat.Rgba16float
-        colorDescriptor.MipLevelCount <- 1u
-        colorDescriptor.SampleCount <- multisampleCount
-        multisampleColorTexture <- api.DeviceCreateTexture(device, &colorDescriptor)
-        checkPointer $"a {multisampleCount}x multisampled color texture" multisampleColorTexture
-        multisampleColorView <- api.TextureCreateView(multisampleColorTexture, NativePtr.nullPtr<TextureViewDescriptor>)
-        checkPointer $"a {multisampleCount}x multisampled color texture view" multisampleColorView
-
-        let mutable textureDescriptor = TextureDescriptor()
         // The post chain reads scene depth for ambient occlusion, so it must be bindable and kept after the pass.
-        textureDescriptor.Usage <- TextureUsage.RenderAttachment ||| TextureUsage.TextureBinding
-        textureDescriptor.Dimension <- TextureDimension.Dimension2D
-        textureDescriptor.Size <- Extent3D(width, height, 1u)
-        textureDescriptor.Format <- TextureFormat.Depth24Plus
-        textureDescriptor.MipLevelCount <- 1u
-        textureDescriptor.SampleCount <- multisampleCount
-        depthTexture <- api.DeviceCreateTexture(device, &textureDescriptor)
-        checkPointer "a depth texture" depthTexture
-        depthView <- api.TextureCreateView(depthTexture, NativePtr.nullPtr<TextureViewDescriptor>)
-        checkPointer "a depth texture view" depthView
-        output.Resize(width, height, depthView)
+        let depth =
+            unwrap (
+                GpuTexture.Create(
+                    ctx,
+                    { Label = "a depth texture"
+                      Format = TextureFormat.Depth24Plus
+                      Width = width
+                      Height = height
+                      Layers = 1u
+                      MipLevels = 1u
+                      Samples = multisampleCount
+                      Usage = TextureUsage.RenderAttachment ||| TextureUsage.TextureBinding }
+                )
+            )
 
-    let uploadCharacterTexture (texture: nativeptr<Texture>) (data: CharacterTextureData) =
+        depthTarget <- Some depth
+        unwrap (output.Resize(width, height, depth))
+
+    let configureHudTexture (width: uint32) (height: uint32) =
+        let ctx = context ()
+        retainedHud |> Option.iter dispose
+        retainedHud <- Some(new RetainedMatchHud(int width, int height))
+
+        if not (GpuPointer.isMissing hudBindGroup) then
+            ctx.Api.BindGroupRelease(hudBindGroup)
+            hudBindGroup <- NativePtr.nullPtr<BindGroup>
+
+        hudTexture |> Option.iter dispose
+        hudTexture <- None
+
+        let texture =
+            unwrap (
+                GpuTexture.Create(
+                    ctx,
+                    { Label = "the match HUD texture"
+                      Format = TextureFormat.Rgba8Unorm
+                      Width = width
+                      Height = height
+                      Layers = 1u
+                      MipLevels = 1u
+                      Samples = 1u
+                      Usage = TextureUsage.TextureBinding ||| TextureUsage.CopyDst }
+                )
+            )
+
+        hudTexture <- Some texture
+
+        hudBindGroup <-
+            unwrap (
+                BindGroups.create
+                    ctx
+                    "the match HUD texture bind group"
+                    hudLayout
+                    [ BindGroups.view 0u texture.View
+                      BindGroups.sampler 1u hudSampler.Value.Handle ]
+            )
+
+    let uploadHudRegion (hud: RetainedMatchHud) (region: SkiaSharp.SKRectI) =
+        let pointer = hud.Pixels + nativeint (region.Top * hud.RowBytes + region.Left * 4)
+        let length = (region.Height - 1) * hud.RowBytes + region.Width * 4
+
+        hudTexture.Value.UploadRegion(
+            uint32 region.Left,
+            uint32 region.Top,
+            uint32 region.Width,
+            uint32 region.Height,
+            uint32 hud.RowBytes,
+            pointer,
+            length
+        )
+
+        hudUploadBytes <- hudUploadBytes + int64 (region.Width * region.Height * 4)
+
+    let mutable cameraFocus = Vector3(0.0f, 1.0f, 0.0f)
+
+    let updateCamera width height =
+        let aspect = float32 width / float32 height
+        let cameraFrame = ViewerCamera.frame cameraMode aspect cameraFocus
+        // At broadcast height these blades are subpixel; drawing them would add shimmer instead of detail.
+        showGrassDetail <- cameraFrame.Position.Y < 12.0f
+        let cameraPosition = cameraFrame.Position
+        let cameraOffset = 16 + rootTransformCount * 16
+        cameraUniformData[cameraOffset] <- cameraPosition.X
+        cameraUniformData[cameraOffset + 1] <- cameraPosition.Y
+        cameraUniformData[cameraOffset + 2] <- cameraPosition.Z
+        // position.w carries a wrapped clock for grass wind; no shader uses it as a homogeneous coordinate.
+        cameraUniformData[cameraOffset + 3] <- float32 (windSeconds () % 3600.0)
+        let matrix = ViewerCamera.viewProjection aspect cameraFrame
+
+        hdrOutput
+        |> Option.iter (fun output ->
+            output.SetCamera(cameraFrame.NearPlane, cameraFrame.FarPlane, cameraFrame.FieldOfView, aspect))
+
+        cameraUniformData[0] <- matrix.M11
+        cameraUniformData[1] <- matrix.M12
+        cameraUniformData[2] <- matrix.M13
+        cameraUniformData[3] <- matrix.M14
+        cameraUniformData[4] <- matrix.M21
+        cameraUniformData[5] <- matrix.M22
+        cameraUniformData[6] <- matrix.M23
+        cameraUniformData[7] <- matrix.M24
+        cameraUniformData[8] <- matrix.M31
+        cameraUniformData[9] <- matrix.M32
+        cameraUniformData[10] <- matrix.M33
+        cameraUniformData[11] <- matrix.M34
+        cameraUniformData[12] <- matrix.M41
+        cameraUniformData[13] <- matrix.M42
+        cameraUniformData[14] <- matrix.M43
+        cameraUniformData[15] <- matrix.M44
+
+        let lightOffset = 16 + rootTransformCount * 16 + 12
+        Array.Copy(shadowMatrixData, 0, cameraUniformData, lightOffset, 16)
+        let mutable inverse = Matrix4x4.Identity
+
+        if not (Matrix4x4.Invert(matrix, &inverse)) then
+            invalidOp "The viewer camera produced a singular projection."
+
+        let inverseOffset = lightOffset + 16
+        cameraUniformData[inverseOffset] <- inverse.M11
+        cameraUniformData[inverseOffset + 1] <- inverse.M12
+        cameraUniformData[inverseOffset + 2] <- inverse.M13
+        cameraUniformData[inverseOffset + 3] <- inverse.M14
+        cameraUniformData[inverseOffset + 4] <- inverse.M21
+        cameraUniformData[inverseOffset + 5] <- inverse.M22
+        cameraUniformData[inverseOffset + 6] <- inverse.M23
+        cameraUniformData[inverseOffset + 7] <- inverse.M24
+        cameraUniformData[inverseOffset + 8] <- inverse.M31
+        cameraUniformData[inverseOffset + 9] <- inverse.M32
+        cameraUniformData[inverseOffset + 10] <- inverse.M33
+        cameraUniformData[inverseOffset + 11] <- inverse.M34
+        cameraUniformData[inverseOffset + 12] <- inverse.M41
+        cameraUniformData[inverseOffset + 13] <- inverse.M42
+        cameraUniformData[inverseOffset + 14] <- inverse.M43
+        cameraUniformData[inverseOffset + 15] <- inverse.M44
+
+    let updatePlayersAndBall (frame: RenderFrame) (palettes: Matrix4x4[]) =
+        if palettes.Length <> jointMatrices.Length then
+            invalidArg "palettes" "procedural palette cardinality does not match the canonical rig"
+
+        Array.Copy(palettes, jointMatrices, palettes.Length)
+        let states: RenderPlayer option array = Array.create 22 None
+        let mutable carrier = None
+
+        for player in frame.Players do
+            if player.HasBall then
+                match carrier with
+                | None -> carrier <- Some player
+                | Some _ -> invalidArg "frame" "a render frame cannot have multiple ball carriers"
+
+            let slot = player.VisualSlot
+
+            if slot < 0 || slot >= 11 then
+                invalidArg "frame" $"player {player.Id} has invalid visual slot {slot}"
+
+            let root = (if player.IsHome then 0 else 11) + slot
+
+            if states[root].IsSome then
+                invalidArg "frame" $"multiple players occupy visual slot {slot} for the same team"
+
+            states[root] <- Some player
+
+        let hidden = Matrix4x4.CreateTranslation(0.0f, -100000.0f, 0.0f)
+        let transforms: Matrix4x4 array = Array.create rootTransformCount hidden
+        transforms[23] <- Matrix4x4.Identity
+
+        for root = 0 to 21 do
+            let transform =
+                match states[root] with
+                | Some player ->
+                    let yaw = float32 player.BodyFacing + MathF.PI / 2.0f
+
+                    let position =
+                        Vector3(float32 player.Position.X, float32 player.Height, -float32 player.Position.Y)
+
+                    let transform =
+                        Matrix4x4.CreateRotationY(yaw) * Matrix4x4.CreateTranslation(position)
+
+                    transform
+                | None -> hidden
+
+            transforms[root] <- transform
+
+        jointBuffer.Value.Write(jointMatrices)
+
+        let ball = frame.Ball
+        let ballRadius = float32 ball.Radius
+        let ballScale = ballRadius / scene.BallRadius
+        // Core is Z-up; the viewer is Y-up with pitch Y mapped to negative Z.
+        let q = ball.Orientation
+        let ballRotation = Quaternion(q.X, q.Z, -q.Y, q.W)
+
+        let ballPosition =
+            Vector3(float32 ball.Position.X, ballRadius + float32 ball.Height, -float32 ball.Position.Y)
+
+        transforms[22] <-
+            Matrix4x4.CreateScale(ballScale)
+            * Matrix4x4.CreateFromQuaternion(ballRotation)
+            * Matrix4x4.CreateTranslation(ballPosition)
+
+        match carrier with
+        | Some player ->
+            let position = Vector3(float32 player.Position.X, 0.0f, -float32 player.Position.Y)
+            cameraFocus <- Vector3(position.X, 1.0f, position.Z)
+            transforms[24] <- Matrix4x4.CreateTranslation(position)
+        | None ->
+            // A lob changes ball height, not the sideline camera's framing of the pitch.
+            cameraFocus <- Vector3(ballPosition.X, 1.0f, ballPosition.Z)
+            transforms[24] <- hidden
+
+        for root = 0 to transforms.Length - 1 do
+            let matrix = transforms[root]
+            let offset = 16 + root * 16
+            cameraUniformData[offset] <- matrix.M11
+            cameraUniformData[offset + 1] <- matrix.M12
+            cameraUniformData[offset + 2] <- matrix.M13
+            cameraUniformData[offset + 3] <- matrix.M14
+            cameraUniformData[offset + 4] <- matrix.M21
+            cameraUniformData[offset + 5] <- matrix.M22
+            cameraUniformData[offset + 6] <- matrix.M23
+            cameraUniformData[offset + 7] <- matrix.M24
+            cameraUniformData[offset + 8] <- matrix.M31
+            cameraUniformData[offset + 9] <- matrix.M32
+            cameraUniformData[offset + 10] <- matrix.M33
+            cameraUniformData[offset + 11] <- matrix.M34
+            cameraUniformData[offset + 12] <- matrix.M41
+            cameraUniformData[offset + 13] <- matrix.M42
+            cameraUniformData[offset + 14] <- matrix.M43
+            cameraUniformData[offset + 15] <- matrix.M44
+
+        let ctx = context ()
+        updateCamera ctx.Width ctx.Height
+        let lightingOffset = 16 + rootTransformCount * 16 + 4
+        cameraUniformData[lightingOffset] <- lighting.SunDirection.X
+        cameraUniformData[lightingOffset + 1] <- lighting.SunDirection.Y
+        cameraUniformData[lightingOffset + 2] <- lighting.SunDirection.Z
+        cameraUniformData[lightingOffset + 3] <- lighting.EnvironmentIntensity
+        cameraUniformData[lightingOffset + 4] <- lighting.SunRadiance.X
+        cameraUniformData[lightingOffset + 5] <- lighting.SunRadiance.Y
+        cameraUniformData[lightingOffset + 6] <- lighting.SunRadiance.Z
+        cameraBuffer.Value.Write(cameraUniformData)
+
+    let updateWindow (bounds: PixelRect) =
+        if bounds.Width > 0 && bounds.Height > 0 && bounds <> lastBounds then
+            X11ChildWindow.moveResize display window bounds
+            X11ChildWindow.flush display
+            lastBounds <- bounds
+
+            let width = uint32 bounds.Width
+            let height = uint32 bounds.Height
+
+            let ctx = context ()
+
+            if width <> ctx.Width || height <> ctx.Height then
+                configureSurface width height
+                updateCamera width height
+                configureHudTexture width height
+
+    let updateWindowShape (bounds: PixelRect) (cutouts: PixelRect array) =
+        let sameRect (left: PixelRect) (right: PixelRect) =
+            left.X = right.X
+            && left.Y = right.Y
+            && left.Width = right.Width
+            && left.Height = right.Height
+
+        let sameCutouts =
+            cutouts.Length = lastCutouts.Length
+            && Array.forall2 sameRect cutouts lastCutouts
+
+        let sameBounds = lastShapeBounds |> Option.exists (sameRect bounds)
+
+        if not (sameBounds && sameCutouts) then
+            // Carving these regions out lets Avalonia draw and receive clicks through its native WebGPU child.
+            X11ChildWindow.setShape display window (X11ChildWindow.cutoutRectangles bounds cutouts)
+            X11ChildWindow.flush display
+            lastShapeBounds <- Some bounds
+            lastCutouts <- Array.copy cutouts
+
+
+    let uploadCharacterLevels (texture: GpuTexture) (data: CharacterTextureData) =
         for level = 0 to data.Levels.Length - 1 do
             let mip = data.Levels[level]
-            let mutable destination = ImageCopyTexture()
-            destination.Texture <- texture
-            destination.MipLevel <- uint32 level
-            destination.Aspect <- TextureAspect.All
-            let mutable layout = TextureDataLayout()
-            layout.BytesPerRow <- uint32 (mip.Width * 4)
-            layout.RowsPerImage <- uint32 mip.Height
-            let extent = Extent3D(uint32 mip.Width, uint32 mip.Height, 1u)
-            use pointer = fixed mip.Pixels
 
-            api.QueueWriteTexture(
-                queue,
-                &destination,
-                NativePtr.toVoidPtr pointer,
-                unativeint mip.Pixels.Length,
-                &layout,
-                &extent
+            texture.UploadLevel(
+                uint32 level,
+                uint32 mip.Width,
+                uint32 mip.Height,
+                1u,
+                uint32 (mip.Width * 4),
+                mip.Pixels,
+                0,
+                mip.Pixels.Length
             )
 
     let createShaderAndPipeline () =
-        for index, pixels, width, height, layers, format, bytesPerPixel in
-            [ 0,
-              environment.Environment,
+        let ctx = context ()
+        let cache = pipelineCache ()
+
+        let environmentLevels =
+            [ environment.Environment,
               environment.Width,
               environment.Height,
               environment.Layers,
               TextureFormat.Rgba16float,
               8
-              1, environment.Brdf, environment.LutSize, environment.LutSize, 1, TextureFormat.RG16float, 4
-              2, environment.Sky, environment.SkyWidth, environment.SkyHeight, 1, TextureFormat.Rgba16float, 8 ] do
-            let mutable descriptor = TextureDescriptor()
-            descriptor.Dimension <- TextureDimension.Dimension2D
-            descriptor.Size <- Extent3D(uint32 width, uint32 height, uint32 layers)
-            descriptor.Format <- format
-            descriptor.MipLevelCount <- 1u
-            descriptor.SampleCount <- 1u
-            descriptor.Usage <- TextureUsage.TextureBinding ||| TextureUsage.CopyDst
-            environmentTextures[index] <- api.DeviceCreateTexture(device, &descriptor)
-            checkPointer "a floating-point IBL texture" environmentTextures[index]
+              environment.Brdf, environment.LutSize, environment.LutSize, 1, TextureFormat.RG16float, 4
+              environment.Sky, environment.SkyWidth, environment.SkyHeight, 1, TextureFormat.Rgba16float, 8 ]
 
-            environmentViews[index] <-
-                api.TextureCreateView(environmentTextures[index], NativePtr.nullPtr<TextureViewDescriptor>)
+        for pixels, width, height, layers, format, bytesPerPixel in environmentLevels do
+            let texture =
+                unwrap (
+                    GpuTexture.Create(
+                        ctx,
+                        { Label = "a floating-point IBL texture"
+                          Format = format
+                          Width = uint32 width
+                          Height = uint32 height
+                          Layers = uint32 layers
+                          MipLevels = 1u
+                          Samples = 1u
+                          Usage = TextureUsage.TextureBinding ||| TextureUsage.CopyDst }
+                    )
+                )
 
-            checkPointer "a floating-point IBL view" environmentViews[index]
-            let mutable destination = ImageCopyTexture()
-            destination.Texture <- environmentTextures[index]
-            destination.Aspect <- TextureAspect.All
-            let mutable layout = TextureDataLayout()
-            layout.BytesPerRow <- uint32 (width * bytesPerPixel)
-            layout.RowsPerImage <- uint32 height
-            let extent = Extent3D(uint32 width, uint32 height, uint32 layers)
-            use pointer = fixed pixels
-
-            api.QueueWriteTexture(
-                queue,
-                &destination,
-                NativePtr.toVoidPtr pointer,
-                unativeint pixels.Length,
-                &layout,
-                &extent
+            texture.UploadLevel(
+                0u,
+                uint32 width,
+                uint32 height,
+                uint32 layers,
+                uint32 (width * bytesPerPixel),
+                pixels,
+                0,
+                pixels.Length
             )
 
-        let mutable environmentSamplerDescriptor = SamplerDescriptor()
-        environmentSamplerDescriptor.AddressModeU <- AddressMode.Repeat
-        environmentSamplerDescriptor.AddressModeV <- AddressMode.ClampToEdge
-        environmentSamplerDescriptor.AddressModeW <- AddressMode.ClampToEdge
-        environmentSamplerDescriptor.MinFilter <- FilterMode.Linear
-        environmentSamplerDescriptor.MagFilter <- FilterMode.Linear
-        environmentSamplerDescriptor.MipmapFilter <- MipmapFilterMode.Linear
-        environmentSamplerDescriptor.MaxAnisotropy <- 1us
-        environmentSamplerDescriptor.LodMaxClamp <- 1.0f
-        environmentSampler <- api.DeviceCreateSampler(device, &environmentSamplerDescriptor)
-        checkPointer "the HDR environment sampler" environmentSampler
+            environmentTextures.Add texture
+
+        environmentSampler <-
+            Some(
+                unwrap (
+                    GpuSampler.Create(
+                        ctx,
+                        "the HDR environment sampler",
+                        { AddressU = AddressMode.Repeat
+                          AddressV = AddressMode.ClampToEdge
+                          AddressW = AddressMode.ClampToEdge
+                          Magnification = FilterMode.Linear
+                          Minification = FilterMode.Linear
+                          Mipmap = MipmapFilterMode.Linear
+                          MaxAnisotropy = 1us
+                          LodMaxClamp = 1.0f
+                          Compare = None }
+                    )
+                )
+            )
 
         for index, pixels in [ 0, surfacePack.Albedo; 1, surfacePack.Normal; 2, surfacePack.Arm ] do
-            let mutable descriptor = TextureDescriptor()
-            descriptor.Usage <- TextureUsage.TextureBinding ||| TextureUsage.CopyDst
-            descriptor.Dimension <- TextureDimension.Dimension2D
-            descriptor.Size <- Extent3D(uint32 surfacePack.Size, uint32 surfacePack.Size, uint32 surfacePack.Layers)
-            descriptor.MipLevelCount <- uint32 surfacePack.Levels
-            descriptor.SampleCount <- 1u
-
-            descriptor.Format <-
+            let format =
                 if index = 0 then
                     TextureFormat.Rgba8UnormSrgb
                 else
                     TextureFormat.Rgba8Unorm
 
-            surfaceTextures[index] <- api.DeviceCreateTexture(device, &descriptor)
-            checkPointer "a surface material array" surfaceTextures[index]
+            let texture =
+                unwrap (
+                    GpuTexture.Create(
+                        ctx,
+                        { Label = "a surface material array"
+                          Format = format
+                          Width = uint32 surfacePack.Size
+                          Height = uint32 surfacePack.Size
+                          Layers = uint32 surfacePack.Layers
+                          MipLevels = uint32 surfacePack.Levels
+                          Samples = 1u
+                          Usage = TextureUsage.TextureBinding ||| TextureUsage.CopyDst }
+                    )
+                )
 
-            surfaceViews[index] <-
-                api.TextureCreateView(surfaceTextures[index], NativePtr.nullPtr<TextureViewDescriptor>)
-
-            checkPointer "a surface material array view" surfaceViews[index]
             let mutable offset = 0
 
             for level = 0 to surfacePack.Levels - 1 do
                 let width = surfacePack.Size >>> level
                 let bytes = width * width * surfacePack.Layers * 4
-                let mutable destination = ImageCopyTexture()
-                destination.Texture <- surfaceTextures[index]
-                destination.MipLevel <- uint32 level
-                destination.Aspect <- TextureAspect.All
-                let mutable layout = TextureDataLayout()
-                layout.BytesPerRow <- uint32 (width * 4)
-                layout.RowsPerImage <- uint32 width
-                let extent = Extent3D(uint32 width, uint32 width, uint32 surfacePack.Layers)
-                use pointer = fixed pixels
 
-                api.QueueWriteTexture(
-                    queue,
-                    &destination,
-                    NativePtr.toVoidPtr (NativePtr.add pointer offset),
-                    unativeint bytes,
-                    &layout,
-                    &extent
+                texture.UploadLevel(
+                    uint32 level,
+                    uint32 width,
+                    uint32 width,
+                    uint32 surfacePack.Layers,
+                    uint32 (width * 4),
+                    pixels,
+                    offset,
+                    bytes
                 )
 
                 offset <- offset + bytes
 
-        let mutable surfaceSamplerDescriptor = SamplerDescriptor()
-        surfaceSamplerDescriptor.AddressModeU <- AddressMode.Repeat
-        surfaceSamplerDescriptor.AddressModeV <- AddressMode.Repeat
-        surfaceSamplerDescriptor.AddressModeW <- AddressMode.Repeat
-        surfaceSamplerDescriptor.MinFilter <- FilterMode.Linear
-        surfaceSamplerDescriptor.MagFilter <- FilterMode.Linear
-        surfaceSamplerDescriptor.MipmapFilter <- MipmapFilterMode.Linear
-        surfaceSamplerDescriptor.LodMaxClamp <- float32 (surfacePack.Levels - 1)
-        surfaceSamplerDescriptor.MaxAnisotropy <- 8us
-        surfaceSampler <- api.DeviceCreateSampler(device, &surfaceSamplerDescriptor)
-        checkPointer "the surface material sampler" surfaceSampler
-        let mutable textureDescriptor = TextureDescriptor()
-        textureDescriptor.Usage <- TextureUsage.TextureBinding ||| TextureUsage.CopyDst
-        textureDescriptor.Dimension <- TextureDimension.Dimension2D
+            surfaceTextures.Add texture
 
-        textureDescriptor.Size <-
-            Extent3D(uint32 character.Albedo.Levels[0].Width, uint32 character.Albedo.Levels[0].Height, 1u)
+        surfaceSampler <-
+            Some(
+                unwrap (
+                    GpuSampler.Create(
+                        ctx,
+                        "the surface material sampler",
+                        { AddressU = AddressMode.Repeat
+                          AddressV = AddressMode.Repeat
+                          AddressW = AddressMode.Repeat
+                          Magnification = FilterMode.Linear
+                          Minification = FilterMode.Linear
+                          Mipmap = MipmapFilterMode.Linear
+                          MaxAnisotropy = 8us
+                          LodMaxClamp = float32 (surfacePack.Levels - 1)
+                          Compare = None }
+                    )
+                )
+            )
+
         // Stop before atlas tiles collapse into one another; mip filtering suppresses distant fabric shimmer.
-        textureDescriptor.MipLevelCount <- uint32 character.Albedo.Levels.Length
-        textureDescriptor.SampleCount <- 1u
-        textureDescriptor.Format <- TextureFormat.Rgba8UnormSrgb
-        characterAlbedo <- api.DeviceCreateTexture(device, &textureDescriptor)
-        checkPointer "the athlete albedo atlas" characterAlbedo
-        characterAlbedoView <- api.TextureCreateView(characterAlbedo, NativePtr.nullPtr<TextureViewDescriptor>)
-        checkPointer "the athlete albedo view" characterAlbedoView
-        uploadCharacterTexture characterAlbedo character.Albedo
-        textureDescriptor.Format <- TextureFormat.Rgba8Unorm
-        characterDetail <- api.DeviceCreateTexture(device, &textureDescriptor)
-        checkPointer "the athlete normal/roughness atlas" characterDetail
-        characterDetailView <- api.TextureCreateView(characterDetail, NativePtr.nullPtr<TextureViewDescriptor>)
-        checkPointer "the athlete normal/roughness view" characterDetailView
-        uploadCharacterTexture characterDetail character.NormalRoughness
-        let mutable samplerDescriptor = SamplerDescriptor()
-        samplerDescriptor.AddressModeU <- AddressMode.ClampToEdge
-        samplerDescriptor.AddressModeV <- AddressMode.ClampToEdge
-        samplerDescriptor.AddressModeW <- AddressMode.ClampToEdge
-        samplerDescriptor.MagFilter <- FilterMode.Linear
-        samplerDescriptor.MinFilter <- FilterMode.Linear
-        samplerDescriptor.MipmapFilter <- MipmapFilterMode.Linear
-        samplerDescriptor.LodMaxClamp <- 8.0f
-        samplerDescriptor.MaxAnisotropy <- 1us
-        characterSampler <- api.DeviceCreateSampler(device, &samplerDescriptor)
-        checkPointer "the athlete texture sampler" characterSampler
+        let albedo =
+            unwrap (
+                GpuTexture.Create(
+                    ctx,
+                    { Label = "the athlete albedo atlas"
+                      Format = TextureFormat.Rgba8UnormSrgb
+                      Width = uint32 character.Albedo.Levels[0].Width
+                      Height = uint32 character.Albedo.Levels[0].Height
+                      Layers = 1u
+                      MipLevels = uint32 character.Albedo.Levels.Length
+                      Samples = 1u
+                      Usage = TextureUsage.TextureBinding ||| TextureUsage.CopyDst }
+                )
+            )
+
+        uploadCharacterLevels albedo character.Albedo
+        characterAlbedo <- Some albedo
+
+        let detail =
+            unwrap (
+                GpuTexture.Create(
+                    ctx,
+                    { Label = "the athlete normal/roughness atlas"
+                      Format = TextureFormat.Rgba8Unorm
+                      Width = uint32 character.Albedo.Levels[0].Width
+                      Height = uint32 character.Albedo.Levels[0].Height
+                      Layers = 1u
+                      MipLevels = uint32 character.Albedo.Levels.Length
+                      Samples = 1u
+                      Usage = TextureUsage.TextureBinding ||| TextureUsage.CopyDst }
+                )
+            )
+
+        uploadCharacterLevels detail character.NormalRoughness
+        characterDetail <- Some detail
+
+        characterSampler <-
+            Some(
+                unwrap (
+                    GpuSampler.Create(
+                        ctx,
+                        "the athlete texture sampler",
+                        { AddressU = AddressMode.ClampToEdge
+                          AddressV = AddressMode.ClampToEdge
+                          AddressW = AddressMode.ClampToEdge
+                          Magnification = FilterMode.Linear
+                          Minification = FilterMode.Linear
+                          Mipmap = MipmapFilterMode.Linear
+                          MaxAnisotropy = 1us
+                          LodMaxClamp = 8.0f
+                          Compare = None }
+                    )
+                )
+            )
 
         let stadiumSource =
             """struct Camera {
@@ -828,6 +1005,7 @@ fn materialNoise(p: vec2<f32>) -> f32 {
     return vec4<f32>(shadeMaterial(input.color.rgb, normal, input.world, 0.85, 0.0, 1.0, sunlightVisibility(input.world, normal)), input.color.a);
 }
 """
+
         let shaderFile name =
             ShaderLibrary.readFile name
             |> Result.defaultWith (fun error -> invalidOp (GpuError.describe error))
@@ -846,280 +1024,155 @@ fn materialNoise(p: vec2<f32>) -> f32 {
                   shaderFile "GrassDetail.wgsl"
                   shaderFile "SkyBackground.wgsl" ]
 
-        let sourceBytes = Text.Encoding.UTF8.GetBytes(source + "\u0000")
-        use sourcePointer = fixed sourceBytes
-        let mutable wgsl = ShaderModuleWGSLDescriptor()
-        wgsl.Chain.SType <- SType.ShaderModuleWgslDescriptor
-        wgsl.Code <- sourcePointer
-        let wgslPointer = NativePtr.stackalloc<ShaderModuleWGSLDescriptor> 1
-        NativePtr.write wgslPointer wgsl
-        let mutable shaderDescriptor = ShaderModuleDescriptor()
-        shaderDescriptor.NextInChain <- NativePtr.ofNativeInt<ChainedStruct> (NativePtr.toNativeInt wgslPointer)
-        shader <- api.DeviceCreateShaderModule(device, &shaderDescriptor)
-        checkPointer "the stadium WGSL shader" shader
+        shader <- unwrap (ShaderModules.compile ctx "stadium" source)
 
-        let mutable uniformEntry = BindGroupLayoutEntry()
-        uniformEntry.Binding <- 0u
-        uniformEntry.Visibility <- ShaderStage.Vertex ||| ShaderStage.Fragment
-        uniformEntry.Buffer.Type <- BufferBindingType.Uniform
-        let uniformEntryPointer = NativePtr.stackalloc<BindGroupLayoutEntry> 13
-        NativePtr.write uniformEntryPointer uniformEntry
-        let mutable jointEntry = BindGroupLayoutEntry()
-        jointEntry.Binding <- 1u
-        jointEntry.Visibility <- ShaderStage.Vertex
-        jointEntry.Buffer.Type <- BufferBindingType.ReadOnlyStorage
-        NativePtr.write (NativePtr.add uniformEntryPointer 1) jointEntry
-
-        for binding in [ 2u; 3u ] do
-            let mutable entry = BindGroupLayoutEntry()
-            entry.Binding <- binding
-            entry.Visibility <- ShaderStage.Fragment
-            entry.Texture.SampleType <- TextureSampleType.Float
-            entry.Texture.ViewDimension <- TextureViewDimension.Dimension2D
-            entry.Texture.Multisampled <- Silk.NET.Core.Bool32(0u)
-            NativePtr.write (NativePtr.add uniformEntryPointer (int binding)) entry
-
-        let mutable samplerEntry = BindGroupLayoutEntry()
-        samplerEntry.Binding <- 4u
-        samplerEntry.Visibility <- ShaderStage.Fragment
-        samplerEntry.Sampler.Type <- SamplerBindingType.Filtering
-        NativePtr.write (NativePtr.add uniformEntryPointer 4) samplerEntry
-
-        for binding in [ 5u; 6u; 7u ] do
-            let mutable entry = BindGroupLayoutEntry()
-            entry.Binding <- binding
-            entry.Visibility <- ShaderStage.Fragment
-            entry.Texture.SampleType <- TextureSampleType.Float
-            entry.Texture.ViewDimension <- TextureViewDimension.Dimension2DArray
-            NativePtr.write (NativePtr.add uniformEntryPointer (int binding)) entry
-
-        samplerEntry.Binding <- 8u
-        NativePtr.write (NativePtr.add uniformEntryPointer 8) samplerEntry
-
-        for binding, dimension in
-            [ 9u, TextureViewDimension.Dimension2DArray
-              10u, TextureViewDimension.Dimension2D
-              12u, TextureViewDimension.Dimension2D ] do
-            let mutable entry = BindGroupLayoutEntry()
-            entry.Binding <- binding
-            entry.Visibility <- ShaderStage.Fragment
-            entry.Texture.SampleType <- TextureSampleType.Float
-            entry.Texture.ViewDimension <- dimension
-            NativePtr.write (NativePtr.add uniformEntryPointer (int binding)) entry
-
-        samplerEntry.Binding <- 11u
-        NativePtr.write (NativePtr.add uniformEntryPointer 11) samplerEntry
-        let mutable groupDescriptor = BindGroupLayoutDescriptor()
-        groupDescriptor.EntryCount <- unativeint 13
-        groupDescriptor.Entries <- uniformEntryPointer
-        bindGroupLayout <- api.DeviceCreateBindGroupLayout(device, &groupDescriptor)
-        checkPointer "the camera bind-group layout" bindGroupLayout
+        sceneLayout <-
+            unwrap (
+                BindGroupLayouts.create
+                    ctx
+                    "the camera bind-group layout"
+                    [ BindGroupLayouts.uniform 0u (ShaderStage.Vertex ||| ShaderStage.Fragment) 0UL
+                      BindGroupLayouts.storage 1u ShaderStage.Vertex true
+                      BindGroupLayouts.texture2d 2u ShaderStage.Fragment
+                      BindGroupLayouts.texture2d 3u ShaderStage.Fragment
+                      BindGroupLayouts.sampler 4u ShaderStage.Fragment
+                      BindGroupLayouts.textureArray 5u ShaderStage.Fragment
+                      BindGroupLayouts.textureArray 6u ShaderStage.Fragment
+                      BindGroupLayouts.textureArray 7u ShaderStage.Fragment
+                      BindGroupLayouts.sampler 8u ShaderStage.Fragment
+                      BindGroupLayouts.textureArray 9u ShaderStage.Fragment
+                      BindGroupLayouts.texture2d 10u ShaderStage.Fragment
+                      BindGroupLayouts.sampler 11u ShaderStage.Fragment
+                      BindGroupLayouts.texture2d 12u ShaderStage.Fragment ]
+            )
 
         let shadowPass =
-            new DirectionalShadowPass(api, device, shadowSettings, bindGroupLayout)
+            unwrap (DirectionalShadowPass.Create(ctx, cache, ("stadium", shader), shadowSettings, sceneLayout))
 
         shadows <- Some shadowPass
 
-        let layoutPointer = NativePtr.stackalloc<nativeptr<BindGroupLayout>> 2
-        NativePtr.write layoutPointer bindGroupLayout
-        let mutable pipelineLayoutDescriptor = PipelineLayoutDescriptor()
-        pipelineLayoutDescriptor.BindGroupLayouts <- layoutPointer
-        NativePtr.write (NativePtr.add layoutPointer 1) shadowPass.ReceiverLayout
-        pipelineLayoutDescriptor.BindGroupLayoutCount <- unativeint 2
-        pipelineLayout <- api.DeviceCreatePipelineLayout(device, &pipelineLayoutDescriptor)
-        checkPointer "the stadium pipeline layout" pipelineLayout
+        scenePipelineLayout <-
+            unwrap (
+                BindGroupLayouts.pipelineLayout
+                    ctx
+                    "the stadium pipeline layout"
+                    [ sceneLayout; shadowPass.ReceiverLayout ]
+            )
 
         cameraBuffer <-
-            createBuffer
-                "broadcast camera and player transforms"
-                (BufferUsage.Uniform ||| BufferUsage.CopyDst)
-                cameraUniformData
+            Some(
+                unwrap (
+                    GpuBuffer<float32>
+                        .Create(
+                            ctx,
+                            "broadcast camera and player transforms",
+                            BufferUsage.Uniform ||| BufferUsage.CopyDst,
+                            cameraUniformData
+                        )
+                )
+            )
 
         jointBuffer <-
-            createBuffer "character joint palettes" (BufferUsage.Storage ||| BufferUsage.CopyDst) jointMatrices
+            Some(
+                unwrap (
+                    GpuBuffer<Matrix4x4>
+                        .Create(
+                            ctx,
+                            "character joint palettes",
+                            BufferUsage.Storage ||| BufferUsage.CopyDst,
+                            jointMatrices
+                        )
+                )
+            )
 
-        let mutable bindEntry = BindGroupEntry()
-        bindEntry.Binding <- 0u
-        bindEntry.Buffer <- cameraBuffer
-        bindEntry.Offset <- 0UL
-        bindEntry.Size <- uint64 (cameraUniformData.Length * sizeof<float32>)
-        let bindEntryPointer = NativePtr.stackalloc<BindGroupEntry> 13
-        NativePtr.write bindEntryPointer bindEntry
-        let mutable jointBindEntry = BindGroupEntry()
-        jointBindEntry.Binding <- 1u
-        jointBindEntry.Buffer <- jointBuffer
-        jointBindEntry.Size <- uint64 (jointMatrices.Length * sizeof<Matrix4x4>)
-        NativePtr.write (NativePtr.add bindEntryPointer 1) jointBindEntry
+        cameraBindGroup <-
+            unwrap (
+                BindGroups.create
+                    ctx
+                    "the camera uniform bind group"
+                    sceneLayout
+                    [ BindGroups.buffer
+                          0u
+                          cameraBuffer.Value.Handle
+                          (uint64 (cameraUniformData.Length * sizeof<float32>))
+                      BindGroups.buffer 1u jointBuffer.Value.Handle (uint64 (jointMatrices.Length * sizeof<Matrix4x4>))
+                      BindGroups.view 2u characterAlbedo.Value.View
+                      BindGroups.view 3u characterDetail.Value.View
+                      BindGroups.sampler 4u characterSampler.Value.Handle
+                      BindGroups.view 5u surfaceTextures[0].View
+                      BindGroups.view 6u surfaceTextures[1].View
+                      BindGroups.view 7u surfaceTextures[2].View
+                      BindGroups.sampler 8u surfaceSampler.Value.Handle
+                      BindGroups.view 9u environmentTextures[0].View
+                      BindGroups.view 10u environmentTextures[1].View
+                      BindGroups.sampler 11u environmentSampler.Value.Handle
+                      BindGroups.view 12u environmentTextures[2].View ]
+            )
 
-        for binding, view in [ 2u, characterAlbedoView; 3u, characterDetailView ] do
-            let mutable entry = BindGroupEntry()
-            entry.Binding <- binding
-            entry.TextureView <- view
-            NativePtr.write (NativePtr.add bindEntryPointer (int binding)) entry
+        let sceneKey: RenderPipelineKey =
+            { Shader = "stadium"
+              Layout = "stadium scene"
+              VertexEntry = "vs"
+              Vertex = GpuVertexFull
+              Fragment =
+                Some
+                    { Entry = "fs"
+                      ColorFormat = TextureFormat.Rgba16float
+                      Blend = Replace }
+              Depth =
+                Some
+                    { DepthFormat = TextureFormat.Depth24Plus
+                      WriteDepth = true
+                      Compare = CompareFunction.Less
+                      Bias = 0
+                      SlopeScale = 0.0f }
+              Cull = CullMode.None
+              Samples = multisampleCount
+              AlphaToCoverage = false }
 
-        let mutable samplerBindEntry = BindGroupEntry()
-        samplerBindEntry.Binding <- 4u
-        samplerBindEntry.Sampler <- characterSampler
-        NativePtr.write (NativePtr.add bindEntryPointer 4) samplerBindEntry
+        scenePipeline <-
+            unwrap (
+                cache.GetOrAdd(
+                    sceneKey,
+                    fun () ->
+                        RenderPipelines.build ctx "the stadium render pipeline" sceneKey shader scenePipelineLayout
+                )
+            )
 
-        for index = 0 to 2 do
-            let mutable entry = BindGroupEntry()
-            entry.Binding <- uint32 (5 + index)
-            entry.TextureView <- surfaceViews[index]
-            NativePtr.write (NativePtr.add bindEntryPointer (5 + index)) entry
+        grassDetail <-
+            Some(
+                unwrap (
+                    ProceduralScenePass.Create(
+                        ctx,
+                        cache,
+                        ("stadium", shader),
+                        ("stadium scene", scenePipelineLayout),
+                        TextureFormat.Depth24Plus,
+                        multisampleCount,
+                        ProceduralScenePassSettings.grass
+                    )
+                )
+            )
 
-        samplerBindEntry.Binding <- 8u
-        samplerBindEntry.Sampler <- surfaceSampler
-        NativePtr.write (NativePtr.add bindEntryPointer 8) samplerBindEntry
-
-        for index = 0 to 1 do
-            let mutable entry = BindGroupEntry()
-            entry.Binding <- uint32 (9 + index)
-            entry.TextureView <- environmentViews[index]
-            NativePtr.write (NativePtr.add bindEntryPointer (9 + index)) entry
-
-        samplerBindEntry.Binding <- 11u
-        samplerBindEntry.Sampler <- environmentSampler
-        NativePtr.write (NativePtr.add bindEntryPointer 11) samplerBindEntry
-        let mutable skyEntry = BindGroupEntry()
-        skyEntry.Binding <- 12u
-        skyEntry.TextureView <- environmentViews[2]
-        NativePtr.write (NativePtr.add bindEntryPointer 12) skyEntry
-        let mutable bindDescriptor = BindGroupDescriptor()
-        bindDescriptor.Layout <- bindGroupLayout
-        bindDescriptor.EntryCount <- unativeint 13
-        bindDescriptor.Entries <- bindEntryPointer
-        cameraBindGroup <- api.DeviceCreateBindGroup(device, &bindDescriptor)
-        checkPointer "the camera uniform bind group" cameraBindGroup
-
-        let attributes = NativePtr.stackalloc<VertexAttribute> 8
-
-        let writeAttribute index format offset location =
-            let mutable attribute = VertexAttribute()
-            attribute.Format <- format
-            attribute.Offset <- offset
-            attribute.ShaderLocation <- location
-            NativePtr.write (NativePtr.add attributes index) attribute
-
-        writeAttribute 0 VertexFormat.Float32x3 0UL 0u
-        writeAttribute 1 VertexFormat.Float32x3 12UL 1u
-        writeAttribute 2 VertexFormat.Float32x4 24UL 2u
-        writeAttribute 3 VertexFormat.Float32x2 40UL 3u
-        writeAttribute 4 VertexFormat.Uint32 48UL 4u
-        writeAttribute 5 VertexFormat.Float32x4 52UL 5u
-        writeAttribute 6 VertexFormat.Float32x4 68UL 6u
-        writeAttribute 7 VertexFormat.Uint32 84UL 7u
-
-        let mutable vertexLayout = VertexBufferLayout()
-        vertexLayout.ArrayStride <- uint64 (Marshal.SizeOf<GpuVertex>())
-        vertexLayout.StepMode <- VertexStepMode.Vertex
-        vertexLayout.AttributeCount <- unativeint 8
-        vertexLayout.Attributes <- attributes
-        let vertexLayoutPointer = NativePtr.stackalloc<VertexBufferLayout> 1
-        NativePtr.write vertexLayoutPointer vertexLayout
-
-        let vertexName = Text.Encoding.UTF8.GetBytes("vs\u0000")
-        let fragmentName = Text.Encoding.UTF8.GetBytes("fs\u0000")
-        use vertexEntry = fixed vertexName
-        use fragmentEntry = fixed fragmentName
-        let mutable vertexState = VertexState()
-        vertexState.Module <- shader
-        vertexState.EntryPoint <- vertexEntry
-        vertexState.BufferCount <- unativeint 1
-        vertexState.Buffers <- vertexLayoutPointer
-
-        let mutable colorTarget = ColorTargetState()
-        colorTarget.Format <- TextureFormat.Rgba16float
-        colorTarget.WriteMask <- ColorWriteMask.All
-        let colorTargetPointer = NativePtr.stackalloc<ColorTargetState> 1
-        NativePtr.write colorTargetPointer colorTarget
-        let mutable fragmentState = FragmentState()
-        fragmentState.Module <- shader
-        fragmentState.EntryPoint <- fragmentEntry
-        fragmentState.TargetCount <- unativeint 1
-        fragmentState.Targets <- colorTargetPointer
-        let fragmentStatePointer = NativePtr.stackalloc<FragmentState> 1
-        NativePtr.write fragmentStatePointer fragmentState
-
-        let mutable depthState = DepthStencilState()
-        depthState.Format <- TextureFormat.Depth24Plus
-        depthState.DepthWriteEnabled <- Silk.NET.Core.Bool32(1u)
-        depthState.DepthCompare <- CompareFunction.Less
-        let mutable stencilFace = StencilFaceState()
-        stencilFace.Compare <- CompareFunction.Always
-        stencilFace.FailOp <- StencilOperation.Keep
-        stencilFace.DepthFailOp <- StencilOperation.Keep
-        stencilFace.PassOp <- StencilOperation.Keep
-        depthState.StencilFront <- stencilFace
-        depthState.StencilBack <- stencilFace
-        depthState.StencilReadMask <- 0u
-        depthState.StencilWriteMask <- 0u
-        let depthStatePointer = NativePtr.stackalloc<DepthStencilState> 1
-        NativePtr.write depthStatePointer depthState
-
-        let mutable descriptor = RenderPipelineDescriptor()
-        descriptor.Layout <- pipelineLayout
-        descriptor.Vertex <- vertexState
-        descriptor.Fragment <- fragmentStatePointer
-        descriptor.DepthStencil <- depthStatePointer
-        descriptor.Primitive.Topology <- PrimitiveTopology.TriangleList
-        descriptor.Primitive.CullMode <- CullMode.None
-        descriptor.Multisample.Count <- multisampleCount
-        descriptor.Multisample.Mask <- UInt32.MaxValue
-        pipeline <- api.DeviceCreateRenderPipeline(device, &descriptor)
-        checkPointer "the stadium render pipeline" pipeline
-
-        shadowPass.CreatePipeline(vertexState, depthState)
-        grassDetail <- Some(new ProceduralScenePass(api, device, shader, pipelineLayout, depthState, multisampleCount, ProceduralScenePassSettings.grass))
-        skyBackground <- Some(new ProceduralScenePass(api, device, shader, pipelineLayout, depthState, multisampleCount, ProceduralScenePassSettings.sky))
-
-    let configureHudTexture (width: uint32) (height: uint32) =
-        retainedHud |> Option.iter (fun hud -> (hud :> IDisposable).Dispose())
-        retainedHud <- Some(new RetainedMatchHud(int width, int height))
-
-        if NativePtr.toNativeInt hudBindGroup <> 0n then
-            api.BindGroupRelease(hudBindGroup)
-            hudBindGroup <- NativePtr.nullPtr<BindGroup>
-
-        if NativePtr.toNativeInt hudTextureView <> 0n then
-            api.TextureViewRelease(hudTextureView)
-            hudTextureView <- NativePtr.nullPtr<TextureView>
-
-        if NativePtr.toNativeInt hudTexture <> 0n then
-            api.TextureDestroy(hudTexture)
-            api.TextureRelease(hudTexture)
-            hudTexture <- NativePtr.nullPtr<Texture>
-
-        let mutable descriptor = TextureDescriptor()
-        descriptor.Usage <- TextureUsage.TextureBinding ||| TextureUsage.CopyDst
-        descriptor.Dimension <- TextureDimension.Dimension2D
-        descriptor.Size <- Extent3D(width, height, 1u)
-        descriptor.Format <- TextureFormat.Rgba8Unorm
-        descriptor.MipLevelCount <- 1u
-        descriptor.SampleCount <- 1u
-        hudTexture <- api.DeviceCreateTexture(device, &descriptor)
-        checkPointer "the match HUD texture" hudTexture
-        hudTextureView <- api.TextureCreateView(hudTexture, NativePtr.nullPtr<TextureViewDescriptor>)
-        checkPointer "the match HUD texture view" hudTextureView
-
-        let entries = NativePtr.stackalloc<BindGroupEntry> 2
-        let mutable textureEntry = BindGroupEntry()
-        textureEntry.Binding <- 0u
-        textureEntry.TextureView <- hudTextureView
-        NativePtr.write entries textureEntry
-        let mutable samplerEntry = BindGroupEntry()
-        samplerEntry.Binding <- 1u
-        samplerEntry.Sampler <- hudSampler
-        NativePtr.write (NativePtr.add entries 1) samplerEntry
-
-        let mutable bindDescriptor = BindGroupDescriptor()
-        bindDescriptor.Layout <- hudBindGroupLayout
-        bindDescriptor.EntryCount <- unativeint 2
-        bindDescriptor.Entries <- entries
-        hudBindGroup <- api.DeviceCreateBindGroup(device, &bindDescriptor)
-        checkPointer "the match HUD texture bind group" hudBindGroup
+        skyBackground <-
+            Some(
+                unwrap (
+                    ProceduralScenePass.Create(
+                        ctx,
+                        cache,
+                        ("stadium", shader),
+                        ("stadium scene", scenePipelineLayout),
+                        TextureFormat.Depth24Plus,
+                        multisampleCount,
+                        ProceduralScenePassSettings.sky
+                    )
+                )
+            )
 
     let createHudShaderAndPipeline () =
+        let ctx = context ()
+        let cache = pipelineCache ()
+
         let source =
             """struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -1150,120 +1203,62 @@ struct VertexOutput {
 }
 """
 
-        let sourceBytes = Text.Encoding.UTF8.GetBytes(source + "\u0000")
-        use sourcePointer = fixed sourceBytes
-        let mutable wgsl = ShaderModuleWGSLDescriptor()
-        wgsl.Chain.SType <- SType.ShaderModuleWgslDescriptor
-        wgsl.Code <- sourcePointer
-        let wgslPointer = NativePtr.stackalloc<ShaderModuleWGSLDescriptor> 1
-        NativePtr.write wgslPointer wgsl
-        let mutable shaderDescriptor = ShaderModuleDescriptor()
-        shaderDescriptor.NextInChain <- NativePtr.ofNativeInt<ChainedStruct> (NativePtr.toNativeInt wgslPointer)
-        hudShader <- api.DeviceCreateShaderModule(device, &shaderDescriptor)
-        checkPointer "the match HUD shader" hudShader
+        let hudModule = unwrap (ShaderModules.compile ctx "match HUD" source)
+        hudShader <- hudModule
 
-        let entries = NativePtr.stackalloc<BindGroupLayoutEntry> 2
-        let mutable textureEntry = BindGroupLayoutEntry()
-        textureEntry.Binding <- 0u
-        textureEntry.Visibility <- ShaderStage.Fragment
-        textureEntry.Texture.SampleType <- TextureSampleType.Float
-        textureEntry.Texture.ViewDimension <- TextureViewDimension.Dimension2D
-        textureEntry.Texture.Multisampled <- Silk.NET.Core.Bool32(0u)
-        NativePtr.write entries textureEntry
-        let mutable samplerEntry = BindGroupLayoutEntry()
-        samplerEntry.Binding <- 1u
-        samplerEntry.Visibility <- ShaderStage.Fragment
-        samplerEntry.Sampler.Type <- SamplerBindingType.Filtering
-        NativePtr.write (NativePtr.add entries 1) samplerEntry
+        hudLayout <-
+            unwrap (
+                BindGroupLayouts.create
+                    ctx
+                    "the match HUD bind-group layout"
+                    [ BindGroupLayouts.texture2d 0u ShaderStage.Fragment
+                      BindGroupLayouts.sampler 1u ShaderStage.Fragment ]
+            )
 
-        let mutable groupDescriptor = BindGroupLayoutDescriptor()
-        groupDescriptor.EntryCount <- unativeint 2
-        groupDescriptor.Entries <- entries
-        hudBindGroupLayout <- api.DeviceCreateBindGroupLayout(device, &groupDescriptor)
-        checkPointer "the match HUD bind-group layout" hudBindGroupLayout
+        hudPipelineLayout <- unwrap (BindGroupLayouts.pipelineLayout ctx "the match HUD pipeline layout" [ hudLayout ])
 
-        let layoutPointer = NativePtr.stackalloc<nativeptr<BindGroupLayout>> 1
-        NativePtr.write layoutPointer hudBindGroupLayout
-        let mutable pipelineLayoutDescriptor = PipelineLayoutDescriptor()
-        pipelineLayoutDescriptor.BindGroupLayoutCount <- unativeint 1
-        pipelineLayoutDescriptor.BindGroupLayouts <- layoutPointer
-        hudPipelineLayout <- api.DeviceCreatePipelineLayout(device, &pipelineLayoutDescriptor)
-        checkPointer "the match HUD pipeline layout" hudPipelineLayout
+        hudSampler <-
+            Some(
+                unwrap (
+                    GpuSampler.Create(
+                        ctx,
+                        "the match HUD sampler",
+                        { AddressU = AddressMode.ClampToEdge
+                          AddressV = AddressMode.ClampToEdge
+                          AddressW = AddressMode.ClampToEdge
+                          Magnification = FilterMode.Linear
+                          Minification = FilterMode.Linear
+                          Mipmap = MipmapFilterMode.Linear
+                          MaxAnisotropy = 1us
+                          LodMaxClamp = 0.0f
+                          Compare = None }
+                    )
+                )
+            )
 
-        let mutable samplerDescriptor = SamplerDescriptor()
-        samplerDescriptor.AddressModeU <- AddressMode.ClampToEdge
-        samplerDescriptor.AddressModeV <- AddressMode.ClampToEdge
-        samplerDescriptor.AddressModeW <- AddressMode.ClampToEdge
-        samplerDescriptor.MagFilter <- FilterMode.Linear
-        samplerDescriptor.MinFilter <- FilterMode.Linear
-        samplerDescriptor.MipmapFilter <- MipmapFilterMode.Linear
-        samplerDescriptor.MaxAnisotropy <- 1us
-        hudSampler <- api.DeviceCreateSampler(device, &samplerDescriptor)
-        checkPointer "the match HUD sampler" hudSampler
+        let hudKey: RenderPipelineKey =
+            { Shader = "match HUD"
+              Layout = "match HUD"
+              VertexEntry = "vs"
+              Vertex = GpuVertexPositionUv
+              Fragment =
+                Some
+                    { Entry = "fs"
+                      ColorFormat = ctx.Format
+                      Blend = PremultipliedAlpha }
+              Depth = None
+              Cull = CullMode.None
+              Samples = 1u
+              AlphaToCoverage = false }
 
-        let attributes = NativePtr.stackalloc<VertexAttribute> 2
-        let mutable positionAttribute = VertexAttribute()
-        positionAttribute.Format <- VertexFormat.Float32x3
-        positionAttribute.Offset <- 0UL
-        positionAttribute.ShaderLocation <- 0u
-        NativePtr.write attributes positionAttribute
-        let mutable uvAttribute = VertexAttribute()
-        uvAttribute.Format <- VertexFormat.Float32x2
-        uvAttribute.Offset <- 40UL
-        uvAttribute.ShaderLocation <- 1u
-        NativePtr.write (NativePtr.add attributes 1) uvAttribute
-
-        let mutable vertexLayout = VertexBufferLayout()
-        vertexLayout.ArrayStride <- uint64 (Marshal.SizeOf<GpuVertex>())
-        vertexLayout.StepMode <- VertexStepMode.Vertex
-        vertexLayout.AttributeCount <- unativeint 2
-        vertexLayout.Attributes <- attributes
-        let vertexLayoutPointer = NativePtr.stackalloc<VertexBufferLayout> 1
-        NativePtr.write vertexLayoutPointer vertexLayout
-
-        let vertexName = Text.Encoding.UTF8.GetBytes("vs\u0000")
-        let fragmentName = Text.Encoding.UTF8.GetBytes("fs\u0000")
-        use vertexEntry = fixed vertexName
-        use fragmentEntry = fixed fragmentName
-        let mutable vertexState = VertexState()
-        vertexState.Module <- hudShader
-        vertexState.EntryPoint <- vertexEntry
-        vertexState.BufferCount <- unativeint 1
-        vertexState.Buffers <- vertexLayoutPointer
-
-        let mutable blend = BlendState()
-        blend.Color.SrcFactor <- BlendFactor.One
-        blend.Color.DstFactor <- BlendFactor.OneMinusSrcAlpha
-        blend.Color.Operation <- BlendOperation.Add
-        blend.Alpha.SrcFactor <- BlendFactor.One
-        blend.Alpha.DstFactor <- BlendFactor.OneMinusSrcAlpha
-        blend.Alpha.Operation <- BlendOperation.Add
-        let blendPointer = NativePtr.stackalloc<BlendState> 1
-        NativePtr.write blendPointer blend
-        let mutable colorTarget = ColorTargetState()
-        colorTarget.Format <- targetFormat
-        colorTarget.Blend <- blendPointer
-        colorTarget.WriteMask <- ColorWriteMask.All
-        let colorTargetPointer = NativePtr.stackalloc<ColorTargetState> 1
-        NativePtr.write colorTargetPointer colorTarget
-        let mutable fragmentState = FragmentState()
-        fragmentState.Module <- hudShader
-        fragmentState.EntryPoint <- fragmentEntry
-        fragmentState.TargetCount <- unativeint 1
-        fragmentState.Targets <- colorTargetPointer
-        let fragmentStatePointer = NativePtr.stackalloc<FragmentState> 1
-        NativePtr.write fragmentStatePointer fragmentState
-
-        let mutable descriptor = RenderPipelineDescriptor()
-        descriptor.Layout <- hudPipelineLayout
-        descriptor.Vertex <- vertexState
-        descriptor.Fragment <- fragmentStatePointer
-        descriptor.Primitive.Topology <- PrimitiveTopology.TriangleList
-        descriptor.Primitive.CullMode <- CullMode.None
-        descriptor.Multisample.Count <- 1u
-        descriptor.Multisample.Mask <- UInt32.MaxValue
-        hudPipeline <- api.DeviceCreateRenderPipeline(device, &descriptor)
-        checkPointer "the match HUD render pipeline" hudPipeline
+        hudPipeline <-
+            unwrap (
+                cache.GetOrAdd(
+                    hudKey,
+                    fun () ->
+                        RenderPipelines.build ctx "the match HUD render pipeline" hudKey hudModule hudPipelineLayout
+                )
+            )
 
         let topLeft =
             { Position = Vector3(-1.0f, 1.0f, 0.0f)
@@ -1291,385 +1286,123 @@ struct VertexOutput {
                 Uv = Vector2(0.0f, 1.0f) }
 
         hudQuadVertexBuffer <-
-            createBuffer
-                "match HUD quad vertices"
-                (BufferUsage.Vertex ||| BufferUsage.CopyDst)
-                [| topLeft; topRight; bottomRight; bottomLeft |]
+            Some(
+                unwrap (
+                    GpuBuffer<GpuVertex>
+                        .Create(
+                            ctx,
+                            "match HUD quad vertices",
+                            BufferUsage.Vertex ||| BufferUsage.CopyDst,
+                            [| topLeft; topRight; bottomRight; bottomLeft |]
+                        )
+                )
+            )
 
         hudQuadIndexBuffer <-
-            createBuffer
-                "match HUD quad indices"
-                (BufferUsage.Index ||| BufferUsage.CopyDst)
-                [| 0u; 1u; 2u; 0u; 2u; 3u |]
+            Some(
+                unwrap (
+                    GpuBuffer<uint32>
+                        .Create(
+                            ctx,
+                            "match HUD quad indices",
+                            BufferUsage.Index ||| BufferUsage.CopyDst,
+                            [| 0u; 1u; 2u; 0u; 2u; 3u |]
+                        )
+                )
+            )
 
-        configureHudTexture targetWidth targetHeight
-
-    let uploadHudRegion (hud: RetainedMatchHud) (region: SkiaSharp.SKRectI) =
-        let mutable destination = ImageCopyTexture()
-        destination.Texture <- hudTexture
-        destination.MipLevel <- 0u
-        destination.Origin <- Origin3D(uint32 region.Left, uint32 region.Top, 0u)
-        destination.Aspect <- TextureAspect.All
-        let mutable layout = TextureDataLayout()
-        layout.Offset <- 0UL
-        layout.BytesPerRow <- uint32 hud.RowBytes
-        layout.RowsPerImage <- uint32 region.Height
-        let extent = Extent3D(uint32 region.Width, uint32 region.Height, 1u)
-        let pointer = hud.Pixels + nativeint (region.Top * hud.RowBytes + region.Left * 4)
-        let length = (region.Height - 1) * hud.RowBytes + region.Width * 4
-
-        api.QueueWriteTexture(queue, &destination, pointer.ToPointer(), unativeint length, &layout, &extent)
-        hudUploadBytes <- hudUploadBytes + int64 (region.Width * region.Height * 4)
-
-    let mutable cameraFocus = Vector3(0.0f, 1.0f, 0.0f)
-
-    let updateCamera width height =
-        let aspect = float32 width / float32 height
-        let cameraFrame = ViewerCamera.frame cameraMode aspect cameraFocus
-        // At broadcast height these blades are subpixel; drawing them would add shimmer instead of detail.
-        showGrassDetail <- cameraFrame.Position.Y < 12.0f
-        let cameraPosition = cameraFrame.Position
-        let cameraOffset = 16 + rootTransformCount * 16
-        cameraUniformData[cameraOffset] <- cameraPosition.X
-        cameraUniformData[cameraOffset + 1] <- cameraPosition.Y
-        cameraUniformData[cameraOffset + 2] <- cameraPosition.Z
-        // position.w carries a wrapped clock for grass wind; no shader uses it as a homogeneous coordinate.
-        cameraUniformData[cameraOffset + 3] <- float32 (windSeconds () % 3600.0)
-        let matrix = ViewerCamera.viewProjection aspect cameraFrame
-
-        hdrOutput
-        |> Option.iter (fun output ->
-            output.SetCamera(cameraFrame.NearPlane, cameraFrame.FarPlane, cameraFrame.FieldOfView, aspect))
-
-        cameraUniformData[0] <- matrix.M11
-        cameraUniformData[1] <- matrix.M12
-        cameraUniformData[2] <- matrix.M13
-        cameraUniformData[3] <- matrix.M14
-        cameraUniformData[4] <- matrix.M21
-        cameraUniformData[5] <- matrix.M22
-        cameraUniformData[6] <- matrix.M23
-        cameraUniformData[7] <- matrix.M24
-        cameraUniformData[8] <- matrix.M31
-        cameraUniformData[9] <- matrix.M32
-        cameraUniformData[10] <- matrix.M33
-        cameraUniformData[11] <- matrix.M34
-        cameraUniformData[12] <- matrix.M41
-        cameraUniformData[13] <- matrix.M42
-        cameraUniformData[14] <- matrix.M43
-        cameraUniformData[15] <- matrix.M44
-
-        let lightOffset = 16 + rootTransformCount * 16 + 12
-        Array.Copy(shadowMatrixData, 0, cameraUniformData, lightOffset, 16)
-        let mutable inverse = Matrix4x4.Identity
-        if not (Matrix4x4.Invert(matrix, &inverse)) then
-            invalidOp "The viewer camera produced a singular projection."
-        let inverseOffset = lightOffset + 16
-        cameraUniformData[inverseOffset] <- inverse.M11
-        cameraUniformData[inverseOffset + 1] <- inverse.M12
-        cameraUniformData[inverseOffset + 2] <- inverse.M13
-        cameraUniformData[inverseOffset + 3] <- inverse.M14
-        cameraUniformData[inverseOffset + 4] <- inverse.M21
-        cameraUniformData[inverseOffset + 5] <- inverse.M22
-        cameraUniformData[inverseOffset + 6] <- inverse.M23
-        cameraUniformData[inverseOffset + 7] <- inverse.M24
-        cameraUniformData[inverseOffset + 8] <- inverse.M31
-        cameraUniformData[inverseOffset + 9] <- inverse.M32
-        cameraUniformData[inverseOffset + 10] <- inverse.M33
-        cameraUniformData[inverseOffset + 11] <- inverse.M34
-        cameraUniformData[inverseOffset + 12] <- inverse.M41
-        cameraUniformData[inverseOffset + 13] <- inverse.M42
-        cameraUniformData[inverseOffset + 14] <- inverse.M43
-        cameraUniformData[inverseOffset + 15] <- inverse.M44
-
-    let updatePlayersAndBall (frame: RenderFrame) (palettes: Matrix4x4[]) =
-        if palettes.Length <> jointMatrices.Length then
-            invalidArg "palettes" "procedural palette cardinality does not match the canonical rig"
-
-        Array.Copy(palettes, jointMatrices, palettes.Length)
-        let states: RenderPlayer option array = Array.create 22 None
-        let mutable carrier = None
-
-        for player in frame.Players do
-            if player.HasBall then
-                match carrier with
-                | None -> carrier <- Some player
-                | Some _ -> invalidArg "frame" "a render frame cannot have multiple ball carriers"
-
-            let slot = player.VisualSlot
-
-            if slot < 0 || slot >= 11 then
-                invalidArg "frame" $"player {player.Id} has invalid visual slot {slot}"
-
-            let root = (if player.IsHome then 0 else 11) + slot
-
-            if states[root].IsSome then
-                invalidArg "frame" $"multiple players occupy visual slot {slot} for the same team"
-
-            states[root] <- Some player
-
-        let hidden = Matrix4x4.CreateTranslation(0.0f, -100000.0f, 0.0f)
-        let transforms: Matrix4x4 array = Array.create rootTransformCount hidden
-        transforms[23] <- Matrix4x4.Identity
-
-        for root = 0 to 21 do
-            let transform =
-                match states[root] with
-                | Some player ->
-                    let yaw = float32 player.BodyFacing + MathF.PI / 2.0f
-
-                    let position =
-                        Vector3(float32 player.Position.X, float32 player.Height, -float32 player.Position.Y)
-
-                    let transform =
-                        Matrix4x4.CreateRotationY(yaw) * Matrix4x4.CreateTranslation(position)
-
-                    transform
-                | None -> hidden
-
-            transforms[root] <- transform
-
-        pinAndWrite jointBuffer jointMatrices
-
-        let ball = frame.Ball
-        let ballRadius = float32 ball.Radius
-        let ballScale = ballRadius / scene.BallRadius
-        // Core is Z-up; the viewer is Y-up with pitch Y mapped to negative Z.
-        let q = ball.Orientation
-        let ballRotation = Quaternion(q.X, q.Z, -q.Y, q.W)
-
-        let ballPosition =
-            Vector3(float32 ball.Position.X, ballRadius + float32 ball.Height, -float32 ball.Position.Y)
-
-        transforms[22] <-
-            Matrix4x4.CreateScale(ballScale)
-            * Matrix4x4.CreateFromQuaternion(ballRotation)
-            * Matrix4x4.CreateTranslation(ballPosition)
-
-        match carrier with
-        | Some player ->
-            let position = Vector3(float32 player.Position.X, 0.0f, -float32 player.Position.Y)
-            cameraFocus <- Vector3(position.X, 1.0f, position.Z)
-            transforms[24] <- Matrix4x4.CreateTranslation(position)
-        | None ->
-            // A lob changes ball height, not the sideline camera's framing of the pitch.
-            cameraFocus <- Vector3(ballPosition.X, 1.0f, ballPosition.Z)
-            transforms[24] <- hidden
-
-        for root = 0 to transforms.Length - 1 do
-            let matrix = transforms[root]
-            let offset = 16 + root * 16
-            cameraUniformData[offset] <- matrix.M11
-            cameraUniformData[offset + 1] <- matrix.M12
-            cameraUniformData[offset + 2] <- matrix.M13
-            cameraUniformData[offset + 3] <- matrix.M14
-            cameraUniformData[offset + 4] <- matrix.M21
-            cameraUniformData[offset + 5] <- matrix.M22
-            cameraUniformData[offset + 6] <- matrix.M23
-            cameraUniformData[offset + 7] <- matrix.M24
-            cameraUniformData[offset + 8] <- matrix.M31
-            cameraUniformData[offset + 9] <- matrix.M32
-            cameraUniformData[offset + 10] <- matrix.M33
-            cameraUniformData[offset + 11] <- matrix.M34
-            cameraUniformData[offset + 12] <- matrix.M41
-            cameraUniformData[offset + 13] <- matrix.M42
-            cameraUniformData[offset + 14] <- matrix.M43
-            cameraUniformData[offset + 15] <- matrix.M44
-
-        updateCamera targetWidth targetHeight
-        let lightingOffset = 16 + rootTransformCount * 16 + 4
-        cameraUniformData[lightingOffset] <- lighting.SunDirection.X
-        cameraUniformData[lightingOffset + 1] <- lighting.SunDirection.Y
-        cameraUniformData[lightingOffset + 2] <- lighting.SunDirection.Z
-        cameraUniformData[lightingOffset + 3] <- lighting.EnvironmentIntensity
-        cameraUniformData[lightingOffset + 4] <- lighting.SunRadiance.X
-        cameraUniformData[lightingOffset + 5] <- lighting.SunRadiance.Y
-        cameraUniformData[lightingOffset + 6] <- lighting.SunRadiance.Z
-        pinAndWrite cameraBuffer cameraUniformData
-
-    let updateWindow (bounds: PixelRect) =
-        if bounds.Width > 0 && bounds.Height > 0 && bounds <> lastBounds then
-            X11ChildWindow.moveResize display window bounds
-            X11ChildWindow.flush display
-            lastBounds <- bounds
-
-            let width = uint32 bounds.Width
-            let height = uint32 bounds.Height
-
-            if width <> targetWidth || height <> targetHeight then
-                configureSurface width height
-                updateCamera width height
-                configureHudTexture width height
-
-    let updateWindowShape (bounds: PixelRect) (cutouts: PixelRect array) =
-        let sameRect (left: PixelRect) (right: PixelRect) =
-            left.X = right.X
-            && left.Y = right.Y
-            && left.Width = right.Width
-            && left.Height = right.Height
-
-        let sameCutouts =
-            cutouts.Length = lastCutouts.Length
-            && Array.forall2 sameRect cutouts lastCutouts
-
-        let sameBounds = lastShapeBounds |> Option.exists (sameRect bounds)
-
-        if not (sameBounds && sameCutouts) then
-            // Carving these regions out lets Avalonia draw and receive clicks through its native WebGPU child.
-            X11ChildWindow.setShape display window (X11ChildWindow.cutoutRectangles bounds cutouts)
-            X11ChildWindow.flush display
-            lastShapeBounds <- Some bounds
-            lastCutouts <- Array.copy cutouts
+        configureHudTexture ctx.Width ctx.Height
 
     let releaseResources () =
         if not disposed then
             disposed <- true
-            retainedHud |> Option.iter (fun hud -> (hud :> IDisposable).Dispose())
+            retainedHud |> Option.iter dispose
             retainedHud <- None
-            hdrOutput |> Option.iter (fun output -> (output :> IDisposable).Dispose())
+            hdrOutput |> Option.iter dispose
             hdrOutput <- None
 
-            for view in environmentViews do
-                if NativePtr.toNativeInt view <> 0n then
-                    api.TextureViewRelease(view)
-
             for texture in environmentTextures do
-                if NativePtr.toNativeInt texture <> 0n then
-                    api.TextureDestroy(texture)
-                    api.TextureRelease(texture)
+                dispose texture
 
-            if NativePtr.toNativeInt environmentSampler <> 0n then
-                api.SamplerRelease(environmentSampler)
+            environmentTextures.Clear()
+            environmentSampler |> Option.iter dispose
+            environmentSampler <- None
 
             for batch in Array.append staticBatches dynamicBatches do
                 releaseBatch batch
 
             carrierMarkerBatch |> Option.iter releaseBatch
             carrierMarkerBatch <- None
+            multisampleColor |> Option.iter dispose
+            multisampleColor <- None
+            depthTarget |> Option.iter dispose
+            depthTarget <- None
 
-            if NativePtr.toNativeInt depthView <> 0n then
-                api.TextureViewRelease(depthView)
+            // The HUD pipeline is owned by the cache, so it is not released here.
+            hudQuadIndexBuffer |> Option.iter dispose
+            hudQuadVertexBuffer |> Option.iter dispose
 
-            if NativePtr.toNativeInt multisampleColorView <> 0n then
-                api.TextureViewRelease(multisampleColorView)
+            if not (GpuPointer.isMissing hudBindGroup) then
+                gpu |> Option.iter (fun ctx -> ctx.Api.BindGroupRelease(hudBindGroup))
 
-            if NativePtr.toNativeInt multisampleColorTexture <> 0n then
-                api.TextureDestroy(multisampleColorTexture)
-                api.TextureRelease(multisampleColorTexture)
+            hudTexture |> Option.iter dispose
+            hudSampler |> Option.iter dispose
 
-            if NativePtr.toNativeInt depthTexture <> 0n then
-                api.TextureDestroy(depthTexture)
-                api.TextureRelease(depthTexture)
+            gpu
+            |> Option.iter (fun ctx ->
+                if not (GpuPointer.isMissing hudPipelineLayout) then
+                    ctx.Api.PipelineLayoutRelease(hudPipelineLayout)
 
-            if NativePtr.toNativeInt pipeline <> 0n then
-                api.RenderPipelineRelease(pipeline)
+                if not (GpuPointer.isMissing hudLayout) then
+                    ctx.Api.BindGroupLayoutRelease(hudLayout)
 
-            if NativePtr.toNativeInt hudPipeline <> 0n then
-                api.RenderPipelineRelease(hudPipeline)
+                if not (GpuPointer.isMissing hudShader) then
+                    ctx.Api.ShaderModuleRelease(hudShader)
 
-            if NativePtr.toNativeInt hudQuadIndexBuffer <> 0n then
-                api.BufferRelease(hudQuadIndexBuffer)
+                if not (GpuPointer.isMissing cameraBindGroup) then
+                    ctx.Api.BindGroupRelease(cameraBindGroup))
 
-            if NativePtr.toNativeInt hudQuadVertexBuffer <> 0n then
-                api.BufferRelease(hudQuadVertexBuffer)
-
-            if NativePtr.toNativeInt hudBindGroup <> 0n then
-                api.BindGroupRelease(hudBindGroup)
-
-            if NativePtr.toNativeInt hudTextureView <> 0n then
-                api.TextureViewRelease(hudTextureView)
-
-            if NativePtr.toNativeInt hudTexture <> 0n then
-                api.TextureDestroy(hudTexture)
-                api.TextureRelease(hudTexture)
-
-            if NativePtr.toNativeInt hudSampler <> 0n then
-                api.SamplerRelease(hudSampler)
-
-            if NativePtr.toNativeInt hudPipelineLayout <> 0n then
-                api.PipelineLayoutRelease(hudPipelineLayout)
-
-            if NativePtr.toNativeInt hudBindGroupLayout <> 0n then
-                api.BindGroupLayoutRelease(hudBindGroupLayout)
-
-            if NativePtr.toNativeInt hudShader <> 0n then
-                api.ShaderModuleRelease(hudShader)
-
-            if NativePtr.toNativeInt cameraBindGroup <> 0n then
-                api.BindGroupRelease(cameraBindGroup)
-
-            shadows |> Option.iter (fun shadowPass -> (shadowPass :> IDisposable).Dispose())
+            shadows |> Option.iter dispose
             shadows <- None
-            grassDetail |> Option.iter (fun detail -> (detail :> IDisposable).Dispose())
+            grassDetail |> Option.iter dispose
             grassDetail <- None
-            skyBackground |> Option.iter (fun sky -> (sky :> IDisposable).Dispose())
+            skyBackground |> Option.iter dispose
             skyBackground <- None
 
-            if NativePtr.toNativeInt characterAlbedoView <> 0n then
-                api.TextureViewRelease(characterAlbedoView)
-
-            if NativePtr.toNativeInt characterDetailView <> 0n then
-                api.TextureViewRelease(characterDetailView)
-
-            for texture in [ characterAlbedo; characterDetail ] do
-                if NativePtr.toNativeInt texture <> 0n then
-                    api.TextureDestroy(texture)
-                    api.TextureRelease(texture)
-
-            if NativePtr.toNativeInt characterSampler <> 0n then
-                api.SamplerRelease(characterSampler)
-
-            for view in surfaceViews do
-                if NativePtr.toNativeInt view <> 0n then
-                    api.TextureViewRelease(view)
+            characterAlbedo |> Option.iter dispose
+            characterDetail |> Option.iter dispose
+            characterSampler |> Option.iter dispose
 
             for texture in surfaceTextures do
-                if NativePtr.toNativeInt texture <> 0n then
-                    api.TextureDestroy(texture)
-                    api.TextureRelease(texture)
+                dispose texture
 
-            if NativePtr.toNativeInt surfaceSampler <> 0n then
-                api.SamplerRelease(surfaceSampler)
+            surfaceTextures.Clear()
+            surfaceSampler |> Option.iter dispose
+            cameraBuffer |> Option.iter dispose
+            jointBuffer |> Option.iter dispose
 
-            if NativePtr.toNativeInt cameraBuffer <> 0n then
-                api.BufferRelease(cameraBuffer)
+            gpu
+            |> Option.iter (fun ctx ->
+                if not (GpuPointer.isMissing scenePipelineLayout) then
+                    ctx.Api.PipelineLayoutRelease(scenePipelineLayout)
 
-            if NativePtr.toNativeInt jointBuffer <> 0n then
-                api.BufferRelease(jointBuffer)
+                if not (GpuPointer.isMissing sceneLayout) then
+                    ctx.Api.BindGroupLayoutRelease(sceneLayout)
 
-            if NativePtr.toNativeInt pipelineLayout <> 0n then
-                api.PipelineLayoutRelease(pipelineLayout)
+                if not (GpuPointer.isMissing shader) then
+                    ctx.Api.ShaderModuleRelease(shader))
 
-            if NativePtr.toNativeInt bindGroupLayout <> 0n then
-                api.BindGroupLayoutRelease(bindGroupLayout)
-
-            if NativePtr.toNativeInt shader <> 0n then
-                api.ShaderModuleRelease(shader)
-
-            if NativePtr.toNativeInt queue <> 0n then
-                api.QueueRelease(queue)
-
-            if NativePtr.toNativeInt surface <> 0n then
-                if surfaceConfigured then
-                    api.SurfaceUnconfigure(surface)
-
-                api.SurfaceRelease(surface)
-
-            if NativePtr.toNativeInt device <> 0n then
-                api.DeviceRelease(device)
-
-            if NativePtr.toNativeInt adapter <> 0n then
-                api.AdapterRelease(adapter)
-
-            if NativePtr.toNativeInt instance <> 0n then
-                api.InstanceRelease(instance)
+            // Cached pipelines reference the layouts and shaders above, so they go once every owner has released its own handles.
+            pipelines |> Option.iter dispose
+            pipelines <- None
+            gpu |> Option.iter dispose
+            gpu <- None
 
             if window <> 0un then
                 X11ChildWindow.destroy display window
 
             if display <> 0n then
                 X11ChildWindow.closeDisplay display
-
-            (errorCallbackPointer :> IDisposable).Dispose()
 
     let initialize () =
         if not (OperatingSystem.IsLinux()) then
@@ -1692,25 +1425,15 @@ struct VertexOutput {
         X11ChildWindow.flush display
         ViewerDiagnostics.publishNativeWindow (uint64 window)
 
-        instance <- api.CreateInstance(NativePtr.nullPtr<InstanceDescriptor>)
-        checkPointer "a WebGPU instance" instance
+        let ctx = unwrap (GpuContext.Create(display, window))
+        gpu <- Some ctx
 
-        let mutable xlibSource = SurfaceDescriptorFromXlibWindow()
-        xlibSource.Chain.SType <- SType.SurfaceDescriptorFromXlibWindow
-        xlibSource.Display <- NativePtr.toVoidPtr (NativePtr.ofNativeInt<byte> display)
-        xlibSource.Window <- uint64 window
-        let xlibSourcePointer = NativePtr.stackalloc<SurfaceDescriptorFromXlibWindow> 1
-        NativePtr.write xlibSourcePointer xlibSource
-        let mutable surfaceDescriptor = SurfaceDescriptor()
-        surfaceDescriptor.NextInChain <- NativePtr.ofNativeInt<ChainedStruct> (NativePtr.toNativeInt xlibSourcePointer)
-        surface <- api.InstanceCreateSurface(instance, &surfaceDescriptor)
-        checkPointer "the stadium Xlib surface" surface
+        pipelines <-
+            Some(
+                new PipelineCache<RenderPipelineKey, nativeptr<RenderPipeline>>(fun pipeline ->
+                    ctx.Api.RenderPipelineRelease(pipeline))
+            )
 
-        adapter <- requestAdapter ()
-        device <- requestDevice ()
-        queue <- api.DeviceGetQueue(device)
-        checkPointer "the WebGPU queue" queue
-        api.DeviceSetUncapturedErrorCallback(device, errorCallbackPointer, nullVoid)
         configureSurface (uint32 (max 1 initialBounds.Width)) (uint32 (max 1 initialBounds.Height))
         createShaderAndPipeline ()
         createHudShaderAndPipeline ()
@@ -1735,12 +1458,13 @@ struct VertexOutput {
 
         carrierMarkerBatch <- createCarrierMarkerBatch ()
 
-        updateCamera targetWidth targetHeight
+        updateCamera ctx.Width ctx.Height
         updateWindow initialBounds
 
         Diagnostics.Trace.WriteLine(
             $"WebGPU stadium ready: X11 child 0x{uint64 window:X}, {multisampleCount}x MSAA, {staticBatches.Length} material batches, {dynamicBatches.Length} live batches."
         )
+
         Diagnostics.Trace.WriteLine($"Viewer startup ready: {startupClock.Elapsed.TotalMilliseconds:F1} ms")
 
     do
@@ -1758,12 +1482,14 @@ struct VertexOutput {
     // Diagnostics can time completed work without making production rendering wait for the GPU every frame.
     member _.WaitForGpu() =
         if not disposed then
-            devicePoll.Invoke(NativePtr.toNativeInt device, 1uy, 0n) |> ignore
+            (context ()).Poll(true)
 
     member _.Render
         (bounds: PixelRect, frame: RenderFrame, palettes: Matrix4x4[], cutouts: PixelRect array, stats: MatchHudStats)
         =
         let mutable presented = false
+        let ctx = context ()
+        let api = ctx.Api
 
         if not disposed && bounds.Width > 0 && bounds.Height > 0 then
             updateWindow bounds
@@ -1776,7 +1502,7 @@ struct VertexOutput {
                 uploadHudRegion hud region
 
             let mutable current = SurfaceTexture()
-            api.SurfaceGetCurrentTexture(surface, &current)
+            api.SurfaceGetCurrentTexture(ctx.Surface, &current)
 
             if
                 current.Status = SurfaceGetCurrentTextureStatus.Success
@@ -1790,14 +1516,14 @@ struct VertexOutput {
                 try
                     colorView <- api.TextureCreateView(current.Texture, NativePtr.nullPtr<TextureViewDescriptor>)
 
-                    encoder <- api.DeviceCreateCommandEncoder(device, NativePtr.nullPtr<CommandEncoderDescriptor>)
+                    encoder <- api.DeviceCreateCommandEncoder(ctx.Device, NativePtr.nullPtr<CommandEncoderDescriptor>)
 
                     let draw (batch: GpuDrawBatch) =
-                        api.RenderPassEncoderSetVertexBuffer(pass, 0u, batch.VertexBuffer, 0UL, UInt64.MaxValue)
+                        api.RenderPassEncoderSetVertexBuffer(pass, 0u, batch.VertexBuffer.Handle, 0UL, UInt64.MaxValue)
 
                         api.RenderPassEncoderSetIndexBuffer(
                             pass,
-                            batch.IndexBuffer,
+                            batch.IndexBuffer.Handle,
                             IndexFormat.Uint32,
                             0UL,
                             UInt64.MaxValue
@@ -1827,7 +1553,7 @@ struct VertexOutput {
                     pass <- NativePtr.nullPtr<RenderPassEncoder>
 
                     let mutable colorAttachment = RenderPassColorAttachment()
-                    colorAttachment.View <- multisampleColorView
+                    colorAttachment.View <- multisampleColor.Value.View
                     colorAttachment.ResolveTarget <- hdrOutput.Value.SceneView
                     colorAttachment.LoadOp <- LoadOp.Clear
                     colorAttachment.StoreOp <- StoreOp.Discard
@@ -1841,7 +1567,7 @@ struct VertexOutput {
                     NativePtr.write colorPointer colorAttachment
 
                     let mutable depthAttachment = RenderPassDepthStencilAttachment()
-                    depthAttachment.View <- depthView
+                    depthAttachment.View <- depthTarget.Value.View
                     depthAttachment.DepthLoadOp <- LoadOp.Clear
                     depthAttachment.DepthStoreOp <- StoreOp.Store
                     depthAttachment.DepthClearValue <- 1.0f
@@ -1853,7 +1579,7 @@ struct VertexOutput {
                     passDescriptor.ColorAttachments <- colorPointer
                     passDescriptor.DepthStencilAttachment <- depthPointer
                     pass <- api.CommandEncoderBeginRenderPass(encoder, &passDescriptor)
-                    api.RenderPassEncoderSetPipeline(pass, pipeline)
+                    api.RenderPassEncoderSetPipeline(pass, scenePipeline)
 
                     api.RenderPassEncoderSetBindGroup(
                         pass,
@@ -1878,11 +1604,11 @@ struct VertexOutput {
                         draw batch
 
                     skyBackground.Value.Encode(pass)
-                    api.RenderPassEncoderSetPipeline(pass, pipeline)
+                    api.RenderPassEncoderSetPipeline(pass, scenePipeline)
 
                     if showGrassDetail then
                         grassDetail.Value.Encode(pass)
-                        api.RenderPassEncoderSetPipeline(pass, pipeline)
+                        api.RenderPassEncoderSetPipeline(pass, scenePipeline)
 
                     carrierMarkerBatch |> Option.iter draw
 
@@ -1900,11 +1626,18 @@ struct VertexOutput {
 
                     api.RenderPassEncoderSetPipeline(pass, hudPipeline)
                     api.RenderPassEncoderSetBindGroup(pass, 0u, hudBindGroup, unativeint 0, NativePtr.nullPtr<uint32>)
-                    api.RenderPassEncoderSetVertexBuffer(pass, 0u, hudQuadVertexBuffer, 0UL, UInt64.MaxValue)
+
+                    api.RenderPassEncoderSetVertexBuffer(
+                        pass,
+                        0u,
+                        hudQuadVertexBuffer.Value.Handle,
+                        0UL,
+                        UInt64.MaxValue
+                    )
 
                     api.RenderPassEncoderSetIndexBuffer(
                         pass,
-                        hudQuadIndexBuffer,
+                        hudQuadIndexBuffer.Value.Handle,
                         IndexFormat.Uint32,
                         0UL,
                         UInt64.MaxValue
@@ -1918,10 +1651,10 @@ struct VertexOutput {
 
                     let commandPointer = NativePtr.stackalloc<nativeptr<CommandBuffer>> 1
                     NativePtr.write commandPointer commands
-                    api.QueueSubmit(queue, unativeint 1, commandPointer)
+                    api.QueueSubmit(ctx.Queue, unativeint 1, commandPointer)
                     staticShadowsReady <- true
-                    devicePoll.Invoke(NativePtr.toNativeInt device, 0uy, 0n) |> ignore
-                    api.SurfacePresent(surface)
+                    ctx.Poll(false)
+                    api.SurfacePresent(ctx.Surface)
                     presented <- true
                     let before = lastPresentation
                     recordPresentation ()
@@ -1932,8 +1665,8 @@ struct VertexOutput {
 
                          ViewerDiagnostics.record
                              { FrameIndex = int64 frameCount
-                               Width = int targetWidth
-                               Height = int targetHeight
+                               Width = int ctx.Width
+                               Height = int ctx.Height
                                Quality = "original"
                                FrameIntervalMs = interval
                                CpuFrameMs = interval
@@ -1945,7 +1678,9 @@ struct VertexOutput {
                     frameCount <- frameCount + 1
 
                     if frameCount = 1 then
-                        Diagnostics.Trace.WriteLine($"Presented the first live FootballEngine stadium frame after {startupClock.Elapsed.TotalMilliseconds:F1} ms.")
+                        Diagnostics.Trace.WriteLine(
+                            $"Presented the first live FootballEngine stadium frame after {startupClock.Elapsed.TotalMilliseconds:F1} ms."
+                        )
                 finally
                     if NativePtr.toNativeInt commands <> 0n then
                         api.CommandBufferRelease(commands)
@@ -1964,7 +1699,7 @@ struct VertexOutput {
                 current.Status = SurfaceGetCurrentTextureStatus.Outdated
                 || current.Status = SurfaceGetCurrentTextureStatus.Lost
             then
-                configureSurface targetWidth targetHeight
+                configureSurface ctx.Width ctx.Height
             else
                 Diagnostics.Trace.WriteLine($"WebGPU stadium surface acquisition failed: {current.Status}")
 

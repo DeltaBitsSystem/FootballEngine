@@ -3,7 +3,7 @@
 namespace FootballEngine.Client.Match3D
 
 open System
-open System.IO
+open FsToolkit.ErrorHandling
 open Microsoft.FSharp.NativeInterop
 open Silk.NET.WebGPU
 
@@ -17,447 +17,351 @@ module BroadcastGrade =
     let standard = { Saturation = 1.06f; Contrast = 1.04f }
 
 /// Owns the scene-linear resolve, the post chain (ambient occlusion, bloom, grade) and the only exposure/display
-/// transform in the renderer.
+/// transform in the renderer. Its pipelines live in the shared cache.
 [<Sealed>]
 type HdrOutputPass
+    private
     (
-        api: WebGPU,
-        device: nativeptr<Device>,
-        queue: nativeptr<Queue>,
-        outputFormat: TextureFormat,
+        context: GpuContext,
+        cache: RenderPipelineCache,
         settings: HdrLightingSettings,
         quality: ViewerQuality,
-        grade: BroadcastGrade
+        grade: BroadcastGrade,
+        outputFormat: TextureFormat
     ) =
-    let uniformBytes = 48UL
-    let bloomUniformBytes = 32UL
+    let api = context.Api
+    // Byte sizes of the WGSL uniform structs: 12 floats for the output pass, 8 for each bloom step.
+    let uniformFloats = 12
+    let bloomUniformFloats = 8
     let bloomMips = max 1 quality.BloomMips
-    let mutable texture = NativePtr.nullPtr<Texture>
-    let mutable view = NativePtr.nullPtr<TextureView>
-    let mutable bindGroup = NativePtr.nullPtr<BindGroup>
-    let mutable layout = NativePtr.nullPtr<BindGroupLayout>
-    let mutable pipelineLayout = NativePtr.nullPtr<PipelineLayout>
-    let mutable pipeline = NativePtr.nullPtr<RenderPipeline>
+    let mutable disposed = false
     let mutable shader = NativePtr.nullPtr<ShaderModule>
-    let mutable uniform = NativePtr.nullPtr<Buffer>
-    let mutable sampler = NativePtr.nullPtr<Sampler>
     let mutable bloomShader = NativePtr.nullPtr<ShaderModule>
+    let mutable layout = NativePtr.nullPtr<BindGroupLayout>
     let mutable bloomLayout = NativePtr.nullPtr<BindGroupLayout>
+    let mutable pipelineLayout = NativePtr.nullPtr<PipelineLayout>
     let mutable bloomPipelineLayout = NativePtr.nullPtr<PipelineLayout>
+    let mutable pipeline = NativePtr.nullPtr<RenderPipeline>
     let mutable prefilterPipeline = NativePtr.nullPtr<RenderPipeline>
     let mutable downPipeline = NativePtr.nullPtr<RenderPipeline>
     let mutable upPipeline = NativePtr.nullPtr<RenderPipeline>
-    let bloomTextures = Array.create bloomMips (NativePtr.nullPtr<Texture>)
-    let bloomViews = Array.create bloomMips (NativePtr.nullPtr<TextureView>)
+    let mutable sampler: GpuSampler option = None
+    let mutable uniform: GpuBuffer<float32> option = None
+    let mutable sceneTarget: GpuTexture option = None
+    let bloomTextures = ResizeArray<GpuTexture>()
+    let downUniforms = ResizeArray<GpuBuffer<float32>>()
+    let upUniforms = ResizeArray<GpuBuffer<float32>>()
     let downGroups = Array.create bloomMips (NativePtr.nullPtr<BindGroup>)
     let upGroups = Array.create bloomMips (NativePtr.nullPtr<BindGroup>)
-    let downUniforms = Array.create bloomMips (NativePtr.nullPtr<Buffer>)
-    let upUniforms = Array.create bloomMips (NativePtr.nullPtr<Buffer>)
+    let mutable bindGroup = NativePtr.nullPtr<BindGroup>
     let mutable bloomSizes: (uint32 * uint32)[] = [||]
-    let mutable disposed = false
+    let mutable cameraProjection = [| 0.1f; 500.0f; 0.5f; 1.6f |]
 
-    let check label pointer =
-        if NativePtr.toNativeInt pointer = 0n then
-            invalidOp $"WebGPU could not create {label}."
+    let releaseGroup (group: nativeptr<BindGroup>) =
+        if not (GpuPointer.isMissing group) then
+            api.BindGroupRelease(group)
 
     let releaseTargets () =
-        let releaseGroup (g: nativeptr<BindGroup>) =
-            if NativePtr.toNativeInt g <> 0n then
-                api.BindGroupRelease(g)
-
         releaseGroup bindGroup
         bindGroup <- NativePtr.nullPtr<BindGroup>
 
-        for i in 0 .. bloomMips - 1 do
-            releaseGroup downGroups[i]
-            releaseGroup upGroups[i]
-            downGroups[i] <- NativePtr.nullPtr<BindGroup>
-            upGroups[i] <- NativePtr.nullPtr<BindGroup>
+        for index in 0 .. bloomMips - 1 do
+            releaseGroup downGroups[index]
+            releaseGroup upGroups[index]
+            downGroups[index] <- NativePtr.nullPtr<BindGroup>
+            upGroups[index] <- NativePtr.nullPtr<BindGroup>
 
-            if NativePtr.toNativeInt bloomViews[i] <> 0n then
-                api.TextureViewRelease(bloomViews[i])
-                bloomViews[i] <- NativePtr.nullPtr<TextureView>
+        for texture in bloomTextures do
+            (texture :> IDisposable).Dispose()
 
-            if NativePtr.toNativeInt bloomTextures[i] <> 0n then
-                api.TextureDestroy(bloomTextures[i])
-                api.TextureRelease(bloomTextures[i])
-                bloomTextures[i] <- NativePtr.nullPtr<Texture>
+        bloomTextures.Clear()
 
-        if NativePtr.toNativeInt view <> 0n then
-            api.TextureViewRelease(view)
-            view <- NativePtr.nullPtr<TextureView>
+        sceneTarget |> Option.iter (fun texture -> (texture :> IDisposable).Dispose())
 
-        if NativePtr.toNativeInt texture <> 0n then
-            api.TextureDestroy(texture)
-            api.TextureRelease(texture)
-            texture <- NativePtr.nullPtr<Texture>
+        sceneTarget <- None
 
-    let dispose () =
-        if not disposed then
-            disposed <- true
-            releaseTargets ()
+    let forEachMip (step: int -> Result<unit, GpuError>) : Result<unit, GpuError> =
+        Seq.fold (fun state index -> Result.bind (fun () -> step index) state) (Ok()) (seq { 0 .. bloomMips - 1 })
 
-            for p in [ pipeline; prefilterPipeline; downPipeline; upPipeline ] do
-                if NativePtr.toNativeInt p <> 0n then
-                    api.RenderPipelineRelease(p)
+    let target (width: uint32) (height: uint32) (label: string) =
+        GpuTexture.Create(
+            context,
+            { Label = label
+              Format = TextureFormat.Rgba16float
+              Width = max 1u width
+              Height = max 1u height
+              Layers = 1u
+              MipLevels = 1u
+              Samples = 1u
+              Usage = TextureUsage.RenderAttachment ||| TextureUsage.TextureBinding }
+        )
 
-            for l in [ pipelineLayout; bloomPipelineLayout ] do
-                if NativePtr.toNativeInt l <> 0n then
-                    api.PipelineLayoutRelease(l)
+    let uniformBuffer (label: string) (floats: int) =
+        GpuBuffer<float32>.Create(context, label, BufferUsage.Uniform ||| BufferUsage.CopyDst, Array.zeroCreate floats)
 
-            for l in [ layout; bloomLayout ] do
-                if NativePtr.toNativeInt l <> 0n then
-                    api.BindGroupLayoutRelease(l)
-
-            for s in [ shader; bloomShader ] do
-                if NativePtr.toNativeInt s <> 0n then
-                    api.ShaderModuleRelease(s)
-
-            for b in Array.append [| uniform |] (Array.append downUniforms upUniforms) do
-                if NativePtr.toNativeInt b <> 0n then
-                    api.BufferRelease(b)
-
-            if NativePtr.toNativeInt sampler <> 0n then
-                api.SamplerRelease(sampler)
-
-    let loadShader (file: string) =
-        let path = Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", file)
-        let bytes = Text.Encoding.UTF8.GetBytes(File.ReadAllText(path) + "\u0000")
-        use pointer = fixed bytes
-        let mutable wgsl = ShaderModuleWGSLDescriptor()
-        wgsl.Chain.SType <- SType.ShaderModuleWgslDescriptor
-        wgsl.Code <- pointer
-        let wgslPointer = NativePtr.stackalloc<ShaderModuleWGSLDescriptor> 1
-        NativePtr.write wgslPointer wgsl
-        let mutable descriptor = ShaderModuleDescriptor()
-        descriptor.NextInChain <- NativePtr.ofNativeInt<ChainedStruct> (NativePtr.toNativeInt wgslPointer)
-        let m = api.DeviceCreateShaderModule(device, &descriptor)
-        check $"the {file} shader" m
-        m
-
-    let createBuffer size label =
-        let mutable d = BufferDescriptor()
-        d.Size <- size
-        d.Usage <- BufferUsage.Uniform ||| BufferUsage.CopyDst
-        let b = api.DeviceCreateBuffer(device, &d)
-        check label b
-        b
-
-    let writeFloats (buffer: nativeptr<Buffer>) (values: float32[]) =
-        use p = fixed values
-        api.QueueWriteBuffer(queue, buffer, 0UL, NativePtr.toVoidPtr p, unativeint (values.Length * 4))
-
-    let createPipeline
-        (pipelineLayout: nativeptr<PipelineLayout>)
-        (m: nativeptr<ShaderModule>)
-        (fragmentEntry: string)
-        (format: TextureFormat)
-        (additive: bool)
-        label
+    let pipelineFor
+        (key: RenderPipelineKey)
+        (label: string)
+        (shaderModule: nativeptr<ShaderModule>)
+        (layoutHandle: nativeptr<PipelineLayout>)
         =
-        let vertexName = Text.Encoding.UTF8.GetBytes("vs\u0000")
-        let fragmentName = Text.Encoding.UTF8.GetBytes(fragmentEntry + "\u0000")
-        use vertexPointer = fixed vertexName
-        use fragmentPointer = fixed fragmentName
-        let blend = NativePtr.stackalloc<BlendState> 1
-        let mutable target = ColorTargetState()
-        target.Format <- format
-        target.WriteMask <- ColorWriteMask.All
+        cache.GetOrAdd(key, fun () -> RenderPipelines.build context label key shaderModule layoutHandle)
 
-        if additive then
-            let mutable component = BlendComponent()
-            component.Operation <- BlendOperation.Add
-            component.SrcFactor <- BlendFactor.One
-            component.DstFactor <- BlendFactor.One
-            let mutable state = BlendState()
-            state.Color <- component
-            state.Alpha <- component
-            NativePtr.write blend state
-            target.Blend <- blend
+    let postKey
+        (shaderName: string)
+        (layoutName: string)
+        (entry: string)
+        (format: TextureFormat)
+        (blend: FragmentBlend)
+        : RenderPipelineKey =
+        { Shader = shaderName
+          Layout = layoutName
+          VertexEntry = "vs"
+          Vertex = NoVertexBuffers
+          Fragment =
+            Some
+                { Entry = entry
+                  ColorFormat = format
+                  Blend = blend }
+          Depth = None
+          Cull = CullMode.None
+          Samples = 1u
+          AlphaToCoverage = false }
 
-        let targets = NativePtr.stackalloc<ColorTargetState> 1
-        NativePtr.write targets target
-        let mutable fragment = FragmentState()
-        fragment.Module <- m
-        fragment.EntryPoint <- fragmentPointer
-        fragment.TargetCount <- unativeint 1
-        fragment.Targets <- targets
-        let fragments = NativePtr.stackalloc<FragmentState> 1
-        NativePtr.write fragments fragment
-        let mutable descriptor = RenderPipelineDescriptor()
-        descriptor.Layout <- pipelineLayout
-        descriptor.Vertex.Module <- m
-        descriptor.Vertex.EntryPoint <- vertexPointer
-        descriptor.Fragment <- fragments
-        descriptor.Primitive.Topology <- PrimitiveTopology.TriangleList
-        descriptor.Multisample.Count <- 1u
-        descriptor.Multisample.Mask <- UInt32.MaxValue
-        let p = api.DeviceCreateRenderPipeline(device, &descriptor)
-        check label p
-        p
+    let writeSettings () : Result<unit, GpuError> =
+        match uniform with
+        | None -> Ok()
+        | Some buffer ->
+            buffer.Write(
+                [| settings.ExposureStops
+                   quality.BloomIntensity
+                   (if quality.AoEnabled then quality.AoIntensity else 0.0f)
+                   quality.AoRadiusMetres
+                   yield! cameraProjection
+                   grade.Saturation
+                   grade.Contrast
+                   (if quality.AoEnabled then 1.0f else 0.0f)
+                   (if quality.BloomEnabled then 1.0f else 0.0f) |]
+            )
 
-    let createLayout (entries: BindGroupLayoutEntry[]) label =
-        let pointer = NativePtr.stackalloc<BindGroupLayoutEntry> entries.Length
+            Ok()
 
-        entries |> Array.iteri (fun i e -> NativePtr.write (NativePtr.add pointer i) e)
+    let initialize () : Result<unit, GpuError> =
+        result {
+            let! mainSource = ShaderLibrary.readFile "HdrOutput.wgsl"
+            let! mainModule = ShaderModules.compile context "HdrOutput.wgsl" mainSource
+            shader <- mainModule
+            let! bloomSource = ShaderLibrary.readFile "Bloom.wgsl"
+            let! bloomModule = ShaderModules.compile context "Bloom.wgsl" bloomSource
+            bloomShader <- bloomModule
 
-        let mutable d = BindGroupLayoutDescriptor()
-        d.EntryCount <- unativeint entries.Length
-        d.Entries <- pointer
-        let l = api.DeviceCreateBindGroupLayout(device, &d)
-        check label l
-        let layouts = NativePtr.stackalloc<nativeptr<BindGroupLayout>> 1
-        NativePtr.write layouts l
-        let mutable pd = PipelineLayoutDescriptor()
-        pd.BindGroupLayoutCount <- unativeint 1
-        pd.BindGroupLayouts <- layouts
-        let pl = api.DeviceCreatePipelineLayout(device, &pd)
-        check (label + " pipeline layout") pl
-        l, pl
+            let! postSampler =
+                GpuSampler.Create(
+                    context,
+                    "the post-process sampler",
+                    { AddressU = AddressMode.ClampToEdge
+                      AddressV = AddressMode.ClampToEdge
+                      AddressW = AddressMode.ClampToEdge
+                      Magnification = FilterMode.Linear
+                      Minification = FilterMode.Linear
+                      Mipmap = MipmapFilterMode.Nearest
+                      MaxAnisotropy = 1us
+                      LodMaxClamp = 0.0f
+                      Compare = None }
+                )
 
-    let textureEntry binding sampleType dimension multisampled =
-        let mutable e = BindGroupLayoutEntry()
-        e.Binding <- binding
-        e.Visibility <- ShaderStage.Fragment
-        e.Texture.SampleType <- sampleType
-        e.Texture.ViewDimension <- dimension
-        e.Texture.Multisampled <- Silk.NET.Core.Bool32(if multisampled then 1u else 0u)
-        e
+            sampler <- Some postSampler
 
-    let uniformEntry binding size =
-        let mutable e = BindGroupLayoutEntry()
-        e.Binding <- binding
-        e.Visibility <- ShaderStage.Fragment
-        e.Buffer.Type <- BufferBindingType.Uniform
-        e.Buffer.MinBindingSize <- size
-        e
+            let! outputLayout =
+                BindGroupLayouts.create
+                    context
+                    "the HDR output layout"
+                    [ BindGroupLayouts.texture
+                          0u
+                          ShaderStage.Fragment
+                          TextureSampleType.UnfilterableFloat
+                          TextureViewDimension.Dimension2D
+                          false
+                      BindGroupLayouts.uniform 1u ShaderStage.Fragment (uint64 (uniformFloats * 4))
+                      BindGroupLayouts.depthMultisampled 2u ShaderStage.Fragment
+                      BindGroupLayouts.texture2d 3u ShaderStage.Fragment
+                      BindGroupLayouts.sampler 4u ShaderStage.Fragment ]
 
-    let samplerEntry binding =
-        let mutable e = BindGroupLayoutEntry()
-        e.Binding <- binding
-        e.Visibility <- ShaderStage.Fragment
-        e.Sampler.Type <- SamplerBindingType.Filtering
-        e
+            layout <- outputLayout
 
-    let createGroup (l: nativeptr<BindGroupLayout>) (entries: BindGroupEntry[]) label =
-        let pointer = NativePtr.stackalloc<BindGroupEntry> entries.Length
+            let! outputPipelineLayout =
+                BindGroupLayouts.pipelineLayout context "the HDR output pipeline layout" [ outputLayout ]
 
-        entries |> Array.iteri (fun i e -> NativePtr.write (NativePtr.add pointer i) e)
+            pipelineLayout <- outputPipelineLayout
 
-        let mutable d = BindGroupDescriptor()
-        d.Layout <- l
-        d.EntryCount <- unativeint entries.Length
-        d.Entries <- pointer
-        let g = api.DeviceCreateBindGroup(device, &d)
-        check label g
-        g
+            let! bloomGroupLayout =
+                BindGroupLayouts.create
+                    context
+                    "the bloom layout"
+                    [ BindGroupLayouts.texture2d 0u ShaderStage.Fragment
+                      BindGroupLayouts.sampler 1u ShaderStage.Fragment
+                      BindGroupLayouts.uniform 2u ShaderStage.Fragment (uint64 (bloomUniformFloats * 4)) ]
 
-    let viewEntry binding (v: nativeptr<TextureView>) =
-        let mutable e = BindGroupEntry()
-        e.Binding <- binding
-        e.TextureView <- v
-        e
+            bloomLayout <- bloomGroupLayout
 
-    let bufferEntry binding (b: nativeptr<Buffer>) size =
-        let mutable e = BindGroupEntry()
-        e.Binding <- binding
-        e.Buffer <- b
-        e.Size <- size
-        e
+            let! bloomPipelineLayoutHandle =
+                BindGroupLayouts.pipelineLayout context "the bloom pipeline layout" [ bloomGroupLayout ]
 
-    let samplerBinding binding =
-        let mutable e = BindGroupEntry()
-        e.Binding <- binding
-        e.Sampler <- sampler
-        e
+            bloomPipelineLayout <- bloomPipelineLayoutHandle
 
-    let initialize () =
-        match HdrLighting.validate settings with
-        | Error error -> invalidArg (nameof settings) error
-        | Ok _ -> ()
+            let! outputUniform = uniformBuffer "the HDR output settings" uniformFloats
+            uniform <- Some outputUniform
 
-        if
-            outputFormat <> TextureFormat.Bgra8UnormSrgb
-            && outputFormat <> TextureFormat.Rgba8UnormSrgb
-        then
-            invalidArg (nameof outputFormat) "HDR presentation requires an sRGB surface for linear-light HUD blending."
+            do!
+                forEachMip (fun index ->
+                    result {
+                        let! down = uniformBuffer "a bloom downsample uniform" bloomUniformFloats
+                        downUniforms.Add down
+                        let! up = uniformBuffer "a bloom upsample uniform" bloomUniformFloats
+                        upUniforms.Add up
+                    })
 
-        shader <- loadShader "HdrOutput.wgsl"
-        bloomShader <- loadShader "Bloom.wgsl"
+            let! main =
+                pipelineFor
+                    (postKey "HdrOutput.wgsl" "HDR output" "fs" outputFormat Replace)
+                    "the HDR output pipeline"
+                    shader
+                    pipelineLayout
 
-        let mutable samplerDescriptor = SamplerDescriptor()
-        samplerDescriptor.AddressModeU <- AddressMode.ClampToEdge
-        samplerDescriptor.AddressModeV <- AddressMode.ClampToEdge
-        samplerDescriptor.AddressModeW <- AddressMode.ClampToEdge
-        samplerDescriptor.MagFilter <- FilterMode.Linear
-        samplerDescriptor.MinFilter <- FilterMode.Linear
-        samplerDescriptor.MipmapFilter <- MipmapFilterMode.Nearest
-        samplerDescriptor.MaxAnisotropy <- 1us
-        sampler <- api.DeviceCreateSampler(device, &samplerDescriptor)
-        check "the post-process sampler" sampler
+            pipeline <- main
 
-        let l, pl =
-            createLayout
-                [| textureEntry 0u TextureSampleType.UnfilterableFloat TextureViewDimension.Dimension2D false
-                   uniformEntry 1u uniformBytes
-                   textureEntry 2u TextureSampleType.Depth TextureViewDimension.Dimension2D true
-                   textureEntry 3u TextureSampleType.Float TextureViewDimension.Dimension2D false
-                   samplerEntry 4u |]
-                "the HDR output layout"
+            let! prefilter =
+                pipelineFor
+                    (postKey "Bloom.wgsl" "bloom" "fsPrefilter" TextureFormat.Rgba16float Replace)
+                    "the bloom prefilter"
+                    bloomShader
+                    bloomPipelineLayout
 
-        layout <- l
-        pipelineLayout <- pl
+            prefilterPipeline <- prefilter
 
-        let bl, bpl =
-            createLayout
-                [| textureEntry 0u TextureSampleType.Float TextureViewDimension.Dimension2D false
-                   samplerEntry 1u
-                   uniformEntry 2u bloomUniformBytes |]
-                "the bloom layout"
+            let! down =
+                pipelineFor
+                    (postKey "Bloom.wgsl" "bloom" "fsDown" TextureFormat.Rgba16float Replace)
+                    "the bloom downsample"
+                    bloomShader
+                    bloomPipelineLayout
 
-        bloomLayout <- bl
-        bloomPipelineLayout <- bpl
-        uniform <- createBuffer uniformBytes "the HDR output settings"
+            downPipeline <- down
 
-        for i in 0 .. bloomMips - 1 do
-            downUniforms[i] <- createBuffer bloomUniformBytes "a bloom downsample uniform"
-            upUniforms[i] <- createBuffer bloomUniformBytes "a bloom upsample uniform"
+            // Bloom steps add into the mip above them, so the upsample blends additively instead of replacing.
+            let! up =
+                pipelineFor
+                    (postKey "Bloom.wgsl" "bloom" "fsUp" TextureFormat.Rgba16float Additive)
+                    "the bloom upsample"
+                    bloomShader
+                    bloomPipelineLayout
 
-        pipeline <- createPipeline pipelineLayout shader "fs" outputFormat false "the HDR output pipeline"
+            upPipeline <- up
+            return! writeSettings ()
+        }
 
-        prefilterPipeline <-
-            createPipeline
-                bloomPipelineLayout
-                bloomShader
-                "fsPrefilter"
-                TextureFormat.Rgba16float
-                false
-                "the bloom prefilter"
+    member internal _.Initialize() = initialize ()
 
-        downPipeline <-
-            createPipeline
-                bloomPipelineLayout
-                bloomShader
-                "fsDown"
-                TextureFormat.Rgba16float
-                false
-                "the bloom downsample"
-
-        upPipeline <-
-            createPipeline bloomPipelineLayout bloomShader "fsUp" TextureFormat.Rgba16float true "the bloom upsample"
-
-    let mutable cameraProjection = [| 0.1f; 500.0f; 0.5f; 1.6f |]
-
-    let writeSettings () =
-        writeFloats
-            uniform
-            [| settings.ExposureStops
-               quality.BloomIntensity
-               (if quality.AoEnabled then quality.AoIntensity else 0.0f)
-               quality.AoRadiusMetres
-               yield! cameraProjection
-               grade.Saturation
-               grade.Contrast
-               (if quality.AoEnabled then 1.0f else 0.0f)
-               (if quality.BloomEnabled then 1.0f else 0.0f) |]
-
-    do
-        try
-            initialize ()
-            writeSettings ()
-        with _ ->
-            dispose ()
-            reraise ()
-
-    member _.Resize(width: uint32, height: uint32, depthView: nativeptr<TextureView>) =
+    /// Recreates the scene target and bloom chain for a new surface size. Bind groups refer to the views, so they are
+    /// rebuilt in the same pass.
+    member _.Resize(width: uint32, height: uint32, depth: GpuTexture) : Result<unit, GpuError> =
         if disposed then
             raise (ObjectDisposedException(nameof HdrOutputPass))
 
         releaseTargets ()
 
-        let createTarget (w: uint32) (h: uint32) label =
-            let mutable descriptor = TextureDescriptor()
-            descriptor.Size <- Extent3D(max 1u w, max 1u h, 1u)
-            descriptor.Dimension <- TextureDimension.Dimension2D
-            descriptor.Format <- TextureFormat.Rgba16float
-            descriptor.Usage <- TextureUsage.RenderAttachment ||| TextureUsage.TextureBinding
-            descriptor.MipLevelCount <- 1u
-            descriptor.SampleCount <- 1u
-            let t = api.DeviceCreateTexture(device, &descriptor)
-            check label t
-            let v = api.TextureCreateView(t, NativePtr.nullPtr<TextureViewDescriptor>)
-            check (label + " view") v
-            t, v
-
-        let t, v = createTarget width height "the linear HDR resolve"
-        texture <- t
-        view <- v
-        bloomSizes <- Array.init bloomMips (fun i -> max 1u (width >>> (i + 1)), max 1u (height >>> (i + 1)))
-
-        for i in 0 .. bloomMips - 1 do
-            let w, h = bloomSizes[i]
-            let bt, bv = createTarget w h "a bloom mip"
-            bloomTextures[i] <- bt
-            bloomViews[i] <- bv
+        bloomSizes <-
+            Array.init bloomMips (fun index -> max 1u (width >>> (index + 1)), max 1u (height >>> (index + 1)))
 
         let exposureScale = MathF.Pow(2.0f, settings.ExposureStops)
 
-        for i in 0 .. bloomMips - 1 do
-            // Downsample i reads the full-resolution scene (i = 0) or the previous mip; its texel is the source's.
-            let sw, sh = if i = 0 then width, height else bloomSizes[i - 1]
-            let source = if i = 0 then view else bloomViews[i - 1]
+        target width height "the linear HDR resolve"
+        |> Result.bind (fun scene ->
+            sceneTarget <- Some scene
 
-            writeFloats
-                downUniforms[i]
-                [| quality.BloomThreshold
-                   quality.BloomKnee
-                   exposureScale
-                   1.0f
-                   1.0f / float32 sw
-                   1.0f / float32 sh
-                   0.0f
-                   0.0f |]
+            forEachMip (fun index ->
+                let bloomWidth, bloomHeight = bloomSizes[index]
 
-            downGroups[i] <-
-                createGroup
-                    bloomLayout
-                    [| viewEntry 0u source
-                       samplerBinding 1u
-                       bufferEntry 2u downUniforms[i] bloomUniformBytes |]
-                    "a bloom downsample group"
+                target bloomWidth bloomHeight "a bloom mip"
+                |> Result.map (fun texture -> bloomTextures.Add texture)))
+        |> Result.bind (fun () ->
+            forEachMip (fun index ->
+                // Downsample i reads the full-resolution scene (i = 0) or the previous mip; its texel is the source's.
+                let sourceWidth, sourceHeight =
+                    if index = 0 then width, height else bloomSizes[index - 1]
 
-            let uw, uh = bloomSizes[i]
+                let source =
+                    if index = 0 then
+                        sceneTarget.Value.View
+                    else
+                        bloomTextures[index - 1].View
 
-            writeFloats
-                upUniforms[i]
-                [| 0.0f
-                   0.0f
-                   0.0f
-                   quality.BloomSpread
-                   1.0f / float32 uw
-                   1.0f / float32 uh
-                   0.0f
-                   0.0f |]
+                let downUniform = downUniforms[index]
 
-            upGroups[i] <-
-                createGroup
-                    bloomLayout
-                    [| viewEntry 0u bloomViews[i]
-                       samplerBinding 1u
-                       bufferEntry 2u upUniforms[i] bloomUniformBytes |]
-                    "a bloom upsample group"
+                downUniform.Write(
+                    [| quality.BloomThreshold
+                       quality.BloomKnee
+                       exposureScale
+                       1.0f
+                       1.0f / float32 sourceWidth
+                       1.0f / float32 sourceHeight
+                       0.0f
+                       0.0f |]
+                )
 
-        bindGroup <-
-            createGroup
-                layout
-                [| viewEntry 0u view
-                   bufferEntry 1u uniform uniformBytes
-                   viewEntry 2u depthView
-                   viewEntry 3u bloomViews[0]
-                   samplerBinding 4u |]
+                let upWidth, upHeight = bloomSizes[index]
+                let upUniform = upUniforms[index]
+
+                upUniform.Write(
+                    [| 0.0f
+                       0.0f
+                       0.0f
+                       quality.BloomSpread
+                       1.0f / float32 upWidth
+                       1.0f / float32 upHeight
+                       0.0f
+                       0.0f |]
+                )
+
+                result {
+                    let! downGroup =
+                        BindGroups.create
+                            context
+                            "a bloom downsample group"
+                            bloomLayout
+                            [ BindGroups.view 0u source
+                              BindGroups.sampler 1u sampler.Value.Handle
+                              BindGroups.buffer 2u downUniform.Handle (uint64 (bloomUniformFloats * 4)) ]
+
+                    downGroups[index] <- downGroup
+
+                    let! upGroup =
+                        BindGroups.create
+                            context
+                            "a bloom upsample group"
+                            bloomLayout
+                            [ BindGroups.view 0u bloomTextures[index].View
+                              BindGroups.sampler 1u sampler.Value.Handle
+                              BindGroups.buffer 2u upUniform.Handle (uint64 (bloomUniformFloats * 4)) ]
+
+                    upGroups[index] <- upGroup
+                }))
+        |> Result.bind (fun () ->
+            BindGroups.create
+                context
                 "the HDR output bind group"
+                layout
+                [ BindGroups.view 0u sceneTarget.Value.View
+                  BindGroups.buffer 1u uniform.Value.Handle (uint64 (uniformFloats * 4))
+                  BindGroups.view 2u depth.View
+                  BindGroups.view 3u bloomTextures[0].View
+                  BindGroups.sampler 4u sampler.Value.Handle ]
+            |> Result.map (fun group -> bindGroup <- group))
 
-    member _.SceneView = view
+    member _.SceneView =
+        match sceneTarget with
+        | Some texture -> texture.View
+        | None -> NativePtr.nullPtr<TextureView>
 
     /// Projection parameters for reconstructing view-space positions from depth (ambient occlusion).
     member _.SetCamera(near: float32, far: float32, fieldOfViewY: float32, aspect: float32) =
@@ -465,7 +369,7 @@ type HdrOutputPass
 
         if next <> cameraProjection then
             cameraProjection <- next
-            writeSettings ()
+            writeSettings () |> ignore
 
     member _.EncodeBloom(encoder: nativeptr<CommandEncoder>) =
         if quality.BloomEnabled && bloomSizes.Length > 0 then
@@ -488,16 +392,73 @@ type HdrOutputPass
                 api.RenderPassEncoderRelease(pass)
 
             for i in 0 .. bloomMips - 1 do
-                run bloomViews[i] (if i = 0 then prefilterPipeline else downPipeline) downGroups[i] false
+                run bloomTextures[i].View (if i = 0 then prefilterPipeline else downPipeline) downGroups[i] false
 
             // Each smaller mip is tent-filtered and added into the next larger one: a wide, soft, energy-bounded glow.
             for i in bloomMips - 1 .. -1 .. 1 do
-                run bloomViews[i - 1] upPipeline upGroups[i] true
+                run bloomTextures[i - 1].View upPipeline upGroups[i] true
 
     member _.Draw(pass: nativeptr<RenderPassEncoder>) =
         api.RenderPassEncoderSetPipeline(pass, pipeline)
         api.RenderPassEncoderSetBindGroup(pass, 0u, bindGroup, unativeint 0, NativePtr.nullPtr<uint32>)
         api.RenderPassEncoderDraw(pass, 3u, 1u, 0u, 0u)
 
+    static member Create
+        (
+            context: GpuContext,
+            cache: RenderPipelineCache,
+            settings: HdrLightingSettings,
+            quality: ViewerQuality,
+            grade: BroadcastGrade,
+            outputFormat: TextureFormat
+        ) : Result<HdrOutputPass, GpuError> =
+        match HdrLighting.validate settings with
+        | Error error -> invalidArg (nameof settings) error
+        | Ok _ -> ()
+
+        if
+            outputFormat <> TextureFormat.Bgra8UnormSrgb
+            && outputFormat <> TextureFormat.Rgba8UnormSrgb
+        then
+            invalidArg (nameof outputFormat) "HDR presentation requires an sRGB surface for linear-light HUD blending."
+
+        let pass = new HdrOutputPass(context, cache, settings, quality, grade, outputFormat)
+
+        match pass.Initialize() with
+        | Ok() -> Ok pass
+        | Error error ->
+            (pass :> IDisposable).Dispose()
+            Error error
+
     interface IDisposable with
-        member _.Dispose() = dispose ()
+        member _.Dispose() =
+            if not disposed then
+                disposed <- true
+                releaseTargets ()
+
+                if not (GpuPointer.isMissing bloomPipelineLayout) then
+                    api.PipelineLayoutRelease(bloomPipelineLayout)
+
+                if not (GpuPointer.isMissing pipelineLayout) then
+                    api.PipelineLayoutRelease(pipelineLayout)
+
+                if not (GpuPointer.isMissing bloomLayout) then
+                    api.BindGroupLayoutRelease(bloomLayout)
+
+                if not (GpuPointer.isMissing layout) then
+                    api.BindGroupLayoutRelease(layout)
+
+                if not (GpuPointer.isMissing bloomShader) then
+                    api.ShaderModuleRelease(bloomShader)
+
+                if not (GpuPointer.isMissing shader) then
+                    api.ShaderModuleRelease(shader)
+
+                for buffer in downUniforms do
+                    (buffer :> IDisposable).Dispose()
+
+                for buffer in upUniforms do
+                    (buffer :> IDisposable).Dispose()
+
+                uniform |> Option.iter (fun buffer -> (buffer :> IDisposable).Dispose())
+                sampler |> Option.iter (fun value -> (value :> IDisposable).Dispose())

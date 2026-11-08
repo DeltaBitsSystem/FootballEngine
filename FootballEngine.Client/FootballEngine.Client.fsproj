@@ -85,7 +85,9 @@
         <Compile Include="Match3D\StadiumEnvironment.fs"/>
         <Compile Include="Match3D\ViewerQuality.fs"/>
         <Compile Include="Match3D\Gpu\GpuError.fs"/>
+        <Compile Include="Match3D\Gpu\GpuContext.fs"/>
         <Compile Include="Match3D\Gpu\GpuResources.fs"/>
+        <Compile Include="Match3D\Gpu\PipelineCache.fs"/>
         <Compile Include="Match3D\Gpu\ShaderLibrary.fs"/>
         <Compile Include="Match3D\DirectionalShadowPass.fs"/>
         <Compile Include="Match3D\ProceduralScenePass.fs"/>

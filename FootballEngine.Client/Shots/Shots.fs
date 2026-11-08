@@ -820,6 +820,9 @@ module Shots =
                     Directory.CreateDirectory directory |> ignore
                     ViewerDiagnostics.enableProfilingHud ()
                     ViewerDiagnostics.pinPresentationClock true
+                    // Armed before navigation so the match is created held at tick 0; otherwise the runtime
+                    // simulates until the first HoldAt below and the kickoff and goal scenes land in different modes.
+                    MatchRuntime.armInitialHold 0<subtick>
                     do! openLiveMatch dispatch
 
                     let scenes =

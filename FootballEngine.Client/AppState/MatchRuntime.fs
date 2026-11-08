@@ -38,7 +38,8 @@ type private MatchRuntime
         gs: GameState,
         clock: WorldClock,
         saveOpt: SaveSettings option,
-        runMode: MatchRunMode
+        runMode: MatchRunMode,
+        initialHold: int<subtick>
     ) =
     let cancellation = new CancellationTokenSource()
     let commandQueue = Channel.CreateUnbounded<LiveMatchCommand>()
@@ -292,6 +293,12 @@ type private MatchRuntime
                         | Ok() -> ()
                         | Error message -> enqueue dispatch (Failed($"Motion identity configuration failed: {message}"))
 
+                        // A match held before its first advance has no pose to present; publishing the starting
+                        // snapshot gives the viewer one. Live play never starts held, so it is unaffected.
+                        if initialHold < MatchSession.maxTicks then
+                            let starting = Replay.capture session.World
+                            presentation.Publish(starting.Tick, starting, Stopwatch.GetTimestamp()) |> ignore
+
                         let ticksPerSlice =
                             match runMode with
                             | MatchRunMode.Live _ -> int policy.WorkerSlice
@@ -303,7 +310,7 @@ type private MatchRuntime
                         let mutable finished = Result.isError motionConfiguration
                         let mutable paused = false
                         let mutable skipUntil = 0<subtick>
-                        let mutable holdAt = MatchSession.maxTicks
+                        let mutable holdAt = initialHold
                         let mutable accepted: LiveMatchCommand list = []
                         let mutable revision = 0UL
                         let mutable lastCommandId = 0UL
@@ -748,13 +755,24 @@ type MatchRuntimeHost() =
     let runtimes = System.Collections.Generic.Dictionary<MatchRuntimeId, MatchRuntime>()
     let mutable nextId = 0UL
 
-    member _.CreateUserMatch
+    member this.CreateUserMatch
         (matchId: MatchId, gs: GameState, clock: WorldClock, saveOpt: SaveSettings option, runMode: MatchRunMode)
         =
+        this.CreateUserMatchHeldAt(matchId, gs, clock, saveOpt, runMode, MatchSession.maxTicks)
+
+    member _.CreateUserMatchHeldAt
+        (
+            matchId: MatchId,
+            gs: GameState,
+            clock: WorldClock,
+            saveOpt: SaveSettings option,
+            runMode: MatchRunMode,
+            initialHold: int<subtick>
+        ) =
         lock syncRoot (fun () ->
             nextId <- nextId + 1UL
             let runtimeId = MatchRuntimeId nextId
-            let runtime = MatchRuntime(runtimeId, matchId, gs, clock, saveOpt, runMode)
+            let runtime = MatchRuntime(runtimeId, matchId, gs, clock, saveOpt, runMode, initialHold)
             runtimes.Add(runtimeId, runtime)
             runtimeId)
 
@@ -821,8 +839,29 @@ type MatchRuntimeHost() =
 module MatchRuntime =
     let private host = MatchRuntimeHost()
 
+    // Harness-only: the viewer-scenes capture starts the match held at a tick before any simulation runs. The
+    // match is created by a navigation message the harness cannot pass arguments through, so the request is
+    // armed here and consumed by the next live match; live play always starts at MatchSession.maxTicks.
+    let mutable private pendingInitialHold: int<subtick> option = None
+
+    let armInitialHold (tick: int<subtick>) = Volatile.Write(&pendingInitialHold, Some tick)
+
     let createUserMatch matchId gs clock saveOpt =
-        host.CreateUserMatch(matchId, gs, clock, saveOpt, MatchRunMode.Live LiveExecutionPolicy.defaultPolicy)
+        let initialHold =
+            match Volatile.Read(&pendingInitialHold) with
+            | Some tick ->
+                Volatile.Write(&pendingInitialHold, None)
+                tick
+            | None -> MatchSession.maxTicks
+
+        host.CreateUserMatchHeldAt(
+            matchId,
+            gs,
+            clock,
+            saveOpt,
+            MatchRunMode.Live LiveExecutionPolicy.defaultPolicy,
+            initialHold
+        )
 
     let createReplay matchId gs clock saveOpt =
         host.CreateUserMatch(matchId, gs, clock, saveOpt, MatchRunMode.Replay 20<tickDelta>)

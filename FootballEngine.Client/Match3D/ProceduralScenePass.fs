@@ -35,57 +35,63 @@ module ProceduralScenePassSettings =
           DepthCompare = CompareFunction.LessEqual
           AlphaToCoverage = false }
 
-/// Vertex-ID passes reuse scene bindings without allocating or uploading generated geometry.
+/// Vertex-ID passes reuse scene bindings without allocating or uploading generated geometry. The pipeline belongs to
+/// the shared cache; this pass only encodes it.
 [<Sealed>]
-type ProceduralScenePass(api: WebGPU, device: nativeptr<Device>, shader: nativeptr<ShaderModule>, layout: nativeptr<PipelineLayout>, depth: DepthStencilState, samples: uint32, settings: ProceduralScenePassSettings) =
-    let mutable pipeline = NativePtr.nullPtr<RenderPipeline>
+type ProceduralScenePass
+    private (pipeline: nativeptr<RenderPipeline>, api: Silk.NET.WebGPU.WebGPU, settings: ProceduralScenePassSettings) =
     let mutable disposed = false
 
-    do
-        let vertexBytes, fragmentBytes = Text.Encoding.UTF8.GetBytes(settings.VertexEntry + "\u0000"), Text.Encoding.UTF8.GetBytes(settings.FragmentEntry + "\u0000")
-        use vertexName = fixed vertexBytes
-        use fragmentName = fixed fragmentBytes
-        let mutable vertex = VertexState()
-        vertex.Module <- shader
-        vertex.EntryPoint <- vertexName
-        let mutable target = ColorTargetState()
-        target.Format <- TextureFormat.Rgba16float
-        target.WriteMask <- ColorWriteMask.All
-        let targetPointer = NativePtr.stackalloc<ColorTargetState> 1
-        NativePtr.write targetPointer target
-        let mutable fragment = FragmentState()
-        fragment.Module <- shader
-        fragment.EntryPoint <- fragmentName
-        fragment.TargetCount <- unativeint 1
-        fragment.Targets <- targetPointer
-        let fragmentPointer = NativePtr.stackalloc<FragmentState> 1
-        NativePtr.write fragmentPointer fragment
-        let depthPointer = NativePtr.stackalloc<DepthStencilState> 1
-        let mutable passDepth = depth
-        passDepth.DepthWriteEnabled <- Silk.NET.Core.Bool32(if settings.WriteDepth then 1u else 0u)
-        passDepth.DepthCompare <- settings.DepthCompare
-        NativePtr.write depthPointer passDepth
-        let mutable descriptor = RenderPipelineDescriptor()
-        descriptor.Layout <- layout
-        descriptor.Vertex <- vertex
-        descriptor.Fragment <- fragmentPointer
-        descriptor.DepthStencil <- depthPointer
-        descriptor.Primitive.Topology <- PrimitiveTopology.TriangleList
-        descriptor.Primitive.CullMode <- CullMode.None
-        descriptor.Multisample.Count <- samples
-        descriptor.Multisample.Mask <- UInt32.MaxValue
-        // Coverage fade preserves correct depth without sorting transparent blades or a noisy hard LOD boundary.
-        descriptor.Multisample.AlphaToCoverageEnabled <- Silk.NET.Core.Bool32(if settings.AlphaToCoverage then 1u else 0u)
-        pipeline <- api.DeviceCreateRenderPipeline(device, &descriptor)
-        if NativePtr.toNativeInt pipeline = 0n then invalidOp $"WebGPU could not create the {settings.VertexEntry} pipeline."
+    /// The depth state is the scene's own, with only the write and compare behaviour of this pass changed.
+    static member Create
+        (
+            context: GpuContext,
+            cache: RenderPipelineCache,
+            shader: string * nativeptr<ShaderModule>,
+            layout: string * nativeptr<PipelineLayout>,
+            depthFormat: Silk.NET.WebGPU.TextureFormat,
+            samples: uint32,
+            settings: ProceduralScenePassSettings
+        ) : Result<ProceduralScenePass, GpuError> =
+        let shaderName, shaderModule = shader
+        let layoutName, pipelineLayout = layout
+
+        let key: RenderPipelineKey =
+            { Shader = shaderName
+              Layout = layoutName
+              VertexEntry = settings.VertexEntry
+              // Generated geometry: vertex IDs address the grid, so the pipeline has no vertex buffers.
+              Vertex = NoVertexBuffers
+              Fragment =
+                Some
+                    { Entry = settings.FragmentEntry
+                      ColorFormat = Silk.NET.WebGPU.TextureFormat.Rgba16float
+                      Blend = Replace }
+              Depth =
+                Some
+                    { DepthFormat = depthFormat
+                      WriteDepth = settings.WriteDepth
+                      Compare = settings.DepthCompare
+                      Bias = 0
+                      SlopeScale = 0.0f }
+              Cull = CullMode.None
+              Samples = samples
+              // Coverage fade preserves correct depth without sorting transparent blades or a noisy hard LOD boundary.
+              AlphaToCoverage = settings.AlphaToCoverage }
+
+        cache.GetOrAdd(
+            key,
+            fun () ->
+                RenderPipelines.build context $"the {settings.VertexEntry} pipeline" key shaderModule pipelineLayout
+        )
+        |> Result.map (fun pipeline -> new ProceduralScenePass(pipeline, context.Api, settings))
 
     member _.Encode(pass: nativeptr<RenderPassEncoder>) =
-        if disposed then raise (ObjectDisposedException(nameof ProceduralScenePass))
+        if disposed then
+            raise (ObjectDisposedException(nameof ProceduralScenePass))
+
         api.RenderPassEncoderSetPipeline(pass, pipeline)
         api.RenderPassEncoderDraw(pass, settings.VertexCount, settings.InstanceCount, 0u, 0u)
 
     interface IDisposable with
-        member _.Dispose() =
-            if not disposed then
-                disposed <- true
-                if NativePtr.toNativeInt pipeline <> 0n then api.RenderPipelineRelease(pipeline)
+        member _.Dispose() = disposed <- true
