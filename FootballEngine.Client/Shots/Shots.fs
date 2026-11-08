@@ -827,7 +827,8 @@ module Shots =
                           2, "corner-behind-goal", 600, ViewerCamera.BehindGoal
                           6, "night-rain-PLACEHOLDER-day", 3000, ViewerCamera.Broadcast
                           4, "goal", ctx.Opts.ViewerGoalSecond, ViewerCamera.Touchline
-                          5, "minute-80-above", 4800, ViewerCamera.Tactical ]
+                          // Minute 30 until pitch wear exists (F6): reaching minute 80 costs minutes per capture run.
+                          5, "minute-30-above", 1800, ViewerCamera.Tactical ]
                         |> List.sortBy (fun (_, _, second, _) -> second)
 
                     let results = ResizeArray<string>()

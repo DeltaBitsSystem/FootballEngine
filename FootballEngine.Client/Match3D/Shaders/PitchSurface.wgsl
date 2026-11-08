@@ -83,13 +83,25 @@ fn shadePitch(world: vec3<f32>, surface: u32, dx: vec3<f32>, dy: vec3<f32>) -> v
     let growthBlend = smoothstep(0.25, 0.78, growth * 0.72 + fineGrowth * 0.28);
     base *= 0.90 + 0.12 * clumps + 0.08 * broad;
     base *= mix(vec3<f32>(0.93, 0.96, 0.87), vec3<f32>(1.05, 1.02, 0.95), growthBlend);
+    // Distant turf keeps a grain: blade tufts (~8 cm) and sward texture (~30 cm) that the 1 m tile loses once it is
+    // mip-filtered. Each octave fades out as its size drops below a pixel, so far grass stays fine but never sparkles.
+    let tuftFade = 1.0 - smoothstep(0.03, 0.09, footprint);
+    let swardFade = 1.0 - smoothstep(0.10, 0.35, footprint);
+    let tuft = (materialNoise(world.xz * 12.5 + vec2<f32>(5.1, 2.7)) - 0.5) * tuftFade;
+    let sward = (materialNoise(world.xz * 3.3 + vec2<f32>(-7.7, 1.9)) - 0.5) * swardFade;
+    base *= 1.0 + 0.16 * tuft + 0.12 * sward;
+    // Real pitches vary in hue, not only brightness: lusher blue-green patches beside drier yellow-green ones over
+    // tens of metres, which is what an aerial camera reads as a living surface.
+    let hue = materialNoise(world.xz * 0.045 + vec2<f32>(31.0, -12.0)) * 0.7 + materialNoise(world.xz * 0.16 + vec2<f32>(-3.0, 8.0)) * 0.3;
+    base *= mix(vec3<f32>(1.06, 1.03, 0.82), vec3<f32>(0.92, 1.0, 1.08), smoothstep(0.3, 0.7, hue));
 
     // Mowing stripes are not paint: the mower travels across the pitch (along z) and leaves the blades of each band
     // leaning one way. A band looks light when its blades lean away from the viewer (we see their lit, waxy upper
-    // sides) and dark when they lean towards us (shadowed tips). The band edges wobble like a real mower line.
-    let wobble = (materialNoise(vec2<f32>(world.z * 0.09, 3.1)) - 0.5) * 0.10 + (materialNoise(vec2<f32>(world.z * 0.7, 9.4)) - 0.5) * 0.025;
-    let bandPosition = (world.x + PITCH_HALF_LENGTH) / PITCH_MOWING_BAND + wobble;
-    let leanSign = smoothstep(-0.06, 0.06, sin(bandPosition * 3.14159265359)) * 2.0 - 1.0;
+    // sides) and dark when they lean towards us (shadowed tips). Mower lines are straight; only their edge frays by a
+    // few centimetres where blades from both passes mix.
+    let fray = (materialNoise(vec2<f32>(world.z * 1.7, 9.4)) - 0.5) * 0.008;
+    let bandPosition = (world.x + PITCH_HALF_LENGTH) / PITCH_MOWING_BAND + fray;
+    let leanSign = smoothstep(-0.02, 0.02, sin(bandPosition * 3.14159265359)) * 2.0 - 1.0;
     let lean = select(leanSign, 0.0, surface == 3u);
     let view = normalize(camera.position.xyz - world);
     let viewFlat = normalize(vec2<f32>(view.x, view.z) + vec2<f32>(1e-4, 0.0));
@@ -97,7 +109,9 @@ fn shadePitch(world: vec3<f32>, surface: u32, dx: vec3<f32>, dy: vec3<f32>) -> v
     let grazing = 1.0 - clamp(view.y, 0.0, 1.0);
     // Blades leaning towards the sun catch more light: this keeps stripes readable from high tactical cameras.
     // Broadcast stripes differ by roughly 10-15% in brightness; more reads as painted bands.
-    let stripe = -lean * viewFlat.y * (0.045 + 0.09 * grazing) + lean * camera.sunAndEnvironment.z * 0.03;
+    // From overhead the view no longer separates the bands; the sun does: bands leaning towards it reflect more.
+    let sunSide = select(-1.0, 1.0, camera.sunAndEnvironment.z >= 0.0);
+    let stripe = -lean * viewFlat.y * (0.045 + 0.09 * grazing) + lean * sunSide * 0.07 * (1.0 - grazing);
     base *= 1.0 + stripe;
     // The leaning canopy also faces the sun differently: tilt the shading normal with the blades.
     normal = normalize(normal + vec3<f32>(0.0, 0.0, lean * 0.22));
