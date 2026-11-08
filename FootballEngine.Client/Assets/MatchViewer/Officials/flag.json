@@ -1,0 +1,17 @@
+{
+ "schema": 1,
+ "node": "assistant_flag",
+ "grip": "origin; handle along +Y (glTF)",
+ "regions": [
+  "handle",
+  "colourA",
+  "colourB"
+ ],
+ "triangles": 132,
+ "doubleSided": true,
+ "files": {
+  "flag.glb": "166b8a56426cba1d40a316c6725fa1f55ce1b5908ec34d53b8400108cba8a600"
+ },
+ "source": "Tools/MatchViewer3D/Officials/build_flag.py",
+ "provenance": "Original FootballEngine content."
+}
