@@ -9,70 +9,52 @@
   "arm": "AO/roughness/metallic linear",
   "mipFiltering": "linear-light albedo; normalized normals; GGX alpha-squared roughness with accumulated normal variance",
   "materials": [
-    "ambientCG Grass004: 1.4 metres/tile, pitch colour calibration",
-    "Poly Haven concrete_floor_02: 2 metres/tile"
+    "FootballEngine turf: 1.0 metre/tile, pitch colour calibration",
+    "FootballEngine kit concrete: 2 metres/tile"
   ],
-  "author": "ambientCG (Grass004); Rob Tuytel (concrete)",
-  "license": "CC0-1.0",
-  "source": [
-    "https://ambientcg.com/a/Grass004",
-    "https://polyhaven.com/a/concrete_floor_02"
-  ],
-  "licenseUrl": [
-    "https://docs.ambientcg.com/license/",
-    "https://polyhaven.com/license"
-  ],
+  "author": "FootballEngine",
+  "license": "LicenseRef-FootballEngine",
+  "provenance": "Original: turf blades modelled and rendered in Blender by author_turf.py; concrete baked from the stadium kit procedural material. No third-party pixels.",
   "sources": [
     {
-      "path": "Sources/concrete_floor_02_diff_1k.jpg",
-      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_diff_1k.jpg",
-      "sha256": "6db84a6d87dc50508b9d134d6fbd2b7e876b8081a5f43a118a249ca18de73af5"
+      "path": "Tools/MatchViewer3D/Surfaces/turf_albedo.png",
+      "sha256": "a621fe130e51beb262b228353ec61455f45dd2b49f1b4bce9c8abbb579ea4f4a"
     },
     {
-      "path": "Sources/concrete_floor_02_nor_gl_1k.jpg",
-      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_nor_gl_1k.jpg",
-      "sha256": "fcda391b57a816d646ae15544688be53790478da5cd48dbe514b3c6901415e61"
+      "path": "Tools/MatchViewer3D/Surfaces/turf_normal.png",
+      "sha256": "493c928f67e9d3764b6ff160e5f5cbee8f8679a1082f10ef9b213895ba6dcdfd"
     },
     {
-      "path": "Sources/concrete_floor_02_arm_1k.jpg",
-      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/concrete_floor_02/concrete_floor_02_arm_1k.jpg",
-      "sha256": "01d80e4cb4eb4605902d1c1362da1c309fdba5907039acddd9226d893bbd8946"
+      "path": "Tools/MatchViewer3D/Surfaces/turf_arm.png",
+      "sha256": "e69dd05d0357bc7e10022d2a32b9cc796306e18014c054869df07e00977ad466"
     },
     {
-      "path": "Sources/Grass004_1K-PNG_Color.png",
-      "url": "https://ambientcg.com/get?file=Grass004_1K-PNG.zip",
-      "sha256": "1c504b956e5550fedd8822e7e2135fe45f513bc1212f72ed67885de1002fabb6"
+      "path": "FootballEngine.Client/Assets/MatchViewer/StadiumKit/Textures/concrete_albedo.png",
+      "sha256": "bdf71f58f1bb609f45dfeeca3421b18fe4479ee218a0a50eba98d6dc555a3c75"
     },
     {
-      "path": "Sources/Grass004_1K-PNG_NormalGL.png",
-      "url": "https://ambientcg.com/get?file=Grass004_1K-PNG.zip",
-      "sha256": "a6fce3c4f2c5d486b5c993bf47b47ce9d4c1dbb04ecef424ad2c0b703715c3c6"
+      "path": "FootballEngine.Client/Assets/MatchViewer/StadiumKit/Textures/concrete_normal.png",
+      "sha256": "4df4fc1a563b7e4183c0bb008e6ebaec3457cba7af9588f8e716064150c93769"
     },
     {
-      "path": "Sources/Grass004_1K-PNG_Roughness.png",
-      "url": "https://ambientcg.com/get?file=Grass004_1K-PNG.zip",
-      "sha256": "c3bac30c64d246019e80dd6448544ac381706d43eb583e5ac875cb4f6eece6d8"
-    },
-    {
-      "path": "Sources/Grass004_1K-PNG_AmbientOcclusion.png",
-      "url": "https://ambientcg.com/get?file=Grass004_1K-PNG.zip",
-      "sha256": "2b90f33cb488385e18d698b6d8e8c649116ebc7478bf7dbd5d08214884adabaf"
+      "path": "FootballEngine.Client/Assets/MatchViewer/StadiumKit/Textures/concrete_orm.png",
+      "sha256": "456426e60468964cd735ff9fc0c0177ab750a48b14eb61f151b80474a8491458"
     }
   ],
   "files": [
     {
       "path": "albedo.bin",
-      "sha256": "a6acf9ee9614e746dbff1458fc8d7f976c2fde7c990156c005143fbca2cd4ead",
+      "sha256": "ecb1b6c62eb8e9aa677a0085d601f7de162ea7fe4f65e1f4492ab45418b4d9f8",
       "bytes": 11184808
     },
     {
       "path": "normal.bin",
-      "sha256": "fefa15b5dd3c35b1d38585956e15675583dc018c9dae6865fdb12457fc63f27e",
+      "sha256": "3614d783211c26dbeaedcc2e1e3b9299a0b2529a9df043cf33c22b9b4cbb88e1",
       "bytes": 11184808
     },
     {
       "path": "arm.bin",
-      "sha256": "406527c14f9214cf3370a56ba32392ac9af23ba0206a8f6476632f12f365e180",
+      "sha256": "4d48c9f16e3bae5ca120d5d5ed39e288623b441d92939b5e68aa63a72a6689d2",
       "bytes": 11184808
     }
   ]
