@@ -171,7 +171,14 @@ type WorldPulseConfig =
       StarSaleTopRank: int
       FansStarSalePenalty: int
       FansMarqueeBoost: int
-      RumourChance: float }
+      RumourChance: float
+      AwardMinAppearances: int
+      YoungPlayerMaxAge: int
+      AwardGoalWeight: float
+      AwardAssistWeight: float
+      AwardSkillWeight: float
+      AwardPositionWeight: float
+      SeasonDeskBudget: int }
 
 module WorldPulseConfig =
 
@@ -255,7 +262,22 @@ module WorldPulseConfig =
           FansStarSalePenalty = 8
           FansMarqueeBoost = 6
           // Roughly one approach in three leaks; the rest happen quietly, which keeps rumours noisy but not constant.
-          RumourChance = 0.35 }
+          RumourChance = 0.35
+          // Roughly 40% of a 38-round league: enough to rule out a late loan signing with a hot streak while
+          // leaving a regular who missed a few months eligible.
+          AwardMinAppearances = 15
+          YoungPlayerMaxAge = 21
+          // A goal is the scarcest contribution, so it outweighs an assist; 20 goals + 10 assists (80) dominate
+          // the skill term, yet skill (about 75 for a 150-rated player) still separates quiet years from great ones.
+          AwardGoalWeight = 3.0
+          AwardAssistWeight = 2.0
+          AwardSkillWeight = 0.5
+          // Up to 20 points for a champion's player: winning matters, but a star on a poor side can still win.
+          AwardPositionWeight = 20.0
+          // The ceremony publishes every champion, award, promotion, relegation and retirement of the world in one
+          // burst, per scope; far above a plausible season so only importance ordering ever decides, never the
+          // daily cap that would silently drop them.
+          SeasonDeskBudget = 250 }
 
     let validate (config: WorldPulseConfig) : string list =
         [ if config.NewsRetention < 1 then
@@ -390,4 +412,17 @@ module WorldPulseConfig =
           if config.FansMarqueeBoost < 0 || config.FansMarqueeBoost > 100 then
               yield "WorldPulse.FansMarqueeBoost must be in [0, 100]"
           if config.RumourChance < 0.0 || config.RumourChance > 1.0 then
-              yield "WorldPulse.RumourChance must be in [0, 1]" ]
+              yield "WorldPulse.RumourChance must be in [0, 1]"
+          if config.AwardMinAppearances < 0 then
+              yield "WorldPulse.AwardMinAppearances must be >= 0"
+          if config.YoungPlayerMaxAge < 16 then
+              yield "WorldPulse.YoungPlayerMaxAge must be >= 16"
+          if
+              config.AwardGoalWeight < 0.0
+              || config.AwardAssistWeight < 0.0
+              || config.AwardSkillWeight < 0.0
+              || config.AwardPositionWeight < 0.0
+          then
+              yield "WorldPulse award weights must be >= 0"
+          if config.SeasonDeskBudget < 0 then
+              yield "WorldPulse.SeasonDeskBudget must be >= 0" ]

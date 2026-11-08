@@ -170,6 +170,7 @@
     <Compile Include="World\Pulse\Pressure.fs"/>
     <Compile Include="World\Pulse\PlayerStories.fs"/>
     <Compile Include="World\Pulse\MarketStories.fs"/>
+    <Compile Include="World\Pulse\SeasonCeremony.fs"/>
     <Compile Include="World\Pulse\WorldPulse.fs"/>
     <Compile Include="World\WorldScheduler.fs"/>
     <Compile Include="World\WorldRunner.fs"/>

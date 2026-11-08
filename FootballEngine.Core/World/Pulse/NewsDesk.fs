@@ -57,7 +57,8 @@ module NewsDesk =
             && kindCase item.Kind = tag
             && primary item.Clubs item.Players = key)
 
-    let publish
+    let private publishWith
+        (budgetOf: NewsScope -> int)
         (config: WorldPulseConfig)
         (date: DateTime)
         (candidates: NewsCandidate list)
@@ -81,7 +82,7 @@ module NewsDesk =
                     match compare imp2 imp1 with
                     | 0 -> compare i1 i2
                     | c -> c)
-                |> List.truncate (budgetFor config scope))
+                |> List.truncate (budgetOf scope))
             |> List.sortBy fst
 
         let items, nextId =
@@ -102,3 +103,11 @@ module NewsDesk =
         { gs with
             News = (items @ gs.News) |> List.truncate config.NewsRetention
             NextNewsId = nextId }
+
+    let publish (config: WorldPulseConfig) (date: DateTime) (candidates: NewsCandidate list) (gs: GameState) =
+        publishWith (budgetFor config) config date candidates gs
+
+    /// The season roll is a one-off burst the daily cap was never meant for: every champion, award and retirement
+    /// must reach the feed, so one season-sized budget per scope replaces the daily one (importance still orders).
+    let publishSeason (config: WorldPulseConfig) (date: DateTime) (candidates: NewsCandidate list) (gs: GameState) =
+        publishWith (fun _ -> config.SeasonDeskBudget) config date candidates gs

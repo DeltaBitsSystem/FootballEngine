@@ -297,8 +297,12 @@ module WorldRunner =
         // A new season issues new fixtures; carried-over ids could make the pulse skip a result.
         let rolled = { SeasonPhase.runEndOfSeason balance gs with PulseProcessed = Set.empty }
 
+        // The ceremony reads the finished season, so it needs `gs`; it runs after the roll only to publish onto the
+        // new state, whose retirements it must not displace.
         let nextGs =
             FootballEngine.World.Pulse.PlayerStories.seasonRoll WorldPulseConfig.defaultWorldPulse gs rolled
+            |> FootballEngine.World.Pulse.SeasonCeremony.apply WorldPulseConfig.defaultWorldPulse gs
+
         let nextClock =
             { WorldClockOps.init nextGs.Season with MatchExecutions = clock.MatchExecutions }
 

@@ -192,7 +192,11 @@ module WorldPulseTests =
                   Expect.isTrue (rejected { config with InitialBoardConfidence = 101 }) "confidence high"
                   Expect.isTrue (rejected { config with InitialBoardConfidence = -1 }) "confidence low"
                   Expect.isTrue (rejected { config with InitialFansMood = 101 }) "mood high"
-                  Expect.isTrue (rejected { config with RecentResultsKept = 0 }) "results kept" ]
+                  Expect.isTrue (rejected { config with RecentResultsKept = 0 }) "results kept"
+                  Expect.isTrue (rejected { config with AwardMinAppearances = -1 }) "award appearances"
+                  Expect.isTrue (rejected { config with YoungPlayerMaxAge = 10 }) "young age"
+                  Expect.isTrue (rejected { config with AwardGoalWeight = -1.0 }) "award weight"
+                  Expect.isTrue (rejected { config with SeasonDeskBudget = -1 }) "season budget" ]
 
     let private pipelineTests =
         testList

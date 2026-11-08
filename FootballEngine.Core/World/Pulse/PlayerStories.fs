@@ -507,4 +507,4 @@ module PlayerStories =
                             { p with
                                 SeasonStartSkill = p.CurrentSkill }) }
 
-        NewsDesk.publish config date (breakoutNews @ retirementNews) rebased
+        NewsDesk.publishSeason config date (breakoutNews @ retirementNews) rebased

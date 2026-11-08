@@ -13,11 +13,12 @@ module WorldNews =
     let private message date subject body =
         Inbox.create date "Competition desk" subject body InboxMessageCategory.BoardUpdate false
 
-    /// Converts confirmed season facts into bounded inbox messages. Every text
-    /// contains the season and entity IDs so it can be traced back to the record.
+    /// Only the user's own club reaches the inbox; every other title, promotion or relegation is news (SeasonCeremony).
+    /// Every text contains the season and entity IDs so it can be traced back to the record.
     let deriveSeasonMessages (state: GameState) (record: SeasonRecord) : InboxMessage list =
-        let winnerMessages =
+        let titleMessages =
             record.Winners
+            |> List.filter (fun (_, clubId) -> clubId = state.UserClubId)
             |> List.choose (fun (competitionId, clubId) ->
                 state.Competitions
                 |> Map.tryFind competitionId
@@ -45,7 +46,7 @@ module WorldNews =
                           "Descenso confirmado"
                           $"Temporada {record.Season}: {clubName state id} (club:{id}) descendió según la clasificación final.") ]
 
-        (winnerMessages @ movementMessages) |> List.truncate 20
+        titleMessages @ movementMessages
 
     let publishSeasonMessages (state: GameState) (record: SeasonRecord) : GameState =
         deriveSeasonMessages state record
