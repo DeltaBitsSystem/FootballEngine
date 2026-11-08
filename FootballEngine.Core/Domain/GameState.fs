@@ -31,7 +31,8 @@ type GameState =
       News: NewsItem list
       NextNewsId: int
       /// Played fixtures the pulse already absorbed; results can be committed after the day they are scheduled.
-      PulseProcessed: Set<MatchId> }
+      PulseProcessed: Set<MatchId>
+      PulseQueues: PulseQueues }
 
 module GameState =
 

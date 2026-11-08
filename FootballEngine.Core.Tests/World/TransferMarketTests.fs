@@ -63,7 +63,11 @@ module TransferMarketTests =
           Affiliation = Contracted(1, { Salary = 1000m; ExpiryYear = 2028 })
           TrainingPlan = Perform
           ExperienceModifiers = ExperienceModifiers.defaultModifiers
-          Unrest = None }
+          Unrest = None
+          BenchWeeks = 0
+          UnrestWeeks = 0
+          TransferListed = false
+          SeasonStartSkill = 0 }
 
     let private club id name players finance =
         { Id = id
@@ -112,7 +116,8 @@ module TransferMarketTests =
           MatchSeeds = Map.empty
           News = []
           NextNewsId = 1
-          PulseProcessed = Set.empty }
+          PulseProcessed = Set.empty
+          PulseQueues = PulseQueues.empty }
 
     let tests =
         testList
@@ -169,6 +174,14 @@ module TransferMarketTests =
                       Expect.equal completed.Market.Operations[operation.Id].Status Completed "operation completes"
                       Expect.isEmpty completed.Clubs[2].Finance.Reservations "reservation is consumed"
                       Expect.equal completed.Clubs[2].PlayerIds [ 1 ] "player is added once"
+
+                      Expect.equal
+                          completed.PulseQueues.Transfers
+                          [ { Player = 1
+                              From = Some 1
+                              To = 2
+                              Fee = 10000m } ]
+                          "the pulse is told exactly once, with the real fee"
 
                       match TransferMarket.complete now operation.Id cfg completed with
                       | Ok _ -> failtest "completed offer must not complete twice"

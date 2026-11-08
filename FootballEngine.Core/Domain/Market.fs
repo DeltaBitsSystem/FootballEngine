@@ -300,7 +300,14 @@ module TransferMarket =
                         { game with
                             Players = game.Players.Add(player.Id, moved)
                             Clubs = clubs
-                            Market = market }
+                            Market = market
+                            PulseQueues =
+                                PulseQueues.recordTransfer
+                                    { Player = player.Id
+                                      From = seller |> Option.map _.Id
+                                      To = buyer.Id
+                                      Fee = op.Fee }
+                                    game.PulseQueues }
                 | Error _, _ -> fail InsufficientFunds
                 | _, Error _ -> fail (InvalidOperation "Seller finance rejected receipt")
             | _ -> fail (InvalidOperation "Player or club not found")

@@ -110,6 +110,7 @@ let private state date dataLock =
       News = []
       NextNewsId = 1
       PulseProcessed = Set.empty
+      PulseQueues = PulseQueues.empty
       Market = MarketState.empty }
 
 let private saveSettings = SaveSettings.defaults
@@ -693,6 +694,69 @@ let newCareerReplacementTests =
             Expect.equal loaded.State.CurrentDate newState.CurrentDate "new career replaces the stored state"
         | Error error -> failtestf "new career replacement failed: %A" error
 
+let private handBuiltPlayer =
+    { Id = 3
+      Name = "Restless Player"
+      Birthday = DateTime(2000, 1, 1)
+      Nationality = "ARG"
+      Position = ST
+      PreferredFoot = PreferredFoot.Right
+      Height = 180
+      Weight = 75
+      Physical =
+        { Acceleration = 70
+          Pace = 70
+          Agility = 70
+          Balance = 70
+          JumpingReach = 70
+          Stamina = 70
+          Strength = 70 }
+      Technical =
+        { Finishing = 70
+          LongShots = 60
+          Dribbling = 60
+          BallControl = 60
+          Passing = 60
+          Crossing = 50
+          Tackling = 30
+          Marking = 30
+          Heading = 60
+          FreeKick = 40
+          Penalty = 50 }
+      Mental =
+        { Aggression = 40
+          Composure = 70
+          Vision = 60
+          Positioning = 60
+          Bravery = 50
+          WorkRate = 60
+          Concentration = 60
+          Leadership = 30 }
+      Goalkeeping =
+        { Reflexes = 1
+          Handling = 1
+          Kicking = 1
+          OneOnOne = 1
+          AerialReach = 1 }
+      Condition = 100
+      Fatigue = 0
+      MatchFitness = 100
+      RecentLoad = 0
+      Morale = 70
+      Status = Available
+      CurrentSkill = 70
+      PotentialSkill = 75
+      Reputation = 1000
+      Affiliation = Contracted(7, { Salary = 1000m; ExpiryYear = 2028 })
+      TrainingPlan = Perform
+      ExperienceModifiers = ExperienceModifiers.defaultModifiers
+      Unrest = None
+      BenchWeeks = 0
+      UnrestWeeks = 0
+      TransferListed = false
+      SeasonStartSkill = 0 }
+
+
 let fullStateTests =
     testCase "saving preserves pending negotiations, experience, history and same-clock changes"
     <| fun _ ->
@@ -747,9 +811,34 @@ let fullStateTests =
                 Clubs = [ 7 ]
                 Players = [ 3 ] } ]
 
+        // Built by hand: the generator draws from the thread-local RNG, and extra draws here would reshuffle the
+        // seeds other tests in this suite rely on.
+        let restless =
+            { handBuiltPlayer with
+                Unrest = Some UnrestReason.LackOfMinutes
+                BenchWeeks = 5
+                UnrestWeeks = 2
+                TransferListed = true
+                SeasonStartSkill = 61 }
+
+        let queues =
+            { Appearances =
+                [ { Player = 3
+                    Matches = 100
+                    GoalsAfter = 49
+                    GoalsInMatch = 2 } ]
+              Transfers =
+                [ { Player = 3
+                    From = Some 7
+                    To = 8
+                    Fee = 7250000.5m } ]
+              NegotiationsSeen = Set.ofList [ 9; 12 ] }
+
         let first =
             { state date (dataLock None) with
                 Clubs = Map.ofList [ pulseClub.Id, pulseClub ]
+                Players = Map.ofList [ restless.Id, restless ]
+                PulseQueues = queues
                 News = news
                 NextNewsId = 3
                 PulseProcessed = Set.ofList [ 4; 9 ]
@@ -769,6 +858,8 @@ let fullStateTests =
         match load root slot with
         | Ok result ->
             Expect.equal result.State second "the complete canonical state survives the round-trip"
+            Expect.equal result.State.Players[3] restless "unrest, bench/unrest weeks, listing and season baseline survive"
+            Expect.equal result.State.PulseQueues queues "unconsumed pulse facts survive"
             Expect.equal result.WorldClock (clock 1UL 1) "the world revision is independent of saves"
         | Error error -> failtestf "state round-trip failed: %A" error
 

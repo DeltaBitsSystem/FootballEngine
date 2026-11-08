@@ -90,7 +90,15 @@ type Player =
       Affiliation: PlayerAffiliation
       TrainingPlan: IndividualPlan
       ExperienceModifiers: ExperienceModifiers
-      Unrest: UnrestReason option }
+      Unrest: UnrestReason option
+      /// Consecutive weeks out of the starting XI while a regular; drives LackOfMinutes unrest.
+      BenchWeeks: int
+      /// Consecutive weeks with unrest; drives the transfer request.
+      UnrestWeeks: int
+      /// The player asked to leave: AI clubs treat him as available to anyone.
+      TransferListed: bool
+      /// Skill when the season started; the baseline for breakout detection.
+      SeasonStartSkill: int }
 
 module PlayerHealth =
 

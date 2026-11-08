@@ -58,7 +58,8 @@ module WorldPulseTests =
           MatchSeeds = Map.empty
           News = []
           NextNewsId = 1
-          PulseProcessed = Set.empty }
+          PulseProcessed = Set.empty
+          PulseQueues = PulseQueues.empty }
 
     let private streak club length : NewsCandidate =
         NewsKind.Streak(club, StreakKind.Wins, length), NewsImportance.Minor, NewsScope.World, [ club ], []

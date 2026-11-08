@@ -51,8 +51,9 @@ module TransferNegotiation =
     let clubResponse (buyer: Club) (seller: Club) (p: Player) (fee: decimal) : OfferStatus =
         let isEnoughFee = fee >= Player.playerValue p.CurrentSkill * minAcceptableMultiplier
 
+        // A player who asked to leave is on the market for anyone: the seller no longer shields him from smaller clubs.
         let buyerReputationOk =
-            buyer.Reputation >= seller.Reputation - reputationGapThreshold
+            p.TransferListed || buyer.Reputation >= seller.Reputation - reputationGapThreshold
 
         if isEnoughFee && buyerReputationOk then
             AcceptedByClub
@@ -156,7 +157,14 @@ module Transfer =
                 let updatedSeller = { seller with Finance = sf } |> Club.removePlayer player.Id
 
                 { gs with
-                    Clubs = gs.Clubs |> Map.add buyer.Id updatedBuyer |> Map.add seller.Id updatedSeller }
+                    Clubs = gs.Clubs |> Map.add buyer.Id updatedBuyer |> Map.add seller.Id updatedSeller
+                    PulseQueues =
+                        PulseQueues.recordTransfer
+                            { Player = player.Id
+                              From = Some seller.Id
+                              To = buyer.Id
+                              Fee = fee }
+                            gs.PulseQueues }
             | _ -> gs
 
         { gs2 with

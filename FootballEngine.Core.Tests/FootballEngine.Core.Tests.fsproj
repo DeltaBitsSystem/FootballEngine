@@ -87,6 +87,8 @@
      <Compile Include="World\Pulse\WorldPulseTests.fs"/>
      <Compile Include="World\Pulse\MatchStoriesTests.fs"/>
      <Compile Include="World\Pulse\PressureTests.fs"/>
+     <Compile Include="World\Pulse\PlayerStoriesTests.fs"/>
+     <Compile Include="World\Pulse\MarketStoriesTests.fs"/>
     <Compile Include="Program.fs"/>
   </ItemGroup>
 

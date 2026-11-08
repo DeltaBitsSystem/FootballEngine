@@ -153,6 +153,7 @@ let matchNavigationTests =
                     News = []
                     NextNewsId = 1
                     PulseProcessed = Set.empty
+                    PulseQueues = PulseQueues.empty
                     Market = MarketState.empty }
 
               let initial =

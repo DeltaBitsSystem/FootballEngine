@@ -154,7 +154,24 @@ type WorldPulseConfig =
       ReplacementContractYears: int
       FansFuriousBelow: int
       FansRestlessBelow: int
-      FansEuphoricFrom: int }
+      FansEuphoricFrom: int
+      RegularStarterRank: int
+      UnrestBenchWeeks: int
+      ContractWarningMonths: int
+      UnrestMoralePerWeek: int
+      TransferRequestWeeks: int
+      BreakoutMaxAge: int
+      BreakoutGain: int
+      DebutMaxAge: int
+      AppearanceMilestones: int list
+      GoalMilestones: int list
+      RetireMinAge: int
+      RetireHardAge: int
+      TransferNewsMinFee: decimal
+      StarSaleTopRank: int
+      FansStarSalePenalty: int
+      FansMarqueeBoost: int
+      RumourChance: float }
 
 module WorldPulseConfig =
 
@@ -210,7 +227,35 @@ module WorldPulseConfig =
           ReplacementContractYears = 2
           FansFuriousBelow = 20
           FansRestlessBelow = 45
-          FansEuphoricFrom = 75 }
+          FansEuphoricFrom = 75
+          // Only a player good enough to start feels wronged on the bench; ranks 12+ are squad players by design,
+          // and counting them would produce a transfer request every month from every club's 12th and 13th man.
+          RegularStarterRank = 11
+          // A month of league football: one missed match is rotation, four weeks in a row is being frozen out.
+          UnrestBenchWeeks = 4
+          // The final half-season of a contract is when a renewal is normally expected.
+          ContractWarningMonths = 6
+          // Morale is 0..100 and recovers through results; 3 a week erodes ~12 points over the stand-off before a
+          // request instead of making the player useless within days.
+          UnrestMoralePerWeek = 3
+          TransferRequestWeeks = 3
+          BreakoutMaxAge = 21
+          // CurrentSkill spans 0..MaximumPotential (200); a youngster normally gains single digits in a season,
+          // so +15 (7.5% of the scale) is an outlier worth a headline.
+          BreakoutGain = 15
+          DebutMaxAge = 19
+          AppearanceMilestones = [ 100; 200; 300 ]
+          GoalMilestones = [ 50; 100; 150; 200 ]
+          RetireMinAge = 34
+          RetireHardAge = 38
+          // playerValue = 800 * (skill - 30)^2, so 5M is about skill 109: signings of players who matter, not
+          // every squad filler moving between small clubs.
+          TransferNewsMinFee = 5_000_000m
+          StarSaleTopRank = 3
+          FansStarSalePenalty = 8
+          FansMarqueeBoost = 6
+          // Roughly one approach in three leaks; the rest happen quietly, which keeps rumours noisy but not constant.
+          RumourChance = 0.35 }
 
     let validate (config: WorldPulseConfig) : string list =
         [ if config.NewsRetention < 1 then
@@ -306,4 +351,43 @@ module WorldPulseConfig =
                   && config.FansEuphoricFrom <= 100
               )
           then
-              yield "WorldPulse fans bands must satisfy 0 < Furious < Restless < Euphoric <= 100" ]
+              yield "WorldPulse fans bands must satisfy 0 < Furious < Restless < Euphoric <= 100"
+          if config.RegularStarterRank < 1 then
+              yield "WorldPulse.RegularStarterRank must be >= 1"
+          if config.UnrestBenchWeeks < 1 then
+              yield "WorldPulse.UnrestBenchWeeks must be >= 1"
+          if config.ContractWarningMonths < 1 then
+              yield "WorldPulse.ContractWarningMonths must be >= 1"
+          if config.UnrestMoralePerWeek < 0 || config.UnrestMoralePerWeek > 100 then
+              yield "WorldPulse.UnrestMoralePerWeek must be in [0, 100]"
+          if config.TransferRequestWeeks < 1 then
+              yield "WorldPulse.TransferRequestWeeks must be >= 1"
+          if config.BreakoutMaxAge < 16 then
+              yield "WorldPulse.BreakoutMaxAge must be >= 16"
+          if config.BreakoutGain < 1 then
+              yield "WorldPulse.BreakoutGain must be >= 1"
+          if config.DebutMaxAge < 15 then
+              yield "WorldPulse.DebutMaxAge must be >= 15"
+          if
+              config.AppearanceMilestones |> List.exists (fun n -> n < 1)
+              || config.AppearanceMilestones
+                 <> (config.AppearanceMilestones |> List.distinct |> List.sort)
+          then
+              yield "WorldPulse.AppearanceMilestones must be positive, ascending and distinct"
+          if
+              config.GoalMilestones |> List.exists (fun n -> n < 1)
+              || config.GoalMilestones <> (config.GoalMilestones |> List.distinct |> List.sort)
+          then
+              yield "WorldPulse.GoalMilestones must be positive, ascending and distinct"
+          if config.RetireMinAge < 30 || config.RetireHardAge <= config.RetireMinAge then
+              yield "WorldPulse retirement ages must satisfy 30 <= RetireMinAge < RetireHardAge"
+          if config.TransferNewsMinFee < 0m then
+              yield "WorldPulse.TransferNewsMinFee must be >= 0"
+          if config.StarSaleTopRank < 1 then
+              yield "WorldPulse.StarSaleTopRank must be >= 1"
+          if config.FansStarSalePenalty < 0 || config.FansStarSalePenalty > 100 then
+              yield "WorldPulse.FansStarSalePenalty must be in [0, 100]"
+          if config.FansMarqueeBoost < 0 || config.FansMarqueeBoost > 100 then
+              yield "WorldPulse.FansMarqueeBoost must be in [0, 100]"
+          if config.RumourChance < 0.0 || config.RumourChance > 1.0 then
+              yield "WorldPulse.RumourChance must be in [0, 1]" ]

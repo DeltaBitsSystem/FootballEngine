@@ -89,3 +89,46 @@ type NewsItem =
       Scope: NewsScope
       Clubs: ClubId list
       Players: PlayerId list }
+
+/// One appearance, recorded where the experience counters change so milestones are exact rather than inferred.
+type PlayerAppearance =
+    { Player: PlayerId
+      /// Career appearances after this match.
+      Matches: int
+      /// Career goals after this match.
+      GoalsAfter: int
+      GoalsInMatch: int }
+
+/// A transfer that actually completed (money moved, affiliation changed); no other record of it survives.
+type CompletedTransfer =
+    { Player: PlayerId
+      From: ClubId option
+      To: ClubId
+      Fee: decimal }
+
+/// Facts produced by the simulation that the pulse consumes exactly once.
+type PulseQueues =
+    { /// Newest first.
+      Appearances: PlayerAppearance list
+      /// Newest first.
+      Transfers: CompletedTransfer list
+      /// Negotiation ids already considered for rumours.
+      NegotiationsSeen: Set<int> }
+
+module PulseQueues =
+
+    /// Bounds memory when nothing drains the queues (headless runs without the pulse).
+    let private cap = 5000
+
+    let empty =
+        { Appearances = []
+          Transfers = []
+          NegotiationsSeen = Set.empty }
+
+    let recordAppearance (appearance: PlayerAppearance) (queues: PulseQueues) : PulseQueues =
+        { queues with
+            Appearances = appearance :: queues.Appearances |> List.truncate cap }
+
+    let recordTransfer (transfer: CompletedTransfer) (queues: PulseQueues) : PulseQueues =
+        { queues with
+            Transfers = transfer :: queues.Transfers |> List.truncate cap }

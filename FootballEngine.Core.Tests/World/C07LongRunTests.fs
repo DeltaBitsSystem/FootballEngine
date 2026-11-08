@@ -102,7 +102,8 @@ module C07LongRunTests =
           MatchSeeds = Map.empty
           News = []
           NextNewsId = 1
-          PulseProcessed = Set.empty }
+          PulseProcessed = Set.empty
+          PulseQueues = PulseQueues.empty }
 
     let private finishFixtures (gs: GameState) =
         { gs with
@@ -193,7 +194,11 @@ module C07LongRunTests =
           Affiliation = Contracted(1, { Salary = 1000m; ExpiryYear = 2030 })
           TrainingPlan = Perform
           ExperienceModifiers = ExperienceModifiers.defaultModifiers
-          Unrest = None }
+          Unrest = None
+          BenchWeeks = 0
+          UnrestWeeks = 0
+          TransferListed = false
+          SeasonStartSkill = 0 }
 
     let c07Tests =
         testList

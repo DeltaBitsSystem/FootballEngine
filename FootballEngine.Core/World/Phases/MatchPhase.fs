@@ -275,7 +275,14 @@ module MatchOutcome =
 
                     acc <-
                         { acc with
-                            PlayerExperiences = acc.PlayerExperiences |> Map.add playerStats.PlayerId newExp }
+                            PlayerExperiences = acc.PlayerExperiences |> Map.add playerStats.PlayerId newExp
+                            PulseQueues =
+                                PulseQueues.recordAppearance
+                                    { Player = playerStats.PlayerId
+                                      Matches = newExp.TotalMatchesPlayed
+                                      GoalsAfter = newExp.GoalsScored
+                                      GoalsInMatch = playerStats.GoalsScored }
+                                    acc.PulseQueues }
 
             acc
 

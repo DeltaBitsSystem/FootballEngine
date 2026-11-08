@@ -144,7 +144,7 @@ module WorldScheduler =
                         // for it yet, so the scheduler is the single place that supplies the defaults.
                         run ResolveDecisions s3 c3 (fun c s ->
                             runAgents balance s c
-                            |> FootballEngine.World.Pulse.WorldPulse.run WorldPulseConfig.defaultWorldPulse date,
+                            |> FootballEngine.World.Pulse.WorldPulse.runOn (c.Current.Day % 7 = 0) WorldPulseConfig.defaultWorldPulse date,
                             c)
                         |> Result.bind (fun (s4, c4, t3) ->
                             run CloseDay s4 c4 (fun c s ->

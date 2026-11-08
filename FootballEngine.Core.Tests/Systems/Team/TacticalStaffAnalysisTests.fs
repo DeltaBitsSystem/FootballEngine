@@ -70,7 +70,11 @@ module TacticalStaffAnalysisTests =
           Affiliation = Contracted(1, { Salary = 10000m; ExpiryYear = 2030 })
           TrainingPlan = Perform
           ExperienceModifiers = ExperienceModifiers.defaultModifiers
-          Unrest = None }
+          Unrest = None
+          BenchWeeks = 0
+          UnrestWeeks = 0
+          TransferListed = false
+          SeasonStartSkill = 0 }
 
     let private config = BalanceConfig.defaultConfig.TacticalTradeoffs
 

@@ -211,7 +211,11 @@ module PlayerGen =
             )
           TrainingPlan = TrainingPlans.defaultPlanFor position age
           ExperienceModifiers = ExperienceModifiers.defaultModifiers
-          Unrest = None }
+          Unrest = None
+          BenchWeeks = 0
+          UnrestWeeks = 0
+          TransferListed = false
+          SeasonStartSkill = currentSkill }
 
     let createYouthProspect
         (id: PlayerId)

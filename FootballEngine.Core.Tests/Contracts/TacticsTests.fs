@@ -99,7 +99,11 @@ module TacticsTests =
           Affiliation = FreeAgent
           TrainingPlan = Perform
           ExperienceModifiers = ExperienceModifiers.defaultModifiers
-          Unrest = None }
+          Unrest = None
+          BenchWeeks = 0
+          UnrestWeeks = 0
+          TransferListed = false
+          SeasonStartSkill = 0 }
 
     // A genuine finisher: elite finishing/pace, no defensive craft.
     let private striker =

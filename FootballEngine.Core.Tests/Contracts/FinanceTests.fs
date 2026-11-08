@@ -150,7 +150,8 @@ module FinanceTests =
                         MatchSeeds = Map.empty
                         News = []
                         NextNewsId = 1
-                        PulseProcessed = Set.empty }
+                        PulseProcessed = Set.empty
+                        PulseQueues = PulseQueues.empty }
 
                   let result =
                       WorldScheduler.executeDayWithBalance (

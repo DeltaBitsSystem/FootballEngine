@@ -111,7 +111,11 @@ module TrainingTests =
           Affiliation = affiliation
           TrainingPlan = plan
           ExperienceModifiers = ExperienceModifiers.defaultModifiers
-          Unrest = None }
+          Unrest = None
+          BenchWeeks = 0
+          UnrestWeeks = 0
+          TransferListed = false
+          SeasonStartSkill = 0 }
 
     let private contracted id pos age plan condition fitness skill potential =
         makePlayer
@@ -247,7 +251,8 @@ module TrainingTests =
           MatchSeeds = Map.empty
           News = []
           NextNewsId = 1
-          PulseProcessed = Set.empty }
+          PulseProcessed = Set.empty
+          PulseQueues = PulseQueues.empty }
 
     let private makeOutcome (homeId: ClubId) (awayId: ClubId) : MatchOutcome.FixtureOutcome =
         let fixture: MatchFixture =

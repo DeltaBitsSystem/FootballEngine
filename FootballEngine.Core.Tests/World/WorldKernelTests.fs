@@ -38,7 +38,8 @@ module WorldKernelTests =
           MatchSeeds = Map.empty
           News = []
           NextNewsId = 1
-          PulseProcessed = Set.empty }
+          PulseProcessed = Set.empty
+          PulseQueues = PulseQueues.empty }
 
     let worldKernelTests =
         testList

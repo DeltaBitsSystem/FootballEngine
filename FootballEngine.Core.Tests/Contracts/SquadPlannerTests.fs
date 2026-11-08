@@ -81,7 +81,11 @@ module SquadPlannerTests =
           Affiliation = FreeAgent
           TrainingPlan = Perform
           ExperienceModifiers = ExperienceModifiers.defaultModifiers
-          Unrest = None }
+          Unrest = None
+          BenchWeeks = 0
+          UnrestWeeks = 0
+          TransferListed = false
+          SeasonStartSkill = 0 }
 
     let squadPlannerTests =
         testList

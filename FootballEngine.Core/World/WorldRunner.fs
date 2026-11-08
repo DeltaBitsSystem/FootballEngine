@@ -295,7 +295,10 @@ module WorldRunner =
         : SeasonResult =
         let summary = SeasonPhase.computeSeasonSummary gs
         // A new season issues new fixtures; carried-over ids could make the pulse skip a result.
-        let nextGs = { SeasonPhase.runEndOfSeason balance gs with PulseProcessed = Set.empty }
+        let rolled = { SeasonPhase.runEndOfSeason balance gs with PulseProcessed = Set.empty }
+
+        let nextGs =
+            FootballEngine.World.Pulse.PlayerStories.seasonRoll WorldPulseConfig.defaultWorldPulse gs rolled
         let nextClock =
             { WorldClockOps.init nextGs.Season with MatchExecutions = clock.MatchExecutions }
 
