@@ -1,0 +1,27 @@
+{
+ "schema": 1,
+ "radiusMetres": 0.11,
+ "regions": [
+  "panel",
+  "accent",
+  "seam"
+ ],
+ "lods": [
+  {
+   "node": "ball.lod0",
+   "triangles": 7200
+  },
+  {
+   "node": "ball.lod1",
+   "triangles": 1800
+  }
+ ],
+ "files": {
+  "ball.glb": "20321faf7592076892349104d76e65fd8230bae2032f30c402703bc07840f846"
+ },
+ "source": {
+  "generator": "Tools/MatchViewer3D/Ball/build_ball.py",
+  "blender": "5.2.3 LTS"
+ },
+ "provenance": "Original FootballEngine content: geometry from a truncated icosahedron built in this script; colours are runtime palette slots, no printed graphics."
+}

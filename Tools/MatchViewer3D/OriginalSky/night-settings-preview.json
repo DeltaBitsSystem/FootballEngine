@@ -1,0 +1,28 @@
+{
+  "variant": "night",
+  "seed": 58231,
+  "blender": "5.2.3 LTS",
+  "preset": {
+    "elev": -16.0,
+    "azim": 200.0,
+    "sun_energy": 0.0,
+    "sun_colour": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "strength": 0.1,
+    "coverage": 0.56,
+    "seed": 58231,
+    "stars": 1.0,
+    "dome": 1.0
+  },
+  "sunDirectionRuntime": [
+    -0.9032905101776123,
+    -0.27563735842704773,
+    -0.32877087593078613
+  ],
+  "projection": "Same as the daylight pair: top row zenith; phi=(u-.5)*2pi, theta=v*pi.",
+  "solarSeparation": "Camera-only disc in visible, none in lighting; runtime keeps one directional sun (dusk) or none (night, floodlights only).",
+  "originalContent": "Procedural atmosphere, clouds, stars and light dome authored for FootballEngine; Blender physical sky, noise and Cycles are tools, not imported assets."
+}

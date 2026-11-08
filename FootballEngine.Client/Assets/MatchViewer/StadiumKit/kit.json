@@ -1,0 +1,1029 @@
+{
+ "schema": 1,
+ "units": "metres",
+ "axes": "glTF Y-up; every piece faces the pitch along glTF -Z (Blender +Y)",
+ "lodRule": "use the highest lod whose fromDistance <= camera distance to the instance bounds centre",
+ "pieces": [
+  {
+   "id": "seat",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "seat.lod0",
+     "triangles": 1620,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "seat.lod1",
+     "triangles": 154,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "seat.lod2",
+     "triangles": 4,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -0.2173,
+    -0.2623,
+    0.0
+   ],
+   "boundsMax": [
+    0.2173,
+    0.2071,
+    0.7988
+   ],
+   "materials": [
+    "painted_steel:charcoal",
+    "seat_plastic:club"
+   ]
+  },
+  {
+   "id": "railing",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "railing.lod0",
+     "triangles": 88,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "railing.lod1",
+     "triangles": 44,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "railing.lod2",
+     "triangles": 28,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -0.06,
+    -0.06,
+    0.0
+   ],
+   "boundsMax": [
+    2.0,
+    0.06,
+    1.1228
+   ],
+   "materials": [
+    "galvanized"
+   ]
+  },
+  {
+   "id": "railing_glass",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "railing_glass.lod0",
+     "triangles": 68,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "railing_glass.lod1",
+     "triangles": 44,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "railing_glass.lod2",
+     "triangles": 32,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -0.0228,
+    -0.024,
+    0.0
+   ],
+   "boundsMax": [
+    2.0,
+    0.024,
+    1.1228
+   ],
+   "materials": [
+    "galvanized",
+    "glass"
+   ]
+  },
+  {
+   "id": "adboard",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "adboard.lod0",
+     "triangles": 110,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "adboard.lod1",
+     "triangles": 86,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "adboard.lod2",
+     "triangles": 14,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [
+    {
+     "widthMetres": 5.92,
+     "heightMetres": 0.8
+    }
+   ],
+   "boundsMin": [
+    0.0,
+    -0.575,
+    -0.0091
+   ],
+   "boundsMax": [
+    6.0,
+    0.1471,
+    0.9553
+   ],
+   "materials": [
+    "led_screen",
+    "painted_steel:charcoal",
+    "rubber_floor"
+   ]
+  },
+  {
+   "id": "led_ribbon",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "led_ribbon.lod0",
+     "triangles": 14,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "led_ribbon.lod1",
+     "triangles": 14,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "led_ribbon.lod2",
+     "triangles": 14,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [
+    {
+     "widthMetres": 10.0,
+     "heightMetres": 0.75
+    }
+   ],
+   "boundsMin": [
+    0.0,
+    -0.3,
+    -0.05
+   ],
+   "boundsMax": [
+    10.0,
+    0.002,
+    0.85
+   ],
+   "materials": [
+    "led_screen",
+    "painted_steel:charcoal"
+   ]
+  },
+  {
+   "id": "floodlight_tower",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "floodlight_tower.lod0",
+     "triangles": 3560,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "floodlight_tower.lod1",
+     "triangles": 988,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "floodlight_tower.lod2",
+     "triangles": 444,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -2.8,
+    -1.9,
+    -0.0211
+   ],
+   "boundsMax": [
+    2.8,
+    1.9,
+    45.647
+   ],
+   "materials": [
+    "concrete",
+    "galvanized",
+    "lamp_lens",
+    "painted_steel:charcoal"
+   ]
+  },
+  {
+   "id": "roof_light_bar",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "roof_light_bar.lod0",
+     "triangles": 660,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "roof_light_bar.lod1",
+     "triangles": 156,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "roof_light_bar.lod2",
+     "triangles": 148,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    0.0,
+    -0.86,
+    -0.6548
+   ],
+   "boundsMax": [
+    10.0,
+    0.6302,
+    0.08
+   ],
+   "materials": [
+    "galvanized",
+    "lamp_lens",
+    "painted_steel:charcoal"
+   ]
+  },
+  {
+   "id": "roof_truss_20",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "roof_truss_20.lod0",
+     "triangles": 412,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "roof_truss_20.lod1",
+     "triangles": 148,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "roof_truss_20.lod2",
+     "triangles": 124,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -0.2853,
+    -8.0548,
+    -9.0244
+   ],
+   "boundsMax": [
+    0.2853,
+    20.08,
+    9.0469
+   ],
+   "materials": [
+    "galvanized",
+    "painted_steel:club_primary",
+    "painted_steel:white"
+   ]
+  },
+  {
+   "id": "roof_truss_30",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "roof_truss_30.lod0",
+     "triangles": 540,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "roof_truss_30.lod1",
+     "triangles": 180,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "roof_truss_30.lod2",
+     "triangles": 156,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -0.2853,
+    -8.0553,
+    -10.0233
+   ],
+   "boundsMax": [
+    0.2853,
+    30.08,
+    9.0531
+   ],
+   "materials": [
+    "galvanized",
+    "painted_steel:club_primary",
+    "painted_steel:white"
+   ]
+  },
+  {
+   "id": "roof_truss_40",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "roof_truss_40.lod0",
+     "triangles": 668,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "roof_truss_40.lod1",
+     "triangles": 212,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "roof_truss_40.lod2",
+     "triangles": 188,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -0.2853,
+    -8.0557,
+    -11.0223
+   ],
+   "boundsMax": [
+    0.2853,
+    40.08,
+    9.0559
+   ],
+   "materials": [
+    "galvanized",
+    "painted_steel:club_primary",
+    "painted_steel:white"
+   ]
+  },
+  {
+   "id": "goal",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "goal.lod0",
+     "triangles": 404,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "goal.lod1",
+     "triangles": 236,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "goal.lod2",
+     "triangles": 156,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -3.78,
+    -2.025,
+    -0.005
+   ],
+   "boundsMax": [
+    3.78,
+    0.06,
+    2.56
+   ],
+   "materials": [
+    "painted_steel:white"
+   ]
+  },
+  {
+   "id": "goal_net",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "goal_net.lod0",
+     "triangles": 1188,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "goal_net.lod1",
+     "triangles": 192,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "goal_net.lod2",
+     "triangles": 192,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -3.66,
+    -2.0,
+    0.02
+   ],
+   "boundsMax": [
+    3.66,
+    0.0,
+    2.46
+   ],
+   "materials": [
+    "net"
+   ]
+  },
+  {
+   "id": "corner_flag",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "corner_flag.lod0",
+     "triangles": 76,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "corner_flag.lod1",
+     "triangles": 20,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "corner_flag.lod2",
+     "triangles": 16,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -0.016,
+    -0.016,
+    0.0
+   ],
+   "boundsMax": [
+    0.016,
+    0.45,
+    1.55
+   ],
+   "materials": [
+    "flag_cloth",
+    "painted_steel:white"
+   ]
+  },
+  {
+   "id": "dugout",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "dugout.lod0",
+     "triangles": 948,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "dugout.lod1",
+     "triangles": 576,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "dugout.lod2",
+     "triangles": 552,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -0.1,
+    -1.9,
+    0.0
+   ],
+   "boundsMax": [
+    7.1,
+    0.1349,
+    2.2849
+   ],
+   "materials": [
+    "concrete",
+    "painted_steel:charcoal",
+    "polycarbonate",
+    "seat_plastic:charcoal"
+   ]
+  },
+  {
+   "id": "tunnel",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "tunnel.lod0",
+     "triangles": 1216,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "tunnel.lod1",
+     "triangles": 250,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "tunnel.lod2",
+     "triangles": 250,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -1.5346,
+    -0.04,
+    0.0
+   ],
+   "boundsMax": [
+    1.5346,
+    8.04,
+    2.6346
+   ],
+   "materials": [
+    "painted_steel:club_primary",
+    "polycarbonate",
+    "rubber_floor"
+   ]
+  },
+  {
+   "id": "camera_gantry",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "camera_gantry.lod0",
+     "triangles": 292,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "camera_gantry.lod1",
+     "triangles": 172,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "camera_gantry.lod2",
+     "triangles": 140,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -2.06,
+    -1.16,
+    -3.0
+   ],
+   "boundsMax": [
+    2.052,
+    1.16,
+    1.1828
+   ],
+   "materials": [
+    "galvanized",
+    "painted_steel:charcoal"
+   ]
+  },
+  {
+   "id": "scoreboard",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "scoreboard.lod0",
+     "triangles": 86,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "scoreboard.lod1",
+     "triangles": 54,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "scoreboard.lod2",
+     "triangles": 38,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [
+    {
+     "widthMetres": 16.0,
+     "heightMetres": 6.4
+    }
+   ],
+   "boundsMin": [
+    -8.3,
+    -1.2,
+    -6.0
+   ],
+   "boundsMax": [
+    8.3,
+    0.003,
+    7.3
+   ],
+   "materials": [
+    "led_screen",
+    "painted_steel:charcoal"
+   ]
+  },
+  {
+   "id": "facade_fins",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "facade_fins.lod0",
+     "triangles": 276,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "facade_fins.lod1",
+     "triangles": 156,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "facade_fins.lod2",
+     "triangles": 156,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -0.25,
+    -0.7526,
+    0.0
+   ],
+   "boundsMax": [
+    10.0,
+    0.325,
+    5.0
+   ],
+   "materials": [
+    "concrete",
+    "glass",
+    "painted_steel:white"
+   ]
+  },
+  {
+   "id": "facade_panels",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "facade_panels.lod0",
+     "triangles": 84,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "facade_panels.lod1",
+     "triangles": 72,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "facade_panels.lod2",
+     "triangles": 72,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -0.25,
+    -0.35,
+    0.0
+   ],
+   "boundsMax": [
+    10.0,
+    0.3,
+    5.0
+   ],
+   "materials": [
+    "concrete",
+    "glass"
+   ]
+  },
+  {
+   "id": "vomitory",
+   "lods": [
+    {
+     "lod": 0,
+     "node": "vomitory.lod0",
+     "triangles": 184,
+     "fromDistance": 0.0
+    },
+    {
+     "lod": 1,
+     "node": "vomitory.lod1",
+     "triangles": 136,
+     "fromDistance": 40.0
+    },
+    {
+     "lod": 2,
+     "node": "vomitory.lod2",
+     "triangles": 72,
+     "fromDistance": 110.0
+    }
+   ],
+   "screens": [],
+   "boundsMin": [
+    -1.5,
+    -4.05,
+    0.0
+   ],
+   "boundsMax": [
+    1.5,
+    0.024,
+    3.824
+   ],
+   "materials": [
+    "concrete",
+    "galvanized",
+    "painted_steel:charcoal",
+    "rubber_floor"
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "id": "concrete",
+   "textures": {
+    "albedo": "Textures/concrete_albedo.png",
+    "normal": "Textures/concrete_normal.png",
+    "orm": "Textures/concrete_orm.png"
+   },
+   "tileMetres": 2.0,
+   "tint": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "id": "flag_cloth",
+   "baseColor": [
+    0.95,
+    0.85,
+    0.1
+   ],
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "transmission": 0.0,
+   "emissive": 0.0,
+   "tintRole": "clubPrimary"
+  },
+  {
+   "id": "galvanized",
+   "textures": {
+    "albedo": "Textures/galvanized_albedo.png",
+    "normal": "Textures/galvanized_normal.png",
+    "orm": "Textures/galvanized_orm.png"
+   },
+   "tileMetres": 1.0,
+   "tint": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "id": "glass",
+   "baseColor": [
+    0.55,
+    0.62,
+    0.66
+   ],
+   "roughness": 0.05,
+   "metallic": 0.0,
+   "transmission": 0.85,
+   "emissive": 0.0
+  },
+  {
+   "id": "lamp_lens",
+   "baseColor": [
+    1.0,
+    0.97,
+    0.92
+   ],
+   "roughness": 0.1,
+   "metallic": 0.0,
+   "transmission": 0.0,
+   "emissive": 6.0
+  },
+  {
+   "id": "led_screen",
+   "baseColor": [
+    0.02,
+    0.02,
+    0.02
+   ],
+   "roughness": 0.25,
+   "metallic": 0.0,
+   "emissiveContent": "runtime",
+   "ledPixelPitchMetres": 0.01
+  },
+  {
+   "id": "net",
+   "textures": {
+    "albedo": "Textures/net_mask_albedo.png",
+    "normal": "Textures/net_mask_normal.png",
+    "orm": "Textures/net_mask_orm.png"
+   },
+   "tileMetres": 0.48,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "alphaFromAlbedoRed": true
+  },
+  {
+   "id": "painted_steel:charcoal",
+   "textures": {
+    "albedo": "Textures/painted_steel_albedo.png",
+    "normal": "Textures/painted_steel_normal.png",
+    "orm": "Textures/painted_steel_orm.png"
+   },
+   "tileMetres": 1.0,
+   "tint": [
+    0.055,
+    0.06,
+    0.068
+   ]
+  },
+  {
+   "id": "painted_steel:club_primary",
+   "textures": {
+    "albedo": "Textures/painted_steel_albedo.png",
+    "normal": "Textures/painted_steel_normal.png",
+    "orm": "Textures/painted_steel_orm.png"
+   },
+   "tileMetres": 1.0,
+   "tint": [
+    0.62,
+    0.06,
+    0.07
+   ],
+   "tintRole": "clubPrimary"
+  },
+  {
+   "id": "painted_steel:white",
+   "textures": {
+    "albedo": "Textures/painted_steel_albedo.png",
+    "normal": "Textures/painted_steel_normal.png",
+    "orm": "Textures/painted_steel_orm.png"
+   },
+   "tileMetres": 1.0,
+   "tint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "id": "polycarbonate",
+   "baseColor": [
+    0.62,
+    0.68,
+    0.72
+   ],
+   "roughness": 0.12,
+   "metallic": 0.0,
+   "transmission": 0.7,
+   "emissive": 0.0
+  },
+  {
+   "id": "roof_sheet:white",
+   "textures": {
+    "albedo": "Textures/roof_sheet_albedo.png",
+    "normal": "Textures/roof_sheet_normal.png",
+    "orm": "Textures/roof_sheet_orm.png"
+   },
+   "tileMetres": 1.0,
+   "tint": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "id": "rubber_floor",
+   "textures": {
+    "albedo": "Textures/rubber_floor_albedo.png",
+    "normal": "Textures/rubber_floor_normal.png",
+    "orm": "Textures/rubber_floor_orm.png"
+   },
+   "tileMetres": 1.0,
+   "tint": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "id": "seat_plastic:charcoal",
+   "textures": {
+    "albedo": "Textures/seat_plastic_albedo.png",
+    "normal": "Textures/seat_plastic_normal.png",
+    "orm": "Textures/seat_plastic_orm.png"
+   },
+   "tileMetres": 0.5,
+   "tint": [
+    0.055,
+    0.06,
+    0.068
+   ]
+  },
+  {
+   "id": "seat_plastic:club",
+   "textures": {
+    "albedo": "Textures/seat_plastic_albedo.png",
+    "normal": "Textures/seat_plastic_normal.png",
+    "orm": "Textures/seat_plastic_orm.png"
+   },
+   "tileMetres": 0.5,
+   "tint": [
+    0.08,
+    0.22,
+    0.62
+   ],
+   "tintRole": "clubSeat"
+  }
+ ],
+ "files": {
+  "stadium-kit.glb": "1d01d010344e580d97ec8a7af0123d46eaf5a9c3d384ff309096e8718b330753",
+  "Textures/concrete_albedo.png": "bdf71f58f1bb609f45dfeeca3421b18fe4479ee218a0a50eba98d6dc555a3c75",
+  "Textures/concrete_normal.png": "4df4fc1a563b7e4183c0bb008e6ebaec3457cba7af9588f8e716064150c93769",
+  "Textures/concrete_orm.png": "456426e60468964cd735ff9fc0c0177ab750a48b14eb61f151b80474a8491458",
+  "Textures/galvanized_albedo.png": "3e2c5f71f2101b7d009693976a35870fe830ce7907777242fbc690683b93ca57",
+  "Textures/galvanized_normal.png": "73bf0884df54d4d051ad3e82b1e19a0203ed1bf44b41ca7734c5ca11b5bfd2aa",
+  "Textures/galvanized_orm.png": "71d393677dff0142ffba5def45e9232f9c2834a7992688abb8c829b61cab4e61",
+  "Textures/net_mask_albedo.png": "d348853604e4b41a3a262140cb1a35d8a2a39694bc171a9cefe1fd2f819a0f91",
+  "Textures/net_mask_normal.png": "73bf0884df54d4d051ad3e82b1e19a0203ed1bf44b41ca7734c5ca11b5bfd2aa",
+  "Textures/net_mask_orm.png": "d1576d8884676e7fd55e1c2ccb326b09ab0672d61d640c3c10647067ef3ff6bb",
+  "Textures/painted_steel_albedo.png": "fca84e1782ca29e11cead48841663d731b2fc184d1040edd7020577eccfd99a7",
+  "Textures/painted_steel_normal.png": "f2f88332744fde27ab61dd22d17088cad98e9628876a9bea37c3220423b89249",
+  "Textures/painted_steel_orm.png": "b2310801afd9b8eb54b65cef3f62f33363d5fefcc84748a3107c7c8b775bb516",
+  "Textures/roof_sheet_albedo.png": "f0293219aa718f4d5210fd3350c25e64b047932fcd4061b5b7127296f95b1fbe",
+  "Textures/roof_sheet_normal.png": "a514d57756f8ea2f47a8d5408a4840edea41446c847a27aefcc0fa4b64fa86a2",
+  "Textures/roof_sheet_orm.png": "71ba33abab681f9c9accf8dc1b1a580c5bcb2c770e2585f0bbad5eb4894dac2f",
+  "Textures/rubber_floor_albedo.png": "a5bd045d768db0a035d28cbb32f1c53d6ddf7b7cfc45c908b94523516996c37c",
+  "Textures/rubber_floor_normal.png": "78a3043a760e80fbdead2272fcb8fa5ba8b6712ba1375ffd9f4cc380ca758032",
+  "Textures/rubber_floor_orm.png": "0878a10954bb18333eb59e3c8844d001dea33459aba9d4682150c5e77d7b605c",
+  "Textures/seat_plastic_albedo.png": "8d28fe3484c2e2151960a864cc9991435347bfa468dd09349d2e891f58f847d6",
+  "Textures/seat_plastic_normal.png": "08cc295b2d185c344f26d6284e9fc09987a8d086e9e24cd5ccfba7377073d251",
+  "Textures/seat_plastic_orm.png": "b54314cff8abd52e7a4c5feaa558fbcf41c30cc9f053727ee2841f47c5efcf62"
+ },
+ "source": {
+  "blend": "stadium-kit.blend",
+  "generator": "Tools/MatchViewer3D/StadiumKit/build_kit.py",
+  "blender": "5.2.3 LTS"
+ },
+ "provenance": "Original FootballEngine content: geometry and every texture pixel are generated by the scripts above from Blender procedural nodes. No third-party meshes, images or scans."
+}

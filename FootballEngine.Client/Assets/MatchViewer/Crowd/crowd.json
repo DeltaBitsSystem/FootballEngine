@@ -1,0 +1,179 @@
+{
+ "schema": 1,
+ "fps": 15,
+ "regions": [
+  "skin",
+  "top",
+  "sleeve",
+  "trousers",
+  "shoes",
+  "hair",
+  "scarf"
+ ],
+ "origin": "seat reference: tread floor under the seat centre; spectators face glTF -Z (Blender +Y)",
+ "variants": [
+  {
+   "id": "a",
+   "lod": 0,
+   "node": "spectator_a.lod0",
+   "vertices": 700,
+   "triangles": 1396,
+   "frames": 360,
+   "byteOffset": 0,
+   "positionBytes": 1512000,
+   "normalBytes": 1512000
+  },
+  {
+   "id": "b",
+   "lod": 0,
+   "node": "spectator_b.lod0",
+   "vertices": 790,
+   "triangles": 1576,
+   "frames": 360,
+   "byteOffset": 3024000,
+   "positionBytes": 1706400,
+   "normalBytes": 1706400
+  },
+  {
+   "id": "c",
+   "lod": 0,
+   "node": "spectator_c.lod0",
+   "vertices": 702,
+   "triangles": 1400,
+   "frames": 360,
+   "byteOffset": 6436800,
+   "positionBytes": 1516320,
+   "normalBytes": 1516320
+  },
+  {
+   "id": "d",
+   "lod": 0,
+   "node": "spectator_d.lod0",
+   "vertices": 764,
+   "triangles": 1524,
+   "frames": 360,
+   "byteOffset": 9469440,
+   "positionBytes": 1650240,
+   "normalBytes": 1650240
+  },
+  {
+   "id": "a",
+   "lod": 1,
+   "node": "spectator_a.lod1",
+   "vertices": 174,
+   "triangles": 344,
+   "frames": 360,
+   "byteOffset": 12769920,
+   "positionBytes": 375840,
+   "normalBytes": 375840
+  },
+  {
+   "id": "b",
+   "lod": 1,
+   "node": "spectator_b.lod1",
+   "vertices": 196,
+   "triangles": 388,
+   "frames": 360,
+   "byteOffset": 13521600,
+   "positionBytes": 423360,
+   "normalBytes": 423360
+  },
+  {
+   "id": "c",
+   "lod": 1,
+   "node": "spectator_c.lod1",
+   "vertices": 176,
+   "triangles": 348,
+   "frames": 360,
+   "byteOffset": 14368320,
+   "positionBytes": 380160,
+   "normalBytes": 380160
+  },
+  {
+   "id": "d",
+   "lod": 1,
+   "node": "spectator_d.lod1",
+   "vertices": 190,
+   "triangles": 376,
+   "frames": 360,
+   "byteOffset": 15128640,
+   "positionBytes": 410400,
+   "normalBytes": 410400
+  }
+ ],
+ "clips": [
+  {
+   "id": "sit_idle",
+   "startFrame": 0,
+   "frames": 60,
+   "seconds": 4.0,
+   "loop": true
+  },
+  {
+   "id": "sit_clap",
+   "startFrame": 60,
+   "frames": 30,
+   "seconds": 2.0,
+   "loop": true
+  },
+  {
+   "id": "sit_tense",
+   "startFrame": 90,
+   "frames": 45,
+   "seconds": 3.0,
+   "loop": true
+  },
+  {
+   "id": "stand_idle",
+   "startFrame": 135,
+   "frames": 60,
+   "seconds": 4.0,
+   "loop": true
+  },
+  {
+   "id": "stand_clap",
+   "startFrame": 195,
+   "frames": 30,
+   "seconds": 2.0,
+   "loop": true
+  },
+  {
+   "id": "stand_chant",
+   "startFrame": 225,
+   "frames": 30,
+   "seconds": 2.0,
+   "loop": true
+  },
+  {
+   "id": "celebrate",
+   "startFrame": 255,
+   "frames": 30,
+   "seconds": 2.0,
+   "loop": true
+  },
+  {
+   "id": "despair",
+   "startFrame": 285,
+   "frames": 45,
+   "seconds": 3.0,
+   "loop": true
+  },
+  {
+   "id": "protest",
+   "startFrame": 330,
+   "frames": 30,
+   "seconds": 2.0,
+   "loop": true
+  }
+ ],
+ "files": {
+  "crowd.glb": "2488a700b6c051e8ab8f93c472c84ce5c5d59ee8b4d4717108e6376413111aaf",
+  "crowd-vat.bin": "5ce123dd026c2881ff124d9a3a67bd077006529484e25b9acf156f85ee0d0cb8"
+ },
+ "vatEncoding": "float16 little-endian; per variant: positions[frame][vertex][xyz] then normals[frame][vertex][xyz], Blender Z-up metres (convert to glTF Y-up: x, z, -y)",
+ "source": {
+  "generator": "Tools/MatchViewer3D/Crowd/build_crowd.py",
+  "blender": "5.2.3 LTS"
+ },
+ "provenance": "Original FootballEngine content: skeleton graph, rig, poses and clips authored in this script."
+}
