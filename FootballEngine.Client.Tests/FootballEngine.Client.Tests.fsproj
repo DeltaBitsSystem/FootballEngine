@@ -2,6 +2,8 @@
 
     <ItemGroup>
         <Content Include="../FootballEngine.Client/Assets/MatchViewer/PlayerMotionRework/corrective-golden.json" Link="corrective-golden.json" CopyToOutputDirectory="PreserveNewest" />
+        <Content Include="../FootballEngine.Client/Assets/MatchViewer/StadiumKit/layout-golden.json" Link="layout-golden.json" CopyToOutputDirectory="PreserveNewest" />
+        <Content Include="../FootballEngine.Client/Assets/MatchViewer/StadiumKit/kit.json" Link="kit.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -27,6 +29,7 @@
     <Compile Include="MatchHudTests.fs" />
     <Compile Include="PresentationLoopTests.fs" />
     <Compile Include="RenderWorkerTests.fs" />
+    <Compile Include="StadiumLayoutTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

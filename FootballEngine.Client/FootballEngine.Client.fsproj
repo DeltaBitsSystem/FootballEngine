@@ -74,6 +74,7 @@
         <Compile Include="Views\Components\MatchVisualTypes.fs"/>
         <Compile Include="Views\Components\MatchCamera.fs"/>
         <Compile Include="Views\Components\MatchProjection.fs"/>
+        <Compile Include="Match3D\StadiumLayout.fs"/>
         <Compile Include="Match3D\StadiumAsset.fs"/>
         <Compile Include="Match3D\PitchMarkings.fs"/>
         <Compile Include="Match3D\AthleteMaterial.fs"/>
