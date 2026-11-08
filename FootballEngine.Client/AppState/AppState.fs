@@ -539,6 +539,8 @@ module AppState =
                 Calendar = CalendarSlice.update m state.Calendar },
             Cmd.none
 
+        | NewsMsg(SetNewsFilter filter) -> { state with News = { Filter = filter } }, Cmd.none
+
         | NotificationMsg nm ->
             match nm with
             | DismissNotification id ->

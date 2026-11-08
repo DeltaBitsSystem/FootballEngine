@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="RoutingTests.fs" />
+    <Compile Include="NewsPageTests.fs" />
     <Compile Include="PersistenceTests.fs" />
     <Compile Include="TacticsDraftTests.fs" />
     <Compile Include="ModEditorTests.fs" />

@@ -151,6 +151,15 @@ module AppTypes =
           AnchorMonth: System.DateTime option
           SelectedFixtureId: MatchId option }
 
+    /// Which slice of the world feed the News page shows.
+    type NewsFilter =
+        | NewsMyClub
+        | NewsMyLeague
+        | NewsWorld
+        | NewsEverything
+
+    type NewsState = { Filter: NewsFilter }
+
     [<Struct>]
     type MatchRuntimeId = MatchRuntimeId of uint64
 
@@ -233,6 +242,7 @@ module AppTypes =
           Training: TrainingState
           Finance: FinanceState
           Calendar: CalendarState
+          News: NewsState
           Inbox: InboxState
           Match: MatchState
           Transfer: TransferState
@@ -352,6 +362,7 @@ module AppTypes =
               CompetitionFilter = None
               AnchorMonth = None
               SelectedFixtureId = None }
+          News = { Filter = NewsEverything }
           Inbox = initInboxState
           Match =
             { RuntimeId = None

@@ -45,6 +45,8 @@ module Shots =
           VideoStep: int
           VideoFrames: int
           MatchIndex: int
+          /// Days the demo world runs before capture, so world pages (news, board) show real stories, not empty states.
+          WorldDays: int
           InspectMatch: bool
           MatchSeed: uint64 option
           /// Skip through the live match unpaced and write the match second of every goal; captures nothing.
@@ -67,6 +69,8 @@ module Shots =
           Route.Setup
           Route.Home
           Route.Calendar
+          Route.News
+          Route.Board
           Route.Inbox(InboxRoute None)
           Route.Squad SquadRoute.All
           Route.Tactics TacticsRoute.Overview
@@ -85,6 +89,8 @@ module Shots =
         | "home"
         | "homepage" -> Some Route.Home
         | "calendar" -> Some Route.Calendar
+        | "news" -> Some Route.News
+        | "board" -> Some Route.Board
         | "inbox" -> Some(Route.Inbox(InboxRoute None))
         | "squad" -> Some(Route.Squad SquadRoute.All)
         | "tactics" -> Some(Route.Tactics TacticsRoute.Overview)
@@ -178,6 +184,7 @@ module Shots =
                   VideoStep = positiveValue "--video-step" 4
                   VideoFrames = positiveValue "--video-frames" 3600
                   MatchIndex = nonNegativeValue "--match-index" 0
+                  WorldDays = nonNegativeValue "--shots-days" 0
                   InspectMatch = args |> Array.contains "--match-evidence"
                   MatchSeed = matchSeed
                   VideoFindGoals = findGoals
@@ -256,6 +263,13 @@ module Shots =
             )
 
         let gs =
+            if opts.WorldDays = 0 then
+                gs
+            else
+                (WorldRunner.advanceDays opts.WorldDays (WorldClockOps.init gs.Season) gs).GameState
+
+        // An advanced world already sits on its own date; jumping to a fixture would hide the days just simulated.
+        let gs =
             let fixtures =
                 gs.Competitions
                 |> Map.toSeq
@@ -263,6 +277,7 @@ module Shots =
                 |> Seq.filter (fun (_, fixture) ->
                     MatchFixture.isPending fixture && MatchFixture.involves gs.UserClubId fixture)
                 |> Seq.sortBy (fun (_, fixture) -> fixture.ScheduledDate)
+                |> Seq.filter (fun _ -> opts.WorldDays = 0)
                 |> Seq.toArray
 
             fixtures

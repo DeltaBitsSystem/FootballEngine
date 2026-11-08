@@ -96,6 +96,47 @@ type TranslationKey =
     | MatchNoEligibleSubstitute
     | MatchStartersAndSubstitutes
     | JourneyTitle
+    | NewsChipPlayer
+    | NewsChipSeason
+    | NewsMajorChip
+    | NewsFilterClub
+    | NewsFilterLeague
+    | NewsFilterWorld
+    | NewsFilterAll
+    | NewsSubtitle
+    | NewsEmptyTitle
+    | NewsEmptySub
+    | WorldAroundTitle
+    | WorldAroundSeeAll
+    | WorldAroundQuiet
+    | BoardSubtitle
+    | BoardConfidenceTitle
+    | BoardFansTitle
+    | BoardZoneSafe
+    | BoardZoneWarning
+    | BoardZoneUltimatum
+    | FansBandFurious
+    | FansBandRestless
+    | FansBandContent
+    | FansBandEuphoric
+    | BoardObjectiveTitle
+    | BoardRecentForm
+    | BoardNoResults
+    | BoardPressureNews
+    | BoardNoPressure
+    | ResultLetterWin
+    | ResultLetterDraw
+    | ResultLetterLoss
+    | ObjectiveSurvival
+    | ObjectiveMidTable
+    | ObjectiveTopHalf
+    | ObjectiveTopFour
+    | ObjectiveWinLeague
+    | ObjectiveDomesticCup
+    | ObjectiveContinentalCup
+    | ObjectiveChampionsLeague
+    | ObjectivePromotion
+    | ObjectiveRelegation
     | TransfersTitle
     | TransfersSubtitle
     | InboxTitle
@@ -415,6 +456,47 @@ module Localization =
           "{starters} titulares · {substitutes} suplentes",
           "{starters} starters · {substitutes} substitutes"
           TranslationKey.JourneyTitle, "Tu próxima decisión", "Your next decision"
+          TranslationKey.NewsChipPlayer, "Jugador", "Player"
+          TranslationKey.NewsChipSeason, "Temporada", "Season"
+          TranslationKey.NewsMajorChip, "Importante", "Major"
+          TranslationKey.NewsFilterClub, "Mi club", "My club"
+          TranslationKey.NewsFilterLeague, "Mi liga", "My league"
+          TranslationKey.NewsFilterWorld, "Mundo", "World"
+          TranslationKey.NewsFilterAll, "Todo", "All"
+          TranslationKey.NewsSubtitle, "Lo que se cuenta en el club, en tu liga y en el resto del mundo.", "What is being said at your club, in your league and around the world."
+          TranslationKey.NewsEmptyTitle, "Todavía no hay noticias", "No news yet"
+          TranslationKey.NewsEmptySub, "Cuando pasen cosas (goleadas, rachas, despidos, fichajes) las vas a ver acá.", "When things happen (big wins, streaks, sackings, transfers) they will show up here."
+          TranslationKey.WorldAroundTitle, "Lo que pasa en el mundo", "Around the world"
+          TranslationKey.WorldAroundSeeAll, "Ver todas las noticias", "See all news"
+          TranslationKey.WorldAroundQuiet, "Sin novedades por ahora.", "Nothing to report yet."
+          TranslationKey.BoardSubtitle, "Cómo te ve la directiva y cómo se siente la hinchada con tu gestión.", "How the board sees you and how supporters feel about your work."
+          TranslationKey.BoardConfidenceTitle, "Confianza de la directiva", "Board confidence"
+          TranslationKey.BoardFansTitle, "Humor de la hinchada", "Supporters' mood"
+          TranslationKey.BoardZoneSafe, "Respaldo firme", "Firm backing"
+          TranslationKey.BoardZoneWarning, "En observación", "Under review"
+          TranslationKey.BoardZoneUltimatum, "Ultimátum", "Ultimatum"
+          TranslationKey.FansBandFurious, "Furiosa", "Furious"
+          TranslationKey.FansBandRestless, "Inquieta", "Restless"
+          TranslationKey.FansBandContent, "Conforme", "Content"
+          TranslationKey.FansBandEuphoric, "Eufórica", "Euphoric"
+          TranslationKey.BoardObjectiveTitle, "Objetivo de la temporada", "Season objective"
+          TranslationKey.BoardRecentForm, "Últimos resultados", "Recent results"
+          TranslationKey.BoardNoResults, "Todavía no jugaste partidos esta temporada.", "No matches played yet this season."
+          TranslationKey.BoardPressureNews, "Novedades de presión", "Pressure news"
+          TranslationKey.BoardNoPressure, "La directiva y la hinchada no dijeron nada por ahora.", "The board and supporters have said nothing so far."
+          TranslationKey.ResultLetterWin, "G", "W"
+          TranslationKey.ResultLetterDraw, "E", "D"
+          TranslationKey.ResultLetterLoss, "P", "L"
+          TranslationKey.ObjectiveSurvival, "Evitar el descenso", "Avoid relegation"
+          TranslationKey.ObjectiveMidTable, "Terminar en mitad de tabla", "Finish mid-table"
+          TranslationKey.ObjectiveTopHalf, "Terminar en la mitad alta", "Finish in the top half"
+          TranslationKey.ObjectiveTopFour, "Clasificar entre los cuatro primeros", "Finish in the top four"
+          TranslationKey.ObjectiveWinLeague, "Ganar la liga", "Win the league"
+          TranslationKey.ObjectiveDomesticCup, "Ganar la copa nacional", "Win the domestic cup"
+          TranslationKey.ObjectiveContinentalCup, "Ganar la copa continental", "Win the continental cup"
+          TranslationKey.ObjectiveChampionsLeague, "Ganar la Champions League", "Win the Champions League"
+          TranslationKey.ObjectivePromotion, "Conseguir el ascenso", "Win promotion"
+          TranslationKey.ObjectiveRelegation, "Evitar el descenso de categoría", "Avoid dropping a division"
           TranslationKey.TransfersTitle, "Mercado", "Transfers"
           TranslationKey.TransfersSubtitle, "Buscá, negociá y armá tu plantel", "Recruit, negotiate and build your squad"
           TranslationKey.InboxTitle, "Bandeja", "Inbox"
@@ -708,7 +790,7 @@ module Localization =
         else
             raise (KeyNotFoundException $"Missing translation for '{key}'")
 
-    let private render (key: TranslationKey) (template: string) (parameters: (string * string) list) =
+    let private render (key: string) (template: string) (parameters: (string * string) list) =
         let values = parameters |> Map.ofList
 
         let placeholders =
@@ -727,6 +809,11 @@ module Localization =
         (template, values)
         ||> Map.fold (fun text name value -> text.Replace("{" + name + "}", value))
 
+    // Free-form templates (news phrasing has dozens of variants per language) that still render through the same
+    // named-parameter machinery as catalog keys, so a missing parameter fails loudly instead of printing "{name}".
+    let resolveVariant (label: string) (es: string) (en: string) (parameters: (string * string) list) : string =
+        render label (if activeLocale.Value = Locale.Es then es else en) parameters
+
     // The only text lookup used by future views. Templates use named parameters
     // so translated word order never depends on string concatenation.
     let resolve (key: TranslationKey) (parameters: (string * string) list) : string =
@@ -736,5 +823,5 @@ module Localization =
             | Locale.En -> catalog.En
 
         match Map.tryFind key source with
-        | Some template -> render key template parameters
+        | Some template -> render (string key) template parameters
         | None -> developmentFallback key

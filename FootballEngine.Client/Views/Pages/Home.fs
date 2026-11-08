@@ -331,6 +331,74 @@ module Home =
 
         UI.panelCard (panelHeader IconName.inbox (Localization.resolve TranslationKey.InboxImportantTitle []) (Some seeAll)) body
 
+    /// The day's headlines from the wider world, so a quiet inbox never means a quiet game.
+    let private worldPanel (gs: GameState) dispatch : IView =
+        let top = News.topItems 3 gs.News
+
+        let goNews = fun _ -> dispatch (Navigate Route.News)
+
+        let seeAll =
+            Button.create
+                [ Button.background "Transparent"
+                  Button.borderThickness 0.0
+                  Button.padding 0.0
+                  Button.onClick goNews
+                  Button.content (
+                      TextBlock.create
+                          [ TextBlock.text (Localization.resolve TranslationKey.WorldAroundSeeAll [])
+                            TextBlock.fontSize 14.0
+                            TextBlock.fontWeight FontWeight.SemiBold
+                            TextBlock.foreground Theme.Accent ]
+                  ) ]
+
+        let row (item: NewsItem) : IView =
+            let headline, _ = NewsText.render gs item
+
+            Button.create
+                [ Button.background "Transparent"
+                  Button.borderThickness 0.0
+                  Button.padding (0.0, 4.0)
+                  Button.horizontalAlignment HorizontalAlignment.Stretch
+                  Button.horizontalContentAlignment HorizontalAlignment.Left
+                  Button.onClick goNews
+                  Button.content (
+                      StackPanel.create
+                          [ StackPanel.orientation Orientation.Horizontal
+                            StackPanel.spacing 12.0
+                            StackPanel.children
+                                [ (match item.Clubs with
+                                   | clubId :: _ -> UI.crest (ClubIdentity.kitOf gs clubId) 28.0
+                                   | [] -> UI.crest (ClubIdentity.kitOf gs gs.UserClubId) 28.0)
+                                  TextBlock.create
+                                      [ TextBlock.text headline
+                                        TextBlock.fontSize 15.0
+                                        TextBlock.fontWeight (
+                                            if item.Importance >= NewsImportance.Major then
+                                                FontWeight.Bold
+                                            else
+                                                FontWeight.Medium
+                                        )
+                                        TextBlock.foreground Theme.TextMain
+                                        TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
+                  ) ]
+            :> IView
+
+        let body =
+            StackPanel.create
+                [ StackPanel.margin (20.0, 4.0, 20.0, 18.0)
+                  StackPanel.spacing 6.0
+                  StackPanel.children
+                      [ if top.IsEmpty then
+                            TextBlock.create
+                                [ TextBlock.text (Localization.resolve TranslationKey.WorldAroundQuiet [])
+                                  TextBlock.fontSize 14.0
+                                  TextBlock.foreground Theme.TextMuted ]
+                            :> IView
+                        else
+                            yield! top |> List.map row ] ]
+
+        UI.panelCard (panelHeader IconName.bullhorn (Localization.resolve TranslationKey.WorldAroundTitle []) (Some seeAll)) body
+
     let private resultDot (userWon: bool option) =
         let color =
             match userWon with
@@ -1058,6 +1126,7 @@ module Home =
                             StackPanel.children
                                 [ CareerJourney.home state dispatch
                                   inboxPreview gs dispatch
+                                  worldPanel gs dispatch
                                   summaryBar compact userTeam pos total standing
                                   bodyColumns ] ]
                   ) ]

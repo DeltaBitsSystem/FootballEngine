@@ -44,6 +44,7 @@
         <Compile Include="Views\Theme.fs"/>
         <Compile Include="Views\Shared\ClubIdentity.fs"/>
         <Compile Include="Views\Shared\Formatters.fs"/>
+        <Compile Include="Views\Shared\NewsText.fs"/>
         <Compile Include="AppState\Projections.fs"/>
         <Compile Include="Views\Shared\PlayerPresenter.fs"/>
         <Compile Include="Views\Shared\ColumnDefs.fs"/>
@@ -98,6 +99,8 @@
         <Compile Include="Views\Components\MatchViewer.fs"/>
         <Compile Include="Views\Pages\Loading.fs"/>
         <Compile Include="Views\Pages\Setup.fs"/>
+        <Compile Include="Views\Pages\News.fs"/>
+        <Compile Include="Views\Pages\Board.fs"/>
         <Compile Include="Views\Pages\Home.fs"/>
         <Compile Include="Views\Pages\Calendar.fs"/>
         <Compile Include="Views\Pages\Inbox.fs"/>

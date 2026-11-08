@@ -79,6 +79,8 @@ module Views =
             | Route.Home ->
                 homeView state state.SelectedLeagueId (fun leagueId -> dispatch (ChangeLeague leagueId)) dispatch
             | Route.Calendar -> Calendar.view state dispatch
+            | Route.News -> News.view state dispatch
+            | Route.Board -> Board.view state dispatch
             | Route.Inbox _ -> inboxView state dispatch
             | Route.Squad _ -> squadView state dispatch
             | Route.Tactics _ -> tacticView state dispatch

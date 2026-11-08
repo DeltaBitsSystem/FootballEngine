@@ -121,8 +121,10 @@ module UI =
               Border.height size
               Border.cornerRadius (size * 0.28)
               Border.background (kitBrush kit)
-              Border.borderBrush "#FFFFFF"
-              Border.borderThickness 2.0
+              // A plain kit has no pattern to carry its second colour; without this trim Velez or Huracan read as a
+              // blank white tile.
+              Border.borderBrush (if kit.Pattern = Plain then kit.Secondary else "#FFFFFF")
+              Border.borderThickness (if kit.Pattern = Plain then max 2.0 (size * 0.09) else 2.0)
               Border.boxShadow (BoxShadow.Parse "0 4 14 0 #55000000") ]
         :> IView
 

@@ -91,6 +91,8 @@ module AppMsgs =
         | MoveMonth of int
         | SelectFixture of MatchId option
 
+    type NewsMsg = SetNewsFilter of NewsFilter
+
     type SquadMsg =
         | SetSort of SortField
         | SelectPlayer of PlayerId
@@ -195,6 +197,7 @@ module AppMsgs =
         | TransferMsg of TransferMsg
         | FinanceMsg of FinanceMsg
         | CalendarMsg of CalendarMsg
+        | NewsMsg of NewsMsg
         | NotificationMsg of NotificationMsg
         | ModEditorMsg of ModEditorMsg
         | SettingsMsg of SettingsMsg

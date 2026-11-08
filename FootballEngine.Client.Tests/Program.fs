@@ -5,6 +5,7 @@ open FootballEngine.Client.Tests.ModEditorTests
 open FootballEngine.Client.Tests.PersistenceTests
 open FootballEngine.Client.Tests.RoutingTests
 open FootballEngine.Client.Tests.TacticsDraftTests
+open FootballEngine.Client.Tests
 
 [<EntryPoint>]
 let main argv =
@@ -15,6 +16,7 @@ let main argv =
             "FootballEngine.Client"
             [ tests
               routingTests
+              NewsPageTests.tests
               tacticsTests
               ModEditorTests.tests
               LiveMatchTests.tests
