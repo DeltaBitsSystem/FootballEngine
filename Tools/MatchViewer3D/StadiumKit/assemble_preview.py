@@ -196,6 +196,127 @@ def build_pieces(layout, kit):
         place(src, m, pc["piece"])
 
 
+def add_crowd(seat_pos, primary, secondary, clip="sit_idle"):
+    """Seated spectators on every seat: the crowd pack's body posed in a clip, instanced with palettes."""
+    sys.path.insert(0, os.path.join(HERE, "..", "Crowd"))
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("crowd_build", os.path.join(HERE, "..", "Crowd", "build_crowd.py"))
+    src = open(spec.origin).read().replace("\nmain()\n", "\n")
+    mod = {"__name__": "crowd_build", "__file__": spec.origin}
+    exec(compile(src, spec.origin, "exec"), mod)
+    bodies = []
+    for key in ("a", "b", "c", "d"):
+        v = mod["VARIANTS"][key]
+        body = mod["build_body"](f"fan_{key}", v, 1)
+        arm = mod["build_armature"](f"fan_rig_{key}", v)
+        mod["rig"](body, arm, v)
+        fn = dict((n, f) for n, f, _ in mod["CLIPS"])[clip]
+        mod["apply_pose"](arm, fn(0.7 * (ord(key) - 96)))
+        dg = bpy.context.evaluated_depsgraph_get()
+        me = bpy.data.meshes.new_from_object(body.evaluated_get(dg))
+        frozen = bpy.data.objects.new(f"fan_{key}_posed", me)
+        bpy.context.scene.collection.objects.link(frozen)
+        frozen.hide_render = True
+        bpy.data.objects.remove(body)
+        bpy.data.objects.remove(arm)
+        bodies.append(frozen)
+    mat = bpy.data.materials.new("fans")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    reg = nt.nodes.new("ShaderNodeAttribute")
+    reg.attribute_name = "_region"
+    top = nt.nodes.new("ShaderNodeAttribute")
+    top.attribute_type = "INSTANCER"
+    top.attribute_name = "fan_top"
+    skin = nt.nodes.new("ShaderNodeAttribute")
+    skin.attribute_type = "INSTANCER"
+    skin.attribute_name = "fan_skin"
+    is_top = nt.nodes.new("ShaderNodeMath")
+    is_top.operation = "COMPARE"
+    is_top.inputs[1].default_value = 1.0
+    is_top.inputs[2].default_value = 1.1
+    nt.links.new(reg.outputs["Fac"], is_top.inputs[0])
+    is_skin = nt.nodes.new("ShaderNodeMath")
+    is_skin.operation = "LESS_THAN"
+    is_skin.inputs[1].default_value = 0.5
+    nt.links.new(reg.outputs["Fac"], is_skin.inputs[0])
+    dark = nt.nodes.new("ShaderNodeMix")
+    dark.data_type = "RGBA"
+    dark.inputs[6].default_value = (0.05, 0.06, 0.09, 1)
+    nt.links.new(is_top.outputs[0], dark.inputs[0])
+    nt.links.new(top.outputs["Color"], dark.inputs[7])
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    nt.links.new(is_skin.outputs[0], mix.inputs[0])
+    nt.links.new(dark.outputs[2], mix.inputs[6])
+    nt.links.new(skin.outputs["Color"], mix.inputs[7])
+    nt.links.new(mix.outputs[2], nt.nodes["Principled BSDF"].inputs["Base Color"])
+    nt.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.8
+    for b in bodies:
+        b.data.materials.clear()
+        b.data.materials.append(mat)
+    coll = bpy.data.collections.new("fan_bodies")
+    for b in bodies:
+        coll.objects.link(b)
+    # Deterministic palette per seat: most wear the club colours, some neutral; four skin tones.
+    import random
+    rnd = random.Random(1234)
+    tones = [(0.62, 0.43, 0.32), (0.45, 0.30, 0.20), (0.28, 0.17, 0.11), (0.75, 0.55, 0.42)]
+    me = bpy.data.meshes.new("fan_points")
+    me.from_pydata([tuple(p + Vector((0, 0, 0))) for p, _, _ in seat_pos], [], [])
+    yaw = me.attributes.new("yaw", "FLOAT", "POINT")
+    topc = me.attributes.new("fan_top", "FLOAT_COLOR", "POINT")
+    skinc = me.attributes.new("fan_skin", "FLOAT_COLOR", "POINT")
+    pick = me.attributes.new("pick", "INT", "POINT")
+    for i, (_, y, _c) in enumerate(seat_pos):
+        yaw.data[i].value = y
+        r = rnd.random()
+        c = primary if r < 0.55 else (secondary if r < 0.8 else (rnd.random() * 0.3,) * 3)
+        topc.data[i].color = (*c, 1)
+        skinc.data[i].color = (*rnd.choice(tones), 1)
+        pick.data[i].value = rnd.randrange(4)
+    obj = bpy.data.objects.new("fans", me)
+    bpy.context.scene.collection.objects.link(obj)
+    gn = bpy.data.node_groups.new("fan_instancer", "GeometryNodeTree")
+    gn.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    gn.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    N, L = gn.nodes, gn.links
+    gi, go = N.new("NodeGroupInput"), N.new("NodeGroupOutput")
+    inst = N.new("GeometryNodeInstanceOnPoints")
+    cinfo = N.new("GeometryNodeCollectionInfo")
+    cinfo.inputs["Collection"].default_value = coll
+    cinfo.inputs["Separate Children"].default_value = True
+    cinfo.inputs["Reset Children"].default_value = True
+    inst.inputs["Pick Instance"].default_value = True
+    L.new(gi.outputs[0], inst.inputs["Points"])
+    L.new(cinfo.outputs[0], inst.inputs["Instance"])
+    pk = N.new("GeometryNodeInputNamedAttribute")
+    pk.data_type = "INT"
+    pk.inputs["Name"].default_value = "pick"
+    L.new(pk.outputs["Attribute"], inst.inputs["Instance Index"])
+    ya = N.new("GeometryNodeInputNamedAttribute")
+    ya.data_type = "FLOAT"
+    ya.inputs["Name"].default_value = "yaw"
+    comb = N.new("ShaderNodeCombineXYZ")
+    L.new(ya.outputs["Attribute"], comb.inputs["Z"])
+    L.new(comb.outputs[0], inst.inputs["Rotation"])
+    last = inst.outputs[0]
+    for name in ("fan_top", "fan_skin"):
+        rd = N.new("GeometryNodeInputNamedAttribute")
+        rd.data_type = "FLOAT_COLOR"
+        rd.inputs["Name"].default_value = name
+        st = N.new("GeometryNodeStoreNamedAttribute")
+        st.data_type = "FLOAT_COLOR"
+        st.domain = "INSTANCE"
+        st.inputs["Name"].default_value = name
+        L.new(last, st.inputs["Geometry"])
+        L.new(rd.outputs["Attribute"], st.inputs["Value"])
+        last = st.outputs[0]
+    L.new(last, go.inputs[0])
+    obj.modifiers.new("fans", "NODES").node_group = gn
+    print("fans", len(seat_pos))
+
+
 def build_pitch():
     me = bpy.data.meshes.new("pitch")
     hx, hy = sl.PITCH_LENGTH / 2 + 14, sl.PITCH_WIDTH / 2 + 12
@@ -394,6 +515,8 @@ def main():
     build_pitch()
     seats = build_stands(layout, mats, (primary, secondary))
     instance_seats(seats, kit["seat.lod1"])
+    if os.environ.get("FE_PREVIEW_CROWD"):
+        add_crowd(seats, primary, secondary, os.environ.get("FE_PREVIEW_CROWD"))
     build_roofs(layout, mats)
     build_pieces(layout, kit)
     setup_world(night)
