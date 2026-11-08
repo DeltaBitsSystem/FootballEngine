@@ -136,7 +136,25 @@ type WorldPulseConfig =
       ClasicoLookaheadDays: int
       ClasicoTopReputationCount: int
       ClasicoMinMeetings: int
-      ClasicoMaxGoalDifference: int }
+      ClasicoMaxGoalDifference: int
+      ExpectedPointsBase: float
+      ExpectedPointsSpread: float
+      ExpectedPointsMin: float
+      ExpectedPointsMax: float
+      ReputationScale: float
+      HomeAdvantagePoints: float
+      ConfidenceGain: float
+      FansMoodGain: float
+      MeanReversionRate: float
+      BoardWarningThreshold: int
+      UltimatumThreshold: int
+      SackThreshold: int
+      MinMatchesBeforeSack: int
+      HoneymoonConfidence: int
+      ReplacementContractYears: int
+      FansFuriousBelow: int
+      FansRestlessBelow: int
+      FansEuphoricFrom: int }
 
 module WorldPulseConfig =
 
@@ -163,7 +181,36 @@ module WorldPulseConfig =
           ClasicoLookaheadDays = 2
           ClasicoTopReputationCount = 2
           ClasicoMinMeetings = 4
-          ClasicoMaxGoalDifference = 2 }
+          ClasicoMaxGoalDifference = 2
+          // A league averages 1.35 points per club per match (3 split between winner/loser, 2 on a draw).
+          ExpectedPointsBase = 1.35
+          // tanh saturates, so even a 9999 vs 500 gap adds at most this much: a giant is expected to win, not to
+          // collect 3 points every week.
+          ExpectedPointsSpread = 0.8
+          ExpectedPointsMin = 0.2
+          ExpectedPointsMax = 2.6
+          // ClubGen reputation spans 500..9999; a 2500 gap (a quarter of the range) already gives ~76% of the
+          // spread, which matches mid-table versus top-club perception.
+          ReputationScale = 2500.0
+          HomeAdvantagePoints = 0.2
+          // A defeat as an even side (expected ~1.35) costs ~7 confidence, so a run of ~6 defeats reaches the
+          // sack line from the initial value, while a draw barely moves it.
+          ConfidenceGain = 5.0
+          FansMoodGain = 6.0
+          // Slow pull to the initial value so a past run does not define a club forever.
+          MeanReversionRate = 0.03
+          BoardWarningThreshold = 40
+          UltimatumThreshold = 25
+          SackThreshold = 20
+          // A league has 30+ rounds; a coach is not judged on a bad start of a few matches.
+          MinMatchesBeforeSack = 8
+          // Above the warning line so a fresh coach is not immediately in unrest, below the initial value
+          // because the club just failed.
+          HoneymoonConfidence = 55
+          ReplacementContractYears = 2
+          FansFuriousBelow = 20
+          FansRestlessBelow = 45
+          FansEuphoricFrom = 75 }
 
     let validate (config: WorldPulseConfig) : string list =
         [ if config.NewsRetention < 1 then
@@ -188,8 +235,10 @@ module WorldPulseConfig =
               yield "WorldPulse.UpsetReputationGap must be >= 1"
           if
               config.StreakThresholds.IsEmpty
-              || config.StreakThresholds |> List.exists (fun n -> n < 2 || n > config.RecentResultsKept)
-              || config.StreakThresholds <> (config.StreakThresholds |> List.distinct |> List.sort)
+              || config.StreakThresholds
+                 |> List.exists (fun n -> n < 2 || n > config.RecentResultsKept)
+              || config.StreakThresholds
+                 <> (config.StreakThresholds |> List.distinct |> List.sort)
           then
               yield "WorldPulse.StreakThresholds must be a non-empty ascending list within [2, RecentResultsKept]"
           if config.StreakMajorLength < 2 then
@@ -207,4 +256,54 @@ module WorldPulseConfig =
           if config.ClasicoMinMeetings < 1 then
               yield "WorldPulse.ClasicoMinMeetings must be >= 1"
           if config.ClasicoMaxGoalDifference < 0 then
-              yield "WorldPulse.ClasicoMaxGoalDifference must be >= 0" ]
+              yield "WorldPulse.ClasicoMaxGoalDifference must be >= 0"
+          if
+              config.ExpectedPointsMin < 0.0
+              || config.ExpectedPointsMax > 3.0
+              || config.ExpectedPointsMin >= config.ExpectedPointsMax
+          then
+              yield "WorldPulse.ExpectedPoints bounds must satisfy 0 <= Min < Max <= 3"
+          if
+              config.ExpectedPointsBase < config.ExpectedPointsMin
+              || config.ExpectedPointsBase > config.ExpectedPointsMax
+          then
+              yield "WorldPulse.ExpectedPointsBase must lie within [Min, Max]"
+          if config.ExpectedPointsSpread < 0.0 then
+              yield "WorldPulse.ExpectedPointsSpread must be >= 0"
+          if config.ReputationScale <= 0.0 then
+              yield "WorldPulse.ReputationScale must be > 0"
+          if config.HomeAdvantagePoints < 0.0 then
+              yield "WorldPulse.HomeAdvantagePoints must be >= 0"
+          if config.ConfidenceGain < 0.0 then
+              yield "WorldPulse.ConfidenceGain must be >= 0"
+          if config.FansMoodGain < 0.0 then
+              yield "WorldPulse.FansMoodGain must be >= 0"
+          if config.MeanReversionRate < 0.0 || config.MeanReversionRate > 1.0 then
+              yield "WorldPulse.MeanReversionRate must be in [0, 1]"
+          if
+              not (
+                  0 <= config.SackThreshold
+                  && config.SackThreshold < config.UltimatumThreshold
+                  && config.UltimatumThreshold < config.BoardWarningThreshold
+                  && config.BoardWarningThreshold <= 100
+              )
+          then
+              yield "WorldPulse thresholds must satisfy 0 <= Sack < Ultimatum < BoardWarning <= 100"
+          if config.MinMatchesBeforeSack < 1 then
+              yield "WorldPulse.MinMatchesBeforeSack must be >= 1"
+          if
+              config.HoneymoonConfidence < config.BoardWarningThreshold
+              || config.HoneymoonConfidence > 100
+          then
+              yield "WorldPulse.HoneymoonConfidence must be in [BoardWarningThreshold, 100]"
+          if config.ReplacementContractYears < 1 then
+              yield "WorldPulse.ReplacementContractYears must be >= 1"
+          if
+              not (
+                  0 < config.FansFuriousBelow
+                  && config.FansFuriousBelow < config.FansRestlessBelow
+                  && config.FansRestlessBelow < config.FansEuphoricFrom
+                  && config.FansEuphoricFrom <= 100
+              )
+          then
+              yield "WorldPulse fans bands must satisfy 0 < Furious < Restless < Euphoric <= 100" ]

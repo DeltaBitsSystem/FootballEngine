@@ -167,6 +167,7 @@
     <Compile Include="World\Pulse\PulseRandom.fs"/>
     <Compile Include="World\Pulse\NewsDesk.fs"/>
     <Compile Include="World\Pulse\MatchStories.fs"/>
+    <Compile Include="World\Pulse\Pressure.fs"/>
     <Compile Include="World\Pulse\WorldPulse.fs"/>
     <Compile Include="World\WorldScheduler.fs"/>
     <Compile Include="World\WorldRunner.fs"/>

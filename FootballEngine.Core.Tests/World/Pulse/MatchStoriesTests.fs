@@ -122,7 +122,14 @@ module MatchStoriesTests =
 
     let private fixturesOf (gs: GameState) = gs.Competitions[1].Fixtures
 
-    let private kinds (gs: GameState) = gs.News |> List.map _.Kind
+    // Pressure news (mood, unrest) rides the same run; these tests pin the story detectors only.
+    let private kinds (gs: GameState) =
+        gs.News
+        |> List.map _.Kind
+        |> List.filter (function
+            | NewsKind.FansMood _
+            | NewsKind.BoardUnrest _ -> false
+            | _ -> true)
     let private pulse (gs: GameState) = WorldPulse.run config day gs
 
     let private playedDay id h a score events = fixture id h a day (Some score) events
