@@ -54,102 +54,134 @@ type DirectionalShadowPass
                 Label = "the static shadow depth cache"
                 Usage = TextureUsage.RenderAttachment ||| TextureUsage.CopySrc }
 
-        result {
-            let! depth = GpuTexture.Create(context, depthSpec)
-            let! staticDepth = GpuTexture.Create(context, staticSpec)
+        // A failed step must not strand the objects before it. Each owned object registers its release as soon as it
+        // exists; the shared pipeline belongs to the cache and is never released here.
+        let owned = Collections.Generic.Stack<unit -> unit>()
+        let own (release: unit -> unit) = owned.Push release
 
-            let! sampler =
-                GpuSampler.Create(
-                    context,
-                    "the shadow comparison sampler",
-                    { AddressU = AddressMode.ClampToEdge
-                      AddressV = AddressMode.ClampToEdge
-                      AddressW = AddressMode.ClampToEdge
-                      Magnification = FilterMode.Linear
-                      Minification = FilterMode.Linear
-                      Mipmap = MipmapFilterMode.Nearest
-                      MaxAnisotropy = 1us
-                      LodMaxClamp = 32.0f
-                      Compare = Some CompareFunction.LessEqual }
-                )
+        let releaseOwned () =
+            while owned.Count > 0 do
+                let release = owned.Pop()
+                release ()
 
-            let! receiverLayout =
-                BindGroupLayouts.create
-                    context
-                    "the shadow receiver layout"
-                    [ BindGroupLayouts.texture
-                          0u
-                          ShaderStage.Fragment
-                          TextureSampleType.Depth
-                          TextureViewDimension.Dimension2D
-                          false
-                      BindGroupLayouts.comparisonSampler 1u ShaderStage.Fragment ]
+        let created =
+            result {
+                let! depth = GpuTexture.Create(context, depthSpec)
+                own (fun () -> (depth :> IDisposable).Dispose())
+                let! staticDepth = GpuTexture.Create(context, staticSpec)
+                own (fun () -> (staticDepth :> IDisposable).Dispose())
 
-            let! receiverGroup =
-                let bindings = NativePtr.stackalloc<BindGroupEntry> 2
-                let mutable textureBinding = BindGroupEntry()
-                textureBinding.Binding <- 0u
-                textureBinding.TextureView <- depth.View
-                NativePtr.write bindings textureBinding
-                let mutable samplerBinding = BindGroupEntry()
-                samplerBinding.Binding <- 1u
-                samplerBinding.Sampler <- sampler.Handle
-                NativePtr.write (NativePtr.add bindings 1) samplerBinding
-                let mutable descriptor = BindGroupDescriptor()
-                descriptor.Layout <- receiverLayout
-                descriptor.EntryCount <- unativeint 2
-                descriptor.Entries <- bindings
-                let group = api.DeviceCreateBindGroup(context.Device, &descriptor)
+                let! sampler =
+                    GpuSampler.Create(
+                        context,
+                        "the shadow comparison sampler",
+                        { AddressU = AddressMode.ClampToEdge
+                          AddressV = AddressMode.ClampToEdge
+                          AddressW = AddressMode.ClampToEdge
+                          Magnification = FilterMode.Linear
+                          Minification = FilterMode.Linear
+                          Mipmap = MipmapFilterMode.Nearest
+                          MaxAnisotropy = 1us
+                          LodMaxClamp = 32.0f
+                          Compare = Some CompareFunction.LessEqual }
+                    )
 
-                if GpuPointer.isMissing group then
-                    Error(CreationFailed "the shadow receiver bindings")
-                else
-                    Ok group
+                own (fun () -> (sampler :> IDisposable).Dispose())
 
-            let! casterLayout =
-                BindGroupLayouts.pipelineLayout context "the shadow caster pipeline layout" [ cameraLayout ]
+                let! receiverLayout =
+                    BindGroupLayouts.create
+                        context
+                        "the shadow receiver layout"
+                        [ BindGroupLayouts.texture
+                              0u
+                              ShaderStage.Fragment
+                              TextureSampleType.Depth
+                              TextureViewDimension.Dimension2D
+                              false
+                          BindGroupLayouts.comparisonSampler 1u ShaderStage.Fragment ]
 
-            let shaderName, shaderModule = shader
+                own (fun () -> api.BindGroupLayoutRelease(receiverLayout))
 
-            // The caster reuses the stadium module through its shadow entry point and has no fragment stage.
-            let key: RenderPipelineKey =
-                { Shader = shaderName
-                  Layout = "shadow caster"
-                  VertexEntry = "shadowVs"
-                  Vertex = GpuVertexFull
-                  Fragment = None
-                  Depth =
-                    Some
-                        { DepthFormat = TextureFormat.Depth32float
-                          WriteDepth = true
-                          Compare = CompareFunction.Less
-                          // Raster bias handles slopes; the shader adds a smaller receiver-normal offset for contact stability.
-                          Bias = 1
-                          SlopeScale = 1.5f }
-                  Cull = CullMode.None
-                  Samples = 1u
-                  AlphaToCoverage = false }
+                let! receiverGroup =
+                    let bindings = NativePtr.stackalloc<BindGroupEntry> 2
+                    let mutable textureBinding = BindGroupEntry()
+                    textureBinding.Binding <- 0u
+                    textureBinding.TextureView <- depth.View
+                    NativePtr.write bindings textureBinding
+                    let mutable samplerBinding = BindGroupEntry()
+                    samplerBinding.Binding <- 1u
+                    samplerBinding.Sampler <- sampler.Handle
+                    NativePtr.write (NativePtr.add bindings 1) samplerBinding
+                    let mutable descriptor = BindGroupDescriptor()
+                    descriptor.Layout <- receiverLayout
+                    descriptor.EntryCount <- unativeint 2
+                    descriptor.Entries <- bindings
+                    let group = api.DeviceCreateBindGroup(context.Device, &descriptor)
 
-            let! pipeline =
-                cache.GetOrAdd(
-                    key,
-                    fun () ->
-                        RenderPipelines.build context "the directional shadow pipeline" key shaderModule casterLayout
-                )
+                    if GpuPointer.isMissing group then
+                        Error(CreationFailed "the shadow receiver bindings")
+                    else
+                        Ok group
 
-            return
-                new DirectionalShadowPass(
-                    context,
-                    settings,
-                    depth,
-                    staticDepth,
-                    sampler,
-                    receiverLayout,
-                    receiverGroup,
-                    casterLayout,
-                    pipeline
-                )
-        }
+                own (fun () -> api.BindGroupRelease(receiverGroup))
+
+                let! casterLayout =
+                    BindGroupLayouts.pipelineLayout context "the shadow caster pipeline layout" [ cameraLayout ]
+
+                own (fun () -> api.PipelineLayoutRelease(casterLayout))
+
+                let shaderName, shaderModule = shader
+
+                // The caster reuses the stadium module through its shadow entry point and has no fragment stage.
+                let key: RenderPipelineKey =
+                    { Shader = shaderName
+                      Layout = "shadow caster"
+                      VertexEntry = "shadowVs"
+                      Vertex = GpuVertexFull
+                      Fragment = None
+                      Depth =
+                        Some
+                            { DepthFormat = TextureFormat.Depth32float
+                              WriteDepth = true
+                              Compare = CompareFunction.Less
+                              // Raster bias handles slopes; the shader adds a smaller receiver-normal offset for contact stability.
+                              Bias = 1
+                              SlopeScale = 1.5f }
+                      Cull = CullMode.None
+                      Samples = 1u
+                      AlphaToCoverage = false }
+
+                let! pipeline =
+                    cache.GetOrAdd(
+                        key,
+                        fun () ->
+                            RenderPipelines.build
+                                context
+                                "the directional shadow pipeline"
+                                key
+                                shaderModule
+                                casterLayout
+                    )
+
+                return
+                    new DirectionalShadowPass(
+                        context,
+                        settings,
+                        depth,
+                        staticDepth,
+                        sampler,
+                        receiverLayout,
+                        receiverGroup,
+                        casterLayout,
+                        pipeline
+                    )
+            }
+
+        match created with
+        | Ok pass -> Ok pass
+        | Error error ->
+            releaseOwned ()
+            Error error
 
     member _.ReceiverLayout = receiverLayout
     member _.ReceiverGroup = receiverGroup

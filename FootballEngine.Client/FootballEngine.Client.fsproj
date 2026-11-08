@@ -84,6 +84,9 @@
         <Compile Include="Match3D\HdrLighting.fs"/>
         <Compile Include="Match3D\StadiumEnvironment.fs"/>
         <Compile Include="Match3D\ViewerQuality.fs"/>
+        <Compile Include="Match3D\Scene\SceneTypes.fs"/>
+        <Compile Include="Match3D\Scene\SceneBuilder.fs"/>
+        <Compile Include="Match3D\Scene\UniformLayout.fs"/>
         <Compile Include="Match3D\Gpu\GpuError.fs"/>
         <Compile Include="Match3D\Gpu\GpuContext.fs"/>
         <Compile Include="Match3D\Gpu\GpuResources.fs"/>

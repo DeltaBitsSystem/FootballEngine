@@ -85,8 +85,6 @@ type WebGpuStadiumRenderer
         | Error message -> invalidArg (nameof exposureStops) message
 
     let multisampleCount = 4u
-    let rootTransformCount = 25
-    let carrierMarkerRoot = 24u
     let mutable cameraMode = defaultArg camera ViewerCamera.Broadcast
     let performanceClock = Diagnostics.Stopwatch.StartNew()
     let mutable lastPresentation: float option = None
@@ -137,8 +135,15 @@ type WebGpuStadiumRenderer
     let shadowMatrixData =
         DirectionalShadow.matrixData shadowSettings lighting.SunDirection
 
-    let cameraUniformData =
-        Array.zeroCreate<float32> (16 + rootTransformCount * 16 + 12 + 16 + 16)
+    let sun: SunState =
+        { Direction = lighting.SunDirection
+          Radiance = lighting.SunRadiance
+          EnvironmentIntensity = lighting.EnvironmentIntensity }
+
+    let lightViewProjection =
+        match SceneBuilder.matrixOfElements shadowMatrixData with
+        | Ok matrix -> matrix
+        | Error message -> invalidOp message
 
     let environmentTextures = ResizeArray<GpuTexture>()
     let mutable environmentSampler: GpuSampler option = None
@@ -272,7 +277,7 @@ type WebGpuStadiumRenderer
                   Normal = normal
                   Color = color
                   Uv = Vector2.Zero
-                  RootIndex = carrierMarkerRoot
+                  RootIndex = uint32 SceneRoot.carrierMarker
                   Joints = Vector4.Zero
                   Weights = Vector4.Zero
                   Surface = uint32 StadiumSurface.Plain }
@@ -429,173 +434,42 @@ type WebGpuStadiumRenderer
 
         hudUploadBytes <- hudUploadBytes + int64 (region.Width * region.Height * 4)
 
-    let mutable cameraFocus = Vector3(0.0f, 1.0f, 0.0f)
+    // Composition is pure; this is the one place where a rejected frame becomes an exception for the render worker.
+    let buildScene (frame: RenderFrame) (palettes: Matrix4x4[]) : SceneFrame =
+        let ctx = context ()
 
-    let updateCamera width height =
-        let aspect = float32 width / float32 height
-        let cameraFrame = ViewerCamera.frame cameraMode aspect cameraFocus
-        // At broadcast height these blades are subpixel; drawing them would add shimmer instead of detail.
-        showGrassDetail <- cameraFrame.Position.Y < 12.0f
-        let cameraPosition = cameraFrame.Position
-        let cameraOffset = 16 + rootTransformCount * 16
-        cameraUniformData[cameraOffset] <- cameraPosition.X
-        cameraUniformData[cameraOffset + 1] <- cameraPosition.Y
-        cameraUniformData[cameraOffset + 2] <- cameraPosition.Z
-        // position.w carries a wrapped clock for grass wind; no shader uses it as a homogeneous coordinate.
-        cameraUniformData[cameraOffset + 3] <- float32 (windSeconds () % 3600.0)
-        let matrix = ViewerCamera.viewProjection aspect cameraFrame
+        let input: SceneInput =
+            { CameraMode = cameraMode
+              Aspect = float32 ctx.Width / float32 ctx.Height
+              TimeSeconds = windSeconds ()
+              Frame = frame
+              JointPalettes = palettes
+              JointCount = character.JointCount
+              BallMeshRadius = scene.BallRadius
+              Sun = sun
+              LightViewProjection = lightViewProjection }
+
+        match SceneBuilder.build input with
+        | Ok built -> built
+        | Error(InvalidPalettes message) -> invalidArg "palettes" message
+        | Error(InvalidFrame message) -> invalidArg "frame" message
+        | Error SingularCamera -> invalidOp "The viewer camera produced a singular projection."
+
+    let uploadScene (sceneFrame: SceneFrame) =
+        // Blade detail is a per-frame decision, so the grass pass follows the same camera that was just packed.
+        showGrassDetail <- sceneFrame.ShowGrassDetail
 
         hdrOutput
         |> Option.iter (fun output ->
-            output.SetCamera(cameraFrame.NearPlane, cameraFrame.FarPlane, cameraFrame.FieldOfView, aspect))
+            output.SetCamera(
+                sceneFrame.Camera.NearPlane,
+                sceneFrame.Camera.FarPlane,
+                sceneFrame.Camera.FieldOfView,
+                sceneFrame.Camera.Aspect
+            ))
 
-        cameraUniformData[0] <- matrix.M11
-        cameraUniformData[1] <- matrix.M12
-        cameraUniformData[2] <- matrix.M13
-        cameraUniformData[3] <- matrix.M14
-        cameraUniformData[4] <- matrix.M21
-        cameraUniformData[5] <- matrix.M22
-        cameraUniformData[6] <- matrix.M23
-        cameraUniformData[7] <- matrix.M24
-        cameraUniformData[8] <- matrix.M31
-        cameraUniformData[9] <- matrix.M32
-        cameraUniformData[10] <- matrix.M33
-        cameraUniformData[11] <- matrix.M34
-        cameraUniformData[12] <- matrix.M41
-        cameraUniformData[13] <- matrix.M42
-        cameraUniformData[14] <- matrix.M43
-        cameraUniformData[15] <- matrix.M44
-
-        let lightOffset = 16 + rootTransformCount * 16 + 12
-        Array.Copy(shadowMatrixData, 0, cameraUniformData, lightOffset, 16)
-        let mutable inverse = Matrix4x4.Identity
-
-        if not (Matrix4x4.Invert(matrix, &inverse)) then
-            invalidOp "The viewer camera produced a singular projection."
-
-        let inverseOffset = lightOffset + 16
-        cameraUniformData[inverseOffset] <- inverse.M11
-        cameraUniformData[inverseOffset + 1] <- inverse.M12
-        cameraUniformData[inverseOffset + 2] <- inverse.M13
-        cameraUniformData[inverseOffset + 3] <- inverse.M14
-        cameraUniformData[inverseOffset + 4] <- inverse.M21
-        cameraUniformData[inverseOffset + 5] <- inverse.M22
-        cameraUniformData[inverseOffset + 6] <- inverse.M23
-        cameraUniformData[inverseOffset + 7] <- inverse.M24
-        cameraUniformData[inverseOffset + 8] <- inverse.M31
-        cameraUniformData[inverseOffset + 9] <- inverse.M32
-        cameraUniformData[inverseOffset + 10] <- inverse.M33
-        cameraUniformData[inverseOffset + 11] <- inverse.M34
-        cameraUniformData[inverseOffset + 12] <- inverse.M41
-        cameraUniformData[inverseOffset + 13] <- inverse.M42
-        cameraUniformData[inverseOffset + 14] <- inverse.M43
-        cameraUniformData[inverseOffset + 15] <- inverse.M44
-
-    let updatePlayersAndBall (frame: RenderFrame) (palettes: Matrix4x4[]) =
-        if palettes.Length <> jointMatrices.Length then
-            invalidArg "palettes" "procedural palette cardinality does not match the canonical rig"
-
-        Array.Copy(palettes, jointMatrices, palettes.Length)
-        let states: RenderPlayer option array = Array.create 22 None
-        let mutable carrier = None
-
-        for player in frame.Players do
-            if player.HasBall then
-                match carrier with
-                | None -> carrier <- Some player
-                | Some _ -> invalidArg "frame" "a render frame cannot have multiple ball carriers"
-
-            let slot = player.VisualSlot
-
-            if slot < 0 || slot >= 11 then
-                invalidArg "frame" $"player {player.Id} has invalid visual slot {slot}"
-
-            let root = (if player.IsHome then 0 else 11) + slot
-
-            if states[root].IsSome then
-                invalidArg "frame" $"multiple players occupy visual slot {slot} for the same team"
-
-            states[root] <- Some player
-
-        let hidden = Matrix4x4.CreateTranslation(0.0f, -100000.0f, 0.0f)
-        let transforms: Matrix4x4 array = Array.create rootTransformCount hidden
-        transforms[23] <- Matrix4x4.Identity
-
-        for root = 0 to 21 do
-            let transform =
-                match states[root] with
-                | Some player ->
-                    let yaw = float32 player.BodyFacing + MathF.PI / 2.0f
-
-                    let position =
-                        Vector3(float32 player.Position.X, float32 player.Height, -float32 player.Position.Y)
-
-                    let transform =
-                        Matrix4x4.CreateRotationY(yaw) * Matrix4x4.CreateTranslation(position)
-
-                    transform
-                | None -> hidden
-
-            transforms[root] <- transform
-
-        jointBuffer.Value.Write(jointMatrices)
-
-        let ball = frame.Ball
-        let ballRadius = float32 ball.Radius
-        let ballScale = ballRadius / scene.BallRadius
-        // Core is Z-up; the viewer is Y-up with pitch Y mapped to negative Z.
-        let q = ball.Orientation
-        let ballRotation = Quaternion(q.X, q.Z, -q.Y, q.W)
-
-        let ballPosition =
-            Vector3(float32 ball.Position.X, ballRadius + float32 ball.Height, -float32 ball.Position.Y)
-
-        transforms[22] <-
-            Matrix4x4.CreateScale(ballScale)
-            * Matrix4x4.CreateFromQuaternion(ballRotation)
-            * Matrix4x4.CreateTranslation(ballPosition)
-
-        match carrier with
-        | Some player ->
-            let position = Vector3(float32 player.Position.X, 0.0f, -float32 player.Position.Y)
-            cameraFocus <- Vector3(position.X, 1.0f, position.Z)
-            transforms[24] <- Matrix4x4.CreateTranslation(position)
-        | None ->
-            // A lob changes ball height, not the sideline camera's framing of the pitch.
-            cameraFocus <- Vector3(ballPosition.X, 1.0f, ballPosition.Z)
-            transforms[24] <- hidden
-
-        for root = 0 to transforms.Length - 1 do
-            let matrix = transforms[root]
-            let offset = 16 + root * 16
-            cameraUniformData[offset] <- matrix.M11
-            cameraUniformData[offset + 1] <- matrix.M12
-            cameraUniformData[offset + 2] <- matrix.M13
-            cameraUniformData[offset + 3] <- matrix.M14
-            cameraUniformData[offset + 4] <- matrix.M21
-            cameraUniformData[offset + 5] <- matrix.M22
-            cameraUniformData[offset + 6] <- matrix.M23
-            cameraUniformData[offset + 7] <- matrix.M24
-            cameraUniformData[offset + 8] <- matrix.M31
-            cameraUniformData[offset + 9] <- matrix.M32
-            cameraUniformData[offset + 10] <- matrix.M33
-            cameraUniformData[offset + 11] <- matrix.M34
-            cameraUniformData[offset + 12] <- matrix.M41
-            cameraUniformData[offset + 13] <- matrix.M42
-            cameraUniformData[offset + 14] <- matrix.M43
-            cameraUniformData[offset + 15] <- matrix.M44
-
-        let ctx = context ()
-        updateCamera ctx.Width ctx.Height
-        let lightingOffset = 16 + rootTransformCount * 16 + 4
-        cameraUniformData[lightingOffset] <- lighting.SunDirection.X
-        cameraUniformData[lightingOffset + 1] <- lighting.SunDirection.Y
-        cameraUniformData[lightingOffset + 2] <- lighting.SunDirection.Z
-        cameraUniformData[lightingOffset + 3] <- lighting.EnvironmentIntensity
-        cameraUniformData[lightingOffset + 4] <- lighting.SunRadiance.X
-        cameraUniformData[lightingOffset + 5] <- lighting.SunRadiance.Y
-        cameraUniformData[lightingOffset + 6] <- lighting.SunRadiance.Z
-        cameraBuffer.Value.Write(cameraUniformData)
+        jointBuffer.Value.Write(sceneFrame.JointPalettes)
+        cameraBuffer.Value.Write(UniformLayout.packCamera sceneFrame)
 
     let updateWindow (bounds: PixelRect) =
         if bounds.Width > 0 && bounds.Height > 0 && bounds <> lastBounds then
@@ -610,7 +484,6 @@ type WebGpuStadiumRenderer
 
             if width <> ctx.Width || height <> ctx.Height then
                 configureSurface width height
-                updateCamera width height
                 configureHudTexture width height
 
     let updateWindowShape (bounds: PixelRect) (cutouts: PixelRect array) =
@@ -830,17 +703,7 @@ type WebGpuStadiumRenderer
             )
 
         let stadiumSource =
-            """struct Camera {
-    viewProjection: mat4x4<f32>,
-    rootTransforms: array<mat4x4<f32>, 25>,
-    position: vec4<f32>,
-    sunAndEnvironment: vec4<f32>,
-    sunRadiance: vec4<f32>,
-    lightViewProjection: mat4x4<f32>,
-    inverseViewProjection: mat4x4<f32>,
-}
-
-@group(0) @binding(0) var<uniform> camera: Camera;
+            """@group(0) @binding(0) var<uniform> camera: Camera;
 @group(0) @binding(1) var<storage, read> joints: array<mat4x4<f32>>;
 @group(0) @binding(2) var athleteAlbedo: texture_2d<f32>;
 @group(0) @binding(3) var athleteDetail: texture_2d<f32>;
@@ -1013,7 +876,8 @@ fn materialNoise(p: vec2<f32>) -> f32 {
         // Constants precede the files that consume them, so the order below is part of the shader contract.
         let source =
             ShaderLibrary.compose
-                [ stadiumSource.Replace("CHARACTER_JOINT_COUNT", $"{character.JointCount}u")
+                [ shaderFile "CameraUniform.wgsl"
+                  stadiumSource.Replace("CHARACTER_JOINT_COUNT", $"{character.JointCount}u")
                   shaderFile "EnvironmentLighting.wgsl"
                   shaderFile "ShadowLighting.wgsl"
                   AthleteMaterial.shaderConstants
@@ -1067,7 +931,7 @@ fn materialNoise(p: vec2<f32>) -> f32 {
                             ctx,
                             "broadcast camera and player transforms",
                             BufferUsage.Uniform ||| BufferUsage.CopyDst,
-                            cameraUniformData
+                            Array.zeroCreate<float32> UniformLayout.elementCount
                         )
                 )
             )
@@ -1094,7 +958,7 @@ fn materialNoise(p: vec2<f32>) -> f32 {
                     [ BindGroups.buffer
                           0u
                           cameraBuffer.Value.Handle
-                          (uint64 (cameraUniformData.Length * sizeof<float32>))
+                          (uint64 (UniformLayout.elementCount * sizeof<float32>))
                       BindGroups.buffer 1u jointBuffer.Value.Handle (uint64 (jointMatrices.Length * sizeof<Matrix4x4>))
                       BindGroups.view 2u characterAlbedo.Value.View
                       BindGroups.view 3u characterDetail.Value.View
@@ -1458,7 +1322,6 @@ struct VertexOutput {
 
         carrierMarkerBatch <- createCarrierMarkerBatch ()
 
-        updateCamera ctx.Width ctx.Height
         updateWindow initialBounds
 
         Diagnostics.Trace.WriteLine(
@@ -1494,7 +1357,7 @@ struct VertexOutput {
         if not disposed && bounds.Width > 0 && bounds.Height > 0 then
             updateWindow bounds
             updateWindowShape bounds cutouts
-            updatePlayersAndBall frame palettes
+            uploadScene (buildScene frame palettes)
 
             let hud = retainedHud.Value
 
