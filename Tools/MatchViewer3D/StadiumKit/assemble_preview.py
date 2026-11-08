@@ -6,6 +6,7 @@ This is look-development for the runtime assembler: same layout, same kit, same 
 shipped; the game builds the stadium in F# from `stadium_layout` semantics.
 """
 
+import json
 import math
 import os
 import sys
@@ -168,64 +169,20 @@ def place(src, matrix, name):
     return obj
 
 
-def build_roofs(layout, kit, mats):
+def build_roofs(layout, mats):
     bm = bmesh.new()
     uv = bm.loops.layers.uv.new("UVMap")
     for st in layout["stands"]:
-        if st["roof"] == "none":
-            continue
-        top = st["tiers"][-1]
-        back = top["front_offset"] + top["rows"] * top["row_depth"] + 0.6
-        z = top["base_height"] + top["rows"] * top["riser"] + 6.5
-        span = {"truss_20": 20.0, "truss_30": 30.0, "truss_40": 40.0}[st["roof"]]
-        truss = kit[f"roof_{st['roof']}.lod0"]
-        fr = frames(st, step=sl.TRUSS_SPACING)
-        edge = []
-        for p, n in fr:
-            yaw = math.atan2(-n.y, -n.x) - math.pi / 2
-            root = p + n * back + Vector((0, 0, z))
-            m = Matrix.Translation(root) @ Matrix.Rotation(yaw, 4, "Z")
-            place(truss, m, "truss")
-            edge.append((root, -n))
-        rings = []
-        for root, inward in edge:
-            rings.append([bm.verts.new(root + Vector((0, 0, 0.25))), bm.verts.new(root + inward * span + Vector((0, 0, 0.02 * span + 0.25)))])
-        for k in range(len(rings) - 1):
-            f = bm.faces.new((rings[k][0], rings[k + 1][0], rings[k + 1][1], rings[k][1]))
+        for quad in sl.roof_sheets(st):
+            f = bm.faces.new([bm.verts.new(v) for v in quad])
             for loop in f.loops:
-                co = loop.vert.co
-                loop[uv].uv = (co.x, co.y)
-        if layout["lighting"] == "roof":
-            bar = kit["roof_light_bar.lod0"]
-            for (r0, inw), (r1, _) in zip(edge, edge[1:]):
-                a = r0 + inw * (span - 0.5) + Vector((0, 0, 0.02 * span - 0.6))
-                yaw = math.atan2(inw.y, inw.x) - math.pi / 2
-                length = (r1 - r0).length
-                m = Matrix.Translation(a) @ Matrix.Rotation(yaw, 4, "Z") @ Matrix.Diagonal((length / 10.0, 1, 1, 1))
-                place(bar, m, "roof_light")
+                loop[uv].uv = (loop.vert.co.x, loop.vert.co.y)
     me = bpy.data.meshes.new("roof_sheets")
     bm.to_mesh(me)
     bm.free()
     me.materials.append(mats["roof_sheet"])
     obj = bpy.data.objects.new("roof_sheets", me)
-    obj.data.polygons.foreach_set("use_smooth", [False] * len(obj.data.polygons))
     bpy.context.scene.collection.objects.link(obj)
-
-
-def build_facades(layout, kit):
-    src = kit[f"facade_{layout['facade']}.lod0"]
-    for st in layout["stands"]:
-        top = st["tiers"][-1]
-        back = top["front_offset"] + top["rows"] * top["row_depth"] + 1.4
-        height = top["base_height"] + top["rows"] * top["riser"] + 1.0
-        fr = frames(st, step=10.0)
-        for (p, n), (q, _) in zip(fr, fr[1:]):
-            yaw = math.atan2(n.y, n.x) - math.pi / 2
-            length = (q - p).length
-            for level in range(max(1, int(height / 5.0))):
-                m = Matrix.Translation(q + n * back + Vector((0, 0, level * 5.0))) @ Matrix.Rotation(yaw, 4, "Z") \
-                    @ Matrix.Diagonal((length / 10.0, 1, 1, 1))
-                place(src, m, "facade")
 
 
 def build_pieces(layout, kit):
@@ -301,8 +258,58 @@ def build_pitch():
     bpy.context.scene.collection.objects.link(bpy.data.objects.new("lines", lm))
 
 
+# Night look target for the runtime: one spot per kit emitter, a 2 kW-class luminaire (~150,000 lm) focused into
+# a 22-degree half-angle beam. Blender spot power is specified as if radiated over the full sphere (the cone only
+# masks it), so the beam's real intensity Phi/Omega needs watts = lm / 683 * 4pi / Omega. That yields ~2,000-3,000
+# lux on the pitch with a few hundred lamps: broadcast-grade lighting.
+LUMENS = 150000.0
+BEAM_HALF_ANGLE = 20.0
+BEAM_SOLID_ANGLE = 2 * math.pi * (1 - math.cos(math.radians(BEAM_HALF_ANGLE)))
+LUMINAIRE_WATTS = LUMENS / 683.0 * 4 * math.pi / BEAM_SOLID_ANGLE
+
+
+def add_floodlights(layout):
+    kit = json.load(open(os.path.join(bk.OUT, "kit.json")))
+    emitters = {p["id"]: p["emitters"] for p in kit["pieces"] if p["emitters"]}
+    lamps = sl.lamp_positions(layout["pieces"], emitters)
+    targets = sl.aiming_targets(lamps)
+    beams = sl.beam_half_angles(lamps, targets)
+    bpy.context.scene.eevee.shadow_pool_size = "1024"
+    for pos, tgt, half in zip(lamps, targets, beams):
+        aim = (Vector(tgt) - Vector(pos)).normalized()
+        lamp = bpy.data.lights.new("lamp", "SPOT")
+        omega = 2 * math.pi * (1 - math.cos(math.radians(half)))
+        lamp.energy = LUMENS / 683.0 * 4 * math.pi / omega
+        lamp.spot_size = math.radians(half * 2)
+        lamp.spot_blend = 0.8
+        lamp.color = (1.0, 0.97, 0.93)
+        lamp.shadow_soft_size = 0.3
+        lo = bpy.data.objects.new("lamp", lamp)
+        lo.location = pos
+        lo.rotation_euler = aim.to_track_quat("-Z", "Y").to_euler()
+        bpy.context.scene.collection.objects.link(lo)
+    print("floodlights", len(lamps))
+
+
 def setup_world(night=False):
     scene = bpy.context.scene
+    if night:
+        scene.render.engine = "BLENDER_EEVEE"
+        scene.view_settings.view_transform = "AgX"
+        # Broadcast cameras open up about one stop for floodlit play relative to daylight.
+        scene.view_settings.exposure = 1.0
+        world = bpy.data.worlds.new("night")
+        scene.world = world
+        world.use_nodes = True
+        env = world.node_tree.nodes.new("ShaderNodeTexEnvironment")
+        env.image = bpy.data.images.load(os.path.join(bk.OUT, "..", "OriginalSky", "sky-visible-night.exr"))
+        world.node_tree.links.new(env.outputs[0], world.node_tree.nodes["Background"].inputs[0])
+        scene.eevee.use_shadows = True
+        try:
+            scene.eevee.use_raytracing = True
+        except AttributeError:
+            pass
+        return
     scene.render.engine = "BLENDER_EEVEE"
     scene.view_settings.view_transform = "AgX"
     scene.view_settings.look = "AgX - Medium High Contrast"
@@ -362,7 +369,8 @@ def main():
     scenario, out_dir = a[0], a[1]
     primary = hex_rgb(a[2]) if len(a) > 2 else hex_rgb("#E2353B")
     secondary = hex_rgb(a[3]) if len(a) > 3 else hex_rgb("#FFFFFF")
-    which = a[4].split(",") if len(a) > 4 else None
+    which = a[4].split(",") if len(a) > 4 and a[4] else None
+    night = len(a) > 5 and a[5] == "night"
     name, rep, lvl, seed = next(g for g in sl.GOLDEN if g[0] == scenario)
     from dataclasses import asdict
 
@@ -386,10 +394,11 @@ def main():
     build_pitch()
     seats = build_stands(layout, mats, (primary, secondary))
     instance_seats(seats, kit["seat.lod1"])
-    build_roofs(layout, kit, mats)
-    build_facades(layout, kit)
+    build_roofs(layout, mats)
     build_pieces(layout, kit)
-    setup_world()
+    setup_world(night)
+    if night:
+        add_floodlights(layout)
     os.makedirs(out_dir, exist_ok=True)
     render(out_dir, layout, which=which)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(out_dir, f"{scenario}.blend"))

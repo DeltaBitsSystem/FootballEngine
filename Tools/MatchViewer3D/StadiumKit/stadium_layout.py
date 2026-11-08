@@ -19,7 +19,8 @@ TRUSS_SPACING = 10.0
 BENCH_INNER = 4.0  # metres from the halfway line to each bench's inner end
 BENCH_LENGTH = 7.0  # matches the kit dugout
 TECH_ZONE_HALF = BENCH_INNER + BENCH_LENGTH + 2.0
-ROOF_CLEARANCE = 6.5  # truss root height above the top row: headroom for the back rows and the mast base
+ROOF_CLEARANCE = 6.5
+TOWER_HEIGHT = 42.0  # authored mast height of the kit's floodlight_tower  # truss root height above the top row: headroom for the back rows and the mast base
 
 
 class Rng:
@@ -125,7 +126,7 @@ def generate(reputation, league_level, seed):
     hx = PITCH_LENGTH / 2 + end_runoff
     hy = PITCH_WIDTH / 2 + side_runoff
     shape = "bowl" if p >= 0.7 else ("closed" if p >= 0.4 else "open")
-    lighting = "roof" if p >= 0.6 else "towers"
+    lighting = "roof" if p >= 0.6 else "towers"  # provisional; settled once roofs are known (below)
     facade = "fins" if p >= 0.6 else "panels"
     seat_colours = ("solid", "tiered", "blocks")[int(rng.unit() * 3)] if p >= 0.3 else "solid"
     stands = []
@@ -180,6 +181,10 @@ def generate(reputation, league_level, seed):
         else:
             depth = st.tiers[-1].back_offset() - st.tiers[0].front_offset
             st.roof = "truss_40" if depth > 32 else ("truss_30" if depth > 22 else "truss_20")
+    # Deep roofs reach almost to the touchline: no corner mast can light past them, so such grounds light from
+    # the roof edge. Towers remain for open grounds with short (20 m) roofs.
+    if any(st.roof in ("truss_30", "truss_40") for st in stands):
+        lighting = "roof"
     capacity = 0
     for st in stands:
         length = _length(st)
@@ -187,7 +192,7 @@ def generate(reputation, league_level, seed):
             # Two-metre aisles per AISLE_EVERY seats; a standing terrace holds ~1.8 people per seat footprint.
             per_row = int(length / SEAT_PITCH) * AISLE_EVERY // (AISLE_EVERY + 2)
             capacity += int(per_row * t.rows * (1.0 if st.seated else 1.8))
-    pieces = _pieces(p, rng, stands, hx, hy, lighting)
+    pieces = _pieces(p, rng, stands, hx, hy, lighting, facade)
     return Layout(1, round(p, 4), capacity, shape, lighting, facade, seat_colours,
                   [asdict(s) for s in stands], pieces)
 
@@ -259,6 +264,87 @@ def seat_positions(st, t):
     return out
 
 
+ROOF_SPAN = {"truss_20": 20.0, "truss_30": 30.0, "truss_40": 40.0}
+
+
+def _roof_edge(st):
+    """Truss roots along the back of the top tier: list of ((x, y, z) root, (ix, iy) inward unit vector)."""
+    top = st["tiers"][-1]
+    back = top["front_offset"] + top["rows"] * top["row_depth"] + 0.6
+    z = top["base_height"] + top["rows"] * top["riser"] + ROOF_CLEARANCE
+    return [((x + nx * back, y + ny * back, z), (-nx, -ny)) for (x, y), (nx, ny) in front_frames(st, TRUSS_SPACING)]
+
+
+def roof_sheets(st):
+    """Roof cladding quads between consecutive trusses, following the top chord's 2% rise towards the pitch."""
+    if st["roof"] == "none":
+        return []
+    span = ROOF_SPAN[st["roof"]]
+
+    def ring(root, inward):
+        (rx, ry, rz), (ix, iy) = root, inward
+        return [(rx, ry, rz + 0.25), (rx + ix * span, ry + iy * span, rz + 0.02 * span + 0.25)]
+
+    edge = _roof_edge(st)
+    quads = []
+    for (r0, i0), (r1, i1) in zip(edge, edge[1:]):
+        a, b = ring(r0, i0), ring(r1, i1)
+        quads.append([tuple(round(c, 4) for c in v) for v in (a[0], b[0], b[1], a[1])])
+    return quads
+
+
+def lamp_positions(pieces, kit_emitters):
+    """World positions of every floodlight lamp: kit emitters through each placement's scale, yaw and offset."""
+    out = []
+    for pc in pieces:
+        for e in kit_emitters.get(pc["piece"], []):
+            ex, ey, ez = (e["position"][k] * pc["scale"][k] for k in range(3))
+            a = math.radians(pc["yaw"])
+            out.append((round(pc["x"] + ex * math.cos(a) - ey * math.sin(a), 4),
+                        round(pc["y"] + ex * math.sin(a) + ey * math.cos(a), 4),
+                        round(pc["z"] + ez, 4)))
+    return out
+
+
+def aiming_targets(lamps):
+    """Floodlight aiming: each luminaire points at its own spot of a grid over the playing area.
+
+    `lamps` are (x, y, z) world positions. Lamps are ordered by bearing around the pitch centre and assigned grid
+    points with a co-prime stride, so neighbouring lamps light different, mostly far-side spots: uniform light on
+    the pitch and on players' faces, never a beam into the stands. Returns (x, y, z) targets at pitch level.
+    """
+    cols, rows = 13, 7
+    grid = []
+    for j in range(rows):
+        for i in range(cols):
+            grid.append((-PITCH_LENGTH / 2 + 4 + (PITCH_LENGTH - 8) * i / (cols - 1),
+                         -PITCH_WIDTH / 2 + 4 + (PITCH_WIDTH - 8) * j / (rows - 1)))
+    order = sorted(range(len(lamps)), key=lambda k: (math.atan2(lamps[k][1], lamps[k][0]), k))
+    stride = 11  # co-prime with the 91 grid points
+    targets = [None] * len(lamps)
+    for rank, k in enumerate(order):
+        lx, ly, _ = lamps[k]
+        # Prefer the far half: walk the stride sequence until a point on the opposite side of the centre line.
+        for step in range(len(grid)):
+            gx, gy = grid[(rank * stride + step) % len(grid)]
+            if gx * lx + gy * ly <= 0 or step == len(grid) - 1:
+                targets[k] = (round(gx, 3), round(gy, 3), 0.0)
+                break
+    return targets
+
+
+def beam_half_angles(lamps, targets):
+    """Per-lamp beam half-angle in degrees: a ~24 m spot at the target, clamped to real luminaire optics (6-20).
+
+    Far targets need narrow beams; a wide beam from a corner mast would spill its lower edge onto the stands.
+    """
+    out = []
+    for (lx, ly, lz), (tx, ty, tz) in zip(lamps, targets):
+        d = math.dist((lx, ly, lz), (tx, ty, tz))
+        out.append(round(min(20.0, max(6.0, math.degrees(math.atan(12.0 / max(d, 1.0))))), 3))
+    return out
+
+
 def _length(st):
     if st.kind == "straight":
         return math.dist(st.start, st.end)
@@ -274,7 +360,7 @@ def _yaw_towards_pitch(st):
     return math.degrees(math.atan2(dy, dx))
 
 
-def _pieces(p, rng, stands, hx, hy, lighting):
+def _pieces(p, rng, stands, hx, hy, lighting, facade):
     out = []
 
     def put(piece, x, y, z, yaw, tint="none", scale=(1.0, 1.0, 1.0)):
@@ -333,6 +419,28 @@ def _pieces(p, rng, stands, hx, hy, lighting):
                         put("vomitory", x + nx * o, y + ny * o, t["base_height"] + gap_row * t["riser"],
                             math.degrees(math.atan2(-ny, -nx)) - 90.0)
                     block += 1
+        # Roof: cantilever trusses every TRUSS_SPACING from the back of the top tier; lit roofs carry a lamp
+        # gantry along the front edge between consecutive trusses.
+        if st.roof != "none":
+            span = ROOF_SPAN[st.roof]
+            edge = _roof_edge(d)
+            for (rx, ry, rz), (ix, iy) in edge:
+                put(f"roof_{st.roof}", rx, ry, rz, math.degrees(math.atan2(iy, ix)) - 90.0, "clubPrimary")
+            if lighting == "roof":
+                for ((rx, ry, rz), (ix, iy)), ((qx, qy, _), _) in zip(edge, edge[1:]):
+                    length = math.hypot(qx - rx, qy - ry)
+                    put("roof_light_bar", rx + ix * (span - 0.5), ry + iy * (span - 0.5), rz + 0.02 * span - 0.6,
+                        math.degrees(math.atan2(iy, ix)) - 90.0, "none", (length / 10.0, 1.0, 1.0))
+        # Exterior skin: 10 m facade modules stacked in 5 m levels behind the top tier, facing outwards.
+        top = d["tiers"][-1]
+        back = top["front_offset"] + top["rows"] * top["row_depth"] + 1.4
+        height = top["base_height"] + top["rows"] * top["riser"] + 1.0
+        fr10 = front_frames(d, 10.0)
+        for ((px, py), (nx, ny)), ((qx, qy), _) in zip(fr10, fr10[1:]):
+            length = math.hypot(qx - px, qy - py)
+            for level in range(max(1, int(height / 5.0))):
+                put(f"facade_{facade}", qx + nx * back, qy + ny * back, level * 5.0,
+                    math.degrees(math.atan2(ny, nx)) - 90.0, "none", (length / 10.0, 1.0, 1.0))
     main = next(s for s in stands if s.main)
     my = main.start[1]
     # One bench per club, symmetric about the halfway line, fronts 3 m off the touchline (technical areas).
@@ -346,10 +454,13 @@ def _pieces(p, rng, stands, hx, hy, lighting):
     gx, gy, gz = broadcast_gantry(main, p)
     put("camera_gantry", gx, gy, gz, 0.0)
     if lighting == "towers":
+        # Masts must clear the highest roof with margin, or their beams land on the cladding instead of the pitch.
+        highest = max(st.tiers[-1].top_height() + (ROOF_CLEARANCE + 6.0 if st.roof != "none" else 2.0) for st in stands)
+        z_scale = max(1.0, (highest + 10.0) / TOWER_HEIGHT)
         for sx in (-1, 1):
             for sy in (-1, 1):
                 yaw = math.degrees(math.atan2(-sy, -sx)) - 90.0
-                put("floodlight_tower", sx * (hx + 8.0), sy * (hy + 8.0), 0.0, yaw)
+                put("floodlight_tower", sx * (hx + 8.0), sy * (hy + 8.0), 0.0, yaw, "none", (1.0, 1.0, z_scale))
     if p >= 0.4:
         ends = [s for s in stands if s.side in ("west", "east")]
         for st in ends[: 1 if p < 0.7 else 2]:
@@ -405,8 +516,26 @@ def golden(path):
                     "firstSeats": seats[:3],
                     "seatSum": [round(sum(s[k] for s in seats), 2) for k in range(4)],
                 })
-        data[name] = lay | {"input": {"reputation": rep, "leagueLevel": lvl, "seed": seed}, "geometry": geometry}
+        lamps = lamp_positions(lay["pieces"], KIT_EMITTERS())
+        targets = aiming_targets(lamps)
+        beams = beam_half_angles(lamps, targets)
+        sheets = [q for st in lay["stands"] for q in roof_sheets(st)]
+        lighting = {"lampCount": len(lamps), "firstLamps": lamps[:3], "firstTargets": targets[:3],
+                    "lampSum": [round(sum(l[k] for l in lamps), 2) for k in range(3)],
+                    "targetSum": [round(sum(t[k] for t in targets), 2) for k in range(3)],
+                    "beamHalfAngleSum": round(sum(beams), 2), "firstBeams": beams[:3],
+                    "roofSheetCount": len(sheets),
+                    "roofSheetSum": round(sum(c for q in sheets for v in q for c in v), 2)}
+        data[name] = lay | {"input": {"reputation": rep, "leagueLevel": lvl, "seed": seed}, "geometry": geometry,
+                            "lighting": lighting}
     json.dump(data, open(path, "w"), indent=1)
+
+
+def KIT_EMITTERS():
+    import os
+    kit = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "FootballEngine.Client", "Assets",
+                       "MatchViewer", "StadiumKit", "kit.json")
+    return {p["id"]: p["emitters"] for p in json.load(open(kit))["pieces"] if p["emitters"]}
 
 
 def asdict_layout(layout):
