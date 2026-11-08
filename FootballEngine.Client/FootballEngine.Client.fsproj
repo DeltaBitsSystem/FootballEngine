@@ -16,6 +16,8 @@
         <Compile Include="AppState\ModEditorTypes.fs"/>
         <Compile Include="AppState\ExecutionRandomness.fs"/>
         <Compile Include="Match3D\ViewerCamera.fs"/>
+        <Compile Include="Match3D\GpuDiagnostics.fs"/>
+        <Compile Include="Match3D\ViewerQualitySelection.fs"/>
         <Compile Include="AppState\Types.fs"/>
         <Compile Include="AppState\Msg.fs"/>
         <Compile Include="Animation\Contracts.fs"/>
@@ -80,6 +82,7 @@
         <Compile Include="Match3D\SurfaceTexturePack.fs"/>
         <Compile Include="Match3D\HdrLighting.fs"/>
         <Compile Include="Match3D\StadiumEnvironment.fs"/>
+        <Compile Include="Match3D\ViewerQuality.fs"/>
         <Compile Include="Match3D\DirectionalShadowPass.fs"/>
         <Compile Include="Match3D\ProceduralScenePass.fs"/>
         <Compile Include="Match3D\HdrOutputPass.fs"/>

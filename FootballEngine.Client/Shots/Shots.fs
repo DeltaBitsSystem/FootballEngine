@@ -17,6 +17,7 @@ open FootballEngine.Core.Match
 open FootballEngine.World
 open FootballEngine.World.Phases
 open FootballEngine.Settings
+open FootballEngine.Client.Match3D
 open FootballEngine.Icons
 open FootballEngine.Routing
 
@@ -60,6 +61,13 @@ module Shots =
           VideoMaxGoals: int
           VideoLeadSeconds: int
           VideoTailSeconds: int
+          /// Render the fixed validation scenes into this directory, with per-pass timings.
+          ViewerScenesDir: string option
+          /// Forces the 3D quality tier for this run instead of the saved setting.
+          ViewerQualityTier: ViewerQualityTier option
+          ViewerSceneFrames: int
+          /// Match second of the goal used by the goal scene; it depends on the match seed.
+          ViewerGoalSecond: int
           Args: string[] }
 
     type Context = { Opts: Options; Demo: State }
@@ -117,7 +125,14 @@ module Shots =
         let allGoals = args |> Array.contains "--video-goals"
         let findGoal = findGoals || allGoals
 
-        match getValue "--shots", getValue "--match-video" with
+        let viewerScenes = getValue "--viewer-scenes"
+
+        match
+            (match getValue "--shots" with
+             | Some dir -> Some dir
+             | None -> viewerScenes),
+            getValue "--match-video"
+        with
         | None, None when not findGoal && not (args |> Array.contains "--video-goal-at") -> None
         | shotsDir, videoPath ->
             let dir =
@@ -148,7 +163,7 @@ module Shots =
                 | Some s ->
                     let ps = s.Split(',') |> Array.choose parsePage |> List.ofArray
                     if ps.IsEmpty then allPages else ps
-                | None when videoPath.IsSome || findGoal -> [ Route.Match(1, MatchPhase.Live) ]
+                | None when videoPath.IsSome || findGoal || viewerScenes.IsSome -> [ Route.Match(1, MatchPhase.Live) ]
                 | None -> allPages
 
             let positiveValue flag fallback =
@@ -206,6 +221,15 @@ module Shots =
                   VideoMaxGoals = positiveValue "--video-max-goals" Int32.MaxValue
                   VideoLeadSeconds = positiveValue "--video-lead" 12
                   VideoTailSeconds = positiveValue "--video-tail" 5
+                  ViewerScenesDir = viewerScenes |> Option.map Path.GetFullPath
+                  ViewerQualityTier =
+                    getValue "--viewer-quality"
+                    |> Option.bind (fun value ->
+                        match ViewerQualityTier.tryParse value with
+                        | Ok tier -> Some tier
+                        | Error _ -> None)
+                  ViewerSceneFrames = positiveValue "--viewer-frames" 120
+                  ViewerGoalSecond = nonNegativeValue "--viewer-goal-at" 0
                   Args = args }
 
     // Sync replica of UpdateTransfer.buildCacheAsync: the async Load races the screenshot
@@ -352,7 +376,16 @@ module Shots =
                       SelectedSlot = None
                       History = [] }
                 Training = { SelectedPlayer = demoPupil |> Option.map _.Id }
-                Settings = AppTypes.initSettingsState globalSettings SaveSettings.defaults
+                Settings =
+                    AppTypes.initSettingsState
+                        (match opts.ViewerQualityTier with
+                         | Some tier ->
+                             FootballEngine.Client.Match3D.ViewerQualitySelection.select tier
+
+                             { globalSettings with
+                                 MatchView = { globalSettings.MatchView with ViewerQuality = tier } }
+                         | None -> globalSettings)
+                        SaveSettings.defaults
                 SaveSettings = SaveSettings.defaults
                 ResolvedData = Some resolved }
 
@@ -429,6 +462,23 @@ module Shots =
                     window.LayoutUpdated.RemoveHandler handler)
         }
 
+    /// X11 import of one window id; the native WebGPU child is invisible to Avalonia's own offscreen renderer.
+    let private importWindow (id: uint64) (path: string) =
+        let info = ProcessStartInfo("import", UseShellExecute = false, RedirectStandardError = true)
+        info.ArgumentList.Add("-window")
+        info.ArgumentList.Add(string id)
+        info.ArgumentList.Add(path)
+        use process = Process.Start info
+        let errors = process.StandardError.ReadToEndAsync()
+
+        if not (process.WaitForExit 15000) then
+            process.Kill(true)
+            process.WaitForExit()
+            invalidOp "Native match capture timed out."
+
+        if process.ExitCode <> 0 then
+            invalidOp $"Native match capture failed: {errors.GetAwaiter().GetResult()}"
+
     let private captureTo (window: Window) (path: string) native =
         if native then
             // Avalonia's offscreen bitmap omits native WebGPU children and can falsely certify a blank pitch.
@@ -436,21 +486,7 @@ module Shots =
             | null -> invalidOp "Native match capture requires a realized window."
             | handle when handle.HandleDescriptor <> "XID" ->
                 invalidOp "Native WebGPU match capture currently requires X11/XWayland."
-            | handle ->
-                let info = ProcessStartInfo("import", UseShellExecute = false, RedirectStandardError = true)
-                info.ArgumentList.Add("-window")
-                info.ArgumentList.Add(string (uint64 handle.Handle))
-                info.ArgumentList.Add(path)
-                use process = Process.Start info
-                let errors = process.StandardError.ReadToEndAsync()
-
-                if not (process.WaitForExit 15000) then
-                    process.Kill(true)
-                    process.WaitForExit()
-                    invalidOp "Native match capture timed out."
-
-                if process.ExitCode <> 0 then
-                    invalidOp $"Native match capture failed: {errors.GetAwaiter().GetResult()}"
+            | handle -> importWindow (uint64 handle.Handle) path
         else
             let size = window.ClientSize
             let w = max 1 (int size.Width)
@@ -777,7 +813,121 @@ module Shots =
                 use child = Process.Start info
                 child.WaitForExit()
 
+            // Fixed validation scenes: the same seed, match second and camera every run, so a change in the image is
+            // a change in the renderer. Seconds ascend because a live match cannot be rewound.
+            let viewerScenes dispatch (directory: string) =
+                async {
+                    Directory.CreateDirectory directory |> ignore
+                    ViewerDiagnostics.enableProfilingHud ()
+                    do! openLiveMatch dispatch
+
+                    let scenes =
+                        [ 1, "kickoff-tv", 1, ViewerCamera.Broadcast
+                          3, "closeup-dribble", 95, ViewerCamera.CloseUp
+                          2, "corner-behind-goal", 600, ViewerCamera.BehindGoal
+                          6, "night-rain-PLACEHOLDER-day", 3000, ViewerCamera.Broadcast
+                          4, "goal", ctx.Opts.ViewerGoalSecond, ViewerCamera.Touchline
+                          5, "minute-80-above", 4800, ViewerCamera.Tactical ]
+                        |> List.sortBy (fun (_, _, second, _) -> second)
+
+                    let results = ResizeArray<string>()
+                    let options = Text.Json.JsonWriterOptions(Indented = true)
+                    use stream = new MemoryStream()
+                    let writer = new Text.Json.Utf8JsonWriter(stream, options)
+                    writer.WriteStartObject()
+                    writer.WriteString("seed", string (defaultArg ctx.Opts.MatchSeed 0UL))
+                    writer.WriteNumber("framesPerScene", ctx.Opts.ViewerSceneFrames)
+
+                    match ViewerDiagnostics.adapterReport () with
+                    | Some adapter ->
+                        writer.WriteStartObject "adapter"
+                        writer.WriteString("name", adapter.AdapterName)
+                        writer.WriteString("backend", adapter.Backend)
+                        writer.WriteBoolean("timestampQuery", adapter.TimestampQuery)
+                        writer.WriteBoolean("textureCompressionBC", adapter.TextureCompressionBC)
+                        writer.WriteBoolean("indirectFirstInstance", adapter.IndirectFirstInstance)
+                        writer.WriteBoolean("float32Filterable", adapter.Float32Filterable)
+
+                        match adapter.TimestampPeriodNs with
+                        | Some period -> writer.WriteNumber("timestampPeriodNs", period)
+                        | None -> writer.WriteNull "timestampPeriodNs"
+
+                        writer.WriteEndObject()
+                    | None -> writer.WriteNull "adapter"
+
+                    writer.WriteStartArray "scenes"
+
+                    for number, name, second, camera in scenes do
+                        // Holding first makes the worker stop exactly on the scene second instead of overshooting it.
+                        do! sendAcked dispatch (FootballEngine.LiveMatch.HoldAt(toTick second))
+
+                        if liveTick () < toTick second then
+                            do! skipTo dispatch second
+
+                        Dispatcher.UIThread.Invoke(fun () -> dispatch (LiveMsg(LiveMsg.SelectViewerCamera camera)))
+                        do! Async.Sleep 1500
+                        ViewerDiagnostics.beginWindow ()
+                        let deadline = Stopwatch.StartNew()
+
+                        while ViewerDiagnostics.windowFrames () < ctx.Opts.ViewerSceneFrames && deadline.Elapsed < TimeSpan.FromSeconds 120.0 do
+                            do! Async.Sleep 25
+
+                        let average = ViewerDiagnostics.windowAverage ()
+                        let file = $"scene{number}-{name}.png"
+                        let native = ViewerDiagnostics.nativeWindowId ()
+
+                        if native = 0UL then
+                            Dispatcher.UIThread.Invoke(fun () -> captureTo window (Path.Combine(directory, file)) true)
+                        else
+                            importWindow native (Path.Combine(directory, file))
+
+                        writer.WriteStartObject()
+                        writer.WriteNumber("scene", number)
+                        writer.WriteString("name", name)
+                        writer.WriteString("file", file)
+                        writer.WriteNumber("matchSecond", second)
+                        writer.WriteString("camera", string camera)
+
+                        match average with
+                        | Some stats ->
+                            writer.WriteNumber("frames", stats.Frames)
+                            writer.WriteNumber("fps", Math.Round(stats.Fps, 1))
+                            writer.WriteNumber("frameIntervalMs", Math.Round(stats.FrameIntervalMs, 3))
+                            writer.WriteNumber("cpuFrameMs", Math.Round(stats.CpuFrameMs, 3))
+                            writer.WriteBoolean("gpuTimingAvailable", stats.GpuTimingAvailable)
+
+                            match stats.GpuTotalMs with
+                            | Some total -> writer.WriteNumber("gpuTotalMs", Math.Round(total, 3))
+                            | None -> writer.WriteString("gpuTotalMs", "GPU timing unavailable")
+
+                            writer.WriteStartArray "passes"
+
+                            for pass in stats.Passes do
+                                writer.WriteStartObject()
+                                writer.WriteString("name", pass.Name)
+
+                                match pass.GpuMs with
+                                | Some value -> writer.WriteNumber("gpuMs", Math.Round(value, 3))
+                                | None -> writer.WriteNull "gpuMs"
+
+                                writer.WriteNumber("cpuMs", Math.Round(pass.CpuMs, 3))
+                                writer.WriteEndObject()
+
+                            writer.WriteEndArray()
+                        | None -> writer.WriteString("error", "the renderer produced no frames")
+
+                        writer.WriteEndObject()
+                        printfn $"[viewer] scene {number} {name} at {second}s -> {file}"
+
+                    writer.WriteEndArray()
+                    writer.WriteEndObject()
+                    writer.Flush()
+                    File.WriteAllBytes(Path.Combine(directory, "stats.json"), stream.ToArray())
+                    do! sendAcked dispatch (FootballEngine.LiveMatch.HoldAt MatchSession.maxTicks)
+                }
+
             match ctx.Opts.VideoFindGoals || ctx.Opts.VideoGoals, ctx.Opts.VideoGoalsAt, ctx.Opts.VideoPath, getDispatch () with
+            | _, _, _, Some dispatch when ctx.Opts.ViewerScenesDir.IsSome -> do! viewerScenes dispatch ctx.Opts.ViewerScenesDir.Value
             | true, _, _, Some dispatch ->
                 let! found = findGoals dispatch
 

@@ -787,6 +787,27 @@ module Settings =
                   :> IView
 
               yield (label3, desc3, "🎯", ctl3, "HighlightFilter")
+              let labelQ = "Calidad 3D"
+              let descQ = "Low / Medium / High / Ultra — se aplica al abrir el próximo partido"
+
+              let ctlQ =
+                  ComboBox.create
+                      [ ComboBox.dataItems ViewerQualityTier.all
+                        ComboBox.selectedItem m.ViewerQuality
+                        ComboBox.onSelectedItemChanged (fun obj ->
+                            if obj <> null then
+                                let v = obj :?> ViewerQualityTier
+
+                                dispatch (
+                                    SettingsMsg(
+                                        UpdateGlobal(fun gs ->
+                                            { gs with
+                                                MatchView = { gs.MatchView with ViewerQuality = v } })
+                                    )
+                                )) ]
+                  :> IView
+
+              yield (labelQ, descQ, "🎮", ctlQ, "ViewerQuality")
               let label4 = "Tick rate"
               let desc4 = "1 a 100 ms — intervalo del motor, menor es más suave pero más batería"
 

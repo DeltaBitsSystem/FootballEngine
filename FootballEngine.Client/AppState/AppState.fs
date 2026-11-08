@@ -112,6 +112,7 @@ module AppState =
         | Ok() -> ()
         | Error _ -> ()
 
+        FootballEngine.Client.Match3D.ViewerQualitySelection.select preloaded.MatchView.ViewerQuality
         stateWithPreloaded, Cmd.ofMsg StartupReady
 
     let init () =
@@ -1110,6 +1111,8 @@ module AppState =
                 match Localization.setActiveCode next.Global.Appearance.Language with
                 | Ok() -> ()
                 | Error _ -> ()
+
+                FootballEngine.Client.Match3D.ViewerQualitySelection.select next.Global.MatchView.ViewerQuality
 
                 // DataSettings changes apply to the next career; an active career keeps its DataLock.
                 let dataChanged = next.Global.Data <> state.Settings.Global.Data

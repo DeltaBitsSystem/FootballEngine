@@ -256,6 +256,11 @@ type WebGpuStadiumRenderer
     let environmentViews = Array.create 3 (NativePtr.nullPtr<TextureView>)
     let mutable environmentSampler = NativePtr.nullPtr<Sampler>
     let mutable hdrOutput: HdrOutputPass option = None
+    let quality =
+        match ViewerQuality.ofTier (ViewerQualitySelection.current ()) |> ViewerQuality.validated with
+        | Ok selected -> selected
+        // Presets are validated by tests; an invalid one must not cost the player the match view.
+        | Error _ -> ViewerQuality.ultra
 
     let environment = environmentPackage.Environment
 
@@ -514,11 +519,11 @@ type WebGpuStadiumRenderer
             match hdrOutput with
             | Some output -> output
             | None ->
-                let output = new HdrOutputPass(api, device, queue, targetFormat, lighting)
+                let output =
+                    new HdrOutputPass(api, device, queue, targetFormat, lighting, quality, BroadcastGrade.standard)
+
                 hdrOutput <- Some output
                 output
-
-        output.Resize(width, height)
 
         if NativePtr.toNativeInt multisampleColorView <> 0n then
             api.TextureViewRelease(multisampleColorView)
@@ -551,7 +556,8 @@ type WebGpuStadiumRenderer
         checkPointer $"a {multisampleCount}x multisampled color texture view" multisampleColorView
 
         let mutable textureDescriptor = TextureDescriptor()
-        textureDescriptor.Usage <- TextureUsage.RenderAttachment
+        // The post chain reads scene depth for ambient occlusion, so it must be bindable and kept after the pass.
+        textureDescriptor.Usage <- TextureUsage.RenderAttachment ||| TextureUsage.TextureBinding
         textureDescriptor.Dimension <- TextureDimension.Dimension2D
         textureDescriptor.Size <- Extent3D(width, height, 1u)
         textureDescriptor.Format <- TextureFormat.Depth24Plus
@@ -561,6 +567,7 @@ type WebGpuStadiumRenderer
         checkPointer "a depth texture" depthTexture
         depthView <- api.TextureCreateView(depthTexture, NativePtr.nullPtr<TextureViewDescriptor>)
         checkPointer "a depth texture view" depthView
+        output.Resize(width, height, depthView)
 
     let uploadCharacterTexture (texture: nativeptr<Texture>) (data: CharacterTextureData) =
         for level = 0 to data.Levels.Length - 1 do
@@ -1413,6 +1420,10 @@ struct VertexOutput {
         cameraUniformData[cameraOffset + 3] <- 1.0f
         let matrix = ViewerCamera.viewProjection aspect cameraFrame
 
+        hdrOutput
+        |> Option.iter (fun output ->
+            output.SetCamera(cameraFrame.NearPlane, cameraFrame.FarPlane, cameraFrame.FieldOfView, aspect))
+
         cameraUniformData[0] <- matrix.M11
         cameraUniformData[1] <- matrix.M12
         cameraUniformData[2] <- matrix.M13
@@ -1851,6 +1862,7 @@ struct VertexOutput {
 
         Xlib.mapRaised (display, window) |> ignore
         Xlib.flush (display) |> ignore
+        ViewerDiagnostics.publishNativeWindow (uint64 window)
 
         instance <- api.CreateInstance(NativePtr.nullPtr<InstanceDescriptor>)
         checkPointer "a WebGPU instance" instance
@@ -2003,7 +2015,7 @@ struct VertexOutput {
                     let mutable depthAttachment = RenderPassDepthStencilAttachment()
                     depthAttachment.View <- depthView
                     depthAttachment.DepthLoadOp <- LoadOp.Clear
-                    depthAttachment.DepthStoreOp <- StoreOp.Discard
+                    depthAttachment.DepthStoreOp <- StoreOp.Store
                     depthAttachment.DepthClearValue <- 1.0f
                     let depthPointer = NativePtr.stackalloc<RenderPassDepthStencilAttachment> 1
                     NativePtr.write depthPointer depthAttachment
@@ -2049,6 +2061,7 @@ struct VertexOutput {
                     api.RenderPassEncoderEnd(pass)
                     api.RenderPassEncoderRelease(pass)
                     pass <- NativePtr.nullPtr<RenderPassEncoder>
+                    hdrOutput.Value.EncodeBloom(encoder)
                     colorAttachment.View <- colorView
                     colorAttachment.ResolveTarget <- NativePtr.nullPtr<TextureView>
                     colorAttachment.StoreOp <- StoreOp.Store
@@ -2082,7 +2095,25 @@ struct VertexOutput {
                     devicePoll.Invoke(NativePtr.toNativeInt device, 0uy, 0n) |> ignore
                     api.SurfacePresent(surface)
                     presented <- true
+                    let before = lastPresentation
                     recordPresentation ()
+
+                    (match before with
+                     | Some previous ->
+                         let interval = performanceClock.Elapsed.TotalMilliseconds - previous
+
+                         ViewerDiagnostics.record
+                             { FrameIndex = int64 frameCount
+                               Width = int targetWidth
+                               Height = int targetHeight
+                               Quality = "original"
+                               FrameIntervalMs = interval
+                               CpuFrameMs = interval
+                               GpuTimingAvailable = false
+                               GpuTotalMs = None
+                               Passes = [||] }
+                     | None -> ())
+
                     frameCount <- frameCount + 1
 
                     if frameCount = 1 then

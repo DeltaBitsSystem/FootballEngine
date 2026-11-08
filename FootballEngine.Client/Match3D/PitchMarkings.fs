@@ -17,7 +17,7 @@ module PitchMarkings =
     let penaltySpotDistance = 11.0f
     let spotRadius = 0.12f
     let cornerRadius = 1.0f
-    let grassTileMetres = 1.4f
+    let grassTileMetres = 1.0f
     let mowingBandMetres = 7.5f
 
     let private segmentDistance (point: Vector2) (a: Vector2) (b: Vector2) =

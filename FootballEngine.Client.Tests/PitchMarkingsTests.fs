@@ -90,7 +90,7 @@ let tests =
 
               Expect.stringContains
                   PitchMarkings.shaderConstants
-                  "PITCH_GRASS_TILE: f32 = 1.4"
+                  "PITCH_GRASS_TILE: f32 = 1;"
                   "source material physical scale"
 
               Expect.stringContains

@@ -147,6 +147,37 @@ module AppearanceSettings =
 
 // ── MatchView ───────────────────────────────────────────────────────────
 
+/// Core only stores the player's choice; the Client maps it to concrete render knobs so Core never depends on GPU code.
+[<RequireQualifiedAccess>]
+type ViewerQualityTier =
+    | Low
+    | Medium
+    | High
+    | Ultra
+
+module ViewerQualityTier =
+
+    let all =
+        [ ViewerQualityTier.Low
+          ViewerQualityTier.Medium
+          ViewerQualityTier.High
+          ViewerQualityTier.Ultra ]
+
+    let toString =
+        function
+        | ViewerQualityTier.Low -> "Low"
+        | ViewerQualityTier.Medium -> "Medium"
+        | ViewerQualityTier.High -> "High"
+        | ViewerQualityTier.Ultra -> "Ultra"
+
+    let tryParse (s: string) : Result<ViewerQualityTier, string> =
+        match s with
+        | s when String.Equals(s, "Low", StringComparison.OrdinalIgnoreCase) -> Ok ViewerQualityTier.Low
+        | s when String.Equals(s, "Medium", StringComparison.OrdinalIgnoreCase) -> Ok ViewerQualityTier.Medium
+        | s when String.Equals(s, "High", StringComparison.OrdinalIgnoreCase) -> Ok ViewerQualityTier.High
+        | s when String.Equals(s, "Ultra", StringComparison.OrdinalIgnoreCase) -> Ok ViewerQualityTier.Ultra
+        | _ -> Error $"Unknown ViewerQualityTier '{s}'"
+
 type MatchViewSettings =
     { PlaybackSpeed: int
       AutoPlay: bool
@@ -157,7 +188,8 @@ type MatchViewSettings =
       ShowOverlays: bool
       SoundEnabled: bool
       PauseOnGoal: bool
-      PauseOnRed: bool }
+      PauseOnRed: bool
+      ViewerQuality: ViewerQualityTier }
 
 module MatchViewSettings =
 
@@ -171,7 +203,9 @@ module MatchViewSettings =
           ShowOverlays = true
           SoundEnabled = true
           PauseOnGoal = true
-          PauseOnRed = true }
+          PauseOnRed = true
+          // Development default: quality first, cheaper tiers are derived from it.
+          ViewerQuality = ViewerQualityTier.Ultra }
 
     let validate (m: MatchViewSettings) : string list =
         [ if m.PlaybackSpeed < 5 || m.PlaybackSpeed > 60 then
@@ -618,6 +652,7 @@ module private JsonHelpers =
         writer.WriteBoolean("soundEnabled", m.SoundEnabled)
         writer.WriteBoolean("pauseOnGoal", m.PauseOnGoal)
         writer.WriteBoolean("pauseOnRed", m.PauseOnRed)
+        writer.WriteString("viewerQuality", ViewerQualityTier.toString m.ViewerQuality)
         writer.WriteEndObject()
 
     let readMatchView (elem: JsonElement) : Result<MatchViewSettings, string> =
@@ -635,10 +670,16 @@ module private JsonHelpers =
         let pauseGoalR = getBool "pauseOnGoal" elem
         let pauseRedR = getBool "pauseOnRed" elem
 
+        // Settings files written before the quality tier existed must keep loading; only a present-but-invalid value is an error.
+        let qualityR =
+            match elem.TryGetProperty "viewerQuality" with
+            | true, _ -> getString "viewerQuality" elem |> Result.bind ViewerQualityTier.tryParse
+            | _ -> Ok MatchViewSettings.defaults.ViewerQuality
+
         match
             playbackR, autoPlayR, highlightR, tickRateR, showXGR, showPossR, showOverR, soundR, pauseGoalR, pauseRedR
         with
-        | Ok ps, Ok ap, Ok hf, Ok tr, Ok xg, Ok poss, Ok over, Ok sound, Ok pg, Ok pr ->
+        | Ok ps, Ok ap, Ok hf, Ok tr, Ok xg, Ok poss, Ok over, Ok sound, Ok pg, Ok pr when qualityR |> Result.isOk ->
             Ok
                 { PlaybackSpeed = ps
                   AutoPlay = ap
@@ -649,7 +690,8 @@ module private JsonHelpers =
                   ShowOverlays = over
                   SoundEnabled = sound
                   PauseOnGoal = pg
-                  PauseOnRed = pr }
+                  PauseOnRed = pr
+                  ViewerQuality = qualityR |> Result.defaultValue MatchViewSettings.defaults.ViewerQuality }
         | _ ->
             let errs =
                 [ match playbackR with
@@ -680,6 +722,9 @@ module private JsonHelpers =
                   | Error e -> yield e
                   | _ -> ()
                   match pauseRedR with
+                  | Error e -> yield e
+                  | _ -> ()
+                  match qualityR with
                   | Error e -> yield e
                   | _ -> () ]
 

@@ -18,6 +18,7 @@ let main argv =
               routingTests
               NewsPageTests.tests
               JobsPageTests.tests
+              ViewerQualityTests.tests
               tacticsTests
               ModEditorTests.tests
               LiveMatchTests.tests
