@@ -14,58 +14,6 @@ open Silk.NET.Core.Contexts
 open Microsoft.FSharp.NativeInterop
 open Silk.NET.WebGPU
 
-module private Xlib =
-    [<Struct; StructLayout(LayoutKind.Sequential)>]
-    type Rectangle =
-        { X: int16
-          Y: int16
-          Width: uint16
-          Height: uint16 }
-
-    [<DllImport("libX11.so.6", EntryPoint = "XOpenDisplay", CallingConvention = CallingConvention.Cdecl)>]
-    extern nativeint openDisplay(nativeint name)
-
-    [<DllImport("libX11.so.6", EntryPoint = "XCloseDisplay", CallingConvention = CallingConvention.Cdecl)>]
-    extern int closeDisplay(nativeint display)
-
-    [<DllImport("libX11.so.6", EntryPoint = "XCreateSimpleWindow", CallingConvention = CallingConvention.Cdecl)>]
-    extern unativeint createSimpleWindow(
-        nativeint display,
-        unativeint parent,
-        int x,
-        int y,
-        uint32 width,
-        uint32 height,
-        uint32 borderWidth,
-        unativeint border,
-        unativeint background
-    )
-
-    [<DllImport("libX11.so.6", EntryPoint = "XMapRaised", CallingConvention = CallingConvention.Cdecl)>]
-    extern int mapRaised(nativeint display, unativeint window)
-
-    [<DllImport("libX11.so.6", EntryPoint = "XMoveResizeWindow", CallingConvention = CallingConvention.Cdecl)>]
-    extern int moveResizeWindow(nativeint display, unativeint window, int x, int y, uint32 width, uint32 height)
-
-    [<DllImport("libX11.so.6", EntryPoint = "XDestroyWindow", CallingConvention = CallingConvention.Cdecl)>]
-    extern int destroyWindow(nativeint display, unativeint window)
-
-    [<DllImport("libX11.so.6", EntryPoint = "XFlush", CallingConvention = CallingConvention.Cdecl)>]
-    extern int flush(nativeint display)
-
-    [<DllImport("libXext.so.6", EntryPoint = "XShapeCombineRectangles", CallingConvention = CallingConvention.Cdecl)>]
-    extern void shapeCombineRectangles(
-        nativeint display,
-        unativeint window,
-        int destinationKind,
-        int xOffset,
-        int yOffset,
-        nativeint rectangles,
-        int rectangleCount,
-        int operation,
-        int ordering
-    )
-
 module MatchPitchOverlay =
     let margin = 14.0
     let managerWidth = 250.0
@@ -106,43 +54,6 @@ type private GpuDrawBatch =
       IndexCount: uint32
       InstanceCount: uint32 }
 
-module private BufferWriter =
-    let write<'T when 'T: unmanaged>
-        (api: WebGPU)
-        (queue: nativeptr<Queue>)
-        (buffer: nativeptr<Buffer>)
-        (data: 'T array)
-        =
-        use dataPointer = fixed data
-
-        api.QueueWriteBuffer(queue, buffer, 0UL, NativePtr.toVoidPtr dataPointer, unativeint (data.Length * sizeof<'T>))
-
-    let create<'T when 'T: unmanaged>
-        (api: WebGPU)
-        (device: nativeptr<Device>)
-        (queue: nativeptr<Queue>)
-        (label: string)
-        usage
-        (data: 'T array)
-        =
-        let size = uint64 (max (sizeof<'T>) (data.Length * sizeof<'T>))
-        let mutable descriptor = BufferDescriptor()
-        descriptor.Usage <- usage
-        descriptor.Size <- size
-        let buffer = api.DeviceCreateBuffer(device, &descriptor)
-
-        if NativePtr.toNativeInt buffer = 0n then
-            invalidOp $"WebGPU failed to create {label}."
-
-        try
-            if data.Length > 0 then
-                write api queue buffer data
-
-            buffer
-        with _ ->
-            api.BufferRelease(buffer)
-            reraise ()
-
 [<Sealed>]
 type WebGpuStadiumRenderer
     (
@@ -153,6 +64,10 @@ type WebGpuStadiumRenderer
         ?exposureStops: float32
     ) =
     let startupClock = Diagnostics.Stopwatch.StartNew()
+
+    let windSeconds () =
+        ViewerDiagnostics.windPin ()
+        |> Option.defaultWith (fun () -> startupClock.Elapsed.TotalSeconds)
 
     let timedLoad name load =
         let started = Diagnostics.Stopwatch.GetTimestamp()
@@ -346,10 +261,10 @@ type WebGpuStadiumRenderer
         requested
 
     let pinAndWrite buffer data =
-        BufferWriter.write api queue buffer data
+        GpuBuffer.write api queue buffer data
 
     let createBuffer label usage data =
-        BufferWriter.create api device queue label usage data
+        GpuBuffer.create api device queue label usage data
 
     let createGpuBatch
         (materialName: string)
@@ -737,7 +652,7 @@ type WebGpuStadiumRenderer
         characterSampler <- api.DeviceCreateSampler(device, &samplerDescriptor)
         checkPointer "the athlete texture sampler" characterSampler
 
-        let source =
+        let stadiumSource =
             """struct Camera {
     viewProjection: mat4x4<f32>,
     rootTransforms: array<mat4x4<f32>, 25>,
@@ -913,22 +828,23 @@ fn materialNoise(p: vec2<f32>) -> f32 {
     return vec4<f32>(shadeMaterial(input.color.rgb, normal, input.world, 0.85, 0.0, 1.0, sunlightVisibility(input.world, normal)), input.color.a);
 }
 """
-            |> fun source -> source.Replace("CHARACTER_JOINT_COUNT", $"{character.JointCount}u")
-            |> fun source ->
-                source
-                + File.ReadAllText(
-                    Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "EnvironmentLighting.wgsl")
-                )
-                + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "ShadowLighting.wgsl"))
-                + AthleteMaterial.shaderConstants
-                + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "AthleteSurface.wgsl"))
-                + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "MatchBallSurface.wgsl"))
-            |> fun source ->
-                source
-                + PitchMarkings.shaderConstants
-                + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "PitchSurface.wgsl"))
-                + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "GrassDetail.wgsl"))
-                + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Match3D", "Shaders", "SkyBackground.wgsl"))
+        let shaderFile name =
+            ShaderLibrary.readFile name
+            |> Result.defaultWith (fun error -> invalidOp (GpuError.describe error))
+
+        // Constants precede the files that consume them, so the order below is part of the shader contract.
+        let source =
+            ShaderLibrary.compose
+                [ stadiumSource.Replace("CHARACTER_JOINT_COUNT", $"{character.JointCount}u")
+                  shaderFile "EnvironmentLighting.wgsl"
+                  shaderFile "ShadowLighting.wgsl"
+                  AthleteMaterial.shaderConstants
+                  shaderFile "AthleteSurface.wgsl"
+                  shaderFile "MatchBallSurface.wgsl"
+                  PitchMarkings.shaderConstants
+                  shaderFile "PitchSurface.wgsl"
+                  shaderFile "GrassDetail.wgsl"
+                  shaderFile "SkyBackground.wgsl" ]
 
         let sourceBytes = Text.Encoding.UTF8.GetBytes(source + "\u0000")
         use sourcePointer = fixed sourceBytes
@@ -1418,7 +1334,7 @@ struct VertexOutput {
         cameraUniformData[cameraOffset + 1] <- cameraPosition.Y
         cameraUniformData[cameraOffset + 2] <- cameraPosition.Z
         // position.w carries a wrapped clock for grass wind; no shader uses it as a homogeneous coordinate.
-        cameraUniformData[cameraOffset + 3] <- float32 (startupClock.Elapsed.TotalSeconds % 3600.0)
+        cameraUniformData[cameraOffset + 3] <- float32 (windSeconds () % 3600.0)
         let matrix = ViewerCamera.viewProjection aspect cameraFrame
 
         hdrOutput
@@ -1572,10 +1488,8 @@ struct VertexOutput {
 
     let updateWindow (bounds: PixelRect) =
         if bounds.Width > 0 && bounds.Height > 0 && bounds <> lastBounds then
-            Xlib.moveResizeWindow (display, window, bounds.X, bounds.Y, uint32 bounds.Width, uint32 bounds.Height)
-            |> ignore
-
-            Xlib.flush (display) |> ignore
+            X11ChildWindow.moveResize display window bounds
+            X11ChildWindow.flush display
             lastBounds <- bounds
 
             let width = uint32 bounds.Width
@@ -1600,85 +1514,9 @@ struct VertexOutput {
         let sameBounds = lastShapeBounds |> Option.exists (sameRect bounds)
 
         if not (sameBounds && sameCutouts) then
-            let clamp low high value = max low (min high value)
-
-            let clipped =
-                cutouts
-                |> Array.choose (fun rect ->
-                    let x = clamp 0 bounds.Width rect.X
-                    let y = clamp 0 bounds.Height rect.Y
-                    let right = clamp x bounds.Width (rect.X + rect.Width)
-                    let bottom = clamp y bounds.Height (rect.Y + rect.Height)
-
-                    if right <= x || bottom <= y then
-                        None
-                    else
-                        Some(x, y, right, bottom))
-
-            let boundaries (start: int) (finish: int) selector =
-                seq {
-                    yield start
-                    yield finish
-
-                    for rect in clipped do
-                        let first, last = selector rect
-                        yield first
-                        yield last
-                }
-                |> Seq.distinct
-                |> Seq.sort
-                |> Seq.toArray
-
-            let horizontal = boundaries 0 bounds.Width (fun (x, _, right, _) -> x, right)
-            let vertical = boundaries 0 bounds.Height (fun (_, y, _, bottom) -> y, bottom)
-            let visible = ResizeArray<Xlib.Rectangle>()
-
-            for yIndex = 0 to vertical.Length - 2 do
-                let y = vertical[yIndex]
-                let bottom = vertical[yIndex + 1]
-
-                for xIndex = 0 to horizontal.Length - 2 do
-                    let x = horizontal[xIndex]
-                    let right = horizontal[xIndex + 1]
-                    let centerX = x + (right - x) / 2
-                    let centerY = y + (bottom - y) / 2
-
-                    let covered =
-                        clipped
-                        |> Array.exists (fun (left, top, edge, lower) ->
-                            centerX >= left && centerX < edge && centerY >= top && centerY < lower)
-
-                    if right > x && bottom > y && not covered then
-                        visible.Add
-                            { X = int16 x
-                              Y = int16 y
-                              Width = uint16 (right - x)
-                              Height = uint16 (bottom - y) }
-
-            if visible.Count = 0 then
-                visible.Add
-                    { X = 0s
-                      Y = 0s
-                      Width = uint16 bounds.Width
-                      Height = uint16 bounds.Height }
-
-            let rectangles = visible.ToArray()
-            use rectanglePointer = fixed rectangles
-
             // Carving these regions out lets Avalonia draw and receive clicks through its native WebGPU child.
-            Xlib.shapeCombineRectangles (
-                display,
-                window,
-                0,
-                0,
-                0,
-                NativePtr.toNativeInt rectanglePointer,
-                rectangles.Length,
-                0,
-                0
-            )
-
-            Xlib.flush display |> ignore
+            X11ChildWindow.setShape display window (X11ChildWindow.cutoutRectangles bounds cutouts)
+            X11ChildWindow.flush display
             lastShapeBounds <- Some bounds
             lastCutouts <- Array.copy cutouts
 
@@ -1826,10 +1664,10 @@ struct VertexOutput {
                 api.InstanceRelease(instance)
 
             if window <> 0un then
-                Xlib.destroyWindow (display, window) |> ignore
+                X11ChildWindow.destroy display window
 
             if display <> 0n then
-                Xlib.closeDisplay (display) |> ignore
+                X11ChildWindow.closeDisplay display
 
             (errorCallbackPointer :> IDisposable).Dispose()
 
@@ -1840,29 +1678,18 @@ struct VertexOutput {
         if not (File.Exists assetPath) then
             invalidOp $"The stadium scene asset was not found: {assetPath}"
 
-        display <- Xlib.openDisplay (0n)
+        display <- X11ChildWindow.openDisplay ()
 
         if display = 0n then
             invalidOp "XOpenDisplay failed while creating the WebGPU stadium surface."
 
-        window <-
-            Xlib.createSimpleWindow (
-                display,
-                parentWindow,
-                0,
-                0,
-                uint32 (max 1 initialBounds.Width),
-                uint32 (max 1 initialBounds.Height),
-                0u,
-                0un,
-                0un
-            )
+        window <- X11ChildWindow.createChild display parentWindow initialBounds.Width initialBounds.Height
 
         if window = 0un then
             invalidOp "XCreateSimpleWindow failed for the WebGPU stadium surface."
 
-        Xlib.mapRaised (display, window) |> ignore
-        Xlib.flush (display) |> ignore
+        X11ChildWindow.mapRaised display window
+        X11ChildWindow.flush display
         ViewerDiagnostics.publishNativeWindow (uint64 window)
 
         instance <- api.CreateInstance(NativePtr.nullPtr<InstanceDescriptor>)

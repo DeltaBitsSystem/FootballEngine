@@ -151,6 +151,30 @@ module ViewerDiagnostics =
 
     let nativeWindowId () = Volatile.Read(&nativeWindow)
 
+    /// Captures pin the grass wind clock to the scene's match second so repeated captures compare byte-for-byte;
+    /// live play leaves it unset and follows the wall clock.
+    let mutable private pinnedWindSeconds: float option = None
+
+    let pinWindSeconds (seconds: float option) = Volatile.Write(&pinnedWindSeconds, seconds)
+
+    let windPin () = Volatile.Read(&pinnedWindSeconds)
+
+    /// Interpolation between published poses follows the wall clock, so a capture taken mid-catch-up shows
+    /// whichever pose the scheduler reached. Each pull while pinned moves the sample clock an hour ahead,
+    /// which always clamps presentation to the newest pose; the pull count keeps timestamps increasing.
+    /// Stays pinned for the rest of the capture process: returning to wall time would rewind the clock.
+    let mutable private presentationPinned = false
+    let mutable private presentationPulls = 0L
+
+    let pinPresentationClock (pinned: bool) = Volatile.Write(&presentationPinned, pinned)
+
+    let presentationTimestamp () =
+        if Volatile.Read(&presentationPinned) then
+            let pull = Interlocked.Increment(&presentationPulls)
+            Diagnostics.Stopwatch.GetTimestamp() + pull * 3600L * Diagnostics.Stopwatch.Frequency
+        else
+            Diagnostics.Stopwatch.GetTimestamp()
+
     let beginWindow () = accumulator.Reset()
 
     let windowFrames () = accumulator.Count

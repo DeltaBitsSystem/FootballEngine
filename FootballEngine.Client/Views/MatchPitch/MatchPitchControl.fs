@@ -103,7 +103,7 @@ type MatchPitchControl() as this =
         Threading.Tasks.TaskCompletionSource<unit>(Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously)
 
     let currentFrame (cache: PitchProjectionCache) state =
-        match state.Stream.Sample(Stopwatch.GetTimestamp()) with
+        match state.Stream.Sample(ViewerDiagnostics.presentationTimestamp ()) with
         | None -> None
         | Some(Hold pose) ->
             Some(

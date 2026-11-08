@@ -84,11 +84,15 @@
         <Compile Include="Match3D\HdrLighting.fs"/>
         <Compile Include="Match3D\StadiumEnvironment.fs"/>
         <Compile Include="Match3D\ViewerQuality.fs"/>
+        <Compile Include="Match3D\Gpu\GpuError.fs"/>
+        <Compile Include="Match3D\Gpu\GpuResources.fs"/>
+        <Compile Include="Match3D\Gpu\ShaderLibrary.fs"/>
         <Compile Include="Match3D\DirectionalShadowPass.fs"/>
         <Compile Include="Match3D\ProceduralScenePass.fs"/>
         <Compile Include="Match3D\HdrOutputPass.fs"/>
         <Compile Include="Match3D\MatchHudInvalidation.fs"/>
         <Compile Include="Match3D\MatchHudRenderer.fs"/>
+        <Compile Include="Match3D\Platform\X11ChildWindow.fs"/>
         <Compile Include="Match3D\WebGpuStadiumRenderer.fs"/>
         <Compile Include="Match3D\PresentationLoop.fs"/>
         <Compile Include="Match3D\RenderWorker.fs"/>

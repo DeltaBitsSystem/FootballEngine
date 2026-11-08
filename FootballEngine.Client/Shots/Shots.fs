@@ -819,6 +819,7 @@ module Shots =
                 async {
                     Directory.CreateDirectory directory |> ignore
                     ViewerDiagnostics.enableProfilingHud ()
+                    ViewerDiagnostics.pinPresentationClock true
                     do! openLiveMatch dispatch
 
                     let scenes =
@@ -859,6 +860,8 @@ module Shots =
                     writer.WriteStartArray "scenes"
 
                     for number, name, second, camera in scenes do
+                        // Grass wind is the renderer's only clock input, so pinning it to the scene second keeps captures reproducible.
+                        ViewerDiagnostics.pinWindSeconds (Some(float second))
                         // Holding first makes the worker stop exactly on the scene second instead of overshooting it.
                         do! sendAcked dispatch (FootballEngine.LiveMatch.HoldAt(toTick second))
 
@@ -921,6 +924,7 @@ module Shots =
                         printfn $"[viewer] scene {number} {name} at {second}s -> {file}"
 
                     writer.WriteEndArray()
+                    ViewerDiagnostics.pinWindSeconds None
                     writer.WriteEndObject()
                     writer.Flush()
                     File.WriteAllBytes(Path.Combine(directory, "stats.json"), stream.ToArray())

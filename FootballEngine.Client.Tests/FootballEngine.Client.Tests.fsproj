@@ -30,6 +30,7 @@
     <Compile Include="PresentationLoopTests.fs" />
     <Compile Include="RenderWorkerTests.fs" />
     <Compile Include="StadiumLayoutTests.fs" />
+    <Compile Include="Match3DFoundationTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

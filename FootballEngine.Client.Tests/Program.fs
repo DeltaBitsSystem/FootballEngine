@@ -32,4 +32,5 @@ let main argv =
               MatchHudTests.tests
               PresentationLoopTests.tests
               RenderWorkerTests.tests
-              StadiumLayoutTests.tests ])
+              StadiumLayoutTests.tests
+              Match3DFoundationTests.tests ])
