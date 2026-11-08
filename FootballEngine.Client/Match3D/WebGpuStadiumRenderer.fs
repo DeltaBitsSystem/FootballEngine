@@ -1411,13 +1411,14 @@ struct VertexOutput {
         let aspect = float32 width / float32 height
         let cameraFrame = ViewerCamera.frame cameraMode aspect cameraFocus
         // At broadcast height these blades are subpixel; drawing them would add shimmer instead of detail.
-        showGrassDetail <- cameraFrame.Position.Y < 7.0f
+        showGrassDetail <- cameraFrame.Position.Y < 12.0f
         let cameraPosition = cameraFrame.Position
         let cameraOffset = 16 + rootTransformCount * 16
         cameraUniformData[cameraOffset] <- cameraPosition.X
         cameraUniformData[cameraOffset + 1] <- cameraPosition.Y
         cameraUniformData[cameraOffset + 2] <- cameraPosition.Z
-        cameraUniformData[cameraOffset + 3] <- 1.0f
+        // position.w carries a wrapped clock for grass wind; no shader uses it as a homogeneous coordinate.
+        cameraUniformData[cameraOffset + 3] <- float32 (startupClock.Elapsed.TotalSeconds % 3600.0)
         let matrix = ViewerCamera.viewProjection aspect cameraFrame
 
         hdrOutput

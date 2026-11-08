@@ -19,8 +19,9 @@ module ProceduralScenePassSettings =
     let grass =
         { VertexEntry = "grassVs"
           FragmentEntry = "grassFs"
-          VertexCount = 18u
-          InstanceCount = 160u * 160u
+          // Five blades of six vertices per cell; the grid must match GRASS_GRID in GrassDetail.wgsl.
+          VertexCount = 30u
+          InstanceCount = 240u * 240u
           WriteDepth = true
           DepthCompare = CompareFunction.Less
           AlphaToCoverage = true }

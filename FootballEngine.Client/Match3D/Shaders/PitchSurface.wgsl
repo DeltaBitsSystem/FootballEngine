@@ -84,13 +84,23 @@ fn shadePitch(world: vec3<f32>, surface: u32, dx: vec3<f32>, dy: vec3<f32>) -> v
     base *= 0.90 + 0.12 * clumps + 0.08 * broad;
     base *= mix(vec3<f32>(0.93, 0.96, 0.87), vec3<f32>(1.05, 1.02, 0.95), growthBlend);
 
-    let bandPosition = (world.x + PITCH_HALF_LENGTH) / PITCH_MOWING_BAND;
-    let bend = smoothstep(-0.045, 0.045, sin(bandPosition * 3.14159265359)) * 2.0 - 1.0;
+    // Mowing stripes are not paint: the mower travels across the pitch (along z) and leaves the blades of each band
+    // leaning one way. A band looks light when its blades lean away from the viewer (we see their lit, waxy upper
+    // sides) and dark when they lean towards us (shadowed tips). The band edges wobble like a real mower line.
+    let wobble = (materialNoise(vec2<f32>(world.z * 0.09, 3.1)) - 0.5) * 0.10 + (materialNoise(vec2<f32>(world.z * 0.7, 9.4)) - 0.5) * 0.025;
+    let bandPosition = (world.x + PITCH_HALF_LENGTH) / PITCH_MOWING_BAND + wobble;
+    let leanSign = smoothstep(-0.06, 0.06, sin(bandPosition * 3.14159265359)) * 2.0 - 1.0;
+    let lean = select(leanSign, 0.0, surface == 3u);
     let view = normalize(camera.position.xyz - world);
-    // Bent blades change reflectance with viewing direction, not just with an alternating green vertex colour.
-    let mowing = select(bend, 0.0, surface == 3u);
-    base *= 1.0 + mowing * (0.045 + 0.055 * view.z);
-    normal = normalize(normal + vec3<f32>(0.0, 0.0, mowing * 0.032));
+    let viewFlat = normalize(vec2<f32>(view.x, view.z) + vec2<f32>(1e-4, 0.0));
+    // Grazing views see more blade side, so the stripe contrast grows as the camera lowers.
+    let grazing = 1.0 - clamp(view.y, 0.0, 1.0);
+    // Blades leaning towards the sun catch more light: this keeps stripes readable from high tactical cameras.
+    // Broadcast stripes differ by roughly 10-15% in brightness; more reads as painted bands.
+    let stripe = -lean * viewFlat.y * (0.045 + 0.09 * grazing) + lean * camera.sunAndEnvironment.z * 0.03;
+    base *= 1.0 + stripe;
+    // The leaning canopy also faces the sun differently: tilt the shading normal with the blades.
+    normal = normalize(normal + vec3<f32>(0.0, 0.0, lean * 0.22));
 
     let goalDistance = vec2<f32>((abs(world.x) - (PITCH_HALF_LENGTH - 1.5)) / 4.2, world.z / 5.0);
     let goalWear = exp(-dot(goalDistance, goalDistance) * 1.8);
@@ -114,5 +124,28 @@ fn shadePitch(world: vec3<f32>, surface: u32, dx: vec3<f32>, dy: vec3<f32>) -> v
     let roughness = mix(clamp(grass.properties.g, 0.78, 1.0), 0.92, paint);
     let ao = mix(0.85, 1.0, grass.properties.r);
     let visibility = sunlightVisibility(world, vec3<f32>(0.0, 1.0, 0.0));
-    return shadeMaterial(base, normal, world, roughness, 0.0, ao, visibility);
+    return shadeCanopy(base, normal, world, roughness, ao, visibility, 1.0 - paint);
+}
+
+// Grass is a canopy of thin translucent blades, not an opaque plastic sheet. On top of the shared PBR response:
+// - translucency: looking towards the sun, light passes through the blades and they glow yellow-green;
+// - hotspot: with the sun behind the viewer the blades hide their own shadows and the canopy brightens;
+// - grazing shift: at low angles we see blade sides instead of soil gaps, lighter and a little yellower;
+// - cuticle sheen: the waxy blade surface adds a soft, bluish grazing highlight.
+// `canopy` fades the effects out under paint, which coats the blades flat.
+fn shadeCanopy(baseIn: vec3<f32>, normal: vec3<f32>, world: vec3<f32>, roughness: f32, ao: f32, visibility: f32, canopy: f32) -> vec3<f32> {
+    let light = camera.sunAndEnvironment.xyz;
+    let view = normalize(camera.position.xyz - world);
+    let nv = clamp(dot(normal, view), 0.0, 1.0);
+    let sideView = pow(1.0 - nv, 2.0) * canopy;
+    let base = mix(baseIn, baseIn * vec3<f32>(1.18, 1.16, 0.92), sideView * 0.55);
+    var radiance = shadeMaterial(base, normal, world, roughness, 0.0, ao, visibility);
+    let sun = camera.sunRadiance.rgb * visibility;
+    let back = pow(clamp(dot(-view, light), 0.0, 1.0), 4.0);
+    let transmitted = base * vec3<f32>(0.85, 1.15, 0.45) * sun * back * (0.10 + 0.25 * sideView) * canopy;
+    let hotspot = pow(clamp(dot(view, light), 0.0, 1.0), 12.0) * 0.18 * canopy;
+    let sheen = pow(1.0 - nv, 5.0) * 0.05 * canopy;
+    radiance += transmitted + base * sun * max(dot(normal, light), 0.0) * hotspot / 3.14159265359;
+    radiance += vec3<f32>(0.85, 0.92, 1.0) * sheen * (sun * 0.25 + camera.sunAndEnvironment.w * 0.2);
+    return radiance;
 }
