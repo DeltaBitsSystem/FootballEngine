@@ -1,0 +1,394 @@
+{
+ "schema": 1,
+ "cellEm": [
+  -0.12,
+  1.32
+ ],
+ "capHeightEm": 1.0,
+ "baselineEm": 0.0,
+ "sdfRangeEm": 0.14,
+ "encoding": "value = 0.5 - distance / (2 * range); inside > 0.5",
+ "glyphs": {
+  "0": {
+   "x": 0,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "1": {
+   "x": 31,
+   "y": 0,
+   "w": 22,
+   "h": 64,
+   "advanceEm": 0.5,
+   "cellWidthEm": 0.5
+  },
+  "2": {
+   "x": 55,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "3": {
+   "x": 86,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "4": {
+   "x": 117,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "5": {
+   "x": 148,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "6": {
+   "x": 179,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "7": {
+   "x": 210,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "8": {
+   "x": 241,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "9": {
+   "x": 272,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "A": {
+   "x": 303,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "B": {
+   "x": 334,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "C": {
+   "x": 365,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "D": {
+   "x": 396,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "E": {
+   "x": 427,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "F": {
+   "x": 458,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "G": {
+   "x": 489,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "H": {
+   "x": 520,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "I": {
+   "x": 551,
+   "y": 0,
+   "w": 18,
+   "h": 64,
+   "advanceEm": 0.4,
+   "cellWidthEm": 0.4
+  },
+  "J": {
+   "x": 571,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "K": {
+   "x": 602,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "L": {
+   "x": 633,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "M": {
+   "x": 664,
+   "y": 0,
+   "w": 35,
+   "h": 64,
+   "advanceEm": 0.78,
+   "cellWidthEm": 0.78
+  },
+  "N": {
+   "x": 701,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "O": {
+   "x": 732,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "P": {
+   "x": 763,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "Q": {
+   "x": 794,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "R": {
+   "x": 825,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "S": {
+   "x": 856,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "T": {
+   "x": 887,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "U": {
+   "x": 918,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "V": {
+   "x": 949,
+   "y": 0,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "W": {
+   "x": 980,
+   "y": 0,
+   "w": 35,
+   "h": 64,
+   "advanceEm": 0.78,
+   "cellWidthEm": 0.78
+  },
+  "X": {
+   "x": 0,
+   "y": 64,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "Y": {
+   "x": 31,
+   "y": 64,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "Z": {
+   "x": 62,
+   "y": 64,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "-": {
+   "x": 93,
+   "y": 64,
+   "w": 22,
+   "h": 64,
+   "advanceEm": 0.5,
+   "cellWidthEm": 0.5
+  },
+  ".": {
+   "x": 117,
+   "y": 64,
+   "w": 13,
+   "h": 64,
+   "advanceEm": 0.25,
+   "cellWidthEm": 0.3
+  },
+  "'": {
+   "x": 132,
+   "y": 64,
+   "w": 13,
+   "h": 64,
+   "advanceEm": 0.25,
+   "cellWidthEm": 0.3
+  },
+  " ": {
+   "x": 147,
+   "y": 64,
+   "w": 16,
+   "h": 64,
+   "advanceEm": 0.36,
+   "cellWidthEm": 0.36
+  },
+  "\u00c1": {
+   "x": 165,
+   "y": 64,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "\u00c9": {
+   "x": 196,
+   "y": 64,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "\u00d3": {
+   "x": 227,
+   "y": 64,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "\u00da": {
+   "x": 258,
+   "y": 64,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "\u00cd": {
+   "x": 289,
+   "y": 64,
+   "w": 18,
+   "h": 64,
+   "advanceEm": 0.4,
+   "cellWidthEm": 0.4
+  },
+  "\u00d1": {
+   "x": 309,
+   "y": 64,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  },
+  "\u00dc": {
+   "x": 340,
+   "y": 64,
+   "w": 29,
+   "h": 64,
+   "advanceEm": 0.66,
+   "cellWidthEm": 0.66
+  }
+ },
+ "files": {
+  "shirt-font-sdf.png": "6b9af811e7ed62bc7fb56486cf961a6f067b685898a50eb4931435682b61ab5c"
+ },
+ "source": "Tools/MatchViewer3D/Kits/build_shirt_font.py",
+ "provenance": "Original FootballEngine typeface: every glyph is a stroke design in this script; no font file is used."
+}

@@ -93,6 +93,7 @@
 !/FootballEngine.Client/Assets/MatchViewer/StadiumKit/**
 !/FootballEngine.Client/Assets/MatchViewer/Crowd/**
 !/FootballEngine.Client/Assets/MatchViewer/Ball/**
+!/FootballEngine.Client/Assets/MatchViewer/Kits/**
 !/FootballEngine.Client/Assets/MatchViewer/manifest.json
 !/FootballEngine.Client/Assets/MatchViewer/LICENSES.md
 !/FootballEngine.Client/Assets/MatchViewer/Surfaces/*.bin
