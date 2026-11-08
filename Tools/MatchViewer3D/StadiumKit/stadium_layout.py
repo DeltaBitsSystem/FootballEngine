@@ -16,6 +16,9 @@ SEAT_PITCH = 0.5  # metres of row length per seat
 AISLE_EVERY = 14  # seats between aisles
 AISLE_WIDTH = 1.2
 TRUSS_SPACING = 10.0
+BENCH_INNER = 4.0  # metres from the halfway line to each bench's inner end
+BENCH_LENGTH = 7.0  # matches the kit dugout
+TECH_ZONE_HALF = BENCH_INNER + BENCH_LENGTH + 2.0
 ROOF_CLEARANCE = 6.5  # truss root height above the top row: headroom for the back rows and the mast base
 
 
@@ -274,20 +277,23 @@ def _yaw_towards_pitch(st):
 def _pieces(p, rng, stands, hx, hy, lighting):
     out = []
 
-    def put(piece, x, y, z, yaw, tint="none"):
-        out.append({"piece": piece, "x": round(x, 3), "y": round(y, 3), "z": round(z, 3), "yaw": round(yaw, 2), "tint": tint})
+    def put(piece, x, y, z, yaw, tint="none", scale=(1.0, 1.0, 1.0)):
+        out.append({"piece": piece, "x": round(x, 3), "y": round(y, 3), "z": round(z, 3), "yaw": round(yaw, 2),
+                    "tint": tint, "scale": [round(c, 4) for c in scale]})
 
+    # The goal's net hangs behind its local -Y; yaw +90 sends it to +X, so each net points away from the pitch.
     for sx in (-1, 1):
-        put("goal", sx * PITCH_LENGTH / 2, 0.0, 0.0, -90.0 * sx)
-        put("goal_net", sx * PITCH_LENGTH / 2, 0.0, 0.0, -90.0 * sx)
+        put("goal", sx * PITCH_LENGTH / 2, 0.0, 0.0, 90.0 * sx)
+        put("goal_net", sx * PITCH_LENGTH / 2, 0.0, 0.0, 90.0 * sx)
         for sy in (-1, 1):
             put("corner_flag", sx * PITCH_LENGTH / 2, sy * PITCH_WIDTH / 2, 0.0, 0.0, "clubPrimary")
-    # Perimeter boards: 4 m off the touchlines and 5 m behind the goal lines, broken at the tunnel.
+    # Perimeter boards: 4 m off the touchlines and 5 m behind the goal lines. On the main side they stop at the
+    # technical zone, where the two benches and the tunnel meet the pitch.
     board_y = PITCH_WIDTH / 2 + 4.0
     for side in (-1, 1):
         x = -PITCH_LENGTH / 2
         while x + 6.0 <= PITCH_LENGTH / 2 + 0.01:
-            if not (side < 0 and abs(x + 3.0) < 6.0):
+            if not (side < 0 and x + 6.0 > -TECH_ZONE_HALF and x < TECH_ZONE_HALF):
                 yaw = 0.0 if side < 0 else 180.0
                 px = x if side < 0 else x + 6.0
                 put("adboard", px, side * board_y, 0.0, yaw)
@@ -329,9 +335,14 @@ def _pieces(p, rng, stands, hx, hy, lighting):
                     block += 1
     main = next(s for s in stands if s.main)
     my = main.start[1]
-    put("tunnel", 0.0, my + 1.0, 0.0, 0.0, "clubPrimary")
-    for sx in (-1, 1):
-        put("dugout", sx * 6.5 - (7.0 if sx > 0 else 0.0) + (0 if sx > 0 else -0.0), -PITCH_WIDTH / 2 - 2.5, 0.0, 0.0)
+    # One bench per club, symmetric about the halfway line, fronts 3 m off the touchline (technical areas).
+    bench_front = -PITCH_WIDTH / 2 - 3.0
+    put("dugout", -BENCH_INNER - BENCH_LENGTH, bench_front, 0.0, 0.0)
+    put("dugout", BENCH_INNER, bench_front, 0.0, 0.0)
+    # The players' tunnel runs from the main stand's front to just behind the bench line, never onto the
+    # pitch; its 8 m authored length is scaled to the actual gap.
+    tunnel_end = bench_front - 2.0
+    put("tunnel", 0.0, my, 0.0, 0.0, "clubPrimary", (1.0, max(0.3, (tunnel_end - my) / 8.0), 1.0))
     gx, gy, gz = broadcast_gantry(main, p)
     put("camera_gantry", gx, gy, gz, 0.0)
     if lighting == "towers":

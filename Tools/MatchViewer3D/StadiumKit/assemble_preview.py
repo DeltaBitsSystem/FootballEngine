@@ -233,7 +233,9 @@ def build_pieces(layout, kit):
         src = kit.get(f"{pc['piece']}.lod0")
         if src is None:
             continue
-        m = Matrix.Translation((pc["x"], pc["y"], pc["z"])) @ Matrix.Rotation(math.radians(pc["yaw"]), 4, "Z")
+        sx, sy, sz = pc.get("scale", (1, 1, 1))
+        m = Matrix.Translation((pc["x"], pc["y"], pc["z"])) @ Matrix.Rotation(math.radians(pc["yaw"]), 4, "Z") \
+            @ Matrix.Diagonal((sx, sy, sz, 1))
         place(src, m, pc["piece"])
 
 
@@ -332,6 +334,9 @@ def cameras(layout):
         "aerial": ((-170.0, -190.0, 150.0), (0.0, 0.0, 0.0), 32.0),
         "goal": ((-sl.PITCH_LENGTH / 2 - 25, -6.0, 16.0), (10.0, 0.0, 2.0), 24.0),
         "pitch": ((-20.0, -28.0, 1.7), (20.0, 30.0, 12.0), 20.0),
+        "bench": ((-14.0, -12.0, 6.0), (0.0, -40.0, 1.5), 24.0),
+        "goals": ((0.0, -6.0, 75.0), (0.0, 0.0, 0.0), 22.0),
+        "goal_close": ((40.0, -14.0, 5.0), (54.0, 0.0, 1.0), 28.0),
     }
 
 

@@ -77,6 +77,8 @@
 !/FootballEngine.Client/Assets/MatchViewer/player-*.png
 !/FootballEngine.Client/Assets/MatchViewer/players.blend
 !/FootballEngine.Client/Assets/MatchViewer/player.glb
+!/FootballEngine.Client/Assets/MatchViewer/player-hair.glb
+!/FootballEngine.Client/Assets/MatchViewer/player-hair.json
 !/FootballEngine.Client/Assets/MatchViewer/player-motion.json
 !/FootballEngine.Client/Assets/MatchViewer/Sources/MakeHuman/base.obj
 !/FootballEngine.Client/Assets/MatchViewer/Sources/MakeHuman/*.target
