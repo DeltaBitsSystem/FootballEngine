@@ -700,7 +700,40 @@ module PlayerStoriesTests =
 
         testList
             "season turnover"
-            [ testCase "the roll retires people without leaving any club with a lineup it did not already lack"
+            [ testCase "injuries that end during the break are healed for the next kickoff, longer ones are kept"
+              <| fun _ ->
+                  let gs = world.Value
+                  let balance = FootballEngine.Core.Match.BalanceConfig.defaultConfig
+                  let kickoff = DateTime(gs.Season + 1, 7, 1)
+
+                  let contracted =
+                      gs.Players.Values
+                      |> Seq.filter (fun p -> (Player.clubOf p).IsSome)
+                      |> Seq.truncate 2
+                      |> Seq.toList
+
+                  let healing, longTerm = contracted[0], contracted[1]
+
+                  let injure (until: DateTime) (p: Player) =
+                      { p with Status = Injured(InjurySeverity.Minor, until) }
+
+                  let injured =
+                      { gs with
+                          Players =
+                              gs.Players
+                              |> Map.add healing.Id (injure (gs.CurrentDate.AddDays 14.0) healing)
+                              |> Map.add longTerm.Id (injure (kickoff.AddDays 30.0) longTerm) }
+
+                  let next = SeasonPhase.runEndOfSeason balance injured
+
+                  Expect.equal next.Players[healing.Id].Status Available "fit again before the season starts"
+
+                  Expect.equal
+                      next.Players[longTerm.Id].Status
+                      (Injured(InjurySeverity.Minor, kickoff.AddDays 30.0))
+                      "an injury running into the new season is kept"
+
+              testCase "the roll retires people without leaving any club with a lineup it did not already lack"
               <| fun _ ->
                   let gs = world.Value
                   let balance = FootballEngine.Core.Match.BalanceConfig.defaultConfig

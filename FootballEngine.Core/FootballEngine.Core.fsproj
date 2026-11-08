@@ -161,10 +161,10 @@
     <Compile Include="World\Phases\MatchContextBuilder.fs"/>
     <Compile Include="World\Phases\MatchPhase.fs"/>
     <Compile Include="World\Phases\TransferPhase.fs"/>
+    <Compile Include="World\Pulse\PulseRandom.fs"/>
     <Compile Include="World\Phases\TrainingPhase.fs"/>
     <Compile Include="World\Phases\FinancePhase.fs"/>
     <Compile Include="World\Phases\SeasonPhase.fs"/>
-    <Compile Include="World\Pulse\PulseRandom.fs"/>
     <Compile Include="World\Pulse\NewsDesk.fs"/>
     <Compile Include="World\Pulse\MatchStories.fs"/>
     <Compile Include="World\Pulse\Pressure.fs"/>

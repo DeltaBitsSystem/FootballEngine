@@ -458,6 +458,13 @@ module TrainingPhaseEngine =
         : Player =
         trainPlayerWithRatings cfg date tilt recoveryWeek neutralCoaching p
 
+    // Each player's rolls get their own scope: the unseeded fallback is a thread-local generator, so the same
+    // career would grow, decline and injure differently per run and per thread, and map order must not matter.
+    let private seeded (executionSeed: uint64) (date: DateTime) (stream: string) (playerId: int) work =
+        FootballEngine.RNG.withSeed
+            (FootballEngine.World.Pulse.PulseRandom.seedFor executionSeed date stream playerId)
+            work
+
     let applyWeekly (cfg: TrainingConfig) (date: DateTime) (gs: GameState) : GameState =
         let tilt = Training.tiltOf gs.TeamEmphasis
         let recoveryWeek = gs.TeamEmphasis = EmRecovery
@@ -480,7 +487,8 @@ module TrainingPhaseEngine =
                 let recovery = recoveryWeek && clubId = gs.UserClubId
 
                 let trained =
-                    trainPlayerWithRatings cfg date playerTilt recovery (ratingsFor clubId) p
+                    seeded gs.ExecutionSeed date "training-week" p.Id (fun () ->
+                        trainPlayerWithRatings cfg date playerTilt recovery (ratingsFor clubId) p)
 
                 nextGs <- GameState.updatePlayer trained nextGs
             | _ -> ()
@@ -521,7 +529,9 @@ module TrainingPhaseEngine =
                             { p with
                                 Condition = clamp01 (p.Condition - costOf plan * weeks)
                                 Status =
-                                    if rollProbability () < cumulative then
+                                    if
+                                        seeded gs.ExecutionSeed date "training-bulk" p.Id rollProbability < cumulative
+                                    then
                                         Injured(InjurySeverity.Minor, date.AddDays(14.0))
                                     else
                                         p.Status }

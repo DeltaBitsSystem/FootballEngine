@@ -77,6 +77,10 @@ module SeasonPhase =
         { gs with Clubs = updatedClubs }
 
     let private resetConditions (gs: GameState) : GameState =
+        // Healing is judged at the next season's kickoff, not the closing date: an injury that ends during the break
+        // (end-of-season training adds some) would otherwise keep its player out of the first fixture.
+        let nextSeasonStart = DateTime(gs.Season + 1, 7, 1)
+
         { gs with
             Players =
                 gs.Players
@@ -86,7 +90,7 @@ module SeasonPhase =
                         Morale = clamp 40 100 (p.Morale + 10)
                         Status =
                             match p.Status with
-                            | Injured(_, until) when until <= gs.CurrentDate -> Available
+                            | Injured(_, until) when until <= nextSeasonStart -> Available
                             | other -> other }) }
 
     let private refreshAiLineups (gs: GameState) : GameState =

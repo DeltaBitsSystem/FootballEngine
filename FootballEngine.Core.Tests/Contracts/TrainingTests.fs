@@ -716,6 +716,47 @@ module TrainingTests =
                   Expect.equal after.Players[1].MatchFitness (90 - quiet.RestFitnessLoss) "while losing a little edge"
               }
 
+              test "training rolls depend on the career, not on the thread or on earlier draws" {
+                  // Coin-flip odds make every player's growth and injury rolls visible in the result.
+                  let coinFlip =
+                      { baseTraining with
+                          DevelopChance = 0.5
+                          DeclineChance = 0.5
+                          BaseInjuryRisk = 0.3 }
+
+                  let squad =
+                      [ for id in 1..24 -> contracted id ST (18 + id) (Develop Physical) 70 80 60 90 ]
+
+                  let gs =
+                      { makeGameState [ makeClub 1 [ 1..24 ] ] squad [ makeCoach 101 1 None ] with
+                          ExecutionSeed = 0xC0FFEEUL }
+
+                  let weekly () =
+                      TrainingPhaseEngine.applyWeekly coinFlip date gs
+
+                  let bulk () =
+                      TrainingPhaseEngine.applyBulk coinFlip date 6 gs
+
+                  let first = weekly (), bulk ()
+
+                  // Draws made elsewhere advance the unseeded fallback generator; they must not leak into training.
+                  for _ in 1..17 do
+                      FootballEngine.RNG.roll () |> ignore
+
+                  let again = weekly (), bulk ()
+
+                  let otherThread =
+                      System.Threading.Tasks.Task.Run(fun () -> weekly (), bulk ()).Result
+
+                  Expect.equal again first "the same career trains the same way after unrelated draws"
+                  Expect.equal otherThread first "and on another thread"
+
+                  let reseeded =
+                      TrainingPhaseEngine.applyWeekly coinFlip date { gs with ExecutionSeed = 0xBEEFUL }
+
+                  Expect.notEqual reseeded.Players (fst first).Players "a different career seed rolls differently"
+              }
+
               test "validateTraining accepts defaults and rejects bad chances and thresholds" {
                   Expect.isEmpty
                       (FootballEngine.Core.Match.ConfigValidation.validateTraining baseTraining)
