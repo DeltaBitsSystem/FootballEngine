@@ -4,7 +4,9 @@
         <TargetFramework>net10.0</TargetFramework>
     </PropertyGroup>
     <ItemGroup>
+        <Compile Include="../../FootballEngine.Core.Tests/Infrastructure/TestBuilders.fs" Link="TestBuilders.fs" />
         <Compile Include="ProceduralMotionBench.fs" />
+        <Compile Include="MotionCorpus.fs" />
         <Compile Include="StadiumRendererProbe.fs" />
     </ItemGroup>
     <ItemGroup>

@@ -788,4 +788,5 @@ module Program =
     let main args =
         match args with
         | [| "--motion-bench"; output |] -> ProceduralMotionBench.run output
+        | [| "--motion-corpus"; output |] -> MotionCorpus.run output
         | _ -> runNative args
