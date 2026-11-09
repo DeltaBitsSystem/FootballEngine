@@ -87,6 +87,8 @@
         <Compile Include="Match3D\Scene\SceneTypes.fs"/>
         <Compile Include="Match3D\Scene\SceneBuilder.fs"/>
         <Compile Include="Match3D\Scene\UniformLayout.fs"/>
+        <Compile Include="Match3D\Scene\DrawList.fs"/>
+        <Compile Include="Match3D\Frame\FramePlan.fs"/>
         <Compile Include="Match3D\Gpu\GpuError.fs"/>
         <Compile Include="Match3D\Gpu\GpuContext.fs"/>
         <Compile Include="Match3D\Gpu\GpuResources.fs"/>
@@ -97,8 +99,16 @@
         <Compile Include="Match3D\HdrOutputPass.fs"/>
         <Compile Include="Match3D\MatchHudInvalidation.fs"/>
         <Compile Include="Match3D\MatchHudRenderer.fs"/>
+        <Compile Include="Match3D\ViewerAssets.fs"/>
+        <Compile Include="Match3D\Systems\ViewerSystems.fs"/>
+        <Compile Include="Match3D\Frame\RenderTargets.fs"/>
+        <Compile Include="Match3D\Frame\SceneResources.fs"/>
+        <Compile Include="Match3D\Frame\HudOverlay.fs"/>
+        <Compile Include="Match3D\Frame\FramePacing.fs"/>
+        <Compile Include="Match3D\Frame\FrameEncoder.fs"/>
         <Compile Include="Match3D\Platform\X11ChildWindow.fs"/>
         <Compile Include="Match3D\WebGpuStadiumRenderer.fs"/>
+        <Compile Include="Match3D\MatchPitchNative.fs"/>
         <Compile Include="Match3D\PresentationLoop.fs"/>
         <Compile Include="Match3D\RenderWorker.fs"/>
         <Compile Include="Views\MatchPitch\RenderResources.fs"/>

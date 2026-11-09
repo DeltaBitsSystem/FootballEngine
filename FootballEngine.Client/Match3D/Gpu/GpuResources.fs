@@ -211,3 +211,22 @@ type GpuSampler private (context: GpuContext, handle: nativeptr<Sampler>) =
             if not disposed then
                 disposed <- true
                 context.Api.SamplerRelease(handle)
+
+/// Collects releases in creation order so a component built from many native objects can free them in reverse,
+/// both on normal disposal and when a later creation step fails.
+[<Sealed>]
+type GpuOwner() =
+    let releases = ResizeArray<unit -> unit>()
+
+    member _.Release(release: unit -> unit) = releases.Add release
+
+    member this.Own(value: #System.IDisposable) =
+        this.Release(fun () -> value.Dispose())
+        value
+
+    interface System.IDisposable with
+        member _.Dispose() =
+            for index = releases.Count - 1 downto 0 do
+                releases[index]()
+
+            releases.Clear()

@@ -107,3 +107,33 @@ After every step: captures vs baseline. Acceptance per scene: max abs channel di
 AGENTS.md conventions; comments explain why. No `Unchecked.defaultof`/`failwith`; `invalidOp` only at the façade
 boundary described above. No new NuGet packages. Keep shading output identical: this unit is a refactor; visual
 changes belong to C2b+.
+
+## As built (steps 0–5 complete)
+
+Files: `Platform/X11ChildWindow.fs`; `Gpu/` (GpuError, GpuContext, GpuResources with `GpuBuffer<'T>`,
+`GpuTexture`, `GpuSampler`, `GpuOwner`, ShaderLibrary, PipelineCache); `Scene/` (SceneTypes, SceneBuilder,
+UniformLayout, DrawList); `Frame/` (FramePlan, RenderTargets, SceneResources, HudOverlay, FramePacing,
+FrameEncoder); `ViewerAssets.fs`; `Systems/ViewerSystems.fs`; `MatchPitchNative.fs`. The embedded WGSL moved to
+`Shaders/StadiumScene.wgsl` and `Shaders/MatchHud.wgsl`. The façade is 320 lines (was 2215).
+
+Every step was verified against `artifacts/viewer-engine/baseline2`: all six scenes masked-identical (diff 0), frame
+time within ±2.5 %. Harness determinism needed three fixes, not one: `--match-seed 0`, a pinned presentation clock,
+and an initial hold at tick 0 (`MatchRuntime.armInitialHold`); the HUD FPS readout is masked when comparing.
+
+Deviations from the design above, deliberately:
+- `Draw` carries no pipeline key and there is no blended layer yet: one opaque pipeline exists today. C2b adds
+  `Pipeline` to `Draw` and a back-to-front blended layer when kit glass/nets arrive (the compiler will list every
+  producer).
+- Draw grouping keeps submission order instead of sorting by pipeline/mesh: reordering equal-depth opaque
+  fragments changes pixels, and with one pipeline sorting buys nothing.
+- No camera-focus smoothing exists in the old renderer, so `SceneBuilder` is stateless.
+- Grass and sky remain `ProceduralScenePass` objects owned by `SceneResources`, encoded inside the main pass, rather
+  than `IViewerSystem`s: they draw with no mesh and share the scene pipeline layout.
+
+How to add things now:
+- New scene content (procedural stadium, crowd): an `IViewerSystem` from `ViewerSystems`, listed in the façade's
+  `systems` in submission order.
+- New pass (night lights, weather): a `FramePass` case + `PassIo` entry in `FramePlan.stadium` (validated by tests)
+  and its body in `FrameEncoder.encode`.
+- New per-frame data: a `SceneFrame` field from `SceneBuilder`, and a named offset in `UniformLayout` (checked against
+  `CameraUniform.wgsl`).

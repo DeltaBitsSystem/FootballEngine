@@ -34,4 +34,5 @@ let main argv =
               RenderWorkerTests.tests
               StadiumLayoutTests.tests
               Match3DFoundationTests.tests
-              Match3DSceneTests.tests ])
+              Match3DSceneTests.tests
+              Match3DFrameTests.tests ])
