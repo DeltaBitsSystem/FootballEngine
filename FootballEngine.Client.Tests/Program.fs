@@ -25,6 +25,7 @@ let main argv =
               CharacterAnimationTests.tests
               Animation.MotionRuntimeTests.tests
               Animation.MotionTimelineTests.tests
+              Animation.MotionDatabaseTests.tests
               HdrLightingTests.tests
               ViewerPresentationTests.tests
               PitchMarkingsTests.tests

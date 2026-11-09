@@ -1,0 +1,2518 @@
+{
+ "schema": 1,
+ "rateHz": 60,
+ "drivenJoints": [
+  "pelvis",
+  "spine",
+  "chest",
+  "neck",
+  "head",
+  "clavicle.L",
+  "upper_arm.L",
+  "forearm.L",
+  "hand.L",
+  "clavicle.R",
+  "upper_arm.R",
+  "forearm.R",
+  "hand.R",
+  "thigh.L",
+  "shin.L",
+  "foot.L",
+  "toe.L",
+  "thigh.R",
+  "shin.R",
+  "foot.R",
+  "toe.R"
+ ],
+ "bytes": 11283031,
+ "sha256": "91e2cd1c5b713e4693397ad09b1a1a40eb8533507323764c896174999bf4528a",
+ "frames": 58419,
+ "families": {
+  "locomotion": {
+   "clips": 76,
+   "frames": 8700
+  },
+  "footwork": {
+   "clips": 28,
+   "frames": 2873
+  },
+  "walking": {
+   "clips": 21,
+   "frames": 28046
+  },
+  "kick": {
+   "clips": 11,
+   "frames": 8833
+  },
+  "reach": {
+   "clips": 18,
+   "frames": 9967
+  }
+ },
+ "clips": [
+  {
+   "trial": "16_08",
+   "family": "locomotion",
+   "frames": 120,
+   "seconds": 2.0,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0638,
+   "lowestFootMetres": -0.0118,
+   "contactFraction": [
+    0.583,
+    0.567
+   ],
+   "meanSpeed": 1.575,
+   "description": "run/jog, sudden stop"
+  },
+  {
+   "trial": "16_35",
+   "family": "locomotion",
+   "frames": 81,
+   "seconds": 1.35,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0722,
+   "lowestFootMetres": -0.0049,
+   "contactFraction": [
+    0.309,
+    0.222
+   ],
+   "meanSpeed": 2.744,
+   "description": "run/jog"
+  },
+  {
+   "trial": "16_36",
+   "family": "locomotion",
+   "frames": 95,
+   "seconds": 1.583,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0709,
+   "lowestFootMetres": -0.0053,
+   "contactFraction": [
+    0.274,
+    0.232
+   ],
+   "meanSpeed": 2.662,
+   "description": "run/jog"
+  },
+  {
+   "trial": "16_37",
+   "family": "locomotion",
+   "frames": 92,
+   "seconds": 1.533,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0811,
+   "lowestFootMetres": -0.0067,
+   "contactFraction": [
+    0.283,
+    0.283
+   ],
+   "meanSpeed": 2.402,
+   "description": "run/jog, veer left"
+  },
+  {
+   "trial": "16_38",
+   "family": "locomotion",
+   "frames": 84,
+   "seconds": 1.4,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0775,
+   "lowestFootMetres": -0.0044,
+   "contactFraction": [
+    0.298,
+    0.262
+   ],
+   "meanSpeed": 2.628,
+   "description": "run/jog, veer left"
+  },
+  {
+   "trial": "16_39",
+   "family": "locomotion",
+   "frames": 74,
+   "seconds": 1.233,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0769,
+   "lowestFootMetres": -0.0013,
+   "contactFraction": [
+    0.284,
+    0.284
+   ],
+   "meanSpeed": 2.747,
+   "description": "run/jog, veer right"
+  },
+  {
+   "trial": "16_40",
+   "family": "locomotion",
+   "frames": 97,
+   "seconds": 1.617,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0732,
+   "lowestFootMetres": -0.0039,
+   "contactFraction": [
+    0.268,
+    0.33
+   ],
+   "meanSpeed": 2.368,
+   "description": "run/jog, veer right"
+  },
+  {
+   "trial": "16_41",
+   "family": "locomotion",
+   "frames": 80,
+   "seconds": 1.333,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.074,
+   "lowestFootMetres": -0.0031,
+   "contactFraction": [
+    0.287,
+    0.312
+   ],
+   "meanSpeed": 2.1,
+   "description": "run/jog, 90-degree left turn"
+  },
+  {
+   "trial": "16_42",
+   "family": "locomotion",
+   "frames": 103,
+   "seconds": 1.717,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0815,
+   "lowestFootMetres": -0.0105,
+   "contactFraction": [
+    0.32,
+    0.32
+   ],
+   "meanSpeed": 2.02,
+   "description": "run/jog, 90-degree left turn"
+  },
+  {
+   "trial": "16_43",
+   "family": "locomotion",
+   "frames": 105,
+   "seconds": 1.75,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0711,
+   "lowestFootMetres": -0.0108,
+   "contactFraction": [
+    0.286,
+    0.324
+   ],
+   "meanSpeed": 2.274,
+   "description": "run/jog, 90-degree right turn"
+  },
+  {
+   "trial": "16_44",
+   "family": "locomotion",
+   "frames": 108,
+   "seconds": 1.8,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0757,
+   "lowestFootMetres": -0.0031,
+   "contactFraction": [
+    0.324,
+    0.333
+   ],
+   "meanSpeed": 2.063,
+   "description": "run/jog, 90-degree right turn"
+  },
+  {
+   "trial": "16_45",
+   "family": "locomotion",
+   "frames": 68,
+   "seconds": 1.133,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0705,
+   "lowestFootMetres": -0.0053,
+   "contactFraction": [
+    0.103,
+    0.265
+   ],
+   "meanSpeed": 3.863,
+   "description": "run/jog"
+  },
+  {
+   "trial": "16_46",
+   "family": "locomotion",
+   "frames": 68,
+   "seconds": 1.133,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0761,
+   "lowestFootMetres": -0.0041,
+   "contactFraction": [
+    0.118,
+    0.265
+   ],
+   "meanSpeed": 4.026,
+   "description": "run/jog"
+  },
+  {
+   "trial": "16_48",
+   "family": "locomotion",
+   "frames": 64,
+   "seconds": 1.067,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0815,
+   "lowestFootMetres": -0.0075,
+   "contactFraction": [
+    0.234,
+    0.234
+   ],
+   "meanSpeed": 3.878,
+   "description": "run, veer left"
+  },
+  {
+   "trial": "16_49",
+   "family": "locomotion",
+   "frames": 64,
+   "seconds": 1.067,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0765,
+   "lowestFootMetres": -0.0034,
+   "contactFraction": [
+    0.266,
+    0.25
+   ],
+   "meanSpeed": 3.847,
+   "description": "run, veer right"
+  },
+  {
+   "trial": "16_50",
+   "family": "locomotion",
+   "frames": 65,
+   "seconds": 1.083,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0758,
+   "lowestFootMetres": -0.0068,
+   "contactFraction": [
+    0.262,
+    0.2
+   ],
+   "meanSpeed": 3.592,
+   "description": "run, veer right"
+  },
+  {
+   "trial": "16_51",
+   "family": "locomotion",
+   "frames": 89,
+   "seconds": 1.483,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0684,
+   "lowestFootMetres": -0.0041,
+   "contactFraction": [
+    0.303,
+    0.27
+   ],
+   "meanSpeed": 2.613,
+   "description": "run, 90-degree left turn"
+  },
+  {
+   "trial": "16_52",
+   "family": "locomotion",
+   "frames": 87,
+   "seconds": 1.45,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0659,
+   "lowestFootMetres": -0.0022,
+   "contactFraction": [
+    0.345,
+    0.207
+   ],
+   "meanSpeed": 2.515,
+   "description": "run, 90-degree left turn"
+  },
+  {
+   "trial": "16_53",
+   "family": "locomotion",
+   "frames": 72,
+   "seconds": 1.2,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.085,
+   "lowestFootMetres": -0.0032,
+   "contactFraction": [
+    0.194,
+    0.306
+   ],
+   "meanSpeed": 2.665,
+   "description": "run, 90-degree right turn"
+  },
+  {
+   "trial": "16_54",
+   "family": "locomotion",
+   "frames": 69,
+   "seconds": 1.15,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0732,
+   "lowestFootMetres": -0.0055,
+   "contactFraction": [
+    0.275,
+    0.275
+   ],
+   "meanSpeed": 2.628,
+   "description": "run, 90-degree right turn"
+  },
+  {
+   "trial": "16_55",
+   "family": "locomotion",
+   "frames": 91,
+   "seconds": 1.517,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0771,
+   "lowestFootMetres": -0.014,
+   "contactFraction": [
+    0.286,
+    0.44
+   ],
+   "meanSpeed": 2.999,
+   "description": "run"
+  },
+  {
+   "trial": "16_56",
+   "family": "locomotion",
+   "frames": 85,
+   "seconds": 1.417,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0788,
+   "lowestFootMetres": -0.0079,
+   "contactFraction": [
+    0.329,
+    0.376
+   ],
+   "meanSpeed": 2.93,
+   "description": "run/jog"
+  },
+  {
+   "trial": "16_57",
+   "family": "locomotion",
+   "frames": 134,
+   "seconds": 2.233,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0667,
+   "lowestFootMetres": -0.0054,
+   "contactFraction": [
+    0.612,
+    0.582
+   ],
+   "meanSpeed": 1.322,
+   "description": "run/jog, sudden stop"
+  },
+  {
+   "trial": "09_01",
+   "family": "locomotion",
+   "frames": 74,
+   "seconds": 1.233,
+   "rootScale": 1.0164,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0692,
+   "lowestFootMetres": -0.0041,
+   "contactFraction": [
+    0.216,
+    0.243
+   ],
+   "meanSpeed": 3.403,
+   "description": "run"
+  },
+  {
+   "trial": "09_02",
+   "family": "locomotion",
+   "frames": 65,
+   "seconds": 1.083,
+   "rootScale": 1.0164,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0713,
+   "lowestFootMetres": -0.0033,
+   "contactFraction": [
+    0.246,
+    0.138
+   ],
+   "meanSpeed": 3.331,
+   "description": "run"
+  },
+  {
+   "trial": "09_03",
+   "family": "locomotion",
+   "frames": 64,
+   "seconds": 1.067,
+   "rootScale": 1.0164,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.069,
+   "lowestFootMetres": -0.0036,
+   "contactFraction": [
+    0.219,
+    0.141
+   ],
+   "meanSpeed": 3.284,
+   "description": "run"
+  },
+  {
+   "trial": "09_04",
+   "family": "locomotion",
+   "frames": 69,
+   "seconds": 1.15,
+   "rootScale": 1.0164,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0705,
+   "lowestFootMetres": -0.0015,
+   "contactFraction": [
+    0.29,
+    0.145
+   ],
+   "meanSpeed": 3.41,
+   "description": "run"
+  },
+  {
+   "trial": "09_05",
+   "family": "locomotion",
+   "frames": 72,
+   "seconds": 1.2,
+   "rootScale": 1.0164,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0699,
+   "lowestFootMetres": -0.004,
+   "contactFraction": [
+    0.25,
+    0.236
+   ],
+   "meanSpeed": 3.305,
+   "description": "run"
+  },
+  {
+   "trial": "09_06",
+   "family": "locomotion",
+   "frames": 71,
+   "seconds": 1.183,
+   "rootScale": 1.0164,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0722,
+   "lowestFootMetres": -0.0022,
+   "contactFraction": [
+    0.169,
+    0.282
+   ],
+   "meanSpeed": 3.437,
+   "description": "run"
+  },
+  {
+   "trial": "09_07",
+   "family": "locomotion",
+   "frames": 69,
+   "seconds": 1.15,
+   "rootScale": 1.0164,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0689,
+   "lowestFootMetres": -0.005,
+   "contactFraction": [
+    0.29,
+    0.145
+   ],
+   "meanSpeed": 3.234,
+   "description": "run"
+  },
+  {
+   "trial": "09_08",
+   "family": "locomotion",
+   "frames": 64,
+   "seconds": 1.067,
+   "rootScale": 1.0164,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0744,
+   "lowestFootMetres": -0.003,
+   "contactFraction": [
+    0.156,
+    0.266
+   ],
+   "meanSpeed": 3.254,
+   "description": "run"
+  },
+  {
+   "trial": "09_09",
+   "family": "locomotion",
+   "frames": 76,
+   "seconds": 1.267,
+   "rootScale": 1.0164,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0671,
+   "lowestFootMetres": -0.0025,
+   "contactFraction": [
+    0.25,
+    0.263
+   ],
+   "meanSpeed": 3.325,
+   "description": "run"
+  },
+  {
+   "trial": "09_10",
+   "family": "locomotion",
+   "frames": 66,
+   "seconds": 1.1,
+   "rootScale": 1.0164,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0693,
+   "lowestFootMetres": -1.0035,
+   "contactFraction": [
+    0.121,
+    0.273
+   ],
+   "meanSpeed": 3.232,
+   "description": "run"
+  },
+  {
+   "trial": "09_11",
+   "family": "locomotion",
+   "frames": 83,
+   "seconds": 1.383,
+   "rootScale": 1.0164,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.07,
+   "lowestFootMetres": -0.0051,
+   "contactFraction": [
+    0.241,
+    0.217
+   ],
+   "meanSpeed": 3.36,
+   "description": "run"
+  },
+  {
+   "trial": "35_17",
+   "family": "locomotion",
+   "frames": 84,
+   "seconds": 1.4,
+   "rootScale": 1.0114,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0681,
+   "lowestFootMetres": -0.0032,
+   "contactFraction": [
+    0.286,
+    0.202
+   ],
+   "meanSpeed": 3.03,
+   "description": "run/jog"
+  },
+  {
+   "trial": "35_18",
+   "family": "locomotion",
+   "frames": 88,
+   "seconds": 1.467,
+   "rootScale": 1.0114,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0678,
+   "lowestFootMetres": -0.0025,
+   "contactFraction": [
+    0.261,
+    0.227
+   ],
+   "meanSpeed": 3.005,
+   "description": "run/jog"
+  },
+  {
+   "trial": "35_19",
+   "family": "locomotion",
+   "frames": 80,
+   "seconds": 1.333,
+   "rootScale": 1.0114,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0723,
+   "lowestFootMetres": -0.0041,
+   "contactFraction": [
+    0.25,
+    0.237
+   ],
+   "meanSpeed": 3.182,
+   "description": "run/jog"
+  },
+  {
+   "trial": "35_20",
+   "family": "locomotion",
+   "frames": 82,
+   "seconds": 1.367,
+   "rootScale": 1.0114,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0707,
+   "lowestFootMetres": -0.0073,
+   "contactFraction": [
+    0.232,
+    0.232
+   ],
+   "meanSpeed": 3.251,
+   "description": "run/jog"
+  },
+  {
+   "trial": "35_21",
+   "family": "locomotion",
+   "frames": 81,
+   "seconds": 1.35,
+   "rootScale": 1.0114,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0711,
+   "lowestFootMetres": -0.0046,
+   "contactFraction": [
+    0.21,
+    0.21
+   ],
+   "meanSpeed": 3.387,
+   "description": "run/jog"
+  },
+  {
+   "trial": "35_22",
+   "family": "locomotion",
+   "frames": 84,
+   "seconds": 1.4,
+   "rootScale": 1.0114,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0678,
+   "lowestFootMetres": -0.0037,
+   "contactFraction": [
+    0.238,
+    0.25
+   ],
+   "meanSpeed": 3.206,
+   "description": "run/jog"
+  },
+  {
+   "trial": "35_23",
+   "family": "locomotion",
+   "frames": 81,
+   "seconds": 1.35,
+   "rootScale": 1.0114,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0674,
+   "lowestFootMetres": -0.0036,
+   "contactFraction": [
+    0.21,
+    0.247
+   ],
+   "meanSpeed": 3.24,
+   "description": "run/jog"
+  },
+  {
+   "trial": "35_24",
+   "family": "locomotion",
+   "frames": 75,
+   "seconds": 1.25,
+   "rootScale": 1.0114,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0719,
+   "lowestFootMetres": -0.0073,
+   "contactFraction": [
+    0.24,
+    0.28
+   ],
+   "meanSpeed": 3.33,
+   "description": "run/jog"
+  },
+  {
+   "trial": "35_25",
+   "family": "locomotion",
+   "frames": 83,
+   "seconds": 1.383,
+   "rootScale": 1.0114,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0717,
+   "lowestFootMetres": -0.0053,
+   "contactFraction": [
+    0.205,
+    0.241
+   ],
+   "meanSpeed": 3.186,
+   "description": "run/jog"
+  },
+  {
+   "trial": "35_26",
+   "family": "locomotion",
+   "frames": 69,
+   "seconds": 1.15,
+   "rootScale": 1.0114,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0787,
+   "lowestFootMetres": -0.0065,
+   "contactFraction": [
+    0.145,
+    0.29
+   ],
+   "meanSpeed": 3.322,
+   "description": "run/jog"
+  },
+  {
+   "trial": "127_03",
+   "family": "locomotion",
+   "frames": 166,
+   "seconds": 2.767,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0447,
+   "lowestFootMetres": -0.0001,
+   "contactFraction": [
+    0.633,
+    0.705
+   ],
+   "meanSpeed": 1.528,
+   "description": "Run"
+  },
+  {
+   "trial": "127_04",
+   "family": "locomotion",
+   "frames": 223,
+   "seconds": 3.717,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0399,
+   "lowestFootMetres": -0.0001,
+   "contactFraction": [
+    0.65,
+    0.646
+   ],
+   "meanSpeed": 1.256,
+   "description": "Walk to Run"
+  },
+  {
+   "trial": "127_05",
+   "family": "locomotion",
+   "frames": 194,
+   "seconds": 3.233,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0303,
+   "lowestFootMetres": -0.0029,
+   "contactFraction": [
+    0.552,
+    0.593
+   ],
+   "meanSpeed": 1.481,
+   "description": "Run to Quick Stop"
+  },
+  {
+   "trial": "127_06",
+   "family": "locomotion",
+   "frames": 87,
+   "seconds": 1.45,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.053,
+   "lowestFootMetres": -0.0007,
+   "contactFraction": [
+    0.299,
+    0.287
+   ],
+   "meanSpeed": 3.689,
+   "description": "Run"
+  },
+  {
+   "trial": "127_07",
+   "family": "locomotion",
+   "frames": 73,
+   "seconds": 1.217,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0622,
+   "lowestFootMetres": -0.0068,
+   "contactFraction": [
+    0.247,
+    0.26
+   ],
+   "meanSpeed": 4.047,
+   "description": "Run"
+  },
+  {
+   "trial": "127_08",
+   "family": "locomotion",
+   "frames": 70,
+   "seconds": 1.167,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0711,
+   "lowestFootMetres": -0.0016,
+   "contactFraction": [
+    0.3,
+    0.257
+   ],
+   "meanSpeed": 4.279,
+   "description": "Run"
+  },
+  {
+   "trial": "127_09",
+   "family": "locomotion",
+   "frames": 99,
+   "seconds": 1.65,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0321,
+   "lowestFootMetres": -0.0028,
+   "contactFraction": [
+    0.222,
+    0.303
+   ],
+   "meanSpeed": 3.244,
+   "description": "Run Right"
+  },
+  {
+   "trial": "127_10",
+   "family": "locomotion",
+   "frames": 84,
+   "seconds": 1.4,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0467,
+   "lowestFootMetres": -0.0025,
+   "contactFraction": [
+    0.321,
+    0.226
+   ],
+   "meanSpeed": 3.608,
+   "description": "Run Right"
+  },
+  {
+   "trial": "127_11",
+   "family": "locomotion",
+   "frames": 100,
+   "seconds": 1.667,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0417,
+   "lowestFootMetres": -0.0025,
+   "contactFraction": [
+    0.18,
+    0.22
+   ],
+   "meanSpeed": 3.015,
+   "description": "Run Left"
+  },
+  {
+   "trial": "127_12",
+   "family": "locomotion",
+   "frames": 89,
+   "seconds": 1.483,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0303,
+   "lowestFootMetres": -0.0047,
+   "contactFraction": [
+    0.056,
+    0.18
+   ],
+   "meanSpeed": 3.457,
+   "description": "Run Left"
+  },
+  {
+   "trial": "127_13",
+   "family": "locomotion",
+   "frames": 93,
+   "seconds": 1.55,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0462,
+   "lowestFootMetres": -0.0018,
+   "contactFraction": [
+    0.247,
+    0.226
+   ],
+   "meanSpeed": 3.197,
+   "description": "Run Side Step Left"
+  },
+  {
+   "trial": "127_14",
+   "family": "locomotion",
+   "frames": 76,
+   "seconds": 1.267,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0446,
+   "lowestFootMetres": -0.0016,
+   "contactFraction": [
+    0.25,
+    0.303
+   ],
+   "meanSpeed": 3.462,
+   "description": "Run Side Step Right"
+  },
+  {
+   "trial": "127_15",
+   "family": "locomotion",
+   "frames": 82,
+   "seconds": 1.367,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0626,
+   "lowestFootMetres": -0.0024,
+   "contactFraction": [
+    0.317,
+    0.244
+   ],
+   "meanSpeed": 3.144,
+   "description": "Run Turn Left"
+  },
+  {
+   "trial": "127_16",
+   "family": "locomotion",
+   "frames": 129,
+   "seconds": 2.15,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0639,
+   "lowestFootMetres": -0.0033,
+   "contactFraction": [
+    0.395,
+    0.434
+   ],
+   "meanSpeed": 2.475,
+   "description": "Run Turn Right"
+  },
+  {
+   "trial": "127_17",
+   "family": "locomotion",
+   "frames": 191,
+   "seconds": 3.183,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0585,
+   "lowestFootMetres": -0.0026,
+   "contactFraction": [
+    0.66,
+    0.686
+   ],
+   "meanSpeed": 1.354,
+   "description": "Run Stop Run"
+  },
+  {
+   "trial": "127_18",
+   "family": "locomotion",
+   "frames": 197,
+   "seconds": 3.283,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0661,
+   "lowestFootMetres": -0.007,
+   "contactFraction": [
+    0.65,
+    0.604
+   ],
+   "meanSpeed": 1.544,
+   "description": "Run Stop Run"
+  },
+  {
+   "trial": "127_19",
+   "family": "locomotion",
+   "frames": 220,
+   "seconds": 3.667,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0633,
+   "lowestFootMetres": -0.0051,
+   "contactFraction": [
+    0.673,
+    0.605
+   ],
+   "meanSpeed": 1.405,
+   "description": "Run Quick Stop Run"
+  },
+  {
+   "trial": "127_20",
+   "family": "locomotion",
+   "frames": 180,
+   "seconds": 3.0,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0485,
+   "lowestFootMetres": -0.0022,
+   "contactFraction": [
+    0.65,
+    0.533
+   ],
+   "meanSpeed": 1.718,
+   "description": "Run Quick Stop Run"
+  },
+  {
+   "trial": "143_01",
+   "family": "locomotion",
+   "frames": 50,
+   "seconds": 0.833,
+   "rootScale": 1.184,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0609,
+   "lowestFootMetres": -0.0017,
+   "contactFraction": [
+    0.14,
+    0.14
+   ],
+   "meanSpeed": 6.355,
+   "description": "Run"
+  },
+  {
+   "trial": "143_02",
+   "family": "locomotion",
+   "frames": 104,
+   "seconds": 1.733,
+   "rootScale": 1.184,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0594,
+   "lowestFootMetres": -0.0116,
+   "contactFraction": [
+    0.654,
+    0.625
+   ],
+   "meanSpeed": 2.378,
+   "description": "Run to Stop"
+  },
+  {
+   "trial": "143_03",
+   "family": "locomotion",
+   "frames": 120,
+   "seconds": 2.0,
+   "rootScale": 1.184,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0553,
+   "lowestFootMetres": -0.0008,
+   "contactFraction": [
+    0.708,
+    0.667
+   ],
+   "meanSpeed": 1.925,
+   "description": "Start to Run"
+  },
+  {
+   "trial": "143_04",
+   "family": "locomotion",
+   "frames": 543,
+   "seconds": 9.05,
+   "rootScale": 1.184,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0519,
+   "lowestFootMetres": -0.0197,
+   "contactFraction": [
+    0.398,
+    0.403
+   ],
+   "meanSpeed": 2.738,
+   "description": "Run Figure 8"
+  },
+  {
+   "trial": "143_42",
+   "family": "locomotion",
+   "frames": 269,
+   "seconds": 4.483,
+   "rootScale": 1.184,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0501,
+   "lowestFootMetres": -0.0107,
+   "contactFraction": [
+    0.543,
+    0.576
+   ],
+   "meanSpeed": 2.308,
+   "description": "Run"
+  },
+  {
+   "trial": "104_06",
+   "family": "locomotion",
+   "frames": 169,
+   "seconds": 2.817,
+   "rootScale": 1.082,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0549,
+   "lowestFootMetres": -0.0191,
+   "contactFraction": [
+    0.337,
+    0.391
+   ],
+   "meanSpeed": 1.905,
+   "description": "StartJog"
+  },
+  {
+   "trial": "104_08",
+   "family": "locomotion",
+   "frames": 157,
+   "seconds": 2.617,
+   "rootScale": 1.082,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0657,
+   "lowestFootMetres": -0.0202,
+   "contactFraction": [
+    0.478,
+    0.414
+   ],
+   "meanSpeed": 1.63,
+   "description": "StartJog"
+  },
+  {
+   "trial": "104_09",
+   "family": "locomotion",
+   "frames": 175,
+   "seconds": 2.917,
+   "rootScale": 1.082,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.045,
+   "lowestFootMetres": -0.0107,
+   "contactFraction": [
+    0.314,
+    0.371
+   ],
+   "meanSpeed": 1.688,
+   "description": "JogStop"
+  },
+  {
+   "trial": "104_10",
+   "family": "locomotion",
+   "frames": 167,
+   "seconds": 2.783,
+   "rootScale": 1.082,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0437,
+   "lowestFootMetres": -0.0123,
+   "contactFraction": [
+    0.257,
+    0.407
+   ],
+   "meanSpeed": 1.775,
+   "description": "JogStop"
+  },
+  {
+   "trial": "104_56",
+   "family": "locomotion",
+   "frames": 184,
+   "seconds": 3.067,
+   "rootScale": 1.082,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0435,
+   "lowestFootMetres": -0.0116,
+   "contactFraction": [
+    0.5,
+    0.582
+   ],
+   "meanSpeed": 1.548,
+   "description": "RunStop"
+  },
+  {
+   "trial": "104_57",
+   "family": "locomotion",
+   "frames": 192,
+   "seconds": 3.2,
+   "rootScale": 1.082,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0442,
+   "lowestFootMetres": -0.0062,
+   "contactFraction": [
+    0.505,
+    0.583
+   ],
+   "meanSpeed": 1.362,
+   "description": "RunStop"
+  },
+  {
+   "trial": "134_12",
+   "family": "locomotion",
+   "frames": 184,
+   "seconds": 3.067,
+   "rootScale": 1.0013,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0896,
+   "lowestFootMetres": -0.0091,
+   "contactFraction": [
+    0.332,
+    0.076
+   ],
+   "meanSpeed": 1.511,
+   "description": "Stop and Go"
+  },
+  {
+   "trial": "134_13",
+   "family": "locomotion",
+   "frames": 221,
+   "seconds": 3.683,
+   "rootScale": 1.0013,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0791,
+   "lowestFootMetres": -0.0083,
+   "contactFraction": [
+    0.412,
+    0.294
+   ],
+   "meanSpeed": 1.282,
+   "description": "Stop and Go"
+  },
+  {
+   "trial": "134_14",
+   "family": "locomotion",
+   "frames": 237,
+   "seconds": 3.95,
+   "rootScale": 1.0013,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0771,
+   "lowestFootMetres": -0.0192,
+   "contactFraction": [
+    0.523,
+    0.363
+   ],
+   "meanSpeed": 1.106,
+   "description": "Stop ang Go"
+  },
+  {
+   "trial": "78_01",
+   "family": "footwork",
+   "frames": 85,
+   "seconds": 1.417,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.082,
+   "lowestFootMetres": -0.0022,
+   "contactFraction": [
+    0.529,
+    0.459
+   ],
+   "meanSpeed": 2.312,
+   "description": "LeftTightTurn         CleanedGRS"
+  },
+  {
+   "trial": "78_02",
+   "family": "footwork",
+   "frames": 139,
+   "seconds": 2.317,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0647,
+   "lowestFootMetres": -0.0028,
+   "contactFraction": [
+    0.424,
+    0.518
+   ],
+   "meanSpeed": 2.334,
+   "description": "RightWideTurn            CleanedGRS"
+  },
+  {
+   "trial": "78_03",
+   "family": "footwork",
+   "frames": 87,
+   "seconds": 1.45,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0761,
+   "lowestFootMetres": -0.0029,
+   "contactFraction": [
+    0.276,
+    0.287
+   ],
+   "meanSpeed": 3.151,
+   "description": "LeftWideTurn     CleanedGRS"
+  },
+  {
+   "trial": "78_06",
+   "family": "footwork",
+   "frames": 55,
+   "seconds": 0.917,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0723,
+   "lowestFootMetres": -0.0089,
+   "contactFraction": [
+    0.091,
+    0.255
+   ],
+   "meanSpeed": 4.55,
+   "description": "RunningStraight       CleanedGRS"
+  },
+  {
+   "trial": "78_07",
+   "family": "footwork",
+   "frames": 71,
+   "seconds": 1.183,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.07,
+   "lowestFootMetres": -0.0078,
+   "contactFraction": [
+    0.169,
+    0.211
+   ],
+   "meanSpeed": 4.332,
+   "description": "RunningWideRight       CleanedGRS"
+  },
+  {
+   "trial": "78_08",
+   "family": "footwork",
+   "frames": 56,
+   "seconds": 0.933,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0591,
+   "lowestFootMetres": -0.0042,
+   "contactFraction": [
+    0.196,
+    0.107
+   ],
+   "meanSpeed": 4.495,
+   "description": "RunningWideLeft      CleanedGRS"
+  },
+  {
+   "trial": "78_09",
+   "family": "footwork",
+   "frames": 76,
+   "seconds": 1.267,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.054,
+   "lowestFootMetres": -0.0091,
+   "contactFraction": [
+    0.145,
+    0.211
+   ],
+   "meanSpeed": 3.948,
+   "description": "RunningTigherLeft      CleanedGRS"
+  },
+  {
+   "trial": "78_10",
+   "family": "footwork",
+   "frames": 70,
+   "seconds": 1.167,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0751,
+   "lowestFootMetres": -0.0027,
+   "contactFraction": [
+    0.1,
+    0.243
+   ],
+   "meanSpeed": 3.852,
+   "description": "RunningTighterRight      CleanedGRS"
+  },
+  {
+   "trial": "78_12",
+   "family": "footwork",
+   "frames": 49,
+   "seconds": 0.817,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0704,
+   "lowestFootMetres": -0.0128,
+   "contactFraction": [
+    0.122,
+    0.143
+   ],
+   "meanSpeed": 4.599,
+   "description": "RunningNoBall     CleanedGRS"
+  },
+  {
+   "trial": "78_24",
+   "family": "footwork",
+   "frames": 123,
+   "seconds": 2.05,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.058,
+   "lowestFootMetres": -0.0031,
+   "contactFraction": [
+    0.561,
+    0.602
+   ],
+   "meanSpeed": 1.913,
+   "description": "DefensiveStraightNoStop          CleanedGRS"
+  },
+  {
+   "trial": "78_25",
+   "family": "footwork",
+   "frames": 178,
+   "seconds": 2.967,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0552,
+   "lowestFootMetres": -0.0057,
+   "contactFraction": [
+    0.669,
+    0.596
+   ],
+   "meanSpeed": 1.497,
+   "description": "DefensiveStraightWithStop          CleanedGRS"
+  },
+  {
+   "trial": "78_26",
+   "family": "footwork",
+   "frames": 163,
+   "seconds": 2.717,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0557,
+   "lowestFootMetres": -0.0016,
+   "contactFraction": [
+    0.613,
+    0.595
+   ],
+   "meanSpeed": 1.626,
+   "description": "DefensiveRightStopToStop           CleanedGRS"
+  },
+  {
+   "trial": "78_27",
+   "family": "footwork",
+   "frames": 148,
+   "seconds": 2.467,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0558,
+   "lowestFootMetres": -0.0015,
+   "contactFraction": [
+    0.601,
+    0.48
+   ],
+   "meanSpeed": 1.768,
+   "description": "DefensiveLeftStopToStop              CleanedGRS"
+  },
+  {
+   "trial": "78_32",
+   "family": "footwork",
+   "frames": 107,
+   "seconds": 1.783,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0726,
+   "lowestFootMetres": -0.009,
+   "contactFraction": [
+    0.411,
+    0.411
+   ],
+   "meanSpeed": 2.901,
+   "description": "SraightDriveFromStop          Cleaned GRS"
+  },
+  {
+   "trial": "78_35",
+   "family": "footwork",
+   "frames": 110,
+   "seconds": 1.833,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0761,
+   "lowestFootMetres": -0.0013,
+   "contactFraction": [
+    0.591,
+    0.545
+   ],
+   "meanSpeed": 1.79,
+   "description": "RightTightTurn    CleanedGRS"
+  },
+  {
+   "trial": "102_01",
+   "family": "footwork",
+   "frames": 139,
+   "seconds": 2.317,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0647,
+   "lowestFootMetres": -0.0028,
+   "contactFraction": [
+    0.424,
+    0.518
+   ],
+   "meanSpeed": 2.334,
+   "description": "RightWideTurn"
+  },
+  {
+   "trial": "102_02",
+   "family": "footwork",
+   "frames": 87,
+   "seconds": 1.45,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0761,
+   "lowestFootMetres": -0.0029,
+   "contactFraction": [
+    0.276,
+    0.287
+   ],
+   "meanSpeed": 3.151,
+   "description": "LeftWideTurn"
+  },
+  {
+   "trial": "102_05",
+   "family": "footwork",
+   "frames": 55,
+   "seconds": 0.917,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0723,
+   "lowestFootMetres": -0.0089,
+   "contactFraction": [
+    0.091,
+    0.255
+   ],
+   "meanSpeed": 4.55,
+   "description": "RunningStraight"
+  },
+  {
+   "trial": "102_06",
+   "family": "footwork",
+   "frames": 71,
+   "seconds": 1.183,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.07,
+   "lowestFootMetres": -0.0078,
+   "contactFraction": [
+    0.169,
+    0.211
+   ],
+   "meanSpeed": 4.332,
+   "description": "RunningWideRight"
+  },
+  {
+   "trial": "102_07",
+   "family": "footwork",
+   "frames": 56,
+   "seconds": 0.933,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0591,
+   "lowestFootMetres": -0.0042,
+   "contactFraction": [
+    0.196,
+    0.107
+   ],
+   "meanSpeed": 4.495,
+   "description": "RunningWideLeft"
+  },
+  {
+   "trial": "102_08",
+   "family": "footwork",
+   "frames": 70,
+   "seconds": 1.167,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0751,
+   "lowestFootMetres": -0.0027,
+   "contactFraction": [
+    0.1,
+    0.243
+   ],
+   "meanSpeed": 3.852,
+   "description": "RunningTighterRight"
+  },
+  {
+   "trial": "102_10",
+   "family": "footwork",
+   "frames": 49,
+   "seconds": 0.817,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0704,
+   "lowestFootMetres": -0.0128,
+   "contactFraction": [
+    0.122,
+    0.143
+   ],
+   "meanSpeed": 4.599,
+   "description": "RunningNoBall"
+  },
+  {
+   "trial": "102_22",
+   "family": "footwork",
+   "frames": 123,
+   "seconds": 2.05,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.058,
+   "lowestFootMetres": -0.0031,
+   "contactFraction": [
+    0.561,
+    0.602
+   ],
+   "meanSpeed": 1.913,
+   "description": "DefensiveStraightNoStop"
+  },
+  {
+   "trial": "102_23",
+   "family": "footwork",
+   "frames": 178,
+   "seconds": 2.967,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0552,
+   "lowestFootMetres": -0.0057,
+   "contactFraction": [
+    0.669,
+    0.596
+   ],
+   "meanSpeed": 1.497,
+   "description": "DefensiveStraightWithStop"
+  },
+  {
+   "trial": "102_24",
+   "family": "footwork",
+   "frames": 163,
+   "seconds": 2.717,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0557,
+   "lowestFootMetres": -0.0016,
+   "contactFraction": [
+    0.613,
+    0.595
+   ],
+   "meanSpeed": 1.626,
+   "description": "DefensiveRightStopToStop"
+  },
+  {
+   "trial": "102_25",
+   "family": "footwork",
+   "frames": 148,
+   "seconds": 2.467,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0558,
+   "lowestFootMetres": -0.0015,
+   "contactFraction": [
+    0.601,
+    0.48
+   ],
+   "meanSpeed": 1.768,
+   "description": "DefensiveLeftStopToStop"
+  },
+  {
+   "trial": "102_30",
+   "family": "footwork",
+   "frames": 107,
+   "seconds": 1.783,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0726,
+   "lowestFootMetres": -0.009,
+   "contactFraction": [
+    0.411,
+    0.411
+   ],
+   "meanSpeed": 2.901,
+   "description": "SraightDriveFromStop"
+  },
+  {
+   "trial": "102_33",
+   "family": "footwork",
+   "frames": 110,
+   "seconds": 1.833,
+   "rootScale": 1.1399,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0761,
+   "lowestFootMetres": -0.0013,
+   "contactFraction": [
+    0.591,
+    0.545
+   ],
+   "meanSpeed": 1.79,
+   "description": "RightTightTurn"
+  },
+  {
+   "trial": "69_06",
+   "family": "walking",
+   "frames": 2607,
+   "seconds": 43.45,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0674,
+   "lowestFootMetres": -0.0062,
+   "contactFraction": [
+    0.64,
+    0.656
+   ],
+   "meanSpeed": 0.689,
+   "description": "walk and turn (repeated)"
+  },
+  {
+   "trial": "69_12",
+   "family": "walking",
+   "frames": 2411,
+   "seconds": 40.183,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.068,
+   "lowestFootMetres": -0.0096,
+   "contactFraction": [
+    0.7,
+    0.659
+   ],
+   "meanSpeed": 0.655,
+   "description": "walk and turn both directions (repeated)"
+  },
+  {
+   "trial": "69_13",
+   "family": "walking",
+   "frames": 2375,
+   "seconds": 39.583,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0653,
+   "lowestFootMetres": -0.0334,
+   "contactFraction": [
+    0.691,
+    0.681
+   ],
+   "meanSpeed": 0.634,
+   "description": "walk, turn in place (repeated)"
+  },
+  {
+   "trial": "69_16",
+   "family": "walking",
+   "frames": 564,
+   "seconds": 9.4,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.073,
+   "lowestFootMetres": -0.001,
+   "contactFraction": [
+    0.934,
+    0.902
+   ],
+   "meanSpeed": 0.106,
+   "description": "turn in place"
+  },
+  {
+   "trial": "69_18",
+   "family": "walking",
+   "frames": 527,
+   "seconds": 8.783,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0736,
+   "lowestFootMetres": -0.0009,
+   "contactFraction": [
+    0.973,
+    0.903
+   ],
+   "meanSpeed": 0.082,
+   "description": "turn in place (opposite direction)"
+  },
+  {
+   "trial": "69_34",
+   "family": "walking",
+   "frames": 2386,
+   "seconds": 39.767,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0664,
+   "lowestFootMetres": -0.0227,
+   "contactFraction": [
+    0.658,
+    0.665
+   ],
+   "meanSpeed": 0.568,
+   "description": "walk backwards and turn"
+  },
+  {
+   "trial": "69_38",
+   "family": "walking",
+   "frames": 2461,
+   "seconds": 41.017,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0686,
+   "lowestFootMetres": -0.0668,
+   "contactFraction": [
+    0.669,
+    0.691
+   ],
+   "meanSpeed": 0.546,
+   "description": "walk backwards and turn (repeated)"
+  },
+  {
+   "trial": "69_42",
+   "family": "walking",
+   "frames": 2557,
+   "seconds": 42.617,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0682,
+   "lowestFootMetres": -0.0039,
+   "contactFraction": [
+    0.663,
+    0.725
+   ],
+   "meanSpeed": 0.433,
+   "description": "walk sideways and turn (repeated)"
+  },
+  {
+   "trial": "69_48",
+   "family": "walking",
+   "frames": 2511,
+   "seconds": 41.85,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0658,
+   "lowestFootMetres": -0.0046,
+   "contactFraction": [
+    0.751,
+    0.685
+   ],
+   "meanSpeed": 0.383,
+   "description": "walk sideways and turn (opposite direction)"
+  },
+  {
+   "trial": "69_50",
+   "family": "walking",
+   "frames": 263,
+   "seconds": 4.383,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0716,
+   "lowestFootMetres": -0.0028,
+   "contactFraction": [
+    0.597,
+    0.631
+   ],
+   "meanSpeed": 0.771,
+   "description": "walk sideways and backwards"
+  },
+  {
+   "trial": "69_59",
+   "family": "walking",
+   "frames": 353,
+   "seconds": 5.883,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0683,
+   "lowestFootMetres": -0.0013,
+   "contactFraction": [
+    0.646,
+    0.711
+   ],
+   "meanSpeed": 0.518,
+   "description": "walk sideways and turn"
+  },
+  {
+   "trial": "69_65",
+   "family": "walking",
+   "frames": 333,
+   "seconds": 5.55,
+   "rootScale": 1.0279,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0704,
+   "lowestFootMetres": -0.0028,
+   "contactFraction": [
+    0.559,
+    0.73
+   ],
+   "meanSpeed": 0.587,
+   "description": "walk sideways and turn"
+  },
+  {
+   "trial": "136_25",
+   "family": "walking",
+   "frames": 895,
+   "seconds": 14.917,
+   "rootScale": 1.0775,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0195,
+   "lowestFootMetres": -0.0044,
+   "contactFraction": [
+    0.554,
+    0.573
+   ],
+   "meanSpeed": 0.461,
+   "description": "Normal Walk Backwards"
+  },
+  {
+   "trial": "136_26",
+   "family": "walking",
+   "frames": 711,
+   "seconds": 11.85,
+   "rootScale": 1.0775,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0197,
+   "lowestFootMetres": -0.0169,
+   "contactFraction": [
+    0.623,
+    0.588
+   ],
+   "meanSpeed": 0.5,
+   "description": "Normal Walk Backwards"
+  },
+  {
+   "trial": "41_02",
+   "family": "walking",
+   "frames": 2194,
+   "seconds": 36.567,
+   "rootScale": 0.9991,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0551,
+   "lowestFootMetres": -0.0113,
+   "contactFraction": [
+    0.704,
+    0.717
+   ],
+   "meanSpeed": 0.511,
+   "description": "navigate - walk forward, backward, sideways, on a diagonal"
+  },
+  {
+   "trial": "41_03",
+   "family": "walking",
+   "frames": 2976,
+   "seconds": 49.6,
+   "rootScale": 0.9991,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0555,
+   "lowestFootMetres": -0.008,
+   "contactFraction": [
+    0.71,
+    0.702
+   ],
+   "meanSpeed": 0.498,
+   "description": "navigate - walk forward, backward, sideways, on a diagonal"
+  },
+  {
+   "trial": "83_01",
+   "family": "walking",
+   "frames": 317,
+   "seconds": 5.283,
+   "rootScale": 1.1556,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.1914,
+   "lowestFootMetres": -0.0039,
+   "contactFraction": [
+    0.858,
+    0.849
+   ],
+   "meanSpeed": 0.255,
+   "description": "large sidestep to right"
+  },
+  {
+   "trial": "83_19",
+   "family": "walking",
+   "frames": 255,
+   "seconds": 4.25,
+   "rootScale": 1.1556,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.1871,
+   "lowestFootMetres": -0.0021,
+   "contactFraction": [
+    0.812,
+    0.867
+   ],
+   "meanSpeed": 0.241,
+   "description": "medium sidestep to left"
+  },
+  {
+   "trial": "83_33",
+   "family": "walking",
+   "frames": 646,
+   "seconds": 10.767,
+   "rootScale": 1.1556,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.1887,
+   "lowestFootMetres": -0.0035,
+   "contactFraction": [
+    0.861,
+    0.909
+   ],
+   "meanSpeed": 0.144,
+   "description": "sidestep to right then back to left"
+  },
+  {
+   "trial": "83_55",
+   "family": "walking",
+   "frames": 368,
+   "seconds": 6.133,
+   "rootScale": 1.1556,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.1901,
+   "lowestFootMetres": -0.0072,
+   "contactFraction": [
+    0.897,
+    0.867
+   ],
+   "meanSpeed": 0.169,
+   "description": "medium sidestep to right"
+  },
+  {
+   "trial": "83_66",
+   "family": "walking",
+   "frames": 336,
+   "seconds": 5.6,
+   "rootScale": 1.1556,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.1886,
+   "lowestFootMetres": -0.0036,
+   "contactFraction": [
+    0.938,
+    0.929
+   ],
+   "meanSpeed": 0.11,
+   "description": "short sidestep to right"
+  },
+  {
+   "trial": "10_01",
+   "family": "kick",
+   "frames": 401,
+   "seconds": 6.683,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0671,
+   "lowestFootMetres": -0.0039,
+   "contactFraction": [
+    0.94,
+    0.761
+   ],
+   "meanSpeed": 0.299,
+   "description": "soccer - kick ball"
+  },
+  {
+   "trial": "10_02",
+   "family": "kick",
+   "frames": 295,
+   "seconds": 4.917,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0618,
+   "lowestFootMetres": -0.003,
+   "contactFraction": [
+    0.807,
+    0.658
+   ],
+   "meanSpeed": 0.42,
+   "description": "soccer - kick ball"
+  },
+  {
+   "trial": "10_03",
+   "family": "kick",
+   "frames": 181,
+   "seconds": 3.017,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0611,
+   "lowestFootMetres": -0.0097,
+   "contactFraction": [
+    0.558,
+    0.569
+   ],
+   "meanSpeed": 1.074,
+   "description": "soccer - kick ball"
+  },
+  {
+   "trial": "10_05",
+   "family": "kick",
+   "frames": 218,
+   "seconds": 3.633,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0567,
+   "lowestFootMetres": -0.0018,
+   "contactFraction": [
+    0.491,
+    0.528
+   ],
+   "meanSpeed": 0.962,
+   "description": "soccer - kick ball"
+  },
+  {
+   "trial": "10_06",
+   "family": "kick",
+   "frames": 286,
+   "seconds": 4.767,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0623,
+   "lowestFootMetres": -0.0078,
+   "contactFraction": [
+    0.465,
+    0.497
+   ],
+   "meanSpeed": 0.871,
+   "description": "soccer - kick ball"
+  },
+  {
+   "trial": "11_01",
+   "family": "kick",
+   "frames": 299,
+   "seconds": 4.983,
+   "rootScale": 1.0245,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0681,
+   "lowestFootMetres": -0.0104,
+   "contactFraction": [
+    0.729,
+    0.622
+   ],
+   "meanSpeed": 0.683,
+   "description": "soccer - kick ball"
+  },
+  {
+   "trial": "143_24",
+   "family": "kick",
+   "frames": 503,
+   "seconds": 8.383,
+   "rootScale": 1.184,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0599,
+   "lowestFootMetres": -0.0143,
+   "contactFraction": [
+    0.636,
+    0.656
+   ],
+   "meanSpeed": 0.494,
+   "description": "Kicking"
+  },
+  {
+   "trial": "144_05",
+   "family": "kick",
+   "frames": 1393,
+   "seconds": 23.217,
+   "rootScale": 1.1743,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0532,
+   "lowestFootMetres": -0.0092,
+   "contactFraction": [
+    0.831,
+    0.38
+   ],
+   "meanSpeed": 0.465,
+   "description": "Front_Kicking"
+  },
+  {
+   "trial": "144_06",
+   "family": "kick",
+   "frames": 1817,
+   "seconds": 30.283,
+   "rootScale": 1.1743,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0523,
+   "lowestFootMetres": -0.0048,
+   "contactFraction": [
+    0.864,
+    0.488
+   ],
+   "meanSpeed": 0.38,
+   "description": "Front_Kicking001"
+  },
+  {
+   "trial": "144_09",
+   "family": "kick",
+   "frames": 1691,
+   "seconds": 28.183,
+   "rootScale": 1.1743,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0627,
+   "lowestFootMetres": -0.0084,
+   "contactFraction": [
+    0.407,
+    0.968
+   ],
+   "meanSpeed": 0.376,
+   "description": "Left_Front_Kicking"
+  },
+  {
+   "trial": "144_10",
+   "family": "kick",
+   "frames": 1749,
+   "seconds": 29.15,
+   "rootScale": 1.1743,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0411,
+   "lowestFootMetres": -0.0072,
+   "contactFraction": [
+    0.373,
+    0.934
+   ],
+   "meanSpeed": 0.38,
+   "description": "Left_Front_Kicking001"
+  },
+  {
+   "trial": "144_11",
+   "family": "reach",
+   "frames": 1715,
+   "seconds": 28.583,
+   "rootScale": 1.1743,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.077,
+   "lowestFootMetres": -0.0062,
+   "contactFraction": [
+    0.683,
+    1.0
+   ],
+   "meanSpeed": 0.407,
+   "description": "Left_Lunges"
+  },
+  {
+   "trial": "144_12",
+   "family": "reach",
+   "frames": 1660,
+   "seconds": 27.667,
+   "rootScale": 1.1743,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.078,
+   "lowestFootMetres": -0.0079,
+   "contactFraction": [
+    0.667,
+    1.0
+   ],
+   "meanSpeed": 0.421,
+   "description": "Left_Lunges001"
+  },
+  {
+   "trial": "144_17",
+   "family": "reach",
+   "frames": 1410,
+   "seconds": 23.5,
+   "rootScale": 1.1743,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0811,
+   "lowestFootMetres": -0.003,
+   "contactFraction": [
+    0.998,
+    0.687
+   ],
+   "meanSpeed": 0.433,
+   "description": "Lunges"
+  },
+  {
+   "trial": "144_18",
+   "family": "reach",
+   "frames": 1548,
+   "seconds": 25.8,
+   "rootScale": 1.1743,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0801,
+   "lowestFootMetres": -0.0022,
+   "contactFraction": [
+    0.987,
+    0.682
+   ],
+   "meanSpeed": 0.455,
+   "description": "Lunges001"
+  },
+  {
+   "trial": "13_39",
+   "family": "reach",
+   "frames": 176,
+   "seconds": 2.933,
+   "rootScale": 0.9857,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0791,
+   "lowestFootMetres": -0.0067,
+   "contactFraction": [
+    0.807,
+    0.818
+   ],
+   "meanSpeed": 0.085,
+   "description": "jump"
+  },
+  {
+   "trial": "13_40",
+   "family": "reach",
+   "frames": 160,
+   "seconds": 2.667,
+   "rootScale": 0.9857,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0779,
+   "lowestFootMetres": -0.0007,
+   "contactFraction": [
+    0.794,
+    0.794
+   ],
+   "meanSpeed": 0.088,
+   "description": "jump"
+  },
+  {
+   "trial": "13_41",
+   "family": "reach",
+   "frames": 185,
+   "seconds": 3.083,
+   "rootScale": 0.9857,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0768,
+   "lowestFootMetres": -0.0064,
+   "contactFraction": [
+    0.768,
+    0.789
+   ],
+   "meanSpeed": 0.139,
+   "description": "jump"
+  },
+  {
+   "trial": "13_42",
+   "family": "reach",
+   "frames": 200,
+   "seconds": 3.333,
+   "rootScale": 0.9857,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0767,
+   "lowestFootMetres": -0.0048,
+   "contactFraction": [
+    0.805,
+    0.81
+   ],
+   "meanSpeed": 0.129,
+   "description": "jump"
+  },
+  {
+   "trial": "118_01",
+   "family": "reach",
+   "frames": 357,
+   "seconds": 5.95,
+   "rootScale": 1.0413,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0592,
+   "lowestFootMetres": -0.0002,
+   "contactFraction": [
+    0.927,
+    0.927
+   ],
+   "meanSpeed": 0.142,
+   "description": "Jump"
+  },
+  {
+   "trial": "118_02",
+   "family": "reach",
+   "frames": 343,
+   "seconds": 5.717,
+   "rootScale": 1.0413,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0636,
+   "lowestFootMetres": -0.0012,
+   "contactFraction": [
+    0.901,
+    0.904
+   ],
+   "meanSpeed": 0.16,
+   "description": "Jump"
+  },
+  {
+   "trial": "118_03",
+   "family": "reach",
+   "frames": 249,
+   "seconds": 4.15,
+   "rootScale": 1.0413,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0603,
+   "lowestFootMetres": -0.0029,
+   "contactFraction": [
+    0.928,
+    0.924
+   ],
+   "meanSpeed": 0.144,
+   "description": "Jump"
+  },
+  {
+   "trial": "118_04",
+   "family": "reach",
+   "frames": 323,
+   "seconds": 5.383,
+   "rootScale": 1.0413,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.062,
+   "lowestFootMetres": -0.0031,
+   "contactFraction": [
+    0.932,
+    0.929
+   ],
+   "meanSpeed": 0.137,
+   "description": "Jump"
+  },
+  {
+   "trial": "16_01",
+   "family": "reach",
+   "frames": 161,
+   "seconds": 2.683,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0782,
+   "lowestFootMetres": -0.0018,
+   "contactFraction": [
+    0.839,
+    0.845
+   ],
+   "meanSpeed": 0.074,
+   "description": "jump"
+  },
+  {
+   "trial": "16_02",
+   "family": "reach",
+   "frames": 233,
+   "seconds": 3.883,
+   "rootScale": 1.0468,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0817,
+   "lowestFootMetres": -0.0085,
+   "contactFraction": [
+    0.893,
+    0.88
+   ],
+   "meanSpeed": 0.06,
+   "description": "jump"
+  },
+  {
+   "trial": "127_21",
+   "family": "reach",
+   "frames": 178,
+   "seconds": 2.967,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0478,
+   "lowestFootMetres": -0.0048,
+   "contactFraction": [
+    0.534,
+    0.41
+   ],
+   "meanSpeed": 1.833,
+   "description": "Run Jump Stop Run"
+  },
+  {
+   "trial": "127_22",
+   "family": "reach",
+   "frames": 180,
+   "seconds": 3.0,
+   "rootScale": 1.0148,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0558,
+   "lowestFootMetres": -0.0051,
+   "contactFraction": [
+    0.444,
+    0.478
+   ],
+   "meanSpeed": 1.899,
+   "description": "Run Jump Stop Run"
+  },
+  {
+   "trial": "143_22",
+   "family": "reach",
+   "frames": 546,
+   "seconds": 9.1,
+   "rootScale": 1.184,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.0618,
+   "lowestFootMetres": -0.0081,
+   "contactFraction": [
+    0.727,
+    0.701
+   ],
+   "meanSpeed": 0.819,
+   "description": "Catch And Throw Football"
+  },
+  {
+   "trial": "141_11",
+   "family": "reach",
+   "frames": 343,
+   "seconds": 5.717,
+   "rootScale": 1.1716,
+   "maxDirectionErrorDegrees": 0.0,
+   "floorOffsetMetres": 0.067,
+   "lowestFootMetres": -0.0158,
+   "contactFraction": [
+    0.72,
+    0.332
+   ],
+   "meanSpeed": 0.634,
+   "description": "Throw and Catch"
+  }
+ ]
+}

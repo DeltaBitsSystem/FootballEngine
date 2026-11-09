@@ -27,3 +27,19 @@ ProAthlete/build_hair_styles.py, Kits, OriginalSky/author_sky_variants.py). Ever
 and glyph is authored by those scripts from Blender procedural tools; their JSON manifests record hashes and
 provenance. The hairstyles are grown from the player pack's own scalp area (itself a documented CC0 MakeHuman
 derivative) and share its rig.
+
+## Motion database (third-party motion capture, replaceable)
+
+`motion-db.bin` holds motion capture from the **CMU Graphics Lab Motion Capture Database**
+(http://mocap.cs.cmu.edu), retargeted onto the player rig by `Tools/MatchViewer3D/Mocap/build_motion_db.py`. It is
+third-party derivative motion, not original FootballEngine content; the project chose it deliberately
+(`docs/plans/ANIMATION_AND_BALL_PLAN.md` §3), and the format does not depend on its origin, so an original capture can
+replace it through the same pipeline.
+
+- Terms, quoted from the CMU FAQ on 2026-11-09: "The motion capture data may be copied, modified, or redistributed
+  without permission."
+- Requested acknowledgement: "The data used in this project was obtained from mocap.cs.cmu.edu. The database was
+  created with funding from NSF EIA-0196217."
+- Trials, per-file SHA-256 of the raw ASF/AMC inputs and descriptions: `Tools/MatchViewer3D/Mocap/cmu-selection.txt`,
+  `cmu-manifest.json`, `cmu-trials.json`. Each clip in the database also carries its CMU trial id as its source.
+- Output hash, per-clip statistics and coverage: `Tools/MatchViewer3D/Mocap/motion-db-report.json`.

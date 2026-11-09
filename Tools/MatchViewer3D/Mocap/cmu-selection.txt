@@ -1,0 +1,21 @@
+# CMU Graphics Lab Motion Capture trials used as the replaceable motion base (see LICENSES.md).
+# Trial ids per line under a 'family: description' heading; subject skeletons (NN.asf) are fetched alongside.
+# locomotion: run/jog, veers, 90-degree turns, sudden stops
+16_08 16_35 16_36 16_37 16_38 16_39 16_40 16_41 16_42 16_43 16_44 16_45 16_46 16_48 16_49 16_50 16_51 16_52 16_53 16_54 16_55 16_56 16_57
+09_01 09_02 09_03 09_04 09_05 09_06 09_07 09_08 09_09 09_10 09_11
+35_17 35_18 35_19 35_20 35_21 35_22 35_23 35_24 35_25 35_26
+127_03 127_04 127_05 127_06 127_07 127_08 127_09 127_10 127_11 127_12 127_13 127_14 127_15 127_16 127_17 127_18 127_19 127_20
+143_01 143_02 143_03 143_04 143_42
+104_06 104_08 104_09 104_10 104_56 104_57
+134_12 134_13 134_14
+# footwork: defensive shuffle, tight and wide cuts (cleaned basketball footwork)
+78_01 78_02 78_03 78_06 78_07 78_08 78_09 78_10 78_12 78_24 78_25 78_26 78_27 78_32 78_35
+102_01 102_02 102_05 102_06 102_07 102_08 102_10 102_22 102_23 102_24 102_25 102_30 102_33
+# walking: backwards and sideways movement
+69_06 69_12 69_13 69_16 69_18 69_34 69_38 69_42 69_48 69_50 69_59 69_65
+136_25 136_26 41_02 41_03 83_01 83_19 83_33 83_55 83_66
+# kick: instep, side-foot and front kicks
+10_01 10_02 10_03 10_05 10_06 11_01 143_24 144_05 144_06 144_09 144_10
+# reach: lunges (tackle and stretch-reception derivations), jumps, throws
+144_11 144_12 144_17 144_18 13_39 13_40 13_41 13_42 118_01 118_02 118_03 118_04 16_01 16_02 127_21 127_22
+143_22 141_11

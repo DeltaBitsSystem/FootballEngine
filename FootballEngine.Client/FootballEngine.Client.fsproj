@@ -27,6 +27,7 @@
         <Compile Include="Animation\SupportPlanner.fs"/>
         <Compile Include="Animation\TaskPlanner.fs"/>
         <Compile Include="Animation\RigDefinition.fs"/>
+        <Compile Include="Animation\MotionDatabase.fs"/>
         <Compile Include="Animation\BodyPose.fs"/>
         <Compile Include="Animation\ConstraintSolve.fs"/>
         <Compile Include="Animation\PoseEvaluation.fs"/>
@@ -161,7 +162,7 @@
         <Content Include="Assets\MatchViewer\stadium.environment.json;Assets\MatchViewer\StadiumKit\kit.json;Assets\MatchViewer\StadiumKit\stadium-kit.glb;Assets\MatchViewer\StadiumKit\Textures\*.png">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
-        <Content Include="Assets\MatchViewer\player.glb;Assets\MatchViewer\player-motion.json;Assets\MatchViewer\player-albedo*.png;Assets\MatchViewer\player-normal-roughness*.png">
+        <Content Include="Assets\MatchViewer\player.glb;Assets\MatchViewer\player-motion.json;Assets\MatchViewer\motion-db.bin;Assets\MatchViewer\player-albedo*.png;Assets\MatchViewer\player-normal-roughness*.png">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>

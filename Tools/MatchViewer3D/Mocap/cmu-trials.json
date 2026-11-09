@@ -1,0 +1,618 @@
+{
+ "09_01": {
+  "description": "run",
+  "fps": 120
+ },
+ "09_02": {
+  "description": "run",
+  "fps": 120
+ },
+ "09_03": {
+  "description": "run",
+  "fps": 120
+ },
+ "09_04": {
+  "description": "run",
+  "fps": 120
+ },
+ "09_05": {
+  "description": "run",
+  "fps": 120
+ },
+ "09_06": {
+  "description": "run",
+  "fps": 120
+ },
+ "09_07": {
+  "description": "run",
+  "fps": 120
+ },
+ "09_08": {
+  "description": "run",
+  "fps": 120
+ },
+ "09_09": {
+  "description": "run",
+  "fps": 120
+ },
+ "09_10": {
+  "description": "run",
+  "fps": 120
+ },
+ "09_11": {
+  "description": "run",
+  "fps": 120
+ },
+ "102_01": {
+  "description": "RightWideTurn",
+  "fps": 120
+ },
+ "102_02": {
+  "description": "LeftWideTurn",
+  "fps": 120
+ },
+ "102_05": {
+  "description": "RunningStraight",
+  "fps": 120
+ },
+ "102_06": {
+  "description": "RunningWideRight",
+  "fps": 120
+ },
+ "102_07": {
+  "description": "RunningWideLeft",
+  "fps": 120
+ },
+ "102_08": {
+  "description": "RunningTighterRight",
+  "fps": 120
+ },
+ "102_10": {
+  "description": "RunningNoBall",
+  "fps": 120
+ },
+ "102_22": {
+  "description": "DefensiveStraightNoStop",
+  "fps": 120
+ },
+ "102_23": {
+  "description": "DefensiveStraightWithStop",
+  "fps": 120
+ },
+ "102_24": {
+  "description": "DefensiveRightStopToStop",
+  "fps": 120
+ },
+ "102_25": {
+  "description": "DefensiveLeftStopToStop",
+  "fps": 120
+ },
+ "102_30": {
+  "description": "SraightDriveFromStop",
+  "fps": 120
+ },
+ "102_33": {
+  "description": "RightTightTurn",
+  "fps": 120
+ },
+ "104_06": {
+  "description": "StartJog",
+  "fps": 120
+ },
+ "104_08": {
+  "description": "StartJog",
+  "fps": 120
+ },
+ "104_09": {
+  "description": "JogStop",
+  "fps": 120
+ },
+ "104_10": {
+  "description": "JogStop",
+  "fps": 120
+ },
+ "104_56": {
+  "description": "RunStop",
+  "fps": 120
+ },
+ "104_57": {
+  "description": "RunStop",
+  "fps": 120
+ },
+ "10_01": {
+  "description": "soccer - kick ball",
+  "fps": 120
+ },
+ "10_02": {
+  "description": "soccer - kick ball",
+  "fps": 120
+ },
+ "10_03": {
+  "description": "soccer - kick ball",
+  "fps": 120
+ },
+ "10_05": {
+  "description": "soccer - kick ball",
+  "fps": 120
+ },
+ "10_06": {
+  "description": "soccer - kick ball",
+  "fps": 120
+ },
+ "118_01": {
+  "description": "Jump",
+  "fps": 120
+ },
+ "118_02": {
+  "description": "Jump",
+  "fps": 120
+ },
+ "118_03": {
+  "description": "Jump",
+  "fps": 120
+ },
+ "118_04": {
+  "description": "Jump",
+  "fps": 120
+ },
+ "11_01": {
+  "description": "soccer - kick ball",
+  "fps": 120
+ },
+ "127_03": {
+  "description": "Run",
+  "fps": 120
+ },
+ "127_04": {
+  "description": "Walk to Run",
+  "fps": 120
+ },
+ "127_05": {
+  "description": "Run to Quick Stop",
+  "fps": 120
+ },
+ "127_06": {
+  "description": "Run",
+  "fps": 120
+ },
+ "127_07": {
+  "description": "Run",
+  "fps": 120
+ },
+ "127_08": {
+  "description": "Run",
+  "fps": 120
+ },
+ "127_09": {
+  "description": "Run Right",
+  "fps": 120
+ },
+ "127_10": {
+  "description": "Run Right",
+  "fps": 120
+ },
+ "127_11": {
+  "description": "Run Left",
+  "fps": 120
+ },
+ "127_12": {
+  "description": "Run Left",
+  "fps": 120
+ },
+ "127_13": {
+  "description": "Run Side Step Left",
+  "fps": 120
+ },
+ "127_14": {
+  "description": "Run Side Step Right",
+  "fps": 120
+ },
+ "127_15": {
+  "description": "Run Turn Left",
+  "fps": 120
+ },
+ "127_16": {
+  "description": "Run Turn Right",
+  "fps": 120
+ },
+ "127_17": {
+  "description": "Run Stop Run",
+  "fps": 120
+ },
+ "127_18": {
+  "description": "Run Stop Run",
+  "fps": 120
+ },
+ "127_19": {
+  "description": "Run Quick Stop Run",
+  "fps": 120
+ },
+ "127_20": {
+  "description": "Run Quick Stop Run",
+  "fps": 120
+ },
+ "127_21": {
+  "description": "Run Jump Stop Run",
+  "fps": 120
+ },
+ "127_22": {
+  "description": "Run Jump Stop Run",
+  "fps": 120
+ },
+ "134_12": {
+  "description": "Stop and Go",
+  "fps": 120
+ },
+ "134_13": {
+  "description": "Stop and Go",
+  "fps": 120
+ },
+ "134_14": {
+  "description": "Stop ang Go",
+  "fps": 120
+ },
+ "136_25": {
+  "description": "Normal Walk Backwards",
+  "fps": 120
+ },
+ "136_26": {
+  "description": "Normal Walk Backwards",
+  "fps": 120
+ },
+ "13_39": {
+  "description": "jump",
+  "fps": 120
+ },
+ "13_40": {
+  "description": "jump",
+  "fps": 120
+ },
+ "13_41": {
+  "description": "jump",
+  "fps": 120
+ },
+ "13_42": {
+  "description": "jump",
+  "fps": 120
+ },
+ "141_11": {
+  "description": "Throw and Catch",
+  "fps": 120
+ },
+ "143_01": {
+  "description": "Run",
+  "fps": 120
+ },
+ "143_02": {
+  "description": "Run to Stop",
+  "fps": 120
+ },
+ "143_03": {
+  "description": "Start to Run",
+  "fps": 120
+ },
+ "143_04": {
+  "description": "Run Figure 8",
+  "fps": 120
+ },
+ "143_22": {
+  "description": "Catch And Throw Football",
+  "fps": 120
+ },
+ "143_24": {
+  "description": "Kicking",
+  "fps": 120
+ },
+ "143_42": {
+  "description": "Run",
+  "fps": 120
+ },
+ "144_05": {
+  "description": "Front_Kicking",
+  "fps": 120
+ },
+ "144_06": {
+  "description": "Front_Kicking001",
+  "fps": 120
+ },
+ "144_09": {
+  "description": "Left_Front_Kicking",
+  "fps": 120
+ },
+ "144_10": {
+  "description": "Left_Front_Kicking001",
+  "fps": 120
+ },
+ "144_11": {
+  "description": "Left_Lunges",
+  "fps": 120
+ },
+ "144_12": {
+  "description": "Left_Lunges001",
+  "fps": 120
+ },
+ "144_17": {
+  "description": "Lunges",
+  "fps": 120
+ },
+ "144_18": {
+  "description": "Lunges001",
+  "fps": 120
+ },
+ "16_01": {
+  "description": "jump",
+  "fps": 120
+ },
+ "16_02": {
+  "description": "jump",
+  "fps": 120
+ },
+ "16_08": {
+  "description": "run/jog, sudden stop",
+  "fps": 120
+ },
+ "16_35": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "16_36": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "16_37": {
+  "description": "run/jog, veer left",
+  "fps": 120
+ },
+ "16_38": {
+  "description": "run/jog, veer left",
+  "fps": 120
+ },
+ "16_39": {
+  "description": "run/jog, veer right",
+  "fps": 120
+ },
+ "16_40": {
+  "description": "run/jog, veer right",
+  "fps": 120
+ },
+ "16_41": {
+  "description": "run/jog, 90-degree left turn",
+  "fps": 120
+ },
+ "16_42": {
+  "description": "run/jog, 90-degree left turn",
+  "fps": 120
+ },
+ "16_43": {
+  "description": "run/jog, 90-degree right turn",
+  "fps": 120
+ },
+ "16_44": {
+  "description": "run/jog, 90-degree right turn",
+  "fps": 120
+ },
+ "16_45": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "16_46": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "16_48": {
+  "description": "run, veer left",
+  "fps": 120
+ },
+ "16_49": {
+  "description": "run, veer right",
+  "fps": 120
+ },
+ "16_50": {
+  "description": "run, veer right",
+  "fps": 120
+ },
+ "16_51": {
+  "description": "run, 90-degree left turn",
+  "fps": 120
+ },
+ "16_52": {
+  "description": "run, 90-degree left turn",
+  "fps": 120
+ },
+ "16_53": {
+  "description": "run, 90-degree right turn",
+  "fps": 120
+ },
+ "16_54": {
+  "description": "run, 90-degree right turn",
+  "fps": 120
+ },
+ "16_55": {
+  "description": "run",
+  "fps": 120
+ },
+ "16_56": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "16_57": {
+  "description": "run/jog, sudden stop",
+  "fps": 120
+ },
+ "35_17": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "35_18": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "35_19": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "35_20": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "35_21": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "35_22": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "35_23": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "35_24": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "35_25": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "35_26": {
+  "description": "run/jog",
+  "fps": 120
+ },
+ "41_02": {
+  "description": "navigate - walk forward, backward, sideways, on a diagonal",
+  "fps": 120
+ },
+ "41_03": {
+  "description": "navigate - walk forward, backward, sideways, on a diagonal",
+  "fps": 120
+ },
+ "69_06": {
+  "description": "walk and turn (repeated)",
+  "fps": 120
+ },
+ "69_12": {
+  "description": "walk and turn both directions (repeated)",
+  "fps": 120
+ },
+ "69_13": {
+  "description": "walk, turn in place (repeated)",
+  "fps": 120
+ },
+ "69_16": {
+  "description": "turn in place",
+  "fps": 120
+ },
+ "69_18": {
+  "description": "turn in place (opposite direction)",
+  "fps": 120
+ },
+ "69_34": {
+  "description": "walk backwards and turn",
+  "fps": 120
+ },
+ "69_38": {
+  "description": "walk backwards and turn (repeated)",
+  "fps": 120
+ },
+ "69_42": {
+  "description": "walk sideways and turn (repeated)",
+  "fps": 120
+ },
+ "69_48": {
+  "description": "walk sideways and turn (opposite direction)",
+  "fps": 120
+ },
+ "69_50": {
+  "description": "walk sideways and backwards",
+  "fps": 120
+ },
+ "69_59": {
+  "description": "walk sideways and turn",
+  "fps": 120
+ },
+ "69_65": {
+  "description": "walk sideways and turn",
+  "fps": 120
+ },
+ "78_01": {
+  "description": "LeftTightTurn         CleanedGRS",
+  "fps": 120
+ },
+ "78_02": {
+  "description": "RightWideTurn            CleanedGRS",
+  "fps": 120
+ },
+ "78_03": {
+  "description": "LeftWideTurn     CleanedGRS",
+  "fps": 120
+ },
+ "78_06": {
+  "description": "RunningStraight       CleanedGRS",
+  "fps": 120
+ },
+ "78_07": {
+  "description": "RunningWideRight       CleanedGRS",
+  "fps": 120
+ },
+ "78_08": {
+  "description": "RunningWideLeft      CleanedGRS",
+  "fps": 120
+ },
+ "78_09": {
+  "description": "RunningTigherLeft      CleanedGRS",
+  "fps": 120
+ },
+ "78_10": {
+  "description": "RunningTighterRight      CleanedGRS",
+  "fps": 120
+ },
+ "78_12": {
+  "description": "RunningNoBall     CleanedGRS",
+  "fps": 120
+ },
+ "78_24": {
+  "description": "DefensiveStraightNoStop          CleanedGRS",
+  "fps": 120
+ },
+ "78_25": {
+  "description": "DefensiveStraightWithStop          CleanedGRS",
+  "fps": 120
+ },
+ "78_26": {
+  "description": "DefensiveRightStopToStop           CleanedGRS",
+  "fps": 120
+ },
+ "78_27": {
+  "description": "DefensiveLeftStopToStop              CleanedGRS",
+  "fps": 120
+ },
+ "78_32": {
+  "description": "SraightDriveFromStop          Cleaned GRS",
+  "fps": 120
+ },
+ "78_35": {
+  "description": "RightTightTurn    CleanedGRS",
+  "fps": 120
+ },
+ "83_01": {
+  "description": "large sidestep to right",
+  "fps": 120
+ },
+ "83_19": {
+  "description": "medium sidestep to left",
+  "fps": 120
+ },
+ "83_33": {
+  "description": "sidestep to right then back to left",
+  "fps": 120
+ },
+ "83_55": {
+  "description": "medium sidestep to right",
+  "fps": 120
+ },
+ "83_66": {
+  "description": "short sidestep to right",
+  "fps": 120
+ }
+}
