@@ -85,7 +85,6 @@
 !/FootballEngine.Client/Assets/MatchViewer/Sources/MakeHuman/*.json
 !/FootballEngine.Client/Assets/MatchViewer/Sources/MakeHuman/*.md
 !/FootballEngine.Client/Assets/MatchViewer/pitch-floodlit.blend
-!/FootballEngine.Client/Assets/MatchViewer/stadium.glb
 !/FootballEngine.Client/Assets/MatchViewer/stadium.environment.json
 # UI fonts (SIL OFL; licence travels with the files)
 !/FootballEngine.Client/Assets/Fonts/*.ttf

@@ -68,6 +68,8 @@ let private sceneInput (mode: ViewerCamera) (frame: RenderFrame) : SceneInput =
             Matrix4x4.CreateTranslation(float32 index, 0.0f, 0.0f))
       JointCount = jointCount
       BallMeshRadius = 0.11f
+      ClubPrimary = Vector3.One
+      ClubSecondary = Vector3.Zero
       Sun = sun
       LightViewProjection = Matrix4x4.CreateScale(2.0f) }
 
@@ -148,7 +150,9 @@ let private layoutOffsets =
       "sunAndEnvironment", UniformLayout.sunAndEnvironment
       "sunRadiance", UniformLayout.sunRadiance
       "lightViewProjection", UniformLayout.lightViewProjection
-      "inverseViewProjection", UniformLayout.inverseViewProjection ]
+      "inverseViewProjection", UniformLayout.inverseViewProjection
+      "clubPrimary", UniformLayout.clubPrimary
+      "clubSecondary", UniformLayout.clubSecondary ]
     |> List.map (fun (name, elementIndex) -> name, elementIndex * sizeof<float32>)
 
 let private layoutMismatches (actual: WgslStruct) (claimed: (string * int) list) (claimedSize: int) : string list =
@@ -212,7 +216,9 @@ let tests =
               Expect.equal UniformLayout.sunRadiance 424 "sunRadiance at byte 1696"
               Expect.equal UniformLayout.lightViewProjection 428 "lightViewProjection at byte 1712"
               Expect.equal UniformLayout.inverseViewProjection 444 "inverseViewProjection at byte 1776"
-              Expect.equal UniformLayout.elementCount 460 "the struct is 1840 bytes")
+              Expect.equal UniformLayout.clubPrimary 460 "clubPrimary at byte 1840"
+              Expect.equal UniformLayout.clubSecondary 464 "clubSecondary at byte 1856"
+              Expect.equal UniformLayout.elementCount 468 "the struct is 1872 bytes")
 
           testCase "packCamera writes every named field at its layout offset" (fun _ ->
               let camera: CameraState =
@@ -250,7 +256,9 @@ let tests =
                     RootTransforms =
                       Array.init SceneRoot.count (fun root -> Matrix4x4.CreateTranslation(float32 root, 0.0f, 0.0f))
                     JointPalettes = [||]
-                    ShowGrassDetail = false }
+                    ShowGrassDetail = false
+                    ClubPrimary = Vector3(0.25f, 0.5f, 0.75f)
+                    ClubSecondary = Vector3.One }
 
               let data = UniformLayout.packCamera scene
               Expect.equal data.Length UniformLayout.elementCount "the buffer holds exactly the layout"
@@ -261,7 +269,9 @@ let tests =
               Expect.equal data[UniformLayout.sunAndEnvironment + 3] 0.5f "environment intensity sits in w"
               Expect.equal data[UniformLayout.sunRadiance + 3] 0.0f "sunRadiance w is kept zero"
               Expect.equal data[UniformLayout.lightViewProjection] 2.0f "light matrix M11"
-              Expect.equal data[UniformLayout.inverseViewProjection + 5] 0.5f "inverse matrix M22")
+              Expect.equal data[UniformLayout.inverseViewProjection + 5] 0.5f "inverse matrix M22"
+              Expect.equal data[UniformLayout.clubPrimary + 2] 0.75f "club primary blue"
+              Expect.equal data[UniformLayout.clubSecondary + 3] 1.0f "club colours are opaque")
 
           testCase "matrixOfElements keeps the shadow matrix row order and rejects a short array" (fun _ ->
               let elements = Array.init 16 float32

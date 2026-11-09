@@ -44,10 +44,8 @@ module MatchPitchNative =
             | handle ->
                 let parent = unativeint (uint64 handle.Handle)
 
-                let assetPath =
-                    Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "stadium.glb")
-
-                Some(fun bounds -> new WebGpuStadiumRenderer(parent, bounds, assetPath))
+                let assets = Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer")
+                Some(fun bounds -> new WebGpuStadiumRenderer(parent, bounds, assets))
 
     let overlayCutouts (control: Control) =
         match TopLevel.GetTopLevel(control) with

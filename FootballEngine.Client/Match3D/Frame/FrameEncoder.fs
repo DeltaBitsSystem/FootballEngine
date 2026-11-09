@@ -97,8 +97,11 @@ module FrameEncoder =
 
             if frame.ShowGrassDetail then
                 scene.Grass.Encode(renderPass)
-                api.RenderPassEncoderSetPipeline(renderPass, scene.Pipeline)
 
+            // Glazing composites over turf and grass blades, which are opaque and must already be in the target.
+            api.RenderPassEncoderSetPipeline(renderPass, scene.BlendedPipeline)
+            drawAll renderPass (DrawList.inLayer BlendedLayer all)
+            api.RenderPassEncoderSetPipeline(renderPass, scene.Pipeline)
             drawAll renderPass (DrawList.inLayer OverlayLayer all)
             finish renderPass
         | BloomPass -> frame.Output.EncodeBloom(encoder)

@@ -39,18 +39,13 @@ let private withStadium action =
         for name in [ "manifest.json"; "environment.bin"; "brdf.bin"; "sky.bin" ] do
             File.Move(Path.Combine(target, name), Path.Combine(lighting, name))
 
-        let asset = Path.Combine(target, "stadium.glb")
-        let geometry = [| 1uy; 2uy; 3uy |]
-        File.WriteAllBytes(asset, geometry)
-
         let sidecar =
             JsonNode.Parse(File.ReadAllText(Path.Combine(Path.GetDirectoryName directory, "stadium.environment.json")))
 
-        sidecar["stadiumSha256"] <- JsonValue.Create(Convert.ToHexString(SHA256.HashData geometry))
         sidecar["environmentDirectory"] <- JsonValue.Create("Lighting")
-        let path = Path.ChangeExtension(asset, "environment.json")
+        let path = Path.Combine(target, "stadium.environment.json")
         File.WriteAllText(path, sidecar.ToJsonString())
-        action asset path)
+        action path path)
 
 let tests =
     testList
@@ -226,20 +221,15 @@ let tests =
                       Expect.isLessThan (abs clip.X) clip.W "entire pitch width is visible"
                       Expect.isLessThan (abs clip.Y) clip.W "entire pitch length is visible")
           testCase "stadium package supplies the authored lighting rather than a runtime duplicate" (fun _ ->
-              let asset = Path.Combine(Path.GetDirectoryName directory, "stadium.glb")
+              let sidecar = Path.Combine(Path.GetDirectoryName directory, "stadium.environment.json")
 
-              match StadiumEnvironment.load asset with
+              match StadiumEnvironment.load sidecar with
               | Error error -> failtest error
               | Ok package ->
                   Expect.isOk (HdrLighting.validate package.Settings) "authored lighting is admissible"
                   Expect.equal package.Settings.SunDirection package.Environment.SunDirection "one solar direction"
                   Expect.floatClose Accuracy.medium (float package.Settings.ExposureStops) -0.35 "authored exposure"
                   Expect.floatClose Accuracy.medium (float package.Settings.SunRadiance.Y) 3.0912 "cloud sun and runtime sun agree")
-          testCase "geometry changes invalidate the environment binding" (fun _ ->
-              withStadium (fun asset _ ->
-                  Expect.isOk (StadiumEnvironment.load asset) "fixture is initially bound"
-                  File.WriteAllBytes(asset, [| 9uy |])
-                  Expect.isError (StadiumEnvironment.load asset) "modified geometry needs a rebuilt sidecar"))
           testCase "missing sidecar does not silently load default lighting" (fun _ ->
               withStadium (fun asset sidecar ->
                   File.Delete sidecar

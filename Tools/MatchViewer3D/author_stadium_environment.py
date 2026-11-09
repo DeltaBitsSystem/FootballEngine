@@ -1,6 +1,6 @@
 """Run with Blender --background --factory-startup --python this_file.
 
-Imports the authoritative GLB into a new authoring asset. Never edits the user's live
+Authors the daylight environment into a new asset. Never edits the user's live
 Blender or overwrites the older linked-library scene, whose missing meshes prevent a faithful reload.
 """
 import hashlib
@@ -41,7 +41,8 @@ def math_node(tree, operation, first=None, second=None):
 
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
-bpy.ops.import_scene.gltf(filepath=str(ASSET/'stadium.glb'))
+# Lighting is authored without stadium geometry: the runtime ground is generated per club, so no single mesh
+# can stand in for it.
 scene = bpy.context.scene
 scene.name = 'FE Matchday / Daylight'
 world = bpy.data.worlds.new('FE exported stadium environment')
@@ -122,7 +123,6 @@ scene.view_settings.exposure = presentation['exposureStops']
 metadata = {
     'schema': 2,
     'authoringFile': 'stadium-original-daylight.blend',
-    'stadiumSha256': hashlib.sha256((ASSET/'stadium.glb').read_bytes()).hexdigest(),
     'environmentDirectory': 'Lighting',
     'environmentManifestSha256': hashlib.sha256((LIGHTING/'manifest.json').read_bytes()).hexdigest(),
     'world': world.name,

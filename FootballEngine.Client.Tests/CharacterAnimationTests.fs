@@ -224,7 +224,7 @@ let tests =
                     RootIndex = 0u
                     Joints = Vector4(12.0f)
                     Weights = Vector4(0.25f)
-                    Surface = uint32 StadiumSurface.Concrete }
+                    Surface = uint32 StadiumSurface.KitFlat }
 
               let bytes = MemoryMarshal.AsBytes(ReadOnlySpan<GpuVertex>([| vertex |])).ToArray()
               Expect.equal (BitConverter.ToSingle(bytes, 52)) 12.0f "joint attribute offset"
@@ -232,22 +232,8 @@ let tests =
 
               Expect.equal
                   (BitConverter.ToUInt32(bytes, 84))
-                  (uint32 StadiumSurface.Concrete)
+                  (uint32 StadiumSurface.KitFlat)
                   "material attribute does not overlap skin weights")
-          testCase "stadium materials have explicit surface identities without tagging kits as grass" (fun _ ->
-              for name, expected in
-                  [ "Grass | stripe 0.003", StadiumSurface.TurfLight
-                    "Grass | stripe 1", StadiumSurface.TurfDark
-                    "Runoff grass", StadiumSurface.TurfRunoff
-                    "Architectural concrete", StadiumSurface.Concrete
-                    "Midnight steel", StadiumSurface.Steel
-                    "Ivory enamel", StadiumSurface.Enamel
-                    "Match kit 1 shirt", StadiumSurface.Plain
-                    "Chalk | warm white", StadiumSurface.Plain ] do
-                  Expect.equal
-                      (StadiumSurface.ofMaterialName name)
-                      expected
-                      "material role follows the asset contract, not its colour")
           testCase "surface pack validates all offline mip layers and hashes" (fun _ ->
               let directory =
                   Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "Surfaces")

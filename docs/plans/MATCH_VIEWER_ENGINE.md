@@ -137,3 +137,19 @@ How to add things now:
   and its body in `FrameEncoder.encode`.
 - New per-frame data: a `SceneFrame` field from `SceneBuilder`, and a named offset in `UniformLayout` (checked against
   `CameraUniform.wgsl`).
+
+## As built (C2b — procedural stadium)
+
+- `StadiumKit.fs` loads `StadiumKit/kit.json` (sha-checked), the kit mesh with separate opaque/blended index
+  ranges per LOD, and the albedo/normal/ORM texture arrays with CPU mips. `StadiumGeometry.fs` is pure: it turns
+  `StadiumIdentity` (reputation, league level, seed = home ClubId, club colours) into the generated stands, roof,
+  ground, the instance table (3 `vec4` per instance: position+yaw, scale, tint) and seat clusters.
+- `Systems/StadiumSystem.fs` uploads the kit once, rebuilds when the identity changes (the renderer resets the
+  static shadow cache) and each frame emits per-cluster LOD batches.
+- `Draw` gained `FirstIndex`/`FirstInstance`; `DrawLayer` gained `BlendedLayer` (premultiplied alpha, no depth
+  write, `fsBlended`, drawn after the sky) and `ShadowOnlyLayer` (static shadow casters at low LOD).
+- Scene bindings 13–15 are the kit texture arrays, 16 the instance storage buffer; kit vertices carry
+  `SceneRoot.instanced`. The camera uniform carries `clubPrimary`/`clubSecondary` (468 floats).
+- Identity flows from `ClubMatchIdentity` (now with `Reputation`, `LeagueLevel`) through
+  `MatchPitchControl` → `SetStadium`; the harness pins it with `--viewer-stadium rep,level,seed`.
+

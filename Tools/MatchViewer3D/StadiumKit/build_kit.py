@@ -206,8 +206,9 @@ def build(opts):
 def export(mats, pieces_meta, lib):
     os.makedirs(OUT, exist_ok=True)
     glb = os.path.join(OUT, "stadium-kit.glb")
+    # Material names (no images) tell the runtime which kit material each primitive uses.
     bpy.ops.export_scene.gltf(filepath=glb, export_format="GLB", use_selection=False, export_apply=True,
-                              export_materials="PLACEHOLDER", export_yup=True, export_extras=True,
+                              export_materials="EXPORT", export_image_format="NONE", export_yup=True, export_extras=True,
                               export_normals=True, export_texcoords=True, export_tangents=False)
     blend = os.path.join(OUT, "stadium-kit.blend")
     bpy.ops.wm.save_as_mainfile(filepath=blend, compress=True)

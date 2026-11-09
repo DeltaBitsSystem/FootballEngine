@@ -43,11 +43,14 @@ module ViewerCamera =
                 let distance = 78.0f * max 1.0f (1.55f / aspect)
                 Vector3(0.0f, distance, distance * 0.28f), Vector3.Zero, radians 60.0f
             | BehindGoal ->
-                Vector3(73.0f, 19.0f, 0.0f),
+                // Generated grounds put the end stand at least 8 m behind the goal line; staying inside that runoff
+                // keeps the lens out of every end stand and below every roof.
+                Vector3(58.0f, 11.0f, 0.0f),
                 Vector3(Math.Clamp(focus.X * 0.45f, -20.0f, 20.0f), 0.7f, focus.Z * 0.35f),
                 radians 48.0f
             | Touchline ->
-                Vector3(focus.X * 0.65f, 15.0f, 44.0f),
+                // The near touchline runoff is at least 6.5 m deep, so z = 39 is always in front of the main stand.
+                Vector3(focus.X * 0.65f, 9.0f, 39.0f),
                 Vector3(focus.X, 0.9f, Math.Clamp(focus.Z, -22.0f, 14.0f)),
                 radians 40.0f
             | CloseUp ->

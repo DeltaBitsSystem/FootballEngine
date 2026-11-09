@@ -139,7 +139,7 @@ def build(output,samples):
     }
     manifest_data=json_bytes(manifest)
     atomic_write(output/'manifest.json',manifest_data)
-    sidecar={'schema':2,'stadiumSha256':sha((ASSETS/'stadium.glb').read_bytes()),
+    sidecar={'schema':2,
              'environmentDirectory':output.name,'environmentManifestSha256':sha(manifest_data),**presentation}
     atomic_write(output.parent/'stadium.environment.json',json_bytes(sidecar))
     print(f'Original HDR pack: {output}; solar error {error:.5f} degrees; range {environment.min():.4f}..{environment.max():.4f}')

@@ -568,8 +568,7 @@ type private ProbePitch() as this =
         | handle ->
             let parent = unativeint (uint64 handle.Handle)
 
-            let asset =
-                IO.Path.GetFullPath("FootballEngine.Client/Assets/MatchViewer/stadium.glb")
+            let asset = IO.Path.GetFullPath("FootballEngine.Client/Assets/MatchViewer")
 
             let exposure =
                 match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_EXPOSURE_STOPS") with
@@ -644,21 +643,6 @@ type private ProbeApp() =
     override this.OnFrameworkInitializationCompleted() =
         match base.ApplicationLifetime with
         | :? IClassicDesktopStyleApplicationLifetime as desktop ->
-            let asset =
-                IO.Path.GetFullPath("FootballEngine.Client/Assets/MatchViewer/stadium.glb")
-
-            let scene = StadiumAsset.load asset
-
-            let staticTriangles =
-                scene.StaticBatches |> Array.sumBy (fun batch -> batch.Indices.Length / 3)
-
-            let liveTriangles =
-                scene.DynamicBatches |> Array.sumBy (fun batch -> batch.Indices.Length / 3)
-
-            Console.Error.WriteLine(
-                $"Loaded stadium batches={scene.StaticBatches.Length}, triangles={staticTriangles}, live batches={scene.DynamicBatches.Length}, live triangles={liveTriangles}, camera={scene.Camera.World}"
-            )
-
             let createWindow () =
                 let fullscreen =
                     Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_FULLSCREEN") = "1"

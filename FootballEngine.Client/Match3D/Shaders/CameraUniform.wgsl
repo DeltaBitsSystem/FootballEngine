@@ -6,4 +6,6 @@ struct Camera {
     sunRadiance: vec4<f32>,
     lightViewProjection: mat4x4<f32>,
     inverseViewProjection: mat4x4<f32>,
+    clubPrimary: vec4<f32>,
+    clubSecondary: vec4<f32>,
 }

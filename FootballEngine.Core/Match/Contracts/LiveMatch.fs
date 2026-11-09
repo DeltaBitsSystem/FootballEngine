@@ -56,8 +56,13 @@ type ClubMatchIdentity =
     { ClubId: ClubId
       Name: string
       ShortName: string
+      /// 0xFFRRGGBB, or zero when the club has no authored kit and presentation must choose a fallback.
       PrimaryColor: uint32
-      SecondaryColor: uint32 }
+      SecondaryColor: uint32
+      /// The home ground is generated from these, so a club's stadium is the same every match.
+      Reputation: int
+      /// Zero-based national division; None for clubs outside any league.
+      LeagueLevel: int option }
 
 type MatchPlayerIdentity =
     { Id: FootballEngine.Domain.PlayerId

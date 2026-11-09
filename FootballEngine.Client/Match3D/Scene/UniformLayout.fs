@@ -14,7 +14,9 @@ module UniformLayout =
     let sunRadiance = sunAndEnvironment + vectorElements
     let lightViewProjection = sunRadiance + vectorElements
     let inverseViewProjection = lightViewProjection + matrixElements
-    let elementCount = inverseViewProjection + matrixElements
+    let clubPrimary = inverseViewProjection + matrixElements
+    let clubSecondary = clubPrimary + vectorElements
+    let elementCount = clubSecondary + vectorElements
 
     let private writeMatrix (target: float32[]) (offset: int) (matrix: Matrix4x4) =
         target[offset] <- matrix.M11
@@ -59,4 +61,7 @@ module UniformLayout =
         writeVector data sunRadiance sun.Radiance.X sun.Radiance.Y sun.Radiance.Z 0.0f
         writeMatrix data lightViewProjection scene.LightViewProjection
         writeMatrix data inverseViewProjection scene.Camera.Inverse
+        let primary, secondary = scene.ClubPrimary, scene.ClubSecondary
+        writeVector data clubPrimary primary.X primary.Y primary.Z 1.0f
+        writeVector data clubSecondary secondary.X secondary.Y secondary.Z 1.0f
         data

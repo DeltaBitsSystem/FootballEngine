@@ -101,57 +101,25 @@ let tests =
               Expect.isFalse
                   (PitchMarkings.shaderConstants.Contains("52,5", StringComparison.Ordinal))
                   "locale must not break WGSL")
-          testCase "stadium import removes the raised paint but keeps turf and other static materials" (fun _ ->
-              let path =
-                  Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "stadium.glb")
+          testCase "the generated turf spans exactly the painted field" (fun _ ->
+              let directory =
+                  Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "StadiumKit")
 
-              let scene = StadiumAsset.load path
+              match StadiumKit.load directory |> Result.bind (fun (kit, _) -> StadiumGeometry.build kit StadiumIdentity.neutral) with
+              | Error error -> failtest error
+              | Ok build ->
+                  let turf =
+                      build.Vertices
+                      |> Array.filter (fun vertex -> vertex.Surface = uint32 StadiumSurface.TurfLight)
 
-              Expect.isFalse
-                  (scene.StaticBatches
-                   |> Array.exists (fun batch -> batch.MaterialName = "Chalk | warm white"))
-                  "no duplicate floating white meshes"
+                  Expect.equal turf.Length 4 "one field quad; stripes and paint come from the shader, not meshes"
+                  let xs = turf |> Array.map _.Position.X
+                  let zs = turf |> Array.map _.Position.Z
+                  Expect.floatClose Accuracy.medium (float (Array.min xs)) (float (-PitchMarkings.length * 0.5f)) "west goal line"
+                  Expect.floatClose Accuracy.medium (float (Array.max xs)) (float (PitchMarkings.length * 0.5f)) "east goal line"
+                  Expect.floatClose Accuracy.medium (float (Array.min zs)) (float (-PitchMarkings.width * 0.5f)) "near touchline"
+                  Expect.floatClose Accuracy.medium (float (Array.max zs)) (float (PitchMarkings.width * 0.5f)) "far touchline"
 
-              for material in
-                  [ "Architectural concrete"
-                    "Midnight steel"
-                    "Grass | stripe 0"
-                    "Grass | stripe 1"
-                    "Runoff grass" ] do
                   Expect.isTrue
-                      (scene.StaticBatches |> Array.exists (fun batch -> batch.MaterialName = material))
-                      "unrelated materials/grass geometry remain"
-
-              let turf =
-                  scene.StaticBatches
-                  |> Array.filter (fun batch -> batch.MaterialName.StartsWith("Grass |", StringComparison.Ordinal))
-                  |> Array.collect _.Vertices
-
-              let minX = (turf |> Array.minBy _.Position.X).Position.X
-              let maxX = (turf |> Array.maxBy _.Position.X).Position.X
-              let minZ = (turf |> Array.minBy _.Position.Z).Position.Z
-              let maxZ = (turf |> Array.maxBy _.Position.Z).Position.Z
-
-              Expect.floatClose
-                  Accuracy.medium
-                  (float minX)
-                  (float (-PitchMarkings.length * 0.5f))
-                  "paint coordinates match the authored grass"
-
-              Expect.floatClose
-                  Accuracy.medium
-                  (float maxX)
-                  (float (PitchMarkings.length * 0.5f))
-                  "right goal line footprint"
-
-              Expect.floatClose
-                  Accuracy.medium
-                  (float minZ)
-                  (float (-PitchMarkings.width * 0.5f))
-                  "near touchline footprint"
-
-              Expect.floatClose
-                  Accuracy.medium
-                  (float maxZ)
-                  (float (PitchMarkings.width * 0.5f))
-                  "far touchline footprint") ]
+                      (turf |> Array.forall (fun vertex -> vertex.Position.Y = 0.0f && vertex.RootIndex = uint32 SceneRoot.stadium))
+                      "the field lies on the ground under the identity stadium root") ]

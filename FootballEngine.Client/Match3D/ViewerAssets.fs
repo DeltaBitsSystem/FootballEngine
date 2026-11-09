@@ -7,7 +7,9 @@ open System.Threading.Tasks
 
 /// CPU-side packages the viewer needs before touching the GPU, already validated.
 type ViewerAssets =
-    { Stadium: StadiumAssetData
+    { Kit: StadiumKitData
+      /// Dropped by the renderer once uploaded; the GPU copy is the only one the viewer needs.
+      KitTextures: KitTextureData
       Character: CharacterAssetData
       Environment: HdrEnvironmentData
       Surfaces: SurfaceTexturePack
@@ -23,26 +25,27 @@ module ViewerAssets =
         Trace.WriteLine($"Viewer startup {name}: {Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms")
         value
 
-    let load (assetPath: string) (exposureStops: float32 option) : Result<ViewerAssets, string> =
-        let assetFile name =
-            Path.Combine(Path.GetDirectoryName assetPath, name)
+    let load (assetDirectory: string) (exposureStops: float32 option) : Result<ViewerAssets, string> =
+        let assetFile name = Path.Combine(assetDirectory, name)
 
         // Independent CPU packages decode concurrently; all native/GPU ownership stays on the render thread.
         let character =
             Task.Run(fun () -> timed "character" (fun () -> CharacterAsset.load (assetFile "player.glb")))
 
-        let stadium =
-            Task.Run(fun () -> timed "stadium GLB" (fun () -> StadiumAsset.load assetPath))
+        let kit =
+            Task.Run(fun () -> timed "stadium kit" (fun () -> StadiumKit.load (assetFile "StadiumKit")))
 
         let environment =
-            timed "environment" (fun () -> StadiumEnvironment.load assetPath)
+            timed "environment" (fun () -> StadiumEnvironment.load (assetFile "stadium.environment.json"))
             |> Result.mapError (fun message -> $"Cannot load authored stadium environment: {message}")
 
         let surfaces =
             timed "surfaces" (fun () -> SurfaceTexturePack.load (assetFile "Surfaces"))
             |> Result.mapError (fun message -> $"Cannot load stadium surface materials: {message}")
 
-        let stadiumData = stadium.GetAwaiter().GetResult()
+        let kitData =
+            kit.GetAwaiter().GetResult()
+            |> Result.mapError (fun message -> $"Cannot load the stadium kit: {message}")
 
         let characterData =
             character.GetAwaiter().GetResult()
@@ -50,11 +53,12 @@ module ViewerAssets =
 
         let shadow = DirectionalShadow.stadium
 
-        match environment, surfaces, characterData with
-        | Error message, _, _
-        | _, Error message, _
-        | _, _, Error message -> Error message
-        | Ok package, Ok surfacePack, Ok characterAsset ->
+        match environment, surfaces, characterData, kitData with
+        | Error message, _, _, _
+        | _, Error message, _, _
+        | _, _, Error message, _
+        | _, _, _, Error message -> Error message
+        | Ok package, Ok surfacePack, Ok characterAsset, Ok(kitMesh, kitTextures) ->
             let settings =
                 { package.Settings with
                     ExposureStops = defaultArg exposureStops package.Settings.ExposureStops }
@@ -64,7 +68,8 @@ module ViewerAssets =
             | Ok lighting ->
                 SceneBuilder.matrixOfElements (DirectionalShadow.matrixData shadow lighting.SunDirection)
                 |> Result.map (fun lightViewProjection ->
-                    { Stadium = stadiumData
+                    { Kit = kitMesh
+                      KitTextures = kitTextures
                       Character = characterAsset
                       Environment = package.Environment
                       Surfaces = surfacePack

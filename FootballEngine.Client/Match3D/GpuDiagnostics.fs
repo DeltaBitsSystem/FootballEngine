@@ -159,6 +159,14 @@ module ViewerDiagnostics =
 
     let windPin () = Volatile.Read(&pinnedWindSeconds)
 
+    /// Captures override the home ground (reputation, league level, seed) so generated stadiums can be compared
+    /// without a career whose club happens to have that profile.
+    let mutable private pinnedStadium: (int * int * int) option = None
+
+    let pinStadium (stadium: (int * int * int) option) = Volatile.Write(&pinnedStadium, stadium)
+
+    let stadiumPin () = Volatile.Read(&pinnedStadium)
+
     /// Interpolation between published poses follows the wall clock, so a capture taken mid-catch-up shows
     /// whichever pose the scheduler reached. Each pull while pinned moves the sample clock an hour ahead,
     /// which always clamps presentation to the newest pose; the pull count keeps timestamps increasing.

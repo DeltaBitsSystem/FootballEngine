@@ -3,7 +3,6 @@ namespace FootballEngine.Client.Match3D
 open System
 open System.IO
 open System.Numerics
-open System.Security.Cryptography
 open System.Text.Json
 
 type StadiumEnvironmentData =
@@ -19,17 +18,13 @@ module StadiumEnvironment =
 
         Vector3(value[0].GetSingle(), value[1].GetSingle(), value[2].GetSingle())
 
-    let private hashFile path =
-        use stream = File.OpenRead path
-        SHA256.HashData stream |> Convert.ToHexString
-
     let private matches expected actual =
         String.Equals(expected, actual, StringComparison.OrdinalIgnoreCase)
 
-    let load assetPath =
+    /// The sidecar names the lighting folder beside it; the stadium itself is procedural and has no file to match.
+    let load sidecarPath =
         try
-            let assetPath = Path.GetFullPath assetPath
-            let sidecarPath = Path.ChangeExtension(assetPath, "environment.json")
+            let sidecarPath = Path.GetFullPath sidecarPath
             use stream = File.OpenRead sidecarPath
 
             if stream.Length > 65536L then
@@ -61,28 +56,25 @@ module StadiumEnvironment =
             match HdrLighting.validate settings with
             | Error error -> Error error
             | Ok settings ->
-                if not (matches (root.GetProperty("stadiumSha256").GetString()) (hashFile assetPath)) then
-                    Error "Stadium geometry does not match its authored environment package."
-                else
-                    let environmentPath = Path.Combine(Path.GetDirectoryName assetPath, directory)
+                let environmentPath = Path.Combine(Path.GetDirectoryName sidecarPath, directory)
 
-                    match HdrLighting.loadEnvironment environmentPath with
-                    | Error error -> Error error
-                    | Ok environment ->
-                        if
-                            not (
-                                matches
-                                    (root.GetProperty("environmentManifestSha256").GetString())
-                                    environment.ManifestSha256
-                            )
-                        then
-                            Error "HDR manifest does not match the stadium environment sidecar."
-                        elif Vector3.Distance(settings.SunDirection, environment.SunDirection) > 0.0001f then
-                            Error "Visible sky, image-based lighting and geometric shadows have different sun directions."
-                        else
-                            Ok
-                                { Settings = settings
-                                  Environment = environment }
+                match HdrLighting.loadEnvironment environmentPath with
+                | Error error -> Error error
+                | Ok environment ->
+                    if
+                        not (
+                            matches
+                                (root.GetProperty("environmentManifestSha256").GetString())
+                                environment.ManifestSha256
+                        )
+                    then
+                        Error "HDR manifest does not match the stadium environment sidecar."
+                    elif Vector3.Distance(settings.SunDirection, environment.SunDirection) > 0.0001f then
+                        Error "Visible sky, image-based lighting and geometric shadows have different sun directions."
+                    else
+                        Ok
+                            { Settings = settings
+                              Environment = environment }
         with
         | :? InvalidDataException as error -> Error error.Message
         | :? IOException as error -> Error error.Message

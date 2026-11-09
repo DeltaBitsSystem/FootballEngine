@@ -10,7 +10,9 @@ let private pass name reads writes =
 
 let private draw mesh shadow layer =
     { Mesh = mesh
+      FirstIndex = 0u
       IndexCount = 3u
+      FirstInstance = 0u
       InstanceCount = 1u
       Shadow = shadow
       Layer = layer }

@@ -12,6 +12,8 @@ module SceneRoot =
     let stadium = 23
     let carrierMarker = 24
     let count = 25
+    /// Kit vertices carry this instead of a slot: their transform comes from the instance storage buffer.
+    let instanced = System.UInt32.MaxValue
 
 type CameraState =
     { ViewProjection: Matrix4x4
@@ -40,4 +42,7 @@ type SceneFrame =
         /// within the same call, so a copy here would only add a per-frame allocation of every joint matrix.
         JointPalettes: Matrix4x4[]
         ShowGrassDetail: bool
+        /// Linear home-club colours for LED content; static stadium tints are baked into instance data.
+        ClubPrimary: Vector3
+        ClubSecondary: Vector3
     }

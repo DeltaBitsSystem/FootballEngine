@@ -191,6 +191,17 @@ type MatchPitchControl() as this =
                     renderer.SetCamera camera
                     match state with
                     | Some state when bounds.Width > 0 && bounds.Height > 0 ->
+                        let home = state.Binding.Fixture.Home
+                        // The club id seeds the layout, so a club plays every home match in the same ground.
+                        renderer.SetStadium(
+                            StadiumIdentity.create
+                                home.Reputation
+                                (defaultArg home.LeagueLevel 2)
+                                (int home.ClubId)
+                                home.PrimaryColor
+                                home.SecondaryColor
+                        )
+
                         match currentFrame cache state with
                         | Some(frame, time) ->
                             match activeEvaluator with

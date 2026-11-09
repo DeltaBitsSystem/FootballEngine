@@ -171,18 +171,32 @@ type private MatchRuntime
 
         let clubIdentity (club: ClubRef) =
             let clubId = int club.Id
+            let domainClub = gs.Clubs |> Map.tryFind clubId
+            let name = domainClub |> Option.map _.Name |> Option.defaultValue club.Name
 
-            let name =
-                gs.Clubs
-                |> Map.tryFind clubId
-                |> Option.map _.Name
-                |> Option.defaultValue club.Name
+            // Kit hex strings are validated as #RRGGBB when content loads; anything else means "no kit colour".
+            let packed (hex: string) =
+                match UInt32.TryParse(hex.TrimStart('#'), Globalization.NumberStyles.HexNumber, null) with
+                | true, rgb when hex.Length = 7 -> 0xFF000000u ||| rgb
+                | _ -> 0u
+
+            let kit = domainClub |> Option.bind _.Kit
+
+            let leagueLevel =
+                SimHelpers.leagueOf gs clubId
+                |> Option.bind (fun competitionId -> gs.Competitions |> Map.tryFind competitionId)
+                |> Option.bind (fun competition ->
+                    match competition.Type with
+                    | NationalLeague(LeagueLevel level, _) -> Some level
+                    | _ -> None)
 
             { ClubId = clubId
               Name = name
               ShortName = name
-              PrimaryColor = 0u
-              SecondaryColor = 0u }
+              PrimaryColor = kit |> Option.map (fun kit -> packed kit.Primary) |> Option.defaultValue 0u
+              SecondaryColor = kit |> Option.map (fun kit -> packed kit.Secondary) |> Option.defaultValue 0u
+              Reputation = domainClub |> Option.map _.Reputation |> Option.defaultValue 5000
+              LeagueLevel = leagueLevel }
 
         let playerNames (lineups: FootballEngine.Core.Match.Lineup array) =
             lineups

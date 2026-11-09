@@ -11,6 +11,7 @@ type SceneResourceInputs =
     { Environment: HdrEnvironmentData
       Surfaces: SurfaceTexturePack
       Character: CharacterAssetData
+      KitTextures: KitTextureData
       Shadow: DirectionalShadowSettings
       Samples: uint32
       DepthFormat: TextureFormat }
@@ -26,6 +27,8 @@ type SceneResources
         jointBuffer: GpuBuffer<Matrix4x4>,
         cameraGroup: nativeptr<BindGroup>,
         pipeline: nativeptr<RenderPipeline>,
+        blendedPipeline: nativeptr<RenderPipeline>,
+        kitInstances: GpuBuffer<Vector4>,
         shadows: DirectionalShadowPass,
         grass: ProceduralScenePass,
         sky: ProceduralScenePass
@@ -121,6 +124,31 @@ type SceneResources
 
             texture)
 
+    static let uploadKit (context: GpuContext) (owner: GpuOwner) (kit: KitTextureData) (format: TextureFormat, pixels: byte[]) =
+        GpuTexture.Create(context, sampled "a stadium kit material array" format kit.Size kit.Size kit.Layers kit.Levels)
+        |> Result.map (fun texture ->
+            owner.Own texture |> ignore
+            let mutable offset = 0
+
+            for level = 0 to kit.Levels - 1 do
+                let width = kit.Size >>> level
+                let bytes = width * width * kit.Layers * 4
+
+                texture.UploadLevel(
+                    uint32 level,
+                    uint32 width,
+                    uint32 width,
+                    uint32 kit.Layers,
+                    uint32 (width * 4),
+                    pixels,
+                    offset,
+                    bytes
+                )
+
+                offset <- offset + bytes
+
+            texture)
+
     static let build
         (context: GpuContext)
         (cache: RenderPipelineCache)
@@ -169,6 +197,23 @@ type SceneResources
                 )
 
             owner.Own surfaceSampler |> ignore
+            let! kitTextures =
+                [ TextureFormat.Rgba8UnormSrgb, inputs.KitTextures.Albedo
+                  TextureFormat.Rgba8Unorm, inputs.KitTextures.Normal
+                  TextureFormat.Rgba8Unorm, inputs.KitTextures.Orm ]
+                |> List.traverseResultM (uploadKit context owner inputs.KitTextures)
+                |> Result.map Array.ofList
+
+            let! kitInstances =
+                GpuBuffer<Vector4>
+                    .Create(
+                        context,
+                        "stadium kit instances",
+                        BufferUsage.Storage ||| BufferUsage.CopyDst,
+                        Array.zeroCreate<Vector4> (StadiumGeometry.instanceCapacity * StadiumGeometry.instanceVectors)
+                    )
+
+            owner.Own kitInstances |> ignore
             let atlas = character.Albedo.Levels[0]
 
             let! albedo =
@@ -254,7 +299,11 @@ type SceneResources
                       BindGroupLayouts.textureArray 9u ShaderStage.Fragment
                       BindGroupLayouts.texture2d 10u ShaderStage.Fragment
                       BindGroupLayouts.sampler 11u ShaderStage.Fragment
-                      BindGroupLayouts.texture2d 12u ShaderStage.Fragment ]
+                      BindGroupLayouts.texture2d 12u ShaderStage.Fragment
+                      BindGroupLayouts.textureArray 13u ShaderStage.Fragment
+                      BindGroupLayouts.textureArray 14u ShaderStage.Fragment
+                      BindGroupLayouts.textureArray 15u ShaderStage.Fragment
+                      BindGroupLayouts.storage 16u ShaderStage.Vertex true ]
 
             owner.Release(fun () -> api.BindGroupLayoutRelease(sceneLayout))
 
@@ -307,7 +356,11 @@ type SceneResources
                       BindGroups.view 9u environmentTextures[0].View
                       BindGroups.view 10u environmentTextures[1].View
                       BindGroups.sampler 11u environmentSampler.Handle
-                      BindGroups.view 12u environmentTextures[2].View ]
+                      BindGroups.view 12u environmentTextures[2].View
+                      BindGroups.view 13u kitTextures[0].View
+                      BindGroups.view 14u kitTextures[1].View
+                      BindGroups.view 15u kitTextures[2].View
+                      BindGroups.buffer 16u kitInstances.Handle (uint64 (kitInstances.Length * sizeof<Vector4>)) ]
 
             owner.Release(fun () -> api.BindGroupRelease(cameraGroup))
 
@@ -338,6 +391,29 @@ type SceneResources
                     fun () -> RenderPipelines.build context "the stadium render pipeline" sceneKey shader pipelineLayout
                 )
 
+            // Glazing and nets blend over the finished opaque scene; writing depth would hide players behind glass.
+            let blendedKey: RenderPipelineKey =
+                { sceneKey with
+                    Fragment =
+                        Some
+                            { Entry = "fsBlended"
+                              ColorFormat = TextureFormat.Rgba16float
+                              Blend = PremultipliedAlpha }
+                    Depth =
+                        Some
+                            { DepthFormat = inputs.DepthFormat
+                              WriteDepth = false
+                              Compare = CompareFunction.Less
+                              Bias = 0
+                              SlopeScale = 0.0f } }
+
+            let! blendedPipeline =
+                cache.GetOrAdd(
+                    blendedKey,
+                    fun () ->
+                        RenderPipelines.build context "the stadium glazing pipeline" blendedKey shader pipelineLayout
+                )
+
             let procedural settings =
                 ProceduralScenePass.Create(
                     context,
@@ -354,7 +430,19 @@ type SceneResources
             let! sky = procedural ProceduralScenePassSettings.sky
             owner.Own sky |> ignore
 
-            return new SceneResources(owner, cameraBuffer, jointBuffer, cameraGroup, pipeline, shadows, grass, sky)
+            return
+                new SceneResources(
+                    owner,
+                    cameraBuffer,
+                    jointBuffer,
+                    cameraGroup,
+                    pipeline,
+                    blendedPipeline,
+                    kitInstances,
+                    shadows,
+                    grass,
+                    sky
+                )
         }
 
     let mutable disposed = false
@@ -373,6 +461,8 @@ type SceneResources
     member _.CameraGroup = cameraGroup
     /// Owned by the pipeline cache, which outlives these resources.
     member _.Pipeline = pipeline
+    member _.BlendedPipeline = blendedPipeline
+    member _.KitInstances = kitInstances
     member _.Shadows = shadows
     member _.Grass = grass
     member _.Sky = sky

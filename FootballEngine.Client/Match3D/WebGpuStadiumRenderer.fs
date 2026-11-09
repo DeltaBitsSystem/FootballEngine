@@ -28,7 +28,7 @@ type WebGpuStadiumRenderer
     (
         parentWindow: unativeint,
         initialBounds: PixelRect,
-        assetPath: string,
+        assetDirectory: string,
         ?camera: ViewerCamera,
         ?exposureStops: float32
     ) =
@@ -36,12 +36,11 @@ type WebGpuStadiumRenderer
     let multisampleCount = 4u
     let mutable cameraMode = defaultArg camera ViewerCamera.Broadcast
 
-    let assets =
-        match ViewerAssets.load assetPath exposureStops with
+    let mutable assets =
+        match ViewerAssets.load assetDirectory exposureStops with
         | Ok loaded -> loaded
         | Error message -> invalidOp message
 
-    let stadium = assets.Stadium
     let character = assets.Character
 
     let quality =
@@ -68,6 +67,9 @@ type WebGpuStadiumRenderer
     let mutable hdrOutput: HdrOutputPass option = None
     let mutable hud: HudOverlay option = None
     let mutable systems: IViewerSystem list = []
+    let mutable stadium: StadiumSystem option = None
+    let mutable requestedStadium = StadiumIdentity.neutral
+    let mutable builtStadium: StadiumIdentity option = None
     let mutable staticShadowsReady = false
     let mutable showGrassDetail = false
     let mutable lastBounds = PixelRect(0, 0, 0, 0)
@@ -120,15 +122,48 @@ type WebGpuStadiumRenderer
               Frame = frame
               JointPalettes = palettes
               JointCount = character.JointCount
-              BallMeshRadius = stadium.BallRadius
+              BallMeshRadius = MatchBallMesh.radius
               Sun = assets.Sun
-              LightViewProjection = assets.LightViewProjection }
+              LightViewProjection = assets.LightViewProjection
+              ClubPrimary = requestedStadium.Primary
+              ClubSecondary = requestedStadium.Secondary }
 
         match SceneBuilder.build input with
         | Ok built -> built
         | Error(InvalidPalettes message) -> invalidArg "palettes" message
         | Error(InvalidFrame message) -> invalidArg "frame" message
         | Error SingularCamera -> invalidOp "The viewer camera produced a singular projection."
+
+    // Generation is a few tens of milliseconds of CPU work, paid once per ground rather than per frame.
+    let ensureStadium () =
+        let wanted =
+            match ViewerDiagnostics.stadiumPin () with
+            | Some(reputation, level, seed) ->
+                { requestedStadium with
+                    Reputation = reputation
+                    LeagueLevel = level
+                    Seed = seed }
+            | None -> requestedStadium
+
+        if builtStadium <> Some wanted then
+            match stadium with
+            | None -> ()
+            | Some system ->
+                let started = Diagnostics.Stopwatch.GetTimestamp()
+
+                match StadiumGeometry.build assets.Kit wanted with
+                | Error message -> invalidOp message
+                | Ok build ->
+                    unwrap (system.Rebuild build)
+                    builtStadium <- Some wanted
+                    // The cached sun shadow still holds the previous ground.
+                    staticShadowsReady <- false
+
+                    Diagnostics.Trace.WriteLine(
+                        $"Stadium generated: {build.SeatCount} seats, {build.Clusters.Length} clusters, "
+                        + $"{build.Indices.Length / 3} stand triangles in "
+                        + $"{Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds:F1} ms"
+                    )
 
     let uploadScene (scene: SceneFrame) =
         // Blade detail is a per-frame decision, so the grass pass follows the same camera that was just packed.
@@ -161,8 +196,8 @@ type WebGpuStadiumRenderer
         if not (OperatingSystem.IsLinux()) then
             invalidOp "The WebGPU stadium host currently requires the Linux X11/XWayland backend."
 
-        if not (File.Exists assetPath) then
-            invalidOp $"The stadium scene asset was not found: {assetPath}"
+        if not (Directory.Exists assetDirectory) then
+            invalidOp $"The match viewer asset folder was not found: {assetDirectory}"
 
         display <- X11ChildWindow.openDisplay ()
 
@@ -204,21 +239,31 @@ type WebGpuStadiumRenderer
             { Environment = assets.Environment
               Surfaces = assets.Surfaces
               Character = character
+              KitTextures = assets.KitTextures
               Shadow = assets.Shadow
               Samples = multisampleCount
               DepthFormat = spec.DepthFormat }
 
         resources <- Some(owner.Own(unwrap (SceneResources.Create(ctx, cache, inputs))))
+        // The pixels now live on the GPU; holding the CPU copy would keep ~110 MB alive for the whole match.
+        assets <- { assets with KitTextures = KitTextureData.empty }
         hud <- Some(owner.Own(unwrap (HudOverlay.Create(ctx, cache))))
         unwrap (hud.Value.Resize(width, height))
 
+        let stadiumSystem =
+            owner.Own(unwrap (StadiumSystem.Create(ctx, assets.Kit, resources.Value.KitInstances)))
+
+        // The ground is generated on the first Render, after the control has named the home club; building the
+        // neutral one here would cost a discarded generation at every match start.
+        stadium <- Some stadiumSystem
+
         // Order is submission order: stadium, ball, players, then overlays.
         systems <-
-            [ ViewerSystems.stadium ctx stadium
-              ViewerSystems.ball ctx stadium
-              ViewerSystems.players ctx character
-              ViewerSystems.carrierMarker ctx ]
-            |> List.map (fun system -> owner.Own(unwrap system))
+            (stadiumSystem :> IViewerSystem)
+            :: ([ ViewerSystems.ball ctx
+                  ViewerSystems.players ctx character
+                  ViewerSystems.carrierMarker ctx ]
+                |> List.map (fun system -> owner.Own(unwrap system)))
 
         updateWindow initialBounds
 
@@ -254,6 +299,7 @@ type WebGpuStadiumRenderer
             let api = ctx.Api
             updateWindow bounds
             updateWindowShape bounds cutouts
+            ensureStadium ()
             uploadScene (buildScene frame palettes)
             hud.Value.Update(frame, stats, pacing.Performance)
             let mutable current = SurfaceTexture()
@@ -315,6 +361,9 @@ type WebGpuStadiumRenderer
         presented
 
     member _.SetCamera(mode: ViewerCamera) = cameraMode <- mode
+
+    /// Takes effect on the next rendered frame; an unchanged identity costs nothing.
+    member _.SetStadium(identity: StadiumIdentity) = requestedStadium <- identity
 
     interface IDisposable with
         member _.Dispose() = releaseResources ()

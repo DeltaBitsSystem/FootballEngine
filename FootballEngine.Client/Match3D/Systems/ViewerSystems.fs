@@ -27,7 +27,9 @@ type MeshSystem(meshes: GpuMesh list, instances: uint32, shadow: ShadowCasting, 
         meshes
         |> List.map (fun mesh ->
             { Mesh = mesh
+              FirstIndex = 0u
               IndexCount = mesh.IndexCount
+              FirstInstance = 0u
               InstanceCount = instances
               Shadow = shadow
               Layer = layer })
@@ -48,7 +50,7 @@ type MeshSystem(meshes: GpuMesh list, instances: uint32, shadow: ShadowCasting, 
                     (mesh.Indices :> IDisposable).Dispose()
 
 module ViewerSystems =
-    let private uploadMesh (context: GpuContext) (name: string, vertices: GpuVertex[], indices: uint32[]) =
+    let uploadMesh (context: GpuContext) (name: string, vertices: GpuVertex[], indices: uint32[]) =
         if indices.Length = 0 then
             Ok None
         else
@@ -97,21 +99,9 @@ module ViewerSystems =
 
         upload batches
 
-    let stadium context (asset: StadiumAssetData) =
-        let batches =
-            asset.StaticBatches
-            |> Array.map (fun batch -> batch.MaterialName, batch.Vertices, batch.Indices)
-            |> List.ofArray
-
-        meshSystem context batches 1u StaticCaster SceneLayer
-
-    let ball context (asset: StadiumAssetData) =
-        let batches =
-            asset.DynamicBatches
-            |> Array.map (fun batch -> batch.MaterialName, batch.Vertices, batch.Indices)
-            |> List.ofArray
-
-        meshSystem context batches 1u DynamicCaster SceneLayer
+    let ball context =
+        let mesh = MatchBallMesh.create MatchBallMesh.radius
+        meshSystem context [ mesh.MaterialName, mesh.Vertices, mesh.Indices ] 1u DynamicCaster SceneLayer
 
     /// One instanced draw per material covers both squads; the shader picks each player's root and kit by instance.
     let players context (character: CharacterAssetData) =
@@ -181,4 +171,4 @@ module ViewerSystems =
     let encode (api: WebGPU) (pass: nativeptr<RenderPassEncoder>) (draw: Draw<GpuMesh>) =
         api.RenderPassEncoderSetVertexBuffer(pass, 0u, draw.Mesh.Vertices.Handle, 0UL, UInt64.MaxValue)
         api.RenderPassEncoderSetIndexBuffer(pass, draw.Mesh.Indices.Handle, IndexFormat.Uint32, 0UL, UInt64.MaxValue)
-        api.RenderPassEncoderDrawIndexed(pass, draw.IndexCount, draw.InstanceCount, 0u, 0, 0u)
+        api.RenderPassEncoderDrawIndexed(pass, draw.IndexCount, draw.InstanceCount, draw.FirstIndex, 0, draw.FirstInstance)

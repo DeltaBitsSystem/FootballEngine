@@ -11,6 +11,12 @@
 @group(0) @binding(10) var environmentBrdf: texture_2d<f32>;
 @group(0) @binding(11) var environmentSampler: sampler;
 @group(0) @binding(12) var skyMap: texture_2d<f32>;
+@group(0) @binding(13) var kitAlbedo: texture_2d_array<f32>;
+@group(0) @binding(14) var kitNormalMap: texture_2d_array<f32>;
+@group(0) @binding(15) var kitOrm: texture_2d_array<f32>;
+// Three vec4 per kit instance in layout space: (x, y, z, yaw degrees), (scale, 0), (tint, 1).
+@group(0) @binding(16) var<storage, read> kitInstances: array<vec4<f32>>;
+const KIT_INSTANCED: u32 = 0xffffffffu;
 const JOINT_COUNT: u32 = CHARACTER_JOINT_COUNT;
 
 struct VertexInput {
@@ -32,9 +38,45 @@ struct VertexOutput {
     @location(3) world: vec3<f32>,
     @location(4) @interpolate(flat) textured: u32,
     @location(5) @interpolate(flat) surface: u32,
+    // Kit material parameters ride in the joint attribute, which unskinned geometry does not use.
+    @location(6) @interpolate(flat) params: vec4<f32>,
+    @location(7) @interpolate(flat) tint: vec3<f32>,
+}
+
+// Kit pieces are authored glTF y-up; the layout places them in Blender's z-up frame exactly like the look-dev
+// assembler (translate * rotate z * scale), and the renderer is y-up with layout +y mapped to -z.
+fn kitRotate(b: vec3<f32>, yawDegrees: f32) -> vec3<f32> {
+    let angle = radians(yawDegrees);
+    let c = cos(angle);
+    let s = sin(angle);
+    return vec3<f32>(c * b.x - s * b.y, s * b.x + c * b.y, b.z);
+}
+
+fn kitVertex(input: VertexInput, instance: u32) -> VertexOutput {
+    var output: VertexOutput;
+    let base = instance * 3u;
+    let place = kitInstances[base];
+    let scale = kitInstances[base + 1u].xyz;
+    let placed = kitRotate(vec3<f32>(input.position.x * scale.x, -input.position.z * scale.y, input.position.y * scale.z), place.w) + place.xyz;
+    // Normals take the inverse scale so stretched towers and tunnels keep perpendicular shading.
+    let normal = kitRotate(vec3<f32>(input.normal.x / scale.x, -input.normal.z / scale.y, input.normal.y / scale.z), place.w);
+    let world = vec3<f32>(placed.x, placed.z, -placed.y);
+    output.clipPosition = camera.viewProjection * vec4<f32>(world, 1.0);
+    output.normal = normalize(vec3<f32>(normal.x, normal.z, -normal.y));
+    output.color = input.color;
+    output.uv = input.uv;
+    output.world = world;
+    output.textured = 0u;
+    output.surface = input.surface;
+    output.params = input.joints;
+    output.tint = kitInstances[base + 2u].rgb;
+    return output;
 }
 
 fn transformVertex(input: VertexInput, instance: u32) -> VertexOutput {
+    if input.rootIndex == KIT_INSTANCED {
+        return kitVertex(input, instance);
+    }
     var output: VertexOutput;
     let root = input.rootIndex + instance;
     let model = camera.rootTransforms[root];
@@ -64,6 +106,8 @@ fn transformVertex(input: VertexInput, instance: u32) -> VertexOutput {
     output.world = world.xyz;
     output.textured = select(0u, 1u, dot(input.weights, vec4<f32>(1.0)) > 0.0);
     output.surface = input.surface;
+    output.params = input.joints;
+    output.tint = input.color.rgb;
     return output;
 }
 
@@ -90,18 +134,80 @@ fn materialNoise(p: vec2<f32>) -> f32 {
                mix(materialHash(cell + vec2<i32>(0, 1)), materialHash(cell + vec2<i32>(1, 1)), blend.x), blend.y);
 }
 
+// Daylight LED radiance relative to the sun's 3.2: bright enough to read as lit panels, not as lamps.
+const LED_RADIANCE: f32 = 1.6;
+
+// Scrolling club-coloured banners: alternating 6 m panels with a bold centre stripe of dashes. Coarse shapes
+// keep distant boards from aliasing into noise until sponsor content exists.
+fn ledContent(uv: vec2<f32>, size: vec2<f32>, world: vec3<f32>) -> vec3<f32> {
+    let metres = uv * size;
+    let scrolled = metres.x - camera.position.w * 1.2 + world.x * 0.05;
+    let panel = floor(scrolled / 6.0);
+    let local = vec2<f32>(scrolled - panel * 6.0, metres.y / max(size.y, 0.01));
+    let alternate = (i32(panel) & 1) == 0;
+    let ground = select(camera.clubSecondary.rgb, camera.clubPrimary.rgb, alternate);
+    let ink = select(camera.clubPrimary.rgb, camera.clubSecondary.rgb, alternate);
+    let dash = fract(local.x / 1.6) < 0.7;
+    let stripe = local.x > 0.5 && local.x < 5.5 && abs(local.y - 0.5) < 0.18 && dash;
+    return select(ground, ink, stripe) * LED_RADIANCE;
+}
+
+struct KitShading {
+    colour: vec3<f32>,
+    alpha: f32,
+}
+
+fn shadeKit(input: VertexOutput, geometricNormal: vec3<f32>, dpdxWorld: vec3<f32>, dpdyWorld: vec3<f32>, duvdx: vec2<f32>, duvdy: vec2<f32>) -> KitShading {
+    // Sheets, nets and flags are seen from both sides; lighting the back face with the front normal turns roof
+    // undersides into glowing ceilings.
+    let toEye = camera.position.xyz - input.world;
+    let normal = select(geometricNormal, -geometricNormal, dot(geometricNormal, toEye) < 0.0);
+    let tint = select(input.color.rgb, input.tint, input.params.z > 0.5);
+    var base = tint;
+    var shadingNormal = normal;
+    var roughness = 0.85;
+    var metallic = 0.0;
+    var ao = 1.0;
+    var alpha = input.color.a;
+    var emitted = vec3<f32>(0.0);
+    if input.surface < 32u {
+        let layer = i32(input.surface - 16u);
+        let albedo = textureSampleGrad(kitAlbedo, surfaceSampler, input.uv, layer, duvdx, duvdy);
+        let detail = textureSampleGrad(kitNormalMap, surfaceSampler, input.uv, layer, duvdx, duvdy).rgb * 2.0 - 1.0;
+        let orm = textureSampleGrad(kitOrm, surfaceSampler, input.uv, layer, duvdx, duvdy).rgb;
+        let perpendicularX = cross(dpdyWorld, normal);
+        let perpendicularY = cross(normal, dpdxWorld);
+        let tangent = perpendicularX * duvdx.x + perpendicularY * duvdy.x;
+        let bitangent = perpendicularX * duvdx.y + perpendicularY * duvdy.y;
+        let scale = inverseSqrt(max(max(dot(tangent, tangent), dot(bitangent, bitangent)), 0.00000001));
+        shadingNormal = normalize(tangent * scale * detail.x + bitangent * scale * detail.y + normal * detail.z);
+        if input.params.w > 0.5 {
+            // The net texture is a coverage mask in red; mips average it, so distant mesh fades instead of aliasing.
+            alpha = albedo.r;
+            base = tint * 0.9;
+        } else {
+            base = albedo.rgb * tint;
+        }
+        ao = orm.r;
+        roughness = clamp(orm.g, 0.05, 1.0);
+        metallic = orm.b;
+    } else if input.surface == 32u {
+        roughness = input.params.x;
+        metallic = input.params.y;
+    } else {
+        roughness = input.params.z;
+        emitted = ledContent(input.uv, input.params.xy, input.world);
+    }
+    let lit = shadeMaterial(base, shadingNormal, input.world, roughness, metallic, ao, sunlightVisibility(input.world, normal)) + emitted;
+    return KitShading(lit, alpha);
+}
+
 @fragment fn fs(input: VertexOutput) -> @location(0) vec4<f32> {
     let normal = normalize(input.normal);
-    let sunlight = camera.sunAndEnvironment.xyz;
     let dpdxWorld = dpdx(input.world);
     let dpdyWorld = dpdy(input.world);
     let duvdx = dpdx(input.uv);
     let duvdy = dpdy(input.uv);
-    let footprint = max(length(dpdxWorld), length(dpdyWorld));
-    let surfaceUv = select(select(input.world.xy, input.world.zy, abs(normal.x) > abs(normal.z)), input.world.xz * vec2<f32>(1.0, -1.0), abs(normal.y) > 0.7) * 0.5;
-    let surfaceLayer = select(0, 1, input.surface == 4u);
-    let surfaceUvDx = dpdx(surfaceUv);
-    let surfaceUvDy = dpdy(surfaceUv);
     if input.textured != 0u {
         let albedo = textureSampleGrad(athleteAlbedo, athleteSampler, input.uv, duvdx, duvdy);
         let detail = textureSampleGrad(athleteDetail, athleteSampler, input.uv, duvdx, duvdy);
@@ -117,48 +223,22 @@ fn materialNoise(p: vec2<f32>) -> f32 {
         let litAthlete = shadeAthlete(albedo.rgb, surfaceNormal, normal, input.world, roughness, input.surface);
         return vec4<f32>(litAthlete, albedo.a);
     }
+    if input.surface >= 16u {
+        let kit = shadeKit(input, normal, dpdxWorld, dpdyWorld, duvdx, duvdy);
+        return vec4<f32>(kit.colour, 1.0);
+    }
+    if input.surface == 7u {
+        return vec4<f32>(shadeMatchBall(input.uv, normal, input.world), 1.0);
+    }
     if input.surface != 0u {
-        if input.surface == 7u {
-            return vec4<f32>(shadeMatchBall(input.uv, normal, input.world), 1.0);
-        }
-        if input.surface <= 3u {
-            return vec4<f32>(shadePitch(input.world, input.surface, dpdxWorld, dpdyWorld), input.color.a);
-        }
-        var base = input.color.rgb;
-        var materialNormal = normal;
-        var roughness = 0.90;
-        var metallic = 0.0;
-        var ao = 1.0;
-        let broadVariation = materialNoise(input.world.xz * 0.24);
-        let medium = materialNoise(input.world.xz * 2.2);
-        // Frequencies smaller than a pixel fade to their mean instead of producing broadcast-camera shimmer.
-        let detailWeight = 1.0 - smoothstep(0.018, 0.065, footprint);
-        let grain = materialNoise(input.world.xz * vec2<f32>(75.0, 22.0));
-        if input.surface == 4u {
-            let surfaceColour = textureSampleGrad(surfaceAlbedo, surfaceSampler, surfaceUv, surfaceLayer, surfaceUvDx, surfaceUvDy).rgb;
-            let surfaceDetail = textureSampleGrad(surfaceNormalMap, surfaceSampler, surfaceUv, surfaceLayer, surfaceUvDx, surfaceUvDy).rgb * 2.0 - 1.0;
-            let surfaceProperties = textureSampleGrad(surfaceArm, surfaceSampler, surfaceUv, surfaceLayer, surfaceUvDx, surfaceUvDy).rgb;
-            let perpendicularX = cross(dpdyWorld, normal);
-            let perpendicularY = cross(normal, dpdxWorld);
-            let tangent = perpendicularX * surfaceUvDx.x + perpendicularY * surfaceUvDy.x;
-            let bitangent = perpendicularX * surfaceUvDx.y + perpendicularY * surfaceUvDy.y;
-            let scale = inverseSqrt(max(max(dot(tangent, tangent), dot(bitangent, bitangent)), 0.00000001));
-            let mapped = normalize(vec3<f32>(surfaceDetail.xy * 0.45, surfaceDetail.z));
-            materialNormal = normalize(tangent * scale * mapped.x + bitangent * scale * mapped.y + normal * mapped.z);
-            base *= surfaceColour / vec3<f32>(0.25);
-            base *= 0.90 + 0.16 * broadVariation + (grain - 0.5) * 0.09 * detailWeight;
-            roughness = clamp(surfaceProperties.g, 0.65, 1.0);
-            ao = mix(0.75, 1.0, surfaceProperties.r);
-        } else if input.surface == 5u {
-            base *= 0.95 + 0.06 * medium;
-            roughness = 0.40;
-            metallic = 0.72;
-        } else {
-            roughness = 0.30;
-        }
-        let visibility = sunlightVisibility(input.world, normal);
-        let lit = shadeMaterial(base, materialNormal, input.world, roughness, metallic, ao, visibility);
-        return vec4<f32>(lit, input.color.a);
+        return vec4<f32>(shadePitch(input.world, input.surface, dpdxWorld, dpdyWorld), input.color.a);
     }
     return vec4<f32>(shadeMaterial(input.color.rgb, normal, input.world, 0.85, 0.0, 1.0, sunlightVisibility(input.world, normal)), input.color.a);
+}
+
+// Blended kit geometry outputs premultiplied colour so glass keeps its tint while letting the scene through.
+@fragment fn fsBlended(input: VertexOutput) -> @location(0) vec4<f32> {
+    let normal = normalize(input.normal);
+    let kit = shadeKit(input, normal, dpdx(input.world), dpdy(input.world), dpdx(input.uv), dpdy(input.uv));
+    return vec4<f32>(kit.colour * kit.alpha, kit.alpha);
 }

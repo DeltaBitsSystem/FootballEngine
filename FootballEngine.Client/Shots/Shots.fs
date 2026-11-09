@@ -835,6 +835,16 @@ module Shots =
                           5, "minute-30-above", 1800, ViewerCamera.Tactical ]
                         |> List.sortBy (fun (_, _, second, _) -> second)
 
+                    match ctx.Opts.Args |> Array.tryFindIndex ((=) "--viewer-stadium") with
+                    | Some index when index + 1 < ctx.Opts.Args.Length ->
+                        let value = ctx.Opts.Args[index + 1]
+
+                        match value.Split(',') |> Array.map Int32.TryParse with
+                        | [| true, reputation; true, level; true, seed |] ->
+                            ViewerDiagnostics.pinStadium (Some(reputation, level, seed))
+                        | _ -> eprintfn $"Ignoring --viewer-stadium '{value}': expected reputation,level,seed."
+                    | _ -> ()
+
                     let results = ResizeArray<string>()
                     let options = Text.Json.JsonWriterOptions(Indented = true)
                     use stream = new MemoryStream()

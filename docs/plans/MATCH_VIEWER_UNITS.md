@@ -52,6 +52,12 @@ Acceptance: golden tests pass; three stadiums (giant 9600/0, second_div 2800/1, 
 the harness look like the Blender look-dev renders (tv/aerial/goal) at Ultra; per-pass GPU ms reported; seat
 count on GPU equals layout; no stadium.glb references remain (grep).
 
+**Status (C2b, 2026-11-09):** steps 1–3, 6–8 done; step 4 done on the CPU (frustum culling of 8 m × 8 m
+seat clusters + distance LOD, consecutive clusters merged into `firstInstance` ranges). The compute-pass culling,
+indirect args and render bundles move to C2c; compute skinning (step 5) is not part of C2b. The broadcast camera
+from the gantry is not wired yet; BehindGoal/Touchline presets were moved inside the smallest grounds' runoff.
+Captures: `artifacts/viewer-engine/c2b/{giant,second_div,third_div}`. `stadium.glb` is deleted.
+
 ## C3 — Night (F7)
 
 Assets: `OriginalSky/sky-{visible,lighting}-{dusk,night}.exr` (same projection and split as daylight);

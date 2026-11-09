@@ -11,12 +11,19 @@ type ShadowCasting =
 /// (the carrier marker) follow them so grass blades never cover a presentation marker.
 type DrawLayer =
     | SceneLayer
+    /// Glass, polycarbonate and nets: composited over the finished opaque scene without writing depth.
+    | BlendedLayer
     | OverlayLayer
+    /// Coarse geometry that exists only for the cached shadow map and is never drawn by the main pass.
+    | ShadowOnlyLayer
 
 /// Generic over the mesh so ordering and grouping stay pure and testable without a device.
 type Draw<'Mesh> =
     { Mesh: 'Mesh
+      FirstIndex: uint32
       IndexCount: uint32
+      /// Offsets `instance_index`, which the kit shader uses to address its instance transforms.
+      FirstInstance: uint32
       InstanceCount: uint32
       Shadow: ShadowCasting
       Layer: DrawLayer }

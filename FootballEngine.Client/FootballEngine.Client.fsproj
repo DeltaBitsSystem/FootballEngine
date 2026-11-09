@@ -75,7 +75,7 @@
         <Compile Include="Views\Components\MatchCamera.fs"/>
         <Compile Include="Views\Components\MatchProjection.fs"/>
         <Compile Include="Match3D\StadiumLayout.fs"/>
-        <Compile Include="Match3D\StadiumAsset.fs"/>
+        <Compile Include="Match3D\ViewerMesh.fs"/>
         <Compile Include="Match3D\PitchMarkings.fs"/>
         <Compile Include="Match3D\AthleteMaterial.fs"/>
         <Compile Include="Match3D\CharacterAsset.fs"/>
@@ -88,6 +88,8 @@
         <Compile Include="Match3D\Scene\SceneBuilder.fs"/>
         <Compile Include="Match3D\Scene\UniformLayout.fs"/>
         <Compile Include="Match3D\Scene\DrawList.fs"/>
+        <Compile Include="Match3D\StadiumKit.fs"/>
+        <Compile Include="Match3D\StadiumGeometry.fs"/>
         <Compile Include="Match3D\Frame\FramePlan.fs"/>
         <Compile Include="Match3D\Gpu\GpuError.fs"/>
         <Compile Include="Match3D\Gpu\GpuContext.fs"/>
@@ -101,6 +103,7 @@
         <Compile Include="Match3D\MatchHudRenderer.fs"/>
         <Compile Include="Match3D\ViewerAssets.fs"/>
         <Compile Include="Match3D\Systems\ViewerSystems.fs"/>
+        <Compile Include="Match3D\Systems\StadiumSystem.fs"/>
         <Compile Include="Match3D\Frame\RenderTargets.fs"/>
         <Compile Include="Match3D\Frame\SceneResources.fs"/>
         <Compile Include="Match3D\Frame\HudOverlay.fs"/>
@@ -155,7 +158,7 @@
         <Content Include="Assets\MatchViewer\Lighting\*.bin;Assets\MatchViewer\Lighting\manifest.json;Match3D\Shaders\*.wgsl">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
-        <Content Include="Assets\MatchViewer\stadium.glb;Assets\MatchViewer\stadium.environment.json">
+        <Content Include="Assets\MatchViewer\stadium.environment.json;Assets\MatchViewer\StadiumKit\kit.json;Assets\MatchViewer\StadiumKit\stadium-kit.glb;Assets\MatchViewer\StadiumKit\Textures\*.png">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
         <Content Include="Assets\MatchViewer\player.glb;Assets\MatchViewer\player-motion.json;Assets\MatchViewer\player-albedo*.png;Assets\MatchViewer\player-normal-roughness*.png">

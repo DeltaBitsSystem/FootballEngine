@@ -21,6 +21,8 @@ type SceneInput =
         BallMeshRadius: float32
         Sun: SunState
         LightViewProjection: Matrix4x4
+        ClubPrimary: Vector3
+        ClubSecondary: Vector3
     }
 
 module SceneBuilder =
@@ -177,6 +179,8 @@ module SceneBuilder =
                           TimeSeconds = input.TimeSeconds % 3600.0
                           RootTransforms = rootTransforms
                           JointPalettes = input.JointPalettes
-                          ShowGrassDetail = grassDetailVisible camera.Position.Y }
+                          ShowGrassDetail = grassDetailVisible camera.Position.Y
+                          ClubPrimary = input.ClubPrimary
+                          ClubSecondary = input.ClubSecondary }
 
                     scene))
