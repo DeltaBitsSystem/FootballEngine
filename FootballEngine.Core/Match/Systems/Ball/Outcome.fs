@@ -67,6 +67,18 @@ module BallOutcome =
                     else
                         ball.Position })
 
+    /// The ball keeps its velocity so it carries into the net during the goal pause; the kickoff places it again.
+    let private resolveGoal (ctx: SystemContext) (world: World) tick buffer scorerCandidate xG scoringSide =
+        let scorer, assist = detectOwnGoal ctx world scorerCandidate scoringSide
+        emit world tick buffer (EventData.Goal(scoringSide, scorer, assist, xG))
+        emit world tick buffer (EventData.MomentumShift scoringSide)
+
+        world.State <-
+            { world.State with
+                Momentum = world.State.Momentum + (if scoringSide = ClubSide.Home then 0.35 else -0.35) }
+
+        finishBall world false
+
     let private resolveShot
         (ctx: SystemContext)
         (world: World)
@@ -83,15 +95,7 @@ module BallOutcome =
 
         if isInGoal crossing.Position then
             emit world tick buffer (EventData.Shot(shooter, ShotResult.OnTarget false, xG, speed, x, y))
-            let scorer, assist = detectOwnGoal ctx world shooter scoringSide
-            emit world tick buffer (EventData.Goal(scoringSide, scorer, assist, xG))
-            emit world tick buffer (EventData.MomentumShift scoringSide)
-
-            world.State <-
-                { world.State with
-                    Momentum = world.State.Momentum + (if scoringSide = ClubSide.Home then 0.35 else -0.35) }
-
-            finishBall world true
+            resolveGoal ctx world tick buffer shooter xG scoringSide
         else
             emitShotExit ctx world tick buffer shooter speed xG x y defenderSide
 
@@ -160,24 +164,41 @@ module BallOutcome =
             let firstEvent = buffer.Events.Count
             let mutable shotCrossed = false
 
-            match ball.Trajectory with
-            | Some(TrajectoryIntent.Struck(shooter, speed, _, xG)) ->
-                let dt = float (SimulationClock.dt ctx.Clock)
+            match ball.FrameContact with
+            | ValueSome contact when contact.Tick = tick && contact.Part <> GoalFramePart.Net ->
+                emit
+                    world
+                    tick
+                    buffer
+                    (EventData.Woodwork(contact.Goal, contact.Part, contact.Position.X, contact.Position.Y, contact.Position.Z))
+            | _ -> ()
 
-                let inferredPrevious =
-                    { ball.Position with
-                        X = (float ball.Position.X - float ball.Position.Vx * dt) * 1.0<meter>
-                        Y = (float ball.Position.Y - float ball.Position.Vy * dt) * 1.0<meter>
-                        Z = max 0.0 (float ball.Position.Z - float ball.Position.Vz * dt) * 1.0<meter> }
+            let dt = float (SimulationClock.dt ctx.Clock)
 
-                let previous = ball.PreviousPosition |> ValueOption.defaultValue inferredPrevious
+            let inferredPrevious =
+                { ball.Position with
+                    X = (float ball.Position.X - float ball.Position.Vx * dt) * 1.0<meter>
+                    Y = (float ball.Position.Y - float ball.Position.Vy * dt) * 1.0<meter>
+                    Z = max 0.0 (float ball.Position.Z - float ball.Position.Vz * dt) * 1.0<meter> }
 
-                match BallPhysics.goalCrossing previous ball.Position with
-                | Some crossing ->
+            let previous = ball.PreviousPosition |> ValueOption.defaultValue inferredPrevious
+
+            match BallPhysics.goalCrossing ctx.Ctx.Config.Ball.Radius previous ball.Position with
+            | Some crossing ->
+                match ball.Trajectory with
+                | Some(TrajectoryIntent.Struck(shooter, speed, _, xG)) ->
                     shotCrossed <- true
                     resolveShot ctx world tick buffer shooter speed xG crossing
-                | None -> ()
-            | _ -> ()
+                | _ when isInGoal crossing.Position ->
+                    // The Laws score any ball wholly over the line inside the frame: headers, deflections and
+                    // own goals count as much as shots.
+                    match ball.LastTouch with
+                    | Some toucher ->
+                        shotCrossed <- true
+                        resolveGoal ctx world tick buffer toucher 0.0 crossing.Side
+                    | None -> ()
+                | _ -> ()
+            | None -> ()
 
             let exited = if shotCrossed then true else handleOutOfBounds ctx world tick buffer
 

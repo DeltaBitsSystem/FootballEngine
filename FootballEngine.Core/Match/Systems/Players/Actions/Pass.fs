@@ -31,28 +31,38 @@ module Pass =
         let ry = MatchWorld.posY frame targetSlot
 
         let d = MatchMath.dist x y rx ry
-        let speed = float cfg.Actions.PassLaunchSpeed + float d * cfg.Actions.PassDistanceSpeedGain
         let originX = world.State.Ball.Position.X
         let originY = world.State.Ball.Position.Y
         let flightDistance = MatchMath.dist originX originY rx ry
-        let flightSeconds = float flightDistance / speed
+        let leadSeconds =
+            (BallAero.pass cfg.Ball cfg.Actions.PassArrivalSpeed cfg.Actions.PassArrivalSpeedGain flightDistance).Seconds
+
+        // A receiver running toward a line is led to a point he can still collect on the pitch; leading him past
+        // the line passes the ball out of play.
+        let inset = float cfg.Positioning.TargetInset
 
         let targetRx =
             MatchMath.clamp
-                (-(float Pitch.HalfLength + 5.0))
-                (float Pitch.HalfLength + 5.0)
-                (float rx + float frame.VelX.[targetSlot] * flightSeconds)
+                (-(float Pitch.HalfLength - inset))
+                (float Pitch.HalfLength - inset)
+                (float rx + float frame.VelX.[targetSlot] * leadSeconds)
             * 1.0<meter>
 
         let targetRy =
             MatchMath.clamp
-                (-(float Pitch.HalfWidth + 5.0))
-                (float Pitch.HalfWidth + 5.0)
-                (float ry + float frame.VelY.[targetSlot] * flightSeconds)
+                (-(float Pitch.HalfWidth - inset))
+                (float Pitch.HalfWidth - inset)
+                (float ry + float frame.VelY.[targetSlot] * leadSeconds)
             * 1.0<meter>
 
+        // The lead point was found with the receiver's current distance; re-solving for the lead itself keeps the
+        // arrival speed and the arrival gate true to where the ball is actually sent.
+        let direction = max (float (MatchMath.dist originX originY targetRx targetRy)) 0.001
+        let groundPass = BallAero.pass cfg.Ball cfg.Actions.PassArrivalSpeed cfg.Actions.PassArrivalSpeedGain direction
+        let speed = groundPass.LaunchSpeed
+        let flightSeconds = groundPass.Seconds
+
         let launchDelivery (quality: float) (rng: Rng) : Rng =
-            let direction = max (float (MatchMath.dist originX originY targetRx targetRy)) 0.001
 
             let linearVelocity: LinearVelocity =
                 { X = float (targetRx - originX) / direction * speed * 1.0<meterPerSecond>

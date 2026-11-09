@@ -28,7 +28,9 @@ module Actions =
             | RestartAction.RestartShot _ -> 24.0
             | RestartAction.RestartCross _ -> 20.0
             | RestartAction.RestartClearance _ -> 22.0
-            | RestartAction.RestartPass _ -> float ctx.Ctx.Config.Actions.PassLaunchSpeed
+            | RestartAction.RestartPass _ ->
+                (BallAero.pass ctx.Ctx.Config.Ball ctx.Ctx.Config.Actions.PassArrivalSpeed ctx.Ctx.Config.Actions.PassArrivalSpeedGain distance)
+                    .LaunchSpeed
 
         let trajectory =
             match plan.Action with

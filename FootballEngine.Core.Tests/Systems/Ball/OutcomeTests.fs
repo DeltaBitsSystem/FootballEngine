@@ -21,6 +21,7 @@ module OutcomeTests =
           Flags = { EventFlags.Bits = 0UL }
           Applied = ResizeArray() }
 
+    /// Callers place the centre 0.2 m past the line: the Laws need the whole ball (r = 0.11 m) over it.
     let private setShotBall (world: World) (x: float<meter>) (y: float<meter>) : unit =
         world.State <-
             { world.State with
@@ -72,7 +73,7 @@ module OutcomeTests =
                       (TrajectoryIntent.Struck(shooter, 20.0<meterPerSecond>, 0.0, 0.5))
                       (Some 0<subtick>)
 
-                  setShotBall world Pitch.awayGoalX 0.5<meter>
+                  setShotBall world (Pitch.awayGoalX + 0.2<meter>) 0.5<meter>
                   lastTouch world homeOutfield
 
                   let buf = buffer ()
@@ -128,7 +129,7 @@ module OutcomeTests =
 
               testCase "Shot wide of the post is off target" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
-                  setShotBall world Pitch.awayGoalX 6.0<meter>
+                  setShotBall world (Pitch.awayGoalX + 0.2<meter>) 6.0<meter>
                   lastTouch world homeOutfield
 
                   let buf = buffer ()

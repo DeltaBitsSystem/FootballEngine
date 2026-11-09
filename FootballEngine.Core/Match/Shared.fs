@@ -150,9 +150,14 @@ module MatchWorld =
         let mutable bestStep = System.Int32.MaxValue
         let mutable bestDistance = System.Double.MaxValue
         let mutable bestSlot = -1
+        let ownGoalX = MatchMath.ownGoalX side
+        // A keeper claims loose balls in his own box, where he may use his hands; outside it he keeps the goal.
+        let keeperMayClaim =
+            abs (float ball.X - float ownGoalX) <= float Pitch.PenaltyAreaDepth
+            && abs (float ball.Y) <= float Pitch.PenaltyAreaHalfWidth
 
         for slot in activeSlots frame do
-            if frame.SlotRoles.[slot] <> SlotRole.Goalkeeper then
+            if keeperMayClaim || frame.SlotRoles.[slot] <> SlotRole.Goalkeeper then
                 let step = team.Intercept.SlotSteps.[slot]
                 let distance = MatchMath.dist ball.X ball.Y (posX frame slot) (posY frame slot)
 

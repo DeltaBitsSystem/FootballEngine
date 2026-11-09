@@ -72,6 +72,15 @@ type OffsideReviewSnapshot =
 type RefereeReviewBook() =
     member val Offside = System.Collections.Generic.Dictionary<ClubSide * int, OffsideReviewSnapshot>()
 
+/// A committed save: the gloves will be at Hand around ContactAt; Stretch is the share of the maximum dive used.
+[<Struct>]
+type KeeperDive =
+    { KeeperSlot: int
+      CommittedAt: int<subtick>
+      ContactAt: int<subtick>
+      Hand: Vec3
+      Stretch: float }
+
 type TeamWorld =
     { mutable Frame: TeamFrame
       mutable Tactics: TacticsConfig
@@ -94,6 +103,7 @@ type TeamWorld =
       Attack: CollectiveAttackState
       mutable LastCarrierSlot: int
       mutable LastRoleAssignmentTick: int<subtick>
+      mutable Dive: KeeperDive voption
       mutable FormationCache: FormationModel option
       mutable LateralPairs: (int * int)[] option
       mutable GoalkeeperSlot: int option

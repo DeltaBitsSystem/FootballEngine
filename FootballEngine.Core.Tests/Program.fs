@@ -96,6 +96,7 @@ let main argv =
               varTests
               cardsTests
               goalDetectionTests
+              FootballEngine.Core.Tests.Systems.Ball.BallFlightTests.tests
               perceptionTests
               decisionTests
               plannerTests

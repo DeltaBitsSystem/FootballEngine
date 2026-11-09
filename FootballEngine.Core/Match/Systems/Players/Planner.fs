@@ -17,8 +17,9 @@ type ChainState =
       Confidence: float
       GoalkeeperSlots: Set<int>
       OurGoalkeeperSlots: Set<int>
-      PassSpeed: float<meterPerSecond>
-      DistanceSpeedGain: float
+      PassBall: BallConfig
+      PassArrivalSpeed: float<meterPerSecond>
+      PassArrivalSpeedGain: float
       MaxPassDistance: float<meter>
       CarrySpeed: float<meterPerSecond> }
 
@@ -145,9 +146,12 @@ module Planner =
             OffsideLine = line
             Horizon = max 0.0<second> (s.Horizon - flight) }
 
+    let private passOf (s: ChainState) distance =
+        BallAero.pass s.PassBall s.PassArrivalSpeed s.PassArrivalSpeedGain (float distance)
+
     let simulatePass (s: ChainState) (receiverSlot: int) (rx: float<meter>) (ry: float<meter>) : ChainState =
         let distance = MatchMath.dist s.BallX s.BallY rx ry
-        let flight = min s.Horizon (distance / (float s.PassSpeed + distance * s.DistanceSpeedGain) * 1.0<second>)
+        let flight = min s.Horizon ((passOf s distance).Seconds * 1.0<second>)
         let next = advance s flight
         let struct(_, x, y) = next.OurPos |> Array.find (fun struct(slot, _, _) -> slot = receiverSlot)
         { next with BallX = x; BallY = y; CarrierSlot = receiverSlot }
@@ -180,12 +184,14 @@ module Planner =
         if d <= 0.0 || d > float s.MaxPassDistance then
             false
         else
+            let speed = (passOf s d).LaunchSpeed * 1.0<meterPerSecond>
+
             let ball =
                 { X = s.BallX
                   Y = s.BallY
                   Z = 0.0<meter>
-                  Vx = (float (rx - s.BallX) / d) * (s.PassSpeed + d * s.DistanceSpeedGain * 1.0<meterPerSecond>)
-                  Vy = (float (ry - s.BallY) / d) * (s.PassSpeed + d * s.DistanceSpeedGain * 1.0<meterPerSecond>)
+                  Vx = (float (rx - s.BallX) / d) * speed
+                  Vy = (float (ry - s.BallY) / d) * speed
                   Vz = 0.0<meterPerSecond> }
 
             let receiverSteps = InterceptTable.stepsToReach pparams ball rx ry
@@ -223,7 +229,7 @@ module Planner =
             match findReceiver state slot with
             | ValueSome(struct(_, x, y)) when slot <> state.CarrierSlot && not (Set.contains slot state.OurGoalkeeperSlots) && not (isOffside state x) ->
                 let distance = MatchMath.dist state.BallX state.BallY x y
-                let flight = distance / (float state.PassSpeed + distance * state.DistanceSpeedGain) * 1.0<second>
+                let flight = (passOf state distance).Seconds * 1.0<second>
                 if distance >= float cfg.MinimumPassDistance && flight <= state.Horizon && isPassFeasible pparams state x y then
                     let next = simulatePass state slot x y
                     Some(next, Pass(slot, next.BallX, next.BallY))
@@ -236,7 +242,7 @@ module Planner =
             let point = Vec2.create (x * 1.0<meter>) (y * 1.0<meter>)
             let advanced = advance state duration
             let ours = advanced.OurPos |> Array.map (fun struct(slot, px, py) -> if slot = state.CarrierSlot then struct(slot, point.X, point.Y) else struct(slot, px, py))
-            Some({ advanced with BallX = point.X; BallY = point.Y; OurPos = ours; Horizon = state.Horizon - duration; PassSpeed = state.PassSpeed; DistanceSpeedGain = state.DistanceSpeedGain }, Dribble)
+            Some({ advanced with BallX = point.X; BallY = point.Y; OurPos = ours; Horizon = state.Horizon - duration }, Dribble)
         let count = options.Length
         let chains = Array.init count (fun _ -> [||])
         let states = Array.create count None
@@ -338,7 +344,8 @@ module Planner =
           Confidence = confidence
           GoalkeeperSlots = MatchWorld.activeSlots oppFrame |> Array.filter (fun slot -> oppFrame.SlotRoles[slot] = SlotRole.Goalkeeper) |> Set.ofArray
           OurGoalkeeperSlots = MatchWorld.activeSlots frame |> Array.filter (fun slot -> frame.SlotRoles[slot] = SlotRole.Goalkeeper) |> Set.ofArray
-          PassSpeed = ctx.Config.Actions.PassLaunchSpeed
-          DistanceSpeedGain = ctx.Config.Actions.PassDistanceSpeedGain
+          PassBall = ctx.Config.Ball
+          PassArrivalSpeed = ctx.Config.Actions.PassArrivalSpeed
+          PassArrivalSpeedGain = ctx.Config.Actions.PassArrivalSpeedGain
           MaxPassDistance = ctx.Config.Actions.MaxPassExecutionDistance
           CarrySpeed = ctx.Config.Movement.SprintSpeed * float profile.Dribbling / 100.0 * float frame.Condition[slot] }

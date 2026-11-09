@@ -190,6 +190,7 @@ module TestBuilders =
           GKHoldSince = None
           ArrivalGate = None
           PreviousPosition = ValueNone
+          FrameContact = ValueNone
           Impulse = None }
 
     let restartState (kind: SetPieceKind) (side: ClubSide) (spot: Vec2) (phase: RestartPhase) : RestartState =
@@ -355,6 +356,7 @@ module TestBuilders =
           Attack = CollectiveAttackState.create Map.empty
           LastCarrierSlot = -1
           LastRoleAssignmentTick = -1<subtick>
+          Dive = ValueNone
           FormationCache = None
           LateralPairs = None
           GoalkeeperSlot = None

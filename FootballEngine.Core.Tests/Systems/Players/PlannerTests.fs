@@ -47,12 +47,13 @@ module PlannerTests =
           Dir = 1.0
           OurMotion = [||]
           OppMotion = [||]
-          Horizon = 1.5<second>
+          Horizon = BalanceConfig.defaultConfig.CollectiveAttack.AnticipationHorizon
           Confidence = 1.0
           GoalkeeperSlots = Set.singleton 0
           OurGoalkeeperSlots = Set.singleton 0
-          PassSpeed = BalanceConfig.defaultConfig.Actions.PassLaunchSpeed
-          DistanceSpeedGain = BalanceConfig.defaultConfig.Actions.PassDistanceSpeedGain
+          PassBall = BalanceConfig.defaultConfig.Ball
+          PassArrivalSpeed = BalanceConfig.defaultConfig.Actions.PassArrivalSpeed
+          PassArrivalSpeedGain = BalanceConfig.defaultConfig.Actions.PassArrivalSpeedGain
           MaxPassDistance = BalanceConfig.defaultConfig.Actions.MaxPassExecutionDistance
           CarrySpeed = 4.0<meterPerSecond> }
 
@@ -99,8 +100,8 @@ module PlannerTests =
             let first = Planner.simulatePass s 6 12.0<meter> 8.0<meter>
             let second = Planner.simulatePass first 9 26.0<meter> 0.0<meter>
             Expect.isLessThan second.Horizon first.Horizon "future legs cannot restart the horizon"
-            let slow = Planner.simulatePass { s with PassSpeed = 10.0<meterPerSecond> } 6 12.0<meter> 8.0<meter>
-            Expect.isLessThan slow.Horizon first.Horizon "configured physics speed, not 22m/s fiction"
+            let slow = Planner.simulatePass { s with PassArrivalSpeed = 1.0<meterPerSecond>; PassArrivalSpeedGain = 0.0 } 6 12.0<meter> 8.0<meter>
+            Expect.isLessThan slow.Horizon first.Horizon "a softer configured arrival speed takes longer to travel the same distance"
             let result = Planner.search cfg weights pparams { s with Confidence = 0.0 } [|3, -1, 0.6|]
             Expect.equal result[0].Value 0.6 "uncertain dribble forecast cannot manufacture value")
         testCase "delayed moving receiver changes anticipation without consulting rival choices" (fun _ ->

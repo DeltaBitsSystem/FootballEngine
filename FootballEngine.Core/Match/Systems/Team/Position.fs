@@ -258,29 +258,15 @@ module TeamPosition =
 
             let refinedTarget =
                 if i = gkSlot then
-                    let ownGoalX = float (MatchMath.ownGoalX side)
-                    let ballDistance = abs (float ball.X - ownGoalX)
-
-                    let mutable opponentDistance = System.Double.MaxValue
-                    for opponentSlot in opponentActive do
-                        opponentDistance <-
-                            min opponentDistance
-                                (MatchMath.dist
-                                    (MatchMath.ownGoalX side)
-                                    0.0<meter>
-                                    (MatchWorld.posX opponent.Frame opponentSlot)
-                                    (MatchWorld.posY opponent.Frame opponentSlot))
-
-                    let threat =
-                        ballDistance < float posCfg.GkThreatDistance
-                        || opponentDistance < float posCfg.GkThreatDistance
-
-                    let targetX =
-                        if threat then ownGoalX * dir
-                        elif float ballFx > 0.0 then tx + float posCfg.GkMaxAdvance
-                        else tx
-
-                    FPoint.ofXY targetX 0.0
+                    // The keeper stands on the line from his goal centre to the predicted ball, so he covers the
+                    // shooting angle and is already on the path of a ball played toward his goal.
+                    let goalFx = -float Pitch.HalfLength
+                    let towardX = float ballFx - goalFx
+                    let towardY = float ballFy
+                    let ballDistance = max 1.0 (sqrt (towardX * towardX + towardY * towardY))
+                    let depth = min (float posCfg.GkMaxAdvance) (posCfg.GkDepthRatio * ballDistance)
+                    let targetY = MatchMath.clamp (-float Pitch.GoalHalfWidth) (float Pitch.GoalHalfWidth) (depth * towardY / ballDistance)
+                    FPoint.ofXY (goalFx + depth * towardX / ballDistance) targetY
                 else
                     FieldEvaluator.refineInto
                         evalParams

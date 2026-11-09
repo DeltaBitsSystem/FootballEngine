@@ -2,15 +2,15 @@ namespace FootballEngine.Core.Match
 
 /// RoboCup InterceptTable, adapted. Who reaches the ball first decides
 /// whether the side attacks or defends, so every player is reduced to one
-/// number: how many ticks until they can control the ball (closed-form
-/// geometric-series ball model), plus the team aggregates (self/teammate/
+/// number: how many ticks until they can control the ball (stepped rolling-ball
+/// model sharing BallAero's drag), plus the team aggregates (self/teammate/
 /// opponent/ball step) HELIOS uses for pressing, situation, passing and
 /// positioning. Pure and deterministic.
 module InterceptTable =
 
     [<Struct>]
     type InterceptParams =
-        { BallDecayPerTick: float // conservative decay estimate; contact integration is authoritative
+        { Ball: BallConfig
           PlayerSpeedPerSecond: float<meterPerSecond>
           ControlRadius: float<meter> // kickable area
           MaxSteps: int } // horizon cap: beyond this many ticks the ball is treated as unreachable
@@ -19,33 +19,40 @@ module InterceptTable =
 
     let parameters (intercept: InterceptConfig) (movement: MovementConfig) (ball: BallConfig) : InterceptParams =
         // This closed-form race estimate is conservative; authoritative motion remains BallDynamics.
-        { BallDecayPerTick =
-            float ball.AirDrag ** float dt
-            * exp (-ball.RollingResistance * float ball.Gravity * float dt)
+        { Ball = ball
           PlayerSpeedPerSecond = movement.SprintSpeed
           ControlRadius = intercept.ControlRadius
           MaxSteps = intercept.MaxSteps }
 
-    /// Closed-form ball position after n ticks: p(n) = p + v·dt·(1-d^n)/(1-d)
-    /// (v is m/s; dt is the sim step in seconds). Deriving the geometric
-    /// series in closed form keeps the per-player cost O(1) instead of
-    /// simulating n ticks for every slot. Returns a Spatial with the new X/Y
-    /// and Vx/Vy decayed by d^n.
+    /// Ground speed after one prediction step: turf resistance plus air drag, as BallDynamics rolls the ball.
+    let private nextGroundSpeed (p: InterceptParams) speed =
+        let loss =
+            (p.Ball.RollingResistance * float p.Ball.Gravity + BallAero.dragDeceleration p.Ball speed) * float dt
+
+        max 0.0 (speed - loss)
+
+    /// Predicted rolling-ball state after n ticks; the per-step loop is bounded by MaxSteps.
     let ballInertiaPoint (p: InterceptParams) (ball: Spatial) (n: int) : Spatial =
-        let d = p.BallDecayPerTick
-        let decayPower = pown d n
+        let mutable x, y = float ball.X, float ball.Y
+        let mutable vx, vy = float ball.Vx, float ball.Vy
 
-        let geom =
-            if abs (d - 1.0) < 1e-12 then
-                float n
-            else
-                (1.0 - decayPower) / (1.0 - d)
+        // Decelerate, then move: the same order BallDynamics uses when it rolls the ball.
+        for _ in 1..n do
+            let speed = sqrt (vx * vx + vy * vy)
 
-        { X = ball.X + ball.Vx * dt * geom
-          Y = ball.Y + ball.Vy * dt * geom
+            if speed > 1e-9 then
+                let scale = nextGroundSpeed p speed / speed
+                vx <- vx * scale
+                vy <- vy * scale
+
+            x <- x + vx * float dt
+            y <- y + vy * float dt
+
+        { X = x * 1.0<meter>
+          Y = y * 1.0<meter>
           Z = 0.0<meter>
-          Vx = ball.Vx * decayPower
-          Vy = ball.Vy * decayPower
+          Vx = vx * 1.0<meterPerSecond>
+          Vy = vy * 1.0<meterPerSecond>
           Vz = 0.0<meterPerSecond> }
 
     /// Smallest n in [0..MaxSteps] such that the player, running straight at
@@ -75,10 +82,16 @@ module InterceptTable =
             if dx * dx + dy * dy <= reach * reach then
                 reached <- true
             else
+                let speed = sqrt (velocityX * velocityX + velocityY * velocityY)
+
+                if speed > 1e-9 then
+                    let scale = nextGroundSpeed p speed / speed
+                    velocityX <- velocityX * scale
+                    velocityY <- velocityY * scale
+
                 ballX <- ballX + velocityX * stepSeconds
                 ballY <- ballY + velocityY * stepSeconds
-                velocityX <- velocityX * p.BallDecayPerTick
-                velocityY <- velocityY * p.BallDecayPerTick
+
                 n <- n + 1
 
         if reached then n else p.MaxSteps
@@ -88,9 +101,9 @@ module InterceptTable =
     /// TeammateStep are the min over the side's active outfielders (GK
     /// excluded — a keeper's reach is not comparable to an outfielder's),
     /// OpponentStep the min over the opponent's, and BallStep = min(self,
-    /// teammate, opponent). SlotSteps is filled for every slot: active
-    /// non-GK get their stepsToReach, everything else (GK, sidelined,
-    /// inactive) gets MaxSteps.
+    /// teammate, opponent). SlotSteps holds every active slot's own
+    /// stepsToReach, the keeper's included so he can be sent to a loose ball in
+    /// his area; sidelined or inactive slots get MaxSteps.
     let compute (p: InterceptParams) (world: World) (side: ClubSide) : InterceptState =
         let ball = world.State.Ball.Position
         let maxSteps = p.MaxSteps
@@ -106,11 +119,10 @@ module InterceptTable =
             let mutable found = false
 
             for slot in MatchWorld.activeSlots frame do
-                if frame.SlotRoles[slot] <> SlotRole.Goalkeeper then
-                    let s =
-                        stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+                let s = stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+                steps.[slot] <- s
 
-                    steps.[slot] <- s
+                if frame.SlotRoles[slot] <> SlotRole.Goalkeeper then
                     found <- true
 
                     if s < bestStep then
@@ -146,12 +158,10 @@ module InterceptTable =
             let mutable secondStep = maxSteps
 
             for slot in MatchWorld.activeSlots frame do
+                let step = stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+                steps.[slot] <- step
+
                 if frame.SlotRoles[slot] <> SlotRole.Goalkeeper then
-                    let step =
-                        stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
-
-                    steps.[slot] <- step
-
                     if step < bestStep then
                         secondStep <- bestStep
                         bestStep <- step
@@ -185,12 +195,10 @@ module InterceptTable =
             let mutable secondStep = maxSteps
 
             for slot in MatchWorld.activeSlots frame do
+                let step = stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+                steps.[slot] <- step
+
                 if frame.SlotRoles[slot] <> SlotRole.Goalkeeper then
-                    let step =
-                        stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
-
-                    steps.[slot] <- step
-
                     if step < bestStep then
                         secondStep <- bestStep
                         bestStep <- step

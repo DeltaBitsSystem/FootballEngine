@@ -74,6 +74,11 @@ module Stepper =
             | MatchFlow.Live
             | MatchFlow.Restart _ -> evalTrigger transitionCadence simTick playClock flow flags inner
             | _ -> false
+        | CompiledTrigger.WhenBallDead inner ->
+            match flow with
+            | MatchFlow.GoalPause _
+            | MatchFlow.VARReview _ -> evalTrigger transitionCadence simTick playClock flow flags inner
+            | _ -> false
 
     let private fire
         (transitionCadence: int<tickDelta>)

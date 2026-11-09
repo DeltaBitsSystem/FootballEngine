@@ -11,7 +11,7 @@ open FootballEngine.Core.Tests.Infrastructure
 module PassInterceptTests =
 
     let private testParams: InterceptTable.InterceptParams =
-        { BallDecayPerTick = 0.99
+        { Ball = BalanceConfig.defaultConfig.Ball
           PlayerSpeedPerSecond = 8.0<meterPerSecond>
           ControlRadius = 2.5<meter>
           MaxSteps = 50 }

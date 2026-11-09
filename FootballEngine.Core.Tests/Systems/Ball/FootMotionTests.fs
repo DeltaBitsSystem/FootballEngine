@@ -417,18 +417,27 @@ module FootMotionTests =
 
                   let committed = world.State.Ball.Impulse.Value
                   let target = committed.IntendedTarget.Value
-                  Expect.isLessThan (abs (float target.X - 9.32)) 0.01 "the target follows the receiver's current position and forward velocity"
-                  Expect.isLessThan (abs (float target.Y - 3.34)) 0.01 "the target follows lateral receiver motion during windup"
+                  let cfg = ctx.Config
+
+                  // A ground pass decelerates, so the lead is the receiver's motion over the solved rolling time to
+                  // the lead point itself (a fixed point), not over distance divided by launch speed.
+                  let solved =
+                      BallAero.pass
+                          cfg.Ball
+                          cfg.Actions.PassArrivalSpeed
+                          cfg.Actions.PassArrivalSpeedGain
+                          (sqrt ((float target.X - float origin.X) ** 2.0 + (float target.Y - float origin.Y) ** 2.0))
+
+                  let flightSeconds = solved.Seconds
+                  Expect.isLessThan (abs (float target.X - (8.0 + 2.0 * flightSeconds))) 0.01 "the target follows the receiver's current position and forward velocity"
+                  Expect.isLessThan (abs (float target.Y - (4.0 - 1.0 * flightSeconds))) 0.01 "the target follows lateral receiver motion during windup"
+                  Expect.isGreaterThan (float target.X) 8.5 "the lead is ahead of the receiver, not at his current position"
                   Expect.notEqual committed.IntendedTarget requestedTarget "the committed trajectory replaces the stale pre-windup aim"
 
                   let speed =
                       sqrt (float committed.LinearVelocity.X ** 2.0 + float committed.LinearVelocity.Y ** 2.0)
 
-                  let flightSeconds =
-                      sqrt
-                          ((float target.X - float origin.X) ** 2.0
-                           + (float target.Y - float origin.Y) ** 2.0)
-                      / speed
+                  Expect.isLessThan (abs (speed - float solved.LaunchSpeed)) 1e-6 "the committed launch speed is the solved ground-pass speed"
 
                   let travelTicks =
                       max 1 (int (ceil (flightSeconds * float sctx.Clock.SubTicksPerSecond))) * 1<subtick>

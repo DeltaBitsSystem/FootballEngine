@@ -158,7 +158,11 @@ module BallPhysics =
                 PreviousPosition = ValueNone
                 Impulse = Some impulse })
 
-    let goalCrossing (previous: Spatial) (current: Spatial) : GoalCrossing option =
+    /// The Laws count a goal only once the whole ball is over the line, so the test plane sits one radius behind it.
+    let goalCrossing (radius: float<meter>) (previous: Spatial) (current: Spatial) : GoalCrossing option =
+        let awayPlane = Pitch.awayGoalX + radius
+        let homePlane = Pitch.homeGoalX - radius
+
         let crossingFor side goalX crossed =
             if crossed then
                 let dx = float current.X - float previous.X
@@ -183,8 +187,8 @@ module BallPhysics =
                 None
 
         match
-            crossingFor ClubSide.Home Pitch.awayGoalX (previous.X < Pitch.awayGoalX && current.X >= Pitch.awayGoalX),
-            crossingFor ClubSide.Away Pitch.homeGoalX (previous.X > Pitch.homeGoalX && current.X <= Pitch.homeGoalX)
+            crossingFor ClubSide.Home awayPlane (previous.X < awayPlane && current.X >= awayPlane),
+            crossingFor ClubSide.Away homePlane (previous.X > homePlane && current.X <= homePlane)
         with
         | Some crossing, _ -> Some crossing
         | _, Some crossing -> Some crossing
@@ -193,7 +197,7 @@ module BallPhysics =
     let withinGoalFrame (position: Vec3) : bool =
         abs (float position.Y) <= float Pitch.GoalHalfWidth
         && float position.Z >= 0.0
-        && float position.Z <= 2.44
+        && position.Z <= Pitch.GoalHeight
 
     let step: SystemStep =
         fun ctx rng world _ ->

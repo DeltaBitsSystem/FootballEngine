@@ -142,12 +142,10 @@ module ConfigValidation =
         [ // Gravity 9.81 is earth g — 0 would float forever, >20 is 2g and drops like stone
           for name, value in
               [ "Gravity", float b.Gravity
-                "AirDrag", b.AirDrag
                 "BounceRestitution", b.BounceRestitution
                 "BounceFriction", b.BounceFriction
                 "StopSpeedCutoff", float b.StopSpeedCutoff
                 "MaxShotSpeed", float b.MaxShotSpeed
-                "MagnusFactor", b.MagnusFactor
                 "SpinDecay", b.SpinDecay ] do
               if not (System.Double.IsFinite value) then
                   yield $"Ball.{name} must be finite"
@@ -158,9 +156,28 @@ module ConfigValidation =
               || b.Gravity > 20.0<meterPerSecondSquared>
           then
               yield "Ball.Gravity must be in [0, 20] m/s²"
-          // AirDrag is per-tick retention — >1 would accelerate, <0 would invert
-          if b.AirDrag < 0.0 || b.AirDrag > 1.0 then
-              yield "Ball.AirDrag must be in [0, 1]"
+          for name, value in
+              [ "AirDensity", b.AirDensity
+                "Mass", b.Mass
+                "DragSupercritical", b.DragSupercritical
+                "DragCrisisSpeed", float b.DragCrisisSpeed
+                "DragCrisisWidth", float b.DragCrisisWidth
+                "LiftSlope", b.LiftSlope
+                "MaxLift", b.MaxLift ] do
+              if not (System.Double.IsFinite value) || value <= 0.0 then
+                  yield $"Ball.{name} must be finite and > 0"
+          // The crisis lowers drag; a supercritical Cd above the subcritical one would invert the physics.
+          if not (System.Double.IsFinite b.DragSubcritical) || b.DragSubcritical < b.DragSupercritical || b.DragSubcritical > 1.5 then
+              yield "Ball.DragSubcritical must be finite, >= DragSupercritical and <= 1.5"
+          if b.MaxLift > 1.0 then
+              yield "Ball.MaxLift must be <= 1"
+          for name, value in
+              [ "WoodworkRestitution", b.WoodworkRestitution
+                "WoodworkFriction", b.WoodworkFriction
+                "NetRestitution", b.NetRestitution
+                "NetFriction", b.NetFriction ] do
+              if not (System.Double.IsFinite value) || value < 0.0 || value > 1.0 then
+                  yield $"Ball.{name} must be finite and in [0, 1]"
           for name, value in
               [ "Radius", float b.Radius
                 "InertiaRatio", b.InertiaRatio
@@ -201,9 +218,6 @@ module ConfigValidation =
           // MaxShotSpeed 10 is weak, 40 is 144 km/h world-record — outside breaks xG
           if b.MaxShotSpeed < 10.0<meterPerSecond> || b.MaxShotSpeed > 40.0<meterPerSecond> then
               yield "Ball.MaxShotSpeed must be in [10, 40] m/s"
-          // MagnusFactor >1 would curve unrealistically, <0 would invert spin
-          if b.MagnusFactor < 0.0 || b.MagnusFactor > 1.0 then
-              yield "Ball.MagnusFactor must be in [0, 1]"
           if b.SpinDecay < 0.0 || b.SpinDecay > 1.0 then
               yield "Ball.SpinDecay must be in [0, 1]"
           // ReceptionGrace 20 subticks is 0.5s at 40Hz — beyond that too forgiving
@@ -329,6 +343,8 @@ module ConfigValidation =
               yield "Contact.LegRadius must be in (0, 0.3] m"
           if c.FootRadius <= 0.0<meter> || c.FootRadius > 0.3<meter> then
               yield "Contact.FootRadius must be in (0, 0.3] m"
+          if c.StrikeSeparation < 0<subtick> || c.StrikeSeparation > 20<subtick> then
+              yield "Contact.StrikeSeparation must be in [0, 20] subticks"
           if c.HandRadius <= 0.0<meter> || c.HandRadius > 0.25<meter> then
               yield "Contact.HandRadius must be in (0, 0.25] m"
           if not (System.Double.IsFinite(float c.FallbackMass)) || c.FallbackMass < 40.0<kilogram> || c.FallbackMass > 150.0<kilogram> then
@@ -393,6 +409,25 @@ module ConfigValidation =
           if c.MaximumPathError <= 0.0<meter> || c.MaximumPathError > 0.05<meter> then
               yield "Contact.MaximumPathError must be in (0, 0.05] m" ]
 
+    let validateKeeper (k: KeeperConfig) : string list =
+        [ for name, value, minimum, maximum in
+              [ "ReactionBase", float k.ReactionBase, 0.05, 1.0
+                "ReactionSkill", float k.ReactionSkill, 0.0, float k.ReactionBase
+                "ArmReach", float k.ArmReach, 0.3, 1.2
+                "ShoulderHeightRatio", k.ShoulderHeightRatio, 0.6, 0.95
+                "DiveSetup", float k.DiveSetup, 0.0, 0.5
+                "DiveSpeed", float k.DiveSpeed, 0.5, 8.0
+                "MaxDive", float k.MaxDive, 0.0, 2.5
+                "HandRadius", float k.HandRadius, 0.05, 0.3
+                "HandError", float k.HandError, 0.0, 1.0
+                "CatchSpeed", float k.CatchSpeed, 0.0, 45.0
+                "ParryRestitution", k.ParryRestitution, 0.0, 1.0
+                "HoldSeconds", float k.HoldSeconds, 0.0, 6.0 ] do
+              if not (System.Double.IsFinite value) || value < minimum || value > maximum then
+                  yield $"Keeper.{name} must be finite and in [{minimum}, {maximum}]"
+          if k.HandWindow < 0<subtick> || k.HandWindow > 10<subtick> then
+              yield "Keeper.HandWindow must be in [0, 10] subticks" ]
+
     let validateContactAction (c: ContactActionConfig) : string list =
         let durations =
             [ c.ContainPreparation
@@ -454,19 +489,27 @@ module ConfigValidation =
           if a.PassHeavyTouchChance < 0.0 || a.PassHeavyTouchChance > 1.0 then
               yield "Actions.PassHeavyTouchChance must be in [0, 1]"
           if
-              a.PassLaunchSpeed < 5.0<meterPerSecond>
-              || a.PassLaunchSpeed > 35.0<meterPerSecond>
+              a.PassArrivalSpeed < 1.0<meterPerSecond>
+              || a.PassArrivalSpeed > 20.0<meterPerSecond>
           then
-              yield "Actions.PassLaunchSpeed must be in [5, 35] m/s"
+              yield "Actions.PassArrivalSpeed must be in [1, 20] m/s"
           if a.ShotQualityGate < 0.0 || a.ShotQualityGate > 1.0 then
               yield "Actions.ShotQualityGate must be in [0, 1]"
           // AngleSpread >2 rad would wrap around, <0 would invert
-          if a.ShotAngleSpread < 0.0 || a.ShotAngleSpread > 2.0 then
-              yield "Actions.ShotAngleSpread must be in [0, 2]"
+          for name, value, maximum in
+              [ "ShotErrorBase", a.ShotErrorBase, 0.5
+                "ShotErrorSkill", a.ShotErrorSkill, 0.5
+                "ShotVerticalErrorRatio", a.ShotVerticalErrorRatio, 2.0
+                "ShotPostMargin", float a.ShotPostMargin, float Pitch.GoalHalfWidth ] do
+              if not (System.Double.IsFinite value) || value < 0.0 || value > maximum then
+                  yield $"Actions.{name} must be finite and in [0, {maximum}]"
           if a.ShotDistanceToGoalMultiplier < 0.0 || a.ShotDistanceToGoalMultiplier > 0.1 then
               yield "Actions.ShotDistanceToGoalMultiplier must be in [0, 0.1]"
-          if a.ShotVzBase < 0.0 || a.ShotVzBase > 2.0 then
-              yield "Actions.ShotVzBase must be in [0, 2]"
+          // Beyond ~12 rev/s no foot can spin a ball; above that the curl would be fiction.
+          if not (System.Double.IsFinite(float a.ShotCurlSpin)) || a.ShotCurlSpin < 0.0<radianPerSecond> || a.ShotCurlSpin > 75.0<radianPerSecond> then
+              yield "Actions.ShotCurlSpin must be in [0, 75] rad/s"
+          if not (System.Double.IsFinite(float a.CrossArrivalHeight)) || a.CrossArrivalHeight < 0.0<meter> || a.CrossArrivalHeight > 2.2<meter> then
+              yield "Actions.CrossArrivalHeight must be in [0, 2.2] m"
           // Steepness 0 would flatten sigmoid, >20 would be step function
           if a.DuelSteepness < 0.1 || a.DuelSteepness > 20.0 then
               yield "Actions.DuelSteepness must be in [0.1, 20]"
@@ -663,7 +706,9 @@ module ConfigValidation =
           if p.SupportLateralDistance < 2.0<meter> || p.SupportLateralDistance > 20.0<meter> then
               yield "Positioning.SupportLateralDistance must be in [2, 20] m"
           if p.GkMaxAdvance < 0.0<meter> || p.GkMaxAdvance > 20.0<meter> then
-              yield "Positioning.GkMaxAdvance must be in [0, 20] m" ]
+              yield "Positioning.GkMaxAdvance must be in [0, 20] m"
+          if not (System.Double.IsFinite p.GkDepthRatio) || p.GkDepthRatio < 0.0 || p.GkDepthRatio > 1.0 then
+              yield "Positioning.GkDepthRatio must be finite and in [0, 1]" ]
 
     let validateIntercept (c: InterceptConfig) : string list =
         [ // Control radius <0.5 would be feet only, >10 would be telekinesis
@@ -802,8 +847,8 @@ module ConfigValidation =
     let validateAll (config: BalanceConfig) : Result<unit, string list> =
         let attack = config.CollectiveAttack
         let attackErrors =
-            [ if not (System.Double.IsFinite config.Actions.PassDistanceSpeedGain) || config.Actions.PassDistanceSpeedGain < 0.0 || config.Actions.PassDistanceSpeedGain > 1.0 then
-                  yield "Actions.PassDistanceSpeedGain must be finite and in [0, 1]"
+            [ if not (System.Double.IsFinite config.Actions.PassArrivalSpeedGain) || config.Actions.PassArrivalSpeedGain < 0.0 || config.Actions.PassArrivalSpeedGain > 0.5 then
+                  yield "Actions.PassArrivalSpeedGain must be finite and in [0, 0.5]"
               for name, value, maximum in
                   [ "SupportDepth", float attack.SupportDepth, 25.0
                     "SupportWidth", float attack.SupportWidth, 25.0
@@ -893,6 +938,7 @@ module ConfigValidation =
             @ validateMovement config.Movement
             @ validateContact config.Contact
             @ validateContactAction config.ContactAction
+            @ validateKeeper config.Keeper
             @ validateActions config.Actions
             @ validateSetPiece config.SetPiece
             @ validateTeam config.Team

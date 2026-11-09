@@ -146,13 +146,13 @@ module ConfigTests =
               }
 
               test "WeightMerge: partial JSON overrides exactly the named leaves" {
-                  let json = """{ "actions": { "passBaseQuality": 0.9, "ShotVzBase": 0.7 } }"""
+                  let json = """{ "actions": { "passBaseQuality": 0.9, "CrossArrivalHeight": 0.7 } }"""
 
                   match WeightMerge.mergeWithDefaults json BalanceConfig.defaultConfig with
                   | Error err -> failtestf "merge failed: %s" err
                   | Ok merged ->
                       Expect.equal merged.Actions.PassBaseQuality 0.9 "camelCase override must apply"
-                      Expect.equal merged.Actions.ShotVzBase 0.7 "mixed-case override must apply"
+                      Expect.equal merged.Actions.CrossArrivalHeight 0.7<meter> "mixed-case override must apply"
 
                       let original = collectLeaves (box BalanceConfig.defaultConfig)
                       let changed = collectLeaves (box merged)

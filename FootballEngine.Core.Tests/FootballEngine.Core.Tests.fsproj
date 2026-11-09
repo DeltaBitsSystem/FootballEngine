@@ -32,6 +32,7 @@
     <Compile Include="Systems\Referee\VARTests.fs"/>
     <Compile Include="Systems\Referee\CardsTests.fs"/>
     <Compile Include="Systems\Ball\GoalDetectionTests.fs"/>
+    <Compile Include="Systems\Ball\BallFlightTests.fs"/>
     <Compile Include="Systems\Players\PerceptionTests.fs"/>
     <Compile Include="Systems\Players\DecisionTests.fs"/>
     <Compile Include="Systems\Players\PlannerTests.fs"/>

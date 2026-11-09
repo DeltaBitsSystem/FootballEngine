@@ -1261,7 +1261,7 @@ module Settings =
               let label5 = "Clima activo"
 
               let desc5 =
-                  "Activa viento/lluvia — afecta Ball.AirDrag y visibilidad si WeatherEffect>0"
+                  "Activa viento/lluvia — afecta la resistencia del aire y la visibilidad si WeatherEffect>0"
 
               yield (label5, desc5, "🎯", weatherCtl, "WeatherEnabled")
               let label6 = "Ventaja local"
@@ -1872,13 +1872,13 @@ module Settings =
                         { b with
                             Ball = { b.Ball with Gravity = c } }))
 
-            let ballAirDragCtl =
-                sliderWithLabel 0.0 1.0 curBalance.Ball.AirDrag (fun v -> sprintf "%.3f" v) (fun v ->
-                    let c = System.Math.Clamp(v, 0.0, 1.0)
+            let ballDragCtl =
+                sliderWithLabel 0.1 0.45 curBalance.Ball.DragSupercritical (fun v -> sprintf "%.3f" v) (fun v ->
+                    let c = System.Math.Clamp(v, 0.1, min 0.45 curBalance.Ball.DragSubcritical)
 
                     updateBalance (fun b ->
                         { b with
-                            Ball = { b.Ball with AirDrag = c } }))
+                            Ball = { b.Ball with DragSupercritical = c } }))
 
             let ballMaxShotCtl =
                 sliderWithLabel 10.0 40.0 (float curBalance.Ball.MaxShotSpeed) (fun v -> sprintf "%.1f m/s" v) (fun v ->
@@ -2012,11 +2012,11 @@ module Settings =
                        ballGravityCtl,
                        "Gravity")
                   yield
-                      ("Ball.AirDrag",
-                       "0-1 retención por tick — >1 acelera, <0 invierte",
+                      ("Ball.DragSupercritical",
+                       "Resistencia del aire a alta velocidad (≈0,2) — menor = tiros que conservan más velocidad",
                        "⚡",
-                       ballAirDragCtl,
-                       "AirDrag")
+                       ballDragCtl,
+                       "DragSupercritical")
                   yield
                       ("Ball.MaxShotSpeed",
                        "10-40 m/s — 32 default, 40 es récord mundial",

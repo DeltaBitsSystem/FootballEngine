@@ -10,7 +10,9 @@ type private ImpactCandidate =
       PlayerB: int
       IsBall: bool
       Surface: ContactSurface
-      FootFraction: float }
+      FootFraction: float
+      /// The surface is a diving keeper's gloves rather than a body-fixed hand.
+      Gloves: bool }
 
 /// The sole 40 Hz integrator for player roots and the ball. Candidate scans use
 /// fixed-capacity per-match scratch; rendering and event capture never feed back.
@@ -71,9 +73,39 @@ module ContactDynamics =
             | Some committed -> float committed.ErrorX, float committed.ErrorY, float committed.ErrorZ
             | None -> 0.0, 0.0, 0.0
 
-        rootX + cos facing * footLength * forwardFraction + errorX,
-        rootY + sin facing * footLength * forwardFraction + errorY,
-        errorZ
+        let extends =
+            match action with
+            | Some committed ->
+                match committed.Kind with
+                | ContactActionKind.ContactTrap
+                | ContactActionKind.ContactStrike
+                | ContactActionKind.ContactStandingTackle
+                | ContactActionKind.ContactSlidingTackle -> true
+                | _ -> false
+            | None -> false
+
+        match action with
+        | Some committed when extends ->
+            let dx = float committed.PredictedX - rootX
+            let dy = float committed.PredictedY - rootY
+            let distance = sqrt (dx * dx + dy * dy)
+            let change = wrapAngle (atan2 dy dx - baseFacing)
+
+            // A committed boot is planted where the ball will be, not under the hips: a player meets a ball beside him
+            // by stretching the leg sideways. Behind him he cannot, so that falls back to the reoriented stance.
+            if distance > 1e-6 && abs change <= System.Math.PI / 2.0 then
+                let reach = min distance (float ctx.Config.ContactAction.FootReach)
+                let along = max 0.0 (reach - footLength * (0.8 - forwardFraction))
+
+                rootX + dx / distance * along + errorX, rootY + dy / distance * along + errorY, errorZ
+            else
+                rootX + cos facing * footLength * forwardFraction + errorX,
+                rootY + sin facing * footLength * forwardFraction + errorY,
+                errorZ
+        | _ ->
+            rootX + cos facing * footLength * forwardFraction + errorX,
+            rootY + sin facing * footLength * forwardFraction + errorY,
+            errorZ
 
     let private footContactRadius (contact: ContactConfig) =
         let radius = float contact.FootRadius
@@ -216,7 +248,8 @@ module ContactDynamics =
                                       PlayerB = b
                                       IsBall = false
                                       Surface = ContactSurface.ContactTorso
-                                      FootFraction = 0.0 }
+                                      FootFraction = 0.0
+                                      Gloves = false }
                                     best
                     | None -> ()
 
@@ -250,7 +283,7 @@ module ContactDynamics =
                 ball.Impulse
                 |> Option.exists (fun impulse ->
                     impulse.ActorId = profile.Id
-                    && impulse.ContactTick = SimTick.ofSubTicks world.State.Tick)
+                    && world.State.Tick - SimTick.value impulse.ContactTick <= cfg.StrikeSeparation)
 
             if
                 ballContactAllowed world ball
@@ -259,7 +292,7 @@ module ContactDynamics =
                 && not isCommittingStrikeActor
                 && not scratch.ResolvedBallPlayers[a]
             then
-                let considerSurface surface cx0 cy0 cz0 cx1 cy1 cz1 surfaceRadius footFraction =
+                let considerSurfaceWith gloves surface cx0 cy0 cz0 cx1 cy1 cz1 surfaceRadius footFraction =
                     match
                         sweptTime
                             (b0x - cx0)
@@ -282,9 +315,12 @@ module ContactDynamics =
                                   PlayerB = -1
                                   IsBall = true
                                   Surface = surface
-                                  FootFraction = footFraction }
+                                  FootFraction = footFraction
+                                  Gloves = gloves }
                                 best
                     | None -> ()
+
+                let considerSurface = considerSurfaceWith false
 
                 considerSurface
                     ContactSurface.ContactTorso
@@ -348,6 +384,27 @@ module ContactDynamics =
                         (pz1 + scratch.Height[a] * 0.68)
                         (float ctx.Config.Contact.HandRadius)
                         0.0
+
+                // The gloves wait where the dive put them; the swept test against the ball's path decides the save.
+                match team.Dive with
+                | ValueSome dive when
+                    dive.KeeperSlot = slot
+                    && abs (int (world.State.Tick - dive.ContactAt)) <= int ctx.Config.Keeper.HandWindow
+                    ->
+                    let hx, hy, hz = float dive.Hand.X, float dive.Hand.Y, float dive.Hand.Z
+
+                    considerSurfaceWith
+                        true
+                        ContactSurface.ContactHand
+                        hx
+                        hy
+                        hz
+                        hx
+                        hy
+                        hz
+                        (float ctx.Config.Keeper.HandRadius)
+                        0.0
+                | _ -> ()
 
         best, ballEnd
 
@@ -649,6 +706,12 @@ module ContactDynamics =
                 footY,
                 scratch.StartZ[index] + float ctx.Ctx.Config.Contact.FootRadius * 0.65 + footZ,
                 footContactRadius ctx.Ctx.Config.Contact
+            | ContactSurface.ContactHand when candidate.Gloves ->
+                match (MatchWorld.team world side).Dive with
+                | ValueSome dive ->
+                    float dive.Hand.X, float dive.Hand.Y, float dive.Hand.Z, float ctx.Ctx.Config.Keeper.HandRadius
+                | ValueNone ->
+                    scratch.StartX[index], scratch.StartY[index], scratch.StartZ[index] + height * 0.68, float ctx.Ctx.Config.Keeper.HandRadius
             | ContactSurface.ContactHand ->
                 let lateralX, lateralY = -sin facing, cos facing
                 let ballX, ballY = float ball.Position.X, float ball.Position.Y
@@ -680,7 +743,9 @@ module ContactDynamics =
         let inverseSum = inversePlayer + inverseBall
         let contactCfg = ctx.Ctx.Config.Contact
         let restitution =
-            if candidate.Surface = ContactSurface.ContactFoot then
+            if candidate.Gloves then
+                ctx.Ctx.Config.Keeper.ParryRestitution
+            elif candidate.Surface = ContactSurface.ContactFoot then
                 contactCfg.BallFootRestitution
             else
                 contactCfg.BallBodyRestitution
@@ -773,8 +838,22 @@ module ContactDynamics =
             && (incomingSpeed <= float contactCfg.BallControlSpeed
                 || (action |> Option.exists (fun prepared -> prepared.Kind = ContactActionKind.ContactTrap)))
             && world.State.Flow = MatchFlow.Live
+        // A set keeper holds what he can; at full stretch only softer shots stick, the rest are parried.
+        let caught =
+            candidate.Gloves
+            && world.State.Flow = MatchFlow.Live
+            && (let stretch =
+                    match (MatchWorld.team world side).Dive with
+                    | ValueSome dive -> dive.Stretch
+                    | ValueNone -> 0.0
+
+                incomingSpeed
+                <= float ctx.Ctx.Config.Keeper.CatchSpeed
+                   * (0.55 + 0.45 * float profile.Positioning / 100.0)
+                   * (1.0 - 0.5 * stretch))
+
         let controlAfter =
-            if controlledContact then
+            if controlledContact || caught then
                 { Kind = ContactControlKind.ReceivingBall
                   Side = Some side
                   Player = Some profile.Id }
@@ -784,7 +863,16 @@ module ContactDynamics =
                   Player = None }
 
         let correctedBall =
-            if controlledContact then
+            if caught then
+                { correctedBall with
+                    Position =
+                        { correctedBall.Position with
+                            Vx = scratch.VelocityX[index] * 1.0<meterPerSecond>
+                            Vy = scratch.VelocityY[index] * 1.0<meterPerSecond>
+                            Vz = 0.0<meterPerSecond> }
+                    Control = BallControl.Controlled(side, profile.Id)
+                    GKHoldSince = Some world.State.Tick }
+            elif controlledContact then
                 { correctedBall with
                     Control = BallControl.Receiving(side, profile.Id, world.State.Tick) }
             else

@@ -148,6 +148,27 @@ module SchedulerTests =
                   Expect.equal (run (MatchFlow.HalfTime(3<tickDelta>))) 0 "halftime blocks movement"
                   Expect.equal (run MatchFlow.MatchEnded) 0 "ended match blocks movement")
 
+              testCase "WhenBallDead fires only while a goal pause or VAR review holds play" (fun _ ->
+                  let system =
+                      { markerSystem with
+                          Triggers = [ Trigger.WhenBallDead Trigger.EveryTick ] }
+
+                  let run flow =
+                      let world = TestBuilders.minimalWorld ()
+                      world.State <- { world.State with Flow = flow }
+                      let buf = buffer ()
+                      let _, _, _ = Stepper.step [ system ] sctx (Rng.ofSeed 3UL) world buf
+                      countMarks buf
+
+                  Expect.equal
+                      (run (MatchFlow.GoalPause(3<tickDelta>, ClubSide.Home, Some ctx.HomeLineup.Profiles.[1].Id)))
+                      1
+                      "a scored ball still flies during the goal pause"
+
+                  Expect.equal (run (MatchFlow.VARReview(3<tickDelta>, VARIncident.Offside))) 1 "and during VAR"
+                  Expect.equal (run MatchFlow.Live) 0 "live play has its own ball physics"
+                  Expect.equal (run (MatchFlow.HalfTime(3<tickDelta>))) 0 "halftime is not a dead-ball flight")
+
               testCase "OnEvent fires only when a matching event is drained" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
 

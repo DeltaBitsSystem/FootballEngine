@@ -132,7 +132,8 @@ module GoalDetectionTests =
         testList
             "FootballEngine.Core.Systems.Ball.GoalDetectionTests"
             [ testCase "ball inside the frame scores without physical goalkeeper contact" (fun _ ->
-                  let buf = resolveCrossing 0.5<meter> (defLine + 0.1<meter>)
+                  // The whole ball (r = 0.11 m) must be over the line, so the centre is placed 0.2 m beyond it.
+                  let buf = resolveCrossing 0.5<meter> (defLine + 0.2<meter>)
                   Expect.isTrue (hasGoal buf) "an unobstructed in-frame crossing is a goal"
                   Expect.isFalse
                       (buf.Events |> Seq.exists (fun event -> match event.Data with EventData.Save _ -> true | _ -> false))
@@ -158,7 +159,7 @@ module GoalDetectionTests =
                   let current = spatial (defLine + 0.5<meter>) 0.5<meter> 3.0<meter>
 
                   Expect.isFalse
-                      (BallPhysics.goalCrossing previous current
+                      (BallPhysics.goalCrossing 0.11<meter> previous current
                        |> Option.exists (fun crossing -> BallPhysics.withinGoalFrame crossing.Position))
                       "crossbar height rejects the shot")
 
@@ -168,7 +169,7 @@ module GoalDetectionTests =
                   let towardHome = spatial (Pitch.homeGoalX + 1.0<meter>) 0.0<meter> 0.0<meter>
                   let pastHome = spatial (Pitch.homeGoalX - 1.0<meter>) 0.0<meter> 0.0<meter>
 
-                  match BallPhysics.goalCrossing towardAway pastAway, BallPhysics.goalCrossing towardHome pastHome with
+                  match BallPhysics.goalCrossing 0.11<meter> towardAway pastAway, BallPhysics.goalCrossing 0.11<meter> towardHome pastHome with
                   | Some away, Some home ->
                       Expect.equal away.Side ClubSide.Home "away goal belongs to home scorer"
                       Expect.equal home.Side ClubSide.Away "home goal belongs to away scorer"
@@ -204,7 +205,7 @@ module GoalDetectionTests =
                   let world = TestBuilders.minimalWorld ()
                   let defender = ctx.AwayLineup.Profiles.[3].Id
                   let previous = spatial (defLine - 0.5<meter>) 0.5<meter> 0.0<meter>
-                  let current = spatial (defLine + 0.1<meter>) 0.5<meter> 0.0<meter>
+                  let current = spatial (defLine + 0.2<meter>) 0.5<meter> 0.0<meter>
                   configureShot world previous current shooter
 
                   let uncontrolled =

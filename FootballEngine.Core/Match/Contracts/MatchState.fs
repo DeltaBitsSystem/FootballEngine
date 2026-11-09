@@ -92,6 +92,14 @@ type PendingFootStrike =
       Side: ClubSide
       Slot: int }
 
+/// The most recent contact with a goal frame; Goal is the side that defends that goal.
+[<Struct>]
+type GoalFrameContact =
+    { Tick: int<subtick>
+      Part: GoalFramePart
+      Goal: ClubSide
+      Position: Vec3 }
+
 [<Struct>]
 type BallState =
     { Position: Spatial
@@ -107,6 +115,7 @@ type BallState =
       GKHoldSince: int<subtick> option
       ArrivalGate: int<subtick> option
       PreviousPosition: Spatial voption
+      FrameContact: GoalFrameContact voption
       Impulse: BallImpulse option }
 
 [<Struct>]

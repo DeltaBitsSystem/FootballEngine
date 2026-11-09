@@ -96,7 +96,6 @@ module PlayerDecision =
 
         let passing = float p.Passing
         let vision = float p.Vision
-        let launchSpeed = ctx.Config.Actions.PassLaunchSpeed
         // Hoisted out of the per-candidate loop: the pass model and the offside
         // line do not depend on the receiver, so recomputing them for every
         // candidate would multiply constant work by the team size.
@@ -123,6 +122,11 @@ module PlayerDecision =
 
                 // F4 — the launched pass must beat the fastest interceptor.
                 let dM = max d 0.5 * 1.0<meter>
+
+                let launchSpeed =
+                    (BallAero.pass ctx.Config.Ball ctx.Config.Actions.PassArrivalSpeed ctx.Config.Actions.PassArrivalSpeedGain d)
+                        .LaunchSpeed
+                    * 1.0<meterPerSecond>
 
                 let launched =
                     { X = world.State.Ball.Position.X

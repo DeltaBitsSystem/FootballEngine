@@ -107,6 +107,8 @@
      <Compile Include="Match\Simulator\Simulator.fs"/>
     <Compile Include="Match\Systems\Ball\Dynamics.fs"/>
     <Compile Include="Match\Systems\Ball\Physics.fs"/>
+    <Compile Include="Match\Systems\Ball\Flight.fs"/>
+    <Compile Include="Match\Systems\Players\KeeperSave.fs"/>
     <Compile Include="Match\Systems\Ball\FootContact.fs"/>
     <Compile Include="Match\Systems\Players\BodyPhysics.fs"/>
     <Compile Include="Match\Systems\Ball\Contact.fs"/>
@@ -115,8 +117,8 @@
      <Compile Include="Match\Systems\Players\Steering.fs"/>
      <Compile Include="Match\Systems\ContactDynamics.fs"/>
      <Compile Include="Match\Systems\Players\Perception.fs"/>
-    <Compile Include="Match\Systems\Players\Intent.fs"/>
     <Compile Include="Match\Systems\Team\InterceptTable.fs"/>
+    <Compile Include="Match\Systems\Players\Intent.fs"/>
     <Compile Include="Match\Systems\Players\PassIntercept.fs"/>
     <Compile Include="Match\Systems\Players\Planner.fs"/>
     <Compile Include="Match\Systems\Players\Decision.fs"/>

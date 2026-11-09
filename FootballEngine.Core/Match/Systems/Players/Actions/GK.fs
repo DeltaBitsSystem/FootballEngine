@@ -7,6 +7,15 @@ namespace FootballEngine.Core.Match
 module GK =
 
     let distribute (ctx: SystemContext) (rng: Rng) (world: World) (buffer: EventBuffer) (side: ClubSide) : Rng =
+        let holdTicks = float ctx.Ctx.Config.Keeper.HoldSeconds * float ctx.Clock.SubTicksPerSecond
+
+        match world.State.Ball.GKHoldSince with
+        | Some since when float (world.State.Tick - since) < holdTicks -> rng
+        | held ->
+        // A held ball is released to the feet for the kick or roll; the strike then starts from the ground.
+        if held.IsSome then
+            MatchWorld.updateBall world (fun ball -> { ball with Position = { ball.Position with Z = 0.0<meter> } })
+
         let frame = (MatchWorld.team world side).Frame
         let gk = MatchWorld.posX frame 0
         let gkY = MatchWorld.posY frame 0

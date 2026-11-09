@@ -153,12 +153,12 @@ module PassTests =
                       |> Option.defaultWith (fun () -> failtest "reachable passer prepares a physical strike")
 
                   let distance = 12.0
-                  let speed =
-                      float ctx.Config.Actions.PassLaunchSpeed
-                      + distance * ctx.Config.Actions.PassDistanceSpeedGain
+                  let seconds =
+                      (BallAero.pass ctx.Config.Ball ctx.Config.Actions.PassArrivalSpeed ctx.Config.Actions.PassArrivalSpeedGain distance)
+                          .Seconds
 
                   let expectedFlightTicks =
-                      int (ceil (distance / speed * float sctx.Clock.SubTicksPerSecond)) * 1<subtick>
+                      int (ceil (seconds * float sctx.Clock.SubTicksPerSecond)) * 1<subtick>
 
                   Expect.equal
                       pending.ArrivalGate

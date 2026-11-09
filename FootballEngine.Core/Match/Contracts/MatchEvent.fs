@@ -102,6 +102,8 @@ type EventKind =
     | TeamInstruction
     | CollectiveAttack
     | PhysicalContact
+    | Woodwork
+    | KeeperDive
 
 module EventFlags =
 
@@ -155,6 +157,8 @@ module EventFlags =
             | EventKind.TeamInstruction -> 42
             | EventKind.CollectiveAttack -> 43
             | EventKind.PhysicalContact -> 44
+            | EventKind.Woodwork -> 45
+            | EventKind.KeeperDive -> 46
 
         { Bits = 1UL <<< bit }
 
@@ -173,6 +177,11 @@ type ShotResult =
     | OnTarget of saved: bool
     | OffTarget
     | Blocked
+
+type GoalFramePart =
+    | Post
+    | Crossbar
+    | Net
 
 type EventData =
     | CollectiveAttack of side: ClubSide * episode: uint64 * change: AttackChange
@@ -227,6 +236,10 @@ type EventData =
     | Tackle of winner: PlayerId * loser: PlayerId
     | Save of gk: PlayerId * shooter: PlayerId
     | CrossAttempt of crosser: PlayerId * x: float<meter> * y: float<meter>
+    /// The ball struck a post or the crossbar of the goal `goal` defends.
+    | Woodwork of goal: ClubSide * part: GoalFramePart * x: float<meter> * y: float<meter> * z: float<meter>
+    /// A keeper commits to a save: where his gloves will meet the ball and when, so the viewer can stage the dive.
+    | KeeperDive of keeper: PlayerId * x: float<meter> * y: float<meter> * z: float<meter> * contactTick: int<subtick>
     | Dribble of dribbler: PlayerId * succeeded: bool * x: float<meter> * y: float<meter>
     | Injury of player: PlayerId * severity: int
     | Substitution of playerOut: PlayerId * playerIn: PlayerId
@@ -522,6 +535,17 @@ module MatchEvent =
         | EventData.Tackle(winner, loser) -> hashPlayer (hashPlayer (fnv h 9UL) winner) loser
         | EventData.Save(gk, shooter) -> hashPlayer (hashPlayer (fnv h 10UL) gk) shooter
         | EventData.CrossAttempt(crosser, x, y) -> hashFloat (hashFloat (hashPlayer (fnv h 11UL) crosser) x) y
+        | EventData.Woodwork(goal, part, x, y, z) ->
+            let partCode =
+                match part with
+                | GoalFramePart.Post -> 0UL
+                | GoalFramePart.Crossbar -> 1UL
+                | GoalFramePart.Net -> 2UL
+
+            hashFloat (hashFloat (hashFloat (fnv (hashSide (fnv h 50UL) goal) partCode) x) y) z
+        | EventData.KeeperDive(keeper, x, y, z, contactTick) ->
+            let h = hashFloat (hashFloat (hashFloat (hashPlayer (fnv h 51UL) keeper) x) y) z
+            fnv h (uint64 (uint32 (int contactTick)))
         | EventData.Dribble(dribbler, succeeded, x, y) ->
             let h = hashPlayer (fnv h 12UL) dribbler
             let h = hashBool h succeeded
@@ -604,6 +628,8 @@ module MatchEvent =
         | EventData.Tackle _ -> EventKind.Tackle
         | EventData.Save _ -> EventKind.Save
         | EventData.CrossAttempt _ -> EventKind.CrossAttempt
+        | EventData.Woodwork _ -> EventKind.Woodwork
+        | EventData.KeeperDive _ -> EventKind.KeeperDive
         | EventData.Dribble _ -> EventKind.Dribble
         | EventData.Injury _ -> EventKind.Injury
         | EventData.Substitution _ -> EventKind.Substitution
@@ -668,6 +694,8 @@ module MatchEvent =
         | EventData.Tackle(_, _) -> "Tackle"
         | EventData.Save(_, _) -> "Save"
         | EventData.CrossAttempt _ -> "Cross attempt"
+        | EventData.Woodwork(_, part, _, _, _) -> sprintf "Woodwork %A" part
+        | EventData.KeeperDive(keeper, _, y, z, _) -> sprintf "Keeper %A dives (%.1f, %.1f)" keeper (float y) (float z)
         | EventData.Dribble(_, succeeded, _, _) -> sprintf "Dribble succeeded=%b" succeeded
         | EventData.Injury(_, severity) -> sprintf "Injury severity=%d" severity
         | EventData.Substitution(_, _) -> "Substitution"

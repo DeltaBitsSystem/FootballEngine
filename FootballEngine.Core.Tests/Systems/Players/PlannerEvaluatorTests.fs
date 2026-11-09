@@ -35,8 +35,9 @@ module PlannerEvaluatorTests =
           Confidence = 1.0
           GoalkeeperSlots = Set.singleton 0
           OurGoalkeeperSlots = Set.singleton 0
-          PassSpeed = BalanceConfig.defaultConfig.Actions.PassLaunchSpeed
-          DistanceSpeedGain = BalanceConfig.defaultConfig.Actions.PassDistanceSpeedGain
+          PassBall = BalanceConfig.defaultConfig.Ball
+          PassArrivalSpeed = BalanceConfig.defaultConfig.Actions.PassArrivalSpeed
+          PassArrivalSpeedGain = BalanceConfig.defaultConfig.Actions.PassArrivalSpeedGain
           MaxPassDistance = BalanceConfig.defaultConfig.Actions.MaxPassExecutionDistance
           CarrySpeed = 4.0<meterPerSecond> }
 

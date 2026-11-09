@@ -5,7 +5,21 @@ namespace FootballEngine.Core.Match
 [<Struct>]
 type BallConfig =
     { Gravity: float<meterPerSecondSquared>
-      AirDrag: float
+      /// kg/m³; with Mass and Radius it fixes how strongly the air acts on this ball.
+      AirDensity: float
+      /// kg
+      Mass: float
+      DragSubcritical: float
+      DragSupercritical: float
+      DragCrisisSpeed: float<meterPerSecond>
+      DragCrisisWidth: float<meterPerSecond>
+      /// Lift coefficient per unit spin parameter (r·ω/v) before saturation.
+      LiftSlope: float
+      MaxLift: float
+      WoodworkRestitution: float
+      WoodworkFriction: float
+      NetRestitution: float
+      NetFriction: float
       Radius: float<meter>
       InertiaRatio: float
       SlipFriction: float
@@ -25,7 +39,6 @@ type BallConfig =
       BounceFriction: float
       StopSpeedCutoff: float<meterPerSecond>
       MaxShotSpeed: float<meterPerSecond>
-      MagnusFactor: float
       SpinDecay: float
       ReceptionGrace: int<subtick>
       InterceptionBonus: float
@@ -102,7 +115,38 @@ type ContactConfig =
       SolverIterations: int
       MaximumImpactIterations: int
       CurvedPathSegments: int
-      MaximumPathError: float<meter> }
+      MaximumPathError: float<meter>
+      /// Ticks after a strike during which the striker's own body cannot touch the departing ball.
+      StrikeSeparation: int<subtick> }
+
+/// Shot-stopping: how fast a keeper reads a strike, how far a dive carries his hands, and what his hands can hold.
+type KeeperConfig =
+    { /// Seconds before an unanticipating keeper (0) reacts to a strike.
+      ReactionBase: float<second>
+      /// Seconds a fully anticipating keeper (100) saves off ReactionBase.
+      ReactionSkill: float<second>
+      /// Shoulder-to-glove reach without a dive.
+      ArmReach: float<meter>
+      /// Shoulder height as a share of stature; the dive is measured from here.
+      ShoulderHeightRatio: float
+      /// Seconds spent loading the push-off before the body leaves the ground.
+      DiveSetup: float<second>
+      /// Lateral dive speed of an average-agility keeper.
+      DiveSpeed: float<meterPerSecond>
+      /// Longest body extension a dive adds to arm reach.
+      MaxDive: float<meter>
+      /// Two gloved hands present a larger, softer surface than one bare hand.
+      HandRadius: float<meter>
+      /// Hand placement error (one standard deviation) of an unpositioned keeper at full stretch.
+      HandError: float<meter>
+      /// Ticks either side of the planned contact during which the hands are in place.
+      HandWindow: int<subtick>
+      /// Fastest ball a set keeper with perfect handling holds rather than parries.
+      CatchSpeed: float<meterPerSecond>
+      /// Restitution of a parry: the hands absorb most of the shot's energy.
+      ParryRestitution: float
+      /// Seconds a keeper keeps a caught ball before distributing it.
+      HoldSeconds: float<second> }
 
 /// Temporal commitments are separate from the solver's laws and from team
 /// movement controls, so agents can change intent without changing physics.
@@ -142,13 +186,24 @@ type ActionsConfig =
       PassTechnicalWeight: float
       PassJitterBase: float
       PassHeavyTouchChance: float
-      PassLaunchSpeed: float<meterPerSecond>
-      PassDistanceSpeedGain: float
+      /// Speed a ground pass should still carry at the receiver; launch speed is solved from the roll model.
+      PassArrivalSpeed: float<meterPerSecond>
+      /// Extra arrival speed per metre: longer passes are driven so defenders get less time to close them.
+      PassArrivalSpeedGain: float
       MaxPassExecutionDistance: float<meter>
       ShotQualityGate: float
-      ShotAngleSpread: float
+      /// Execution error (rad, one standard deviation) of a world-class finisher striking unopposed.
+      ShotErrorBase: float
+      /// Extra execution error (rad) for a finisher at 0 rather than 100.
+      ShotErrorSkill: float
+      /// Vertical error as a share of horizontal: height is controlled by the strike, direction by the body.
+      ShotVerticalErrorRatio: float
+      /// Gap kept inside the post by a finisher at 0 when picking a corner; better finishers aim tighter.
+      ShotPostMargin: float<meter>
       ShotDistanceToGoalMultiplier: float
-      ShotVzBase: float
+      /// Upper bound of the sidespin a shooter can impart to curl the ball around the keeper.
+      ShotCurlSpin: float<radianPerSecond>
+      CrossArrivalHeight: float<meter>
       DuelSteepness: float
       DuelMomentumBonus: float
       DuelFoulSeverityBias: float
@@ -397,8 +452,10 @@ type PositioningConfig =
       CarrySearchRadius: float<meter>
       SupportForwardDistance: float<meter>
       SupportLateralDistance: float<meter>
+      /// Farthest a keeper stands off his line, reached only when play is deep in the other half.
       GkMaxAdvance: float<meter>
-      GkThreatDistance: float<meter> }
+      /// Keeper depth per metre of ball distance: close balls pin him to his line, far ones let him sweep.
+      GkDepthRatio: float }
 
 /// RoboCup InterceptTable horizon: control radius and step budget.
 [<Struct>]
@@ -518,6 +575,7 @@ type BalanceConfig =
       Movement: MovementConfig
       Contact: ContactConfig
       ContactAction: ContactActionConfig
+      Keeper: KeeperConfig
       Actions: ActionsConfig
       SetPiece: SetPieceConfig
       Team: TeamConfig
@@ -553,7 +611,9 @@ module BalanceConfig =
           PriorStrength = 3.0; EvidenceCap = 48.0; SeasonalRetention = 0.65; CooperationWeight = 0.22
           ProgressReward = 0.4; SpaceReward = 0.15; ConnectionReward = 0.12; ThreatReward = 0.5
           LossPenalty = 0.65; IdlePenalty = 0.18; ExposurePenalty = 0.15
-          TerritoryBoundary = 20.0<meter>; AnticipationHorizon = 1.5<second>; AnticipationConfidence = 0.65 }
+          // The horizon covers a ~30 m ground pass at real pass speeds (~2.2 s), so the planner can chain the
+          // switches and through balls players actually play.
+          TerritoryBoundary = 20.0<meter>; AnticipationHorizon = 2.5<second>; AnticipationConfidence = 0.65 }
 
     let defaultDefensiveTransition: DefensiveTransitionConfig =
         // A short commitment tolerates geometry noise; depth danger still overrides it immediately.
@@ -570,12 +630,29 @@ module BalanceConfig =
 
     let defaultBall: BallConfig =
         { Gravity = 9.81<meterPerSecondSquared>
-          AirDrag = 0.999
+          AirDensity = 1.2
+          Mass = 0.43
+          // Wind-tunnel ranges for modern 32-or-fewer-panel balls: Cd ≈ 0.45 before the drag crisis, ≈ 0.2 after it,
+          // with the transition around 12 m/s. The crisis is why driven shots hold their pace while lobs die.
+          DragSubcritical = 0.45
+          DragSupercritical = 0.2
+          DragCrisisSpeed = 12.0<meterPerSecond>
+          DragCrisisWidth = 1.5<meterPerSecond>
+          // Measured lift grows roughly linearly with the spin parameter and saturates near 0.3–0.35.
+          LiftSlope = 1.0
+          MaxLift = 0.33
+          // Aluminium goal frames return about two thirds of the normal speed; nets keep almost nothing.
+          WoodworkRestitution = 0.65
+          WoodworkFriction = 0.25
+          NetRestitution = 0.08
+          NetFriction = 0.6
           Radius = 0.11<meter>
           // A football is approximately a thin spherical shell, not a solid sphere.
           InertiaRatio = 2.0 / 3.0
           SlipFriction = 0.35
-          RollingResistance = 0.025
+          // FIFA's ball-roll test (1 m ramp, ~3.7 m/s at the foot) must stop in 4-10 m on match turf, i.e. an
+          // effective coefficient of ~0.07-0.18; 0.1 sits mid-range. 0.025 rolled the test ball 28 m.
+          RollingResistance = 0.1
           FootReach = 1.05<meter>
           FootContactHeight = 0.45<meter>
           KickWindup = 6<subtick>
@@ -592,7 +669,6 @@ module BalanceConfig =
           BounceFriction = 0.7
           StopSpeedCutoff = 0.06<meterPerSecond>
           MaxShotSpeed = 32.0<meterPerSecond>
-          MagnusFactor = 0.02
           SpinDecay = 0.99
           ReceptionGrace = 6<subtick>
           InterceptionBonus = 0.1
@@ -665,7 +741,27 @@ module BalanceConfig =
           SolverIterations = 4
           MaximumImpactIterations = 8
           CurvedPathSegments = 4
-          MaximumPathError = 0.01<meter> }
+          MaximumPathError = 0.01<meter>
+          // The kicking leg and body still overlap the ball while it leaves; at even a soft 9 m/s pass it is
+          // ~0.9 m clear after 4 ticks, so a later touch by the striker is a genuine second touch.
+          StrikeSeparation = 4<subtick> }
+
+    let defaultKeeper: KeeperConfig =
+        // Elite keepers react to a strike in ~0.2-0.3 s and cover ~2.5 m of goal from the centre at full stretch.
+        { ReactionBase = 0.34<second>
+          ReactionSkill = 0.14<second>
+          ArmReach = 0.75<meter>
+          ShoulderHeightRatio = 0.82
+          DiveSetup = 0.12<second>
+          DiveSpeed = 4.2<meterPerSecond>
+          MaxDive = 1.7<meter>
+          HandRadius = 0.15<meter>
+          HandError = 0.3<meter>
+          HandWindow = 3<subtick>
+          // Driven shots above ~20 m/s are usually parried even by good handlers.
+          CatchSpeed = 20.0<meterPerSecond>
+          ParryRestitution = 0.25
+          HoldSeconds = 2.0<second> }
 
     let defaultContactAction: ContactActionConfig =
         { ContainPreparation = 1<subtick>
@@ -678,7 +774,9 @@ module BalanceConfig =
           HeaderPreparation = 4<subtick>
           CommittedDuration = 4<subtick>
           RecoveryDuration = 12<subtick>
-          FootReach = 0.46<meter>
+          // A 0.85 m leg (~0.47 of stature) with the pelvis dropped to ~0.6 m in a lunge reaches ~0.6 m horizontally;
+          // the striking surface sits ~0.1 m beyond the ankle. Further than this the body would have to step first.
+          FootReach = 0.7<meter>
           HeadReach = 0.28<meter>
           MaximumReorientation = 0.45<radian>
           ExecutionErrorScale = 0.14<meter>
@@ -698,13 +796,22 @@ module BalanceConfig =
           PassTechnicalWeight = 0.3
           PassJitterBase = 0.2
           PassHeavyTouchChance = 0.05
-          PassLaunchSpeed = 22.0<meterPerSecond>
-          PassDistanceSpeedGain = 0.1
+          // Professional ground passes are struck at ~12-20 m/s; a 20 m ball still arrives at ~11 m/s, firm
+          // enough that defenders get little time to close it, while a 50 m ground ball is not hit at 35 m/s.
+          PassArrivalSpeed = 9.0<meterPerSecond>
+          PassArrivalSpeedGain = 0.12
           MaxPassExecutionDistance = 65.0<meter>
           ShotQualityGate = 0.5
-          ShotAngleSpread = 0.3
+          // ~0.2 rad for an average finisher under some pressure keeps roughly 40% of unblocked shots on target.
+          ShotErrorBase = 0.1
+          ShotErrorSkill = 0.25
+          ShotVerticalErrorRatio = 0.6
+          ShotPostMargin = 1.2<meter>
           ShotDistanceToGoalMultiplier = 0.02
-          ShotVzBase = 0.4
+          // A curled finish carries roughly 5–8 rev/s of sidespin.
+          ShotCurlSpin = 40.0<radianPerSecond>
+          // Crosses are aimed to meet the receiver between knee and chest, where both feet and head can play them.
+          CrossArrivalHeight = 0.9<meter>
           DuelSteepness = 8.0
           DuelMomentumBonus = 0.1
           DuelFoulSeverityBias = 0.2
@@ -796,8 +903,9 @@ module BalanceConfig =
           CarrySearchRadius = 7.0<meter>
           SupportForwardDistance = 4.0<meter>
           SupportLateralDistance = 8.0<meter>
-          GkMaxAdvance = 10.0<meter>
-          GkThreatDistance = 24.0<meter> }
+          GkMaxAdvance = 18.0<meter>
+          // A ball at the box edge (~20 m) leaves the keeper ~4 m out; at the halfway line ~11 m.
+          GkDepthRatio = 0.2 }
 
     let defaultIntercept: InterceptConfig =
         { ControlRadius = 2.5<meter>
@@ -965,6 +1073,7 @@ module BalanceConfig =
           Movement = defaultMovement
           Contact = defaultContact
           ContactAction = defaultContactAction
+          Keeper = defaultKeeper
           Actions = defaultActions
           SetPiece = defaultSetPiece
           Team = defaultTeam

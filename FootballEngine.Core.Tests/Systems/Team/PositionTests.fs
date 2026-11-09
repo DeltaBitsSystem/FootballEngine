@@ -261,52 +261,48 @@ module PositionTests =
                       frame.PosX.[carrier]
                       "a carrier at the goal line retreats to create a new action angle")
 
-              testCase "goalkeeper depth is central and threat-sensitive" (fun _ ->
+              testCase "goalkeeper stands on the goal-ball line and drops deeper as the ball approaches" (fun _ ->
                   let world = TestBuilders.formationWorld ()
 
                   for slot in MatchWorld.activeSlots world.Away.Frame do
                       world.Away.Frame.PosX.[slot] <- 0.0f
                       world.Away.Frame.PosY.[slot] <- 0.0f
 
-                  world.State <-
-                      { world.State with
-                          Ball =
-                              { world.State.Ball with
-                                  Position =
-                                      { world.State.Ball.Position with
-                                          X = 35.0<meter>
-                                          Y = 18.0<meter> } } }
+                  let keeperFor x y =
+                      world.State <-
+                          { world.State with
+                              Ball =
+                                  { world.State.Ball with
+                                      Position =
+                                          { world.State.Ball.Position with
+                                              X = x * 1.0<meter>
+                                              Y = y * 1.0<meter>
+                                              Vx = 0.0<meterPerSecond>
+                                              Vy = 0.0<meterPerSecond> } } }
 
-                  TeamPosition.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
-                  let farX = world.Home.Shape.TargetsX.[0]
-                  let farY = world.Home.Shape.TargetsY.[0]
+                      TeamPosition.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
+                      float world.Home.Shape.TargetsX.[0], float world.Home.Shape.TargetsY.[0]
 
-                  world.State <-
-                      { world.State with
-                          Ball =
-                              { world.State.Ball with
-                                  Position =
-                                      { world.State.Ball.Position with
-                                          X = -45.0<meter>
-                                          Y = 18.0<meter> } } }
+                  let farX, farY = keeperFor 35.0 18.0
+                  let nearX, nearY = keeperFor -45.0 18.0
+                  let _, mirroredY = keeperFor -45.0 -18.0
+                  let goalX = -float Pitch.HalfLength
+                  let positioning = BalanceConfig.defaultConfig.Positioning
+                  // Independent geometry: depth along the goal-centre-to-ball ray, capped by the maximum advance.
+                  let farDistance = sqrt ((35.0 - goalX) ** 2.0 + 18.0 ** 2.0)
+                  let farDepth = min (float positioning.GkMaxAdvance) (positioning.GkDepthRatio * farDistance)
 
-                  TeamPosition.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
-                  let threatenedX = world.Home.Shape.TargetsX.[0]
-                  let threatenedY = world.Home.Shape.TargetsY.[0]
-
-                  Expect.isGreaterThan farX threatenedX "keeper advances only when the ball is not a goal threat"
-                  Expect.isLessThan (abs (float farY)) 0.1 "keeper target stays central when advancing"
-                  Expect.isLessThan (abs (float threatenedY)) 0.1 "keeper target stays central under threat"
-
-                  Expect.isLessThanOrEqual
-                      (abs (float farX))
-                      (float Pitch.HalfLength - 2.0)
-                      "far target respects inset"
+                  Expect.floatClose Accuracy.medium farX (goalX + farDepth * (35.0 - goalX) / farDistance) "far ball: depth along the ray"
+                  Expect.isGreaterThan farX nearX "keeper advances only as far as the ball's distance allows"
+                  Expect.isGreaterThan farY 0.0 "keeper shades toward the ball's side to cover the angle"
+                  Expect.isGreaterThan nearY 0.0 "near ball: still on the ball's side"
+                  Expect.isLessThan mirroredY 0.0 "mirroring the ball mirrors the keeper"
+                  Expect.isLessThanOrEqual (abs nearY) (float Pitch.GoalHalfWidth) "keeper never leaves the goal mouth laterally"
 
                   Expect.isLessThanOrEqual
-                      (abs (float threatenedX))
+                      (abs nearX)
                       (float Pitch.HalfLength - 2.0)
-                      "threat target respects inset")
+                      "near target respects inset")
 
               testCase "expired committed run completes with an exit trigger" (fun _ ->
                   let world = TestBuilders.minimalWorld ()

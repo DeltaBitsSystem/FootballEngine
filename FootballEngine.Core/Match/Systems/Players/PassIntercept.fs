@@ -11,16 +11,13 @@ namespace FootballEngine.Core.Match
 /// would multiply a linear pass by the team size.
 module PassIntercept =
 
-    /// Flight params for an airborne pass: the ball is in the air, so the only
-    /// decay is air drag per tick (dt = 1/40) — no ground friction to model.
+    /// Candidate passes are ground passes, so they are raced with the same rolling-ball model as the team table.
     let passParams
         (intercept: InterceptConfig)
         (movement: MovementConfig)
         (ball: BallConfig)
         : InterceptTable.InterceptParams =
-        let dt = 1.0 / 40.0
-
-        { BallDecayPerTick = float ball.AirDrag ** dt
+        { Ball = ball
           PlayerSpeedPerSecond = movement.SprintSpeed
           ControlRadius = intercept.ControlRadius
           MaxSteps = intercept.MaxSteps }

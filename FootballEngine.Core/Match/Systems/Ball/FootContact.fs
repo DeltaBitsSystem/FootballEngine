@@ -250,13 +250,18 @@ module BallFootContact =
                       Z = ball.Spin.Z * retention }
                 GKHoldSince = None })
 
+    /// Re-leads the receiver at the moment of contact, since he kept moving during the wind-up. A ground pass is
+    /// re-solved with the roll model for its new length, so its speed, arrival gate and target stay one solution;
+    /// other aimed deliveries keep their solved speed and only turn toward the new lead.
     let private liveAimedTarget
         (ctx: SystemContext)
         (world: World)
         (pending: PendingFootStrike)
         (origin: Spatial)
         (impulse: BallImpulse)
-        : Vec2 option * int<subtick> option =
+        : Vec2 option * int<subtick> option * float option =
+        let unchanged = impulse.IntendedTarget, pending.ArrivalGate, None
+
         match pending.Trajectory, impulse.ExecutionContext with
         | TrajectoryIntent.Aimed(_, receiver, _), ExecutionContext.OpenPlay ->
             match MatchWorld.teamOfPlayer ctx.Ctx receiver with
@@ -264,6 +269,7 @@ module BallFootContact =
                 match MatchWorld.slotOf ctx.Ctx side receiver with
                 | Some slot ->
                     let frame = (MatchWorld.team world side).Frame
+                    let cfg = ctx.Ctx.Config
 
                     let speed =
                         sqrt (float impulse.LinearVelocity.X ** 2.0 + float impulse.LinearVelocity.Y ** 2.0)
@@ -273,23 +279,32 @@ module BallFootContact =
                         let receiverY = float frame.PosY[slot]
                         let receiverVx = float frame.VelX[slot]
                         let receiverVy = float frame.VelY[slot]
-                        let lowerX = -(float Pitch.HalfLength + 5.0)
-                        let upperX = float Pitch.HalfLength + 5.0
-                        let lowerY = -(float Pitch.HalfWidth + 5.0)
-                        let upperY = float Pitch.HalfWidth + 5.0
-                        let mutable flightSeconds =
-                            sqrt ((receiverX - float origin.X) ** 2.0 + (receiverY - float origin.Y) ** 2.0) / speed
+                        // The lead must stay collectable on the pitch, as when the pass was planned.
+                        let inset = float cfg.Positioning.TargetInset
+                        let limitX = float Pitch.HalfLength - inset
+                        let limitY = float Pitch.HalfWidth - inset
+                        let groundPass = impulse.StrikeKind = StrikeKind.Pass
 
+                        let flight distance =
+                            if groundPass then
+                                let solved =
+                                    BallAero.pass cfg.Ball cfg.Actions.PassArrivalSpeed cfg.Actions.PassArrivalSpeedGain distance
+
+                                solved.Seconds, solved.LaunchSpeed
+                            else
+                                distance / speed, speed
+
+                        let distanceTo x y = sqrt ((x - float origin.X) ** 2.0 + (y - float origin.Y) ** 2.0)
+                        let mutable flightSeconds, launchSpeed = flight (distanceTo receiverX receiverY)
                         let mutable targetX = receiverX
                         let mutable targetY = receiverY
 
                         for _ in 1..6 do
-                            targetX <- MatchMath.clamp lowerX upperX (receiverX + receiverVx * flightSeconds)
-                            targetY <- MatchMath.clamp lowerY upperY (receiverY + receiverVy * flightSeconds)
-
-                            flightSeconds <-
-                                sqrt ((targetX - float origin.X) ** 2.0 + (targetY - float origin.Y) ** 2.0)
-                                / speed
+                            targetX <- MatchMath.clamp -limitX limitX (receiverX + receiverVx * flightSeconds)
+                            targetY <- MatchMath.clamp -limitY limitY (receiverY + receiverVy * flightSeconds)
+                            let seconds, solvedSpeed = flight (distanceTo targetX targetY)
+                            flightSeconds <- seconds
+                            launchSpeed <- solvedSpeed
 
                         let target: Vec2 =
                             { X = targetX * 1.0<meter>
@@ -298,12 +313,12 @@ module BallFootContact =
                         let travelTicks =
                             max 1 (int (ceil (flightSeconds * float ctx.Clock.SubTicksPerSecond))) * 1<subtick>
 
-                        Some target, Some(world.State.Tick + travelTicks)
+                        Some target, Some(world.State.Tick + travelTicks), (if groundPass then Some launchSpeed else None)
                     else
-                        impulse.IntendedTarget, pending.ArrivalGate
-                | None -> impulse.IntendedTarget, pending.ArrivalGate
-            | None -> impulse.IntendedTarget, pending.ArrivalGate
-        | _ -> impulse.IntendedTarget, pending.ArrivalGate
+                        unchanged
+                | None -> unchanged
+            | None -> unchanged
+        | _ -> unchanged
 
     let step: SystemStep =
         fun ctx rng world buffer ->
@@ -342,8 +357,11 @@ module BallFootContact =
                     let predicted = vector motion.Point
                     let old = pending.Impulse
                     let origin = world.State.Ball.Position
-                    let speed = MatchMath.speedOf old.LinearVelocity.X old.LinearVelocity.Y
-                    let intendedTarget, arrivalGate = liveAimedTarget ctx world pending origin old
+                    let intendedTarget, arrivalGate, solvedSpeed = liveAimedTarget ctx world pending origin old
+
+                    let speed =
+                        solvedSpeed
+                        |> Option.defaultValue (MatchMath.speedOf old.LinearVelocity.X old.LinearVelocity.Y)
                     let old = { old with IntendedTarget = intendedTarget }
 
                     let velocity =

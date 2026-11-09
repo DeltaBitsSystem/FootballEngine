@@ -21,6 +21,14 @@ module Pitch =
     [<Literal>]
     let GoalDepth = 2.0<meter>
 
+    /// Height of the crossbar's lower edge.
+    [<Literal>]
+    let GoalHeight = 2.44<meter>
+
+    /// Laws of the Game cap posts and bar at 12 cm; posts sit centred on the goal line.
+    [<Literal>]
+    let PostRadius = 0.06<meter>
+
     [<Literal>]
     let PenaltyAreaHalfWidth = 20.16<meter>
 

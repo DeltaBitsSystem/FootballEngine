@@ -22,6 +22,8 @@ type Trigger =
     | OnTransitionOrGeometry of EventFlags
     | WhenLive of Trigger
     | WhenMovementAllowed of Trigger
+    /// Goal pauses and VAR reviews: play is stopped but a scored ball still travels into the net.
+    | WhenBallDead of Trigger
 
 type SystemSpec =
     { Name: string
@@ -39,6 +41,7 @@ type CompiledTrigger =
     | OnTransitionOrGeometry of EventFlags
     | WhenLive of CompiledTrigger
     | WhenMovementAllowed of CompiledTrigger
+    | WhenBallDead of CompiledTrigger
 
 type CompiledSystem =
     { Name: string
@@ -59,6 +62,7 @@ module ScheduleCompiler =
         | Trigger.OnTransitionOrGeometry flags -> CompiledTrigger.OnTransitionOrGeometry flags
         | Trigger.WhenLive nested -> CompiledTrigger.WhenLive(compileTrigger nested)
         | Trigger.WhenMovementAllowed nested -> CompiledTrigger.WhenMovementAllowed(compileTrigger nested)
+        | Trigger.WhenBallDead nested -> CompiledTrigger.WhenBallDead(compileTrigger nested)
 
     /// Compilation is cold; the tick loop receives only arrays and precomputed
     /// trigger values.

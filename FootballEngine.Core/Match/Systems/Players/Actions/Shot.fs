@@ -18,43 +18,69 @@ module Shot =
         let y = MatchWorld.posY frame slot
 
         let d = MatchMath.distanceToGoal side x y
-        let goalY = 0.0<meter>
-
         let near = MatchWorld.opponentsNear ctx.Ctx world side x y 6.0
         let openness = 1.0 - 0.3 * MatchMath.clamp01 (float near / 4.0)
         let xg = MatchMath.xGFrom d (float p.Finishing) openness
 
-        let pOnTarget =
-            MatchMath.clamp01 (0.5 + (float p.Finishing - 60.0) / 100.0 + 0.2 * openness)
+        let radius = float cfg.Ball.Radius
+        let goalLineX = float (MatchMath.goalX side)
+        let goalDistanceX = abs (goalLineX - float x)
+        let finishing = float p.Finishing / 100.0
 
-        let angle, rng' =
-            let onTarget, rng' = Rng.bernoulli pOnTarget rng
+        // The finisher picks the corner with more room beside the keeper; where he lands is aim plus execution
+        // error, so on-target rate, woodwork and misses all come from the same strike rather than a dice roll.
+        let keeperY =
+            let opponent = MatchWorld.team world (MatchWorld.oppOf side)
 
-            if onTarget then
-                let spread = cfg.Actions.ShotAngleSpread * (1.0 + d / 40.0)
-                Rng.uniform (-spread) spread rng'
-            else
-                let wide, rng'' = Rng.uniform 1.0 4.0 rng'
-                let flip, rng''' = Rng.bernoulli 0.5 rng''
-                let targetY = (float Pitch.GoalHalfWidth + wide) * (if flip then 1.0 else -1.0)
-                atan ((targetY - float y) / float d), rng'''
+            match opponent.GoalkeeperSlot with
+            | Some gk when MatchWorld.isActive opponent.Frame gk -> float (MatchWorld.posY opponent.Frame gk)
+            | _ -> 0.0
+
+        let corner = if keeperY > 0.0 then -1.0 else 1.0
+        let innerEdge = float Pitch.GoalHalfWidth - radius - float cfg.Actions.ShotPostMargin * (1.0 - finishing)
+        let placement, rng1 = Rng.uniform 0.25 1.0 rng
+        let height, rng2 = Rng.uniform 0.0 1.0 rng1
+        // Underside heights that keep the whole ball inside the frame.
+        let frameTop = float Pitch.GoalHeight - 2.0 * radius - 0.05
+        let intendedY = corner * placement * innerEdge
+        // Low finishes are the percentage choice, so intended height is skewed toward the ground.
+        let intendedZ = height * height * frameTop
+
+        let error =
+            (cfg.Actions.ShotErrorBase + cfg.Actions.ShotErrorSkill * (1.0 - finishing)) * (2.0 - openness)
+
+        let reach = sqrt (goalDistanceX * goalDistanceX + (intendedY - float y) ** 2.0)
+        let lateralError, rng3 = Rng.normal 0.0 (error * reach) rng2
+        let verticalError, rng4 = Rng.normal 0.0 (error * cfg.Actions.ShotVerticalErrorRatio * reach) rng3
+        let aimY = intendedY + lateralError
+        // A strike aimed below the ground is a skidding shot along the turf.
+        let aimZ = max 0.0 (intendedZ + verticalError)
 
         let speed = min (float cfg.Ball.MaxShotSpeed) (22.0 + float p.Pace * 0.06)
-        let direction = MatchMath.goalDirection side
-        let goalDistanceX = abs (float (MatchMath.goalX side) - float x)
-        let vx = direction * cos angle * speed
-        let vy = sin angle * speed
-        let goalY = float y + tan angle * goalDistanceX
+        let angle = atan2 (aimY - float y) goalDistanceX
 
-        let linearVelocity: LinearVelocity =
-            { X = vx * 1.0<meterPerSecond>
-              Y = vy * 1.0<meterPerSecond>
-              Z = float cfg.Actions.ShotVzBase * 1.0<meterPerSecond> }
+        // Placed finishes curl the ball back toward the aim point; the solver keeps the target, only the path bends.
+        let curl, rng' = Rng.uniform 0.0 1.0 rng4
+        let curlSpin = float cfg.Actions.ShotCurlSpin * curl * float p.Finishing / 100.0 * float (sign (aimY - float y))
 
         let angularVelocity =
-            { Top = -float cfg.Actions.ShotVzBase * 1.0<radianPerSecond>
-              Side = angle * 1.0<radianPerSecond>
+            { Top = 0.0<radianPerSecond>
+              Side = curlSpin * 1.0<radianPerSecond>
               Roll = 0.0<radianPerSecond> }
+
+        let ballPosition = world.State.Ball.Position
+
+        let launch =
+            BallFlight.solve
+                cfg.Ball
+                (float (SimulationClock.dt ctx.Clock))
+                { X = ballPosition.X; Y = ballPosition.Y; Z = ballPosition.Z }
+                { X = goalLineX * 1.0<meter>; Y = aimY * 1.0<meter>; Z = aimZ * 1.0<meter> }
+                (speed * 1.0<meterPerSecond>)
+                angularVelocity
+
+        let linearVelocity = launch.Velocity
+        let goalY = aimY
 
         let target: Vec2 option =
             Some
@@ -76,8 +102,7 @@ module Shot =
 
         let arrival =
             tick
-            + int (round (goalDistanceX / max 0.1 (abs vx) * float ctx.Clock.SubTicksPerSecond))
-              * 1<subtick>
+            + int (round (launch.Seconds * float ctx.Clock.SubTicksPerSecond)) * 1<subtick>
             + 4<subtick>
 
         BallFootContact.request

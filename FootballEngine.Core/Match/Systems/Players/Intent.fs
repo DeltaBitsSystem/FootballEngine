@@ -215,7 +215,25 @@ module PlayerIntent =
             CollectiveAttackState.duty team.Attack p.Id
             |> Option.filter (fun duty -> duty.Slot = slot && slot <> carrierSlot && not opponentControlsBall && (carrierSlot >= 0 || ownFlight))
 
-        if p.IsGK && carrierSlot <> slot then
+        let keeperClaims = looseBall && looseBallChaser = Some slot
+
+        // The chaser runs to where he meets the rolling ball, not where it is now; aiming at the current position
+        // trails a moving ball forever and lets slow balls roll out of play.
+        let chaseX, chaseY =
+            // Meeting the ball means getting a foot to it, not entering the decision table's generous kickable area.
+            let p =
+                { InterceptTable.parameters ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball with
+                    ControlRadius = ctx.Config.ContactAction.FootReach }
+
+            let steps = InterceptTable.stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+
+            if steps < p.MaxSteps then
+                let meet = InterceptTable.ballInertiaPoint p ball steps
+                float meet.X, float meet.Y
+            else
+                bx, by
+
+        if p.IsGK && carrierSlot <> slot && not keeperClaims then
             setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
         elif transitionTask.IsSome then
             let task = transitionTask.Value
@@ -238,10 +256,10 @@ module PlayerIntent =
             setRoleIntent frame slot IntentCode.Support (float32 duty.Target.X) (float32 duty.Target.Y) tick
         elif looseBall then
             match frame.DefensiveRoles.[slot] with
+            | _ when looseBallChaser = Some slot ->
+                setRoleIntent frame slot IntentCode.Press (float32 chaseX) (float32 chaseY) tick
             | _ when p.Role = SlotRole.Goalkeeper ->
                 setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
-            | _ when looseBallChaser = Some slot ->
-                setRoleIntent frame slot IntentCode.Press (float32 bx) (float32 by) tick
             | DefensiveRole.Cover ->
                 let sign = if slot % 2 = 0 then 1.0 else -1.0
                 let coverX = bx - dir * float ctx.Config.Team.LooseBallCoverDistance
@@ -301,9 +319,27 @@ module PlayerIntent =
 
         match ball.Trajectory, ball.ArrivalGate with
         | Some(TrajectoryIntent.Aimed _), Some gate when gate > tick ->
-            let remaining = float (gate - tick) / 40.0
-            let ax = float ball.Position.X + float ball.Position.Vx * remaining
-            let ay = float ball.Position.Y + float ball.Position.Vy * remaining
+            // A ground pass is met where the receiver first reaches the ball's actual rolling path, so he adjusts
+            // to a mis-hit instead of running to where it should have gone; an aerial ball is met at its solved
+            // target. A straight-line extrapolation ignores deceleration and overruns the ball's line.
+            let rolling = ball.Impulse |> Option.exists (fun impulse -> impulse.StrikeKind = StrikeKind.Pass)
+            let p =
+                { InterceptTable.parameters ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball with
+                    ControlRadius = ctx.Config.ContactAction.FootReach }
+
+            let steps = InterceptTable.stepsToReach p ball.Position (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+
+            let ax, ay =
+                match ball.Impulse |> Option.bind _.IntendedTarget with
+                | _ when rolling && steps < p.MaxSteps ->
+                    let meet = InterceptTable.ballInertiaPoint p ball.Position steps
+                    float meet.X, float meet.Y
+                | Some target -> float target.X, float target.Y
+                | None ->
+                    let remaining = float (gate - tick) / 40.0
+                    float ball.Position.X + float ball.Position.Vx * remaining,
+                    float ball.Position.Y + float ball.Position.Vy * remaining
+
             frame.Intent.Kind.[slot] <- IntentCode.ExecuteRun
 
             frame.Intent.TargetX.[slot] <- max (-float32 Pitch.HalfLength) (min (float32 Pitch.HalfLength) (float32 ax))

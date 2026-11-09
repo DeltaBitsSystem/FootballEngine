@@ -1078,6 +1078,9 @@ module EventApply =
             // Contact systems own momentum; the reducer must not apply the same impulse twice.
             | EventData.FootContact _
             | EventData.FootStrikeCancelled _ -> ()
+            // Physics already acted (rebound, gloves placed); these events exist for the viewer and the match story.
+            | EventData.Woodwork _
+            | EventData.KeeperDive _ -> ()
 
             if world.State.Flow <> MatchFlow.Live then
                 // An interrupted advantage cannot later overwrite halftime, a review, or an already-awarded restart.

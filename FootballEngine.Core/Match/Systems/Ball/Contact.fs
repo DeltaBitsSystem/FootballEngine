@@ -190,14 +190,19 @@ module BallContact =
                 record.ControlAfter.Kind = ContactControlKind.ReceivingBall
                 && record.ControlAfter.Player = Some record.Actor
 
-            if controlled then
-                let keeper =
-                    match MatchWorld.teamOfPlayer ctx.Ctx record.Actor with
-                    | Some side ->
-                        MatchWorld.slotOf ctx.Ctx side record.Actor
-                        |> Option.exists (fun slot -> (MatchWorld.profileOf ctx.Ctx side slot).IsGK)
-                    | None -> false
+            let keeper =
+                match MatchWorld.teamOfPlayer ctx.Ctx record.Actor with
+                | Some side ->
+                    MatchWorld.slotOf ctx.Ctx side record.Actor
+                    |> Option.exists (fun slot -> (MatchWorld.profileOf ctx.Ctx side slot).IsGK)
+                | None -> false
 
+            // A parry is a save even though the ball stays loose; what happens to the rebound is a new phase.
+            if keeper && not controlled && record.SurfaceA = ContactSurface.ContactHand then
+                emit (EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, ball.Position.X, ball.Position.Y))
+                emit (EventData.Save(record.Actor, shooter))
+                resolveTrajectory ()
+            elif controlled then
                 if keeper then
                     emit (EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, ball.Position.X, ball.Position.Y))
                     emit (EventData.Save(record.Actor, shooter))

@@ -50,21 +50,28 @@ module Cross =
                     + 0.15
                 )
 
-            let speed = 20.0
-
             let rx = MatchWorld.posX frame bestSlot
             let ry = MatchWorld.posY frame bestSlot
-            let direction = max d 0.001
-
-            let linearVelocity: LinearVelocity =
-                { X = float (rx - x) / direction * speed * 1.0<meterPerSecond>
-                  Y = float (ry - y) / direction * speed * 1.0<meterPerSecond>
-                  Z = (4.0 + quality * 2.0) * 1.0<meterPerSecond> }
+            // Longer deliveries are hit harder so they still arrive before the defence can close.
+            let speed = MatchMath.clamp 16.0 27.0 (12.0 + 0.35 * d)
 
             let angularVelocity =
                 { Top = -0.4<radianPerSecond>
                   Side = float (ry - y) * 0.02<radianPerSecond>
                   Roll = 0.0<radianPerSecond> }
+
+            let ballPosition = world.State.Ball.Position
+
+            let launch =
+                BallFlight.solve
+                    cfg.Ball
+                    (float (SimulationClock.dt ctx.Clock))
+                    { X = ballPosition.X; Y = ballPosition.Y; Z = ballPosition.Z }
+                    { X = rx; Y = ry; Z = cfg.Actions.CrossArrivalHeight }
+                    (speed * 1.0<meterPerSecond>)
+                    angularVelocity
+
+            let linearVelocity = launch.Velocity
 
             let target: Vec2 option = Some { X = rx; Y = ry }
 
@@ -83,7 +90,7 @@ module Cross =
 
             let arrival =
                 tick
-                + int (round (d / speed * float ctx.Clock.SubTicksPerSecond)) * 1<subtick>
+                + int (round (launch.Seconds * float ctx.Clock.SubTicksPerSecond)) * 1<subtick>
                 + 10<subtick>
 
             BallFootContact.request

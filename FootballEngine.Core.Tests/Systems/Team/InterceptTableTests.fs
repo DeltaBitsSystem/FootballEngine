@@ -4,14 +4,14 @@ open Expecto
 open FootballEngine.Core.Match
 open FootballEngine.Core.Tests.Infrastructure
 
-/// Closed-form InterceptTable (RoboCup HELIOS, adapted): exact stationary-ball
-/// geometry, monotonicity under a moving ball, determinism, the unreachable
-/// horizon, aggregate exclusion of GK/sidelined, and the inertia point against
-/// per-tick integration.
+/// InterceptTable (RoboCup HELIOS, adapted): exact stationary-ball geometry,
+/// monotonicity under a moving ball, determinism, the unreachable horizon,
+/// aggregate exclusion of GK/sidelined, and the inertia point against the
+/// authoritative BallDynamics integrator.
 module InterceptTableTests =
 
     let private testParams: InterceptTable.InterceptParams =
-        { BallDecayPerTick = 0.98
+        { Ball = BalanceConfig.defaultConfig.Ball
           PlayerSpeedPerSecond = 8.0<meterPerSecond>
           ControlRadius = 2.5<meter>
           MaxSteps = 50 }
@@ -85,30 +85,25 @@ module InterceptTableTests =
                       (min afterSidelined.SelfStep (min afterSidelined.TeammateStep afterSidelined.OpponentStep))
                       "BallStep is the min of self, teammate and opponent")
 
-              testCase "ballInertiaPoint matches per-tick integration" (fun _ ->
-                  let b = ball 2.0<meter> -1.0<meter> 10.0<meterPerSecond> -4.0<meterPerSecond>
-                  let d = testParams.BallDecayPerTick
-                  let dt = 0.025<second>
+              testCase "ballInertiaPoint matches the authoritative rolling integration" (fun _ ->
+                  let cfg = testParams.Ball
+                  let vx, vy = 14.0, -5.0
+                  let radius = float cfg.Radius
+                  // Pure rolling spin removes slip, so the integrator applies only turf resistance and air drag.
+                  let mutable state =
+                      { TestBuilders.emptyBall with
+                          Position = ball 2.0<meter> -1.0<meter> (vx * 1.0<meterPerSecond>) (vy * 1.0<meterPerSecond>)
+                          Spin =
+                            { X = -vy / radius * 1.0<radianPerSecond>
+                              Y = vx / radius * 1.0<radianPerSecond>
+                              Z = 0.0<radianPerSecond> } }
 
-                  let step (s: Spatial) : Spatial =
-                      { X = s.X + s.Vx * dt
-                        Y = s.Y + s.Vy * dt
-                        Z = 0.0<meter>
-                        Vx = s.Vx * d
-                        Vy = s.Vy * d
-                        Vz = 0.0<meterPerSecond> }
+                  for _ in 1..20 do
+                      state <- BallDynamics.integrate cfg 0.025 0<subtick> state
 
-                  let p1 = step b
-                  let p2 = step p1
-                  let p3 = step p2
-
-                  let closed = InterceptTable.ballInertiaPoint testParams b 3
-
+                  let predicted = InterceptTable.ballInertiaPoint testParams (ball 2.0<meter> -1.0<meter> (vx * 1.0<meterPerSecond>) (vy * 1.0<meterPerSecond>)) 20
                   let close (a: float) (c: float) = abs (a - c) < 1e-6
-
-                  Expect.isTrue (close (float closed.X) (float p3.X)) "X matches the manual integration"
-                  Expect.isTrue (close (float closed.Y) (float p3.Y)) "Y matches the manual integration"
-                  Expect.isTrue (close (float closed.Vx) (float p3.Vx)) "Vx matches the manual integration"
-                  Expect.isTrue (close (float closed.Vy) (float p3.Vy)) "Vy matches the manual integration"
-                  Expect.equal closed.Z 0.0<meter> "Z is zero"
-                  Expect.equal closed.Vz 0.0<meterPerSecond> "Vz is zero") ]
+                  Expect.isTrue (close (float predicted.X) (float state.Position.X)) "X matches BallDynamics"
+                  Expect.isTrue (close (float predicted.Y) (float state.Position.Y)) "Y matches BallDynamics"
+                  Expect.isTrue (close (float predicted.Vx) (float state.Position.Vx)) "speed decays as BallDynamics"
+                  Expect.equal predicted.Z 0.0<meter> "Z is zero") ]

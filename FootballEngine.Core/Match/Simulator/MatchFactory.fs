@@ -146,6 +146,7 @@ module MatchFactory =
           Attack = CollectiveAttackState.create (if side = ClubSide.Home then ctx.HomeClub.AttackPrior else ctx.AwayClub.AttackPrior)
           LastCarrierSlot = -1
           LastRoleAssignmentTick = -1<subtick>
+          Dive = ValueNone
           FormationCache = None
           LateralPairs = None
           GoalkeeperSlot = None
@@ -197,6 +198,7 @@ module MatchFactory =
                   GKHoldSince = None
                   ArrivalGate = None
                   PreviousPosition = ValueNone
+                  FrameContact = ValueNone
                   Impulse = None }
               Momentum = 0.0
               LastAttackingClub = Some ClubSide.Home
