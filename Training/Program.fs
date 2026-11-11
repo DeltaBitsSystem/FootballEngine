@@ -90,8 +90,14 @@ module Program =
                     | EventData.FootContact(actor, _, kind, x, _, _) ->
                         let team = if Array.contains actor world.Home.RosterIds then "home" else "away"
                         lastBall <- $"touch {kind} by {team} line<{5.0 * ceil (float (Pitch.HalfLength - abs x) / 5.0)}m"
-                    | EventData.Shot _ -> lastBall <- "shot"
-                    | EventData.Save _ -> lastBall <- "save"
+                    | EventData.Shot _ ->
+                        lastBall <- "shot"
+                        add "keeper: shot"
+                    | EventData.KeeperDive _ -> add "keeper: dive"
+                    | EventData.Save _ ->
+                        lastBall <- "save"
+                        add "keeper: save"
+                    | EventData.Goal _ -> add $"keeper: goal after {lastBall}"
                     | EventData.CrossAttempt _ -> lastBall <- "cross"
                     | EventData.Woodwork _ -> lastBall <- "woodwork"
                     | EventData.Interception _ -> lastBall <- "interception"
@@ -179,6 +185,15 @@ module Program =
         | "validate" :: rest ->
             let n = defaultArgs rest [ "2" ] |> List.head |> int
             validateCmd n BalanceConfig.defaultConfig
+        | [ "heldout" ] ->
+            // Seeds 1-4 are never used for tuning, so they judge whether a change generalises beyond the tuning seeds.
+            [ 1UL .. 4UL ]
+            |> List.toArray
+            |> Array.Parallel.map (fun seed -> SimulatorRunner.runOne BalanceConfig.defaultConfig seed)
+            |> Array.toList
+            |> List.map Metrics.ofWorld
+            |> Validator.print "held-out seeds 1-4"
+            0
         | "tune" :: rest ->
             let parts = defaultArgs rest [ "6"; "2" ]
             let sweeps = parts.[0] |> int
@@ -194,5 +209,5 @@ module Program =
             dumpCmd path n
             0
         | _ ->
-            printfn "usage: validate [n] | tune [sweeps] [n] | dump <path> [n] | diagnose [n]"
+            printfn "usage: validate [n] | heldout | tune [sweeps] [n] | dump <path> [n] | diagnose [n]"
             0

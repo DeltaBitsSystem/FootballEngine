@@ -801,7 +801,8 @@ module BalanceConfig =
           DiveSpeed = 4.2<meterPerSecond>
           MaxDive = 1.7<meter>
           HandRadius = 0.15<meter>
-          HandError = 0.3<meter>
+          // Calibrated so keepers stop roughly the top-flight share (~70 %) of shots on target; 0.3 m let 4 in 10 through.
+          HandError = 0.2<meter>
           HandWindow = 3<subtick>
           // Driven shots above ~20 m/s are usually parried even by good handlers.
           CatchSpeed = 20.0<meterPerSecond>
@@ -839,9 +840,9 @@ module BalanceConfig =
           // Read against the offender's own speed. A defender at a jog (3-4 m/s) who catches the leg is careless;
           // reckless needs the momentum of a committed run, and excessive force near top sprint (8.5 m/s) into the
           // leg, which keeps straight reds near the top-flight ~0.1 per match.
-          RecklessRelativeSpeed = 3.5<meterPerSecond>
+          RecklessRelativeSpeed = 5.0<meterPerSecond>
           ExcessiveRelativeSpeed = 7.5<meterPerSecond>
-          DangerousBallFirstSpeed = 3.6<meterPerSecond> }
+          DangerousBallFirstSpeed = 5.1<meterPerSecond> }
 
     let defaultActions: ActionsConfig =
         { PassBaseQuality = 0.7
