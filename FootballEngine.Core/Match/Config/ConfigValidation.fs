@@ -561,6 +561,13 @@ module ConfigValidation =
           // Beyond ~12 rev/s no foot can spin a ball; above that the curl would be fiction.
           if not (System.Double.IsFinite(float a.ShotCurlSpin)) || a.ShotCurlSpin < 0.0<radianPerSecond> || a.ShotCurlSpin > 75.0<radianPerSecond> then
               yield "Actions.ShotCurlSpin must be in [0, 75] rad/s"
+          // The fastest strikes on record are ~38 m/s; a slower base than a jog could not reach goal from range.
+          if not (System.Double.IsFinite(float a.ShotSpeedBase)) || a.ShotSpeedBase < 8.0<meterPerSecond> || a.ShotSpeedBase > 38.0<meterPerSecond> then
+              yield "Actions.ShotSpeedBase must be in [8, 38] m/s"
+          if not (System.Double.IsFinite(float a.ShotSpeedStrength)) || a.ShotSpeedStrength < 0.0<meterPerSecond> || a.ShotSpeedStrength > 15.0<meterPerSecond> then
+              yield "Actions.ShotSpeedStrength must be in [0, 15] m/s"
+          if not (System.Double.IsFinite a.ShotPlacementSpeedCost) || a.ShotPlacementSpeedCost < 0.0 || a.ShotPlacementSpeedCost > 0.8 then
+              yield "Actions.ShotPlacementSpeedCost must be in [0, 0.8]"
           if not (System.Double.IsFinite(float a.CrossArrivalHeight)) || a.CrossArrivalHeight < 0.0<meter> || a.CrossArrivalHeight > 2.2<meter> then
               yield "Actions.CrossArrivalHeight must be in [0, 2.2] m"
           // Steepness 0 would flatten sigmoid, >20 would be step function

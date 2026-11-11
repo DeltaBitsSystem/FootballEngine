@@ -41,18 +41,24 @@ module KeeperSave =
         abs (x - float (MatchMath.ownGoalX side)) <= float Pitch.PenaltyAreaDepth
         && abs y <= float Pitch.PenaltyAreaHalfWidth
 
-    let private react (ctx: SystemContext) (rng: Rng) (world: World) (buffer: EventBuffer) (side: ClubSide) : Rng =
+    /// What a keeper makes of the ball this tick. Kept apart from committing the dive so the decision can be
+    /// inspected (balance diagnostics, tests) without drawing hand error or touching the world.
+    type Assessment =
+        | NotAShotAtHim
+        | AlreadyCommitted
+        | OutsideHisArea
+        | StillReacting of remaining: float
+        | NotCrossing
+        | OutOfReach of required: float * reach: float * seconds: float
+        | CanReach of slot: int * crossingY: float * crossingZ: float * required: float * seconds: float
+
+    let assess (ctx: SystemContext) (world: World) (side: ClubSide) : Assessment =
         let team = MatchWorld.team world side
-        let tick = world.State.Tick
         let cfg = ctx.Ctx.Config.Keeper
-
-        match team.Dive with
-        | ValueSome dive when tick > dive.ContactAt + cfg.HandWindow -> team.Dive <- ValueNone
-        | _ -> ()
-
         let ball = world.State.Ball
 
         match team.Dive, team.GoalkeeperSlot, ball.Trajectory, ball.Impulse with
+        | ValueSome _, _, _, _ -> AlreadyCommitted
         | ValueNone, Some slot, Some(TrajectoryIntent.Struck(shooter, _, _, _)), Some impulse when
             MatchWorld.isActive team.Frame slot
             && MatchWorld.teamOfPlayer ctx.Ctx shooter = Some(MatchWorld.oppOf side)
@@ -61,16 +67,20 @@ module KeeperSave =
             let profile = MatchWorld.profileOf ctx.Ctx side slot
             let kx = float (MatchWorld.posX frame slot)
             let ky = float (MatchWorld.posY frame slot)
-            let perSecond = float ctx.Clock.SubTicksPerSecond
+            let tick = world.State.Tick
             let reaction = float cfg.ReactionBase - float cfg.ReactionSkill * float profile.Anticipation / 100.0
-            let sinceStrike = float (tick - SimTick.value impulse.ContactTick) / perSecond
+
+            let sinceStrike =
+                float (tick - SimTick.value impulse.ContactTick) / float ctx.Clock.SubTicksPerSecond
 
             // Hands are only legal inside his own area; elsewhere he defends a shot with his body like anyone.
-            if sinceStrike < reaction || not (inOwnBox side kx ky) then
-                rng
+            if not (inOwnBox side kx ky) then
+                OutsideHisArea
+            elif sinceStrike < reaction then
+                StillReacting(reaction - sinceStrike)
             else
                 match crossingAt ctx.Ctx.Config.Ball (float (SimulationClock.dt ctx.Clock)) tick ball kx with
-                | ValueNone -> rng
+                | ValueNone -> NotCrossing
                 | ValueSome crossing ->
                     let stature =
                         if profile.Morphology.Height > 0.0f then float profile.Morphology.Height else 1.88
@@ -88,43 +98,63 @@ module KeeperSave =
                              * (0.75 + 0.5 * agility)
                              * max 0.0 (crossing.Seconds - float cfg.DiveSetup))
 
-                    if required > float cfg.ArmReach + dive then
-                        rng
+                    let reach = float cfg.ArmReach + dive
+
+                    if required > reach then
+                        OutOfReach(required, reach, crossing.Seconds)
                     else
-                        let stretch =
-                            if cfg.MaxDive > 0.0<meter> then
-                                MatchMath.clamp01 ((required - float cfg.ArmReach) / float cfg.MaxDive)
-                            else
-                                0.0
+                        CanReach(slot, crossing.Y, crossing.Z, required, crossing.Seconds)
+        | _ -> NotAShotAtHim
 
-                        // Full-stretch saves are less precise, and a well-positioned keeper places his hands better.
-                        let sigma =
-                            float cfg.HandError
-                            * (0.3 + 0.7 * stretch)
-                            * (1.0 - 0.5 * float profile.Positioning / 100.0)
+    let private react (ctx: SystemContext) (rng: Rng) (world: World) (buffer: EventBuffer) (side: ClubSide) : Rng =
+        let team = MatchWorld.team world side
+        let tick = world.State.Tick
+        let cfg = ctx.Ctx.Config.Keeper
 
-                        let errorY, rng1 = Rng.normal 0.0 sigma rng
-                        let errorZ, rng2 = Rng.normal 0.0 sigma rng1
-                        let contactAt = tick + int (round (crossing.Seconds * perSecond)) * 1<subtick>
+        match team.Dive with
+        | ValueSome dive when tick > dive.ContactAt + cfg.HandWindow -> team.Dive <- ValueNone
+        | _ -> ()
 
-                        let hand: Vec3 =
-                            { X = kx * 1.0<meter>
-                              Y = (crossing.Y + errorY) * 1.0<meter>
-                              Z = max (float cfg.HandRadius) (crossing.Z + errorZ) * 1.0<meter> }
+        match assess ctx world side with
+        | CanReach(slot, crossingY, crossingZ, required, seconds) ->
+            let profile = MatchWorld.profileOf ctx.Ctx side slot
+            let kx = float (MatchWorld.posX team.Frame slot)
+            let perSecond = float ctx.Clock.SubTicksPerSecond
 
-                        team.Dive <-
-                            ValueSome
-                                { KeeperSlot = slot
-                                  CommittedAt = tick
-                                  ContactAt = contactAt
-                                  Hand = hand
-                                  Stretch = stretch }
+            let stretch =
+                if cfg.MaxDive > 0.0<meter> then
+                    MatchMath.clamp01 ((required - float cfg.ArmReach) / float cfg.MaxDive)
+                else
+                    0.0
 
-                        buffer.Events.Add
-                            { Tick = tick
-                              Data = EventData.KeeperDive(profile.Id, hand.X, hand.Y, hand.Z, contactAt) }
+            // Full-stretch saves are less precise, and a well-positioned keeper places his hands better.
+            let sigma =
+                float cfg.HandError
+                * (0.3 + 0.7 * stretch)
+                * (1.0 - 0.5 * float profile.Positioning / 100.0)
 
-                        rng2
+            let errorY, rng1 = Rng.normal 0.0 sigma rng
+            let errorZ, rng2 = Rng.normal 0.0 sigma rng1
+            let contactAt = tick + int (round (seconds * perSecond)) * 1<subtick>
+
+            let hand: Vec3 =
+                { X = kx * 1.0<meter>
+                  Y = (crossingY + errorY) * 1.0<meter>
+                  Z = max (float cfg.HandRadius) (crossingZ + errorZ) * 1.0<meter> }
+
+            team.Dive <-
+                ValueSome
+                    { KeeperSlot = slot
+                      CommittedAt = tick
+                      ContactAt = contactAt
+                      Hand = hand
+                      Stretch = stretch }
+
+            buffer.Events.Add
+                { Tick = tick
+                  Data = EventData.KeeperDive(profile.Id, hand.X, hand.Y, hand.Z, contactAt) }
+
+            rng2
         | _ -> rng
 
     let step: SystemStep =

@@ -64,8 +64,28 @@ module Program =
             let mutable lastBall = "none"
             let mutable dived = false
             let mutable shotTick = 0
+            let mutable shotZone = ""
+            let guards = System.Collections.Generic.HashSet<string>()
+            let sctx = { Ctx = { FootballEngine.Core.Tests.Infrastructure.TestBuilders.defaultCtx () with Config = cfg }; Clock = SimulationClock.defaultClock }
 
             SimulatorRunner.runObserved cfg seed (fun world events ->
+                // The keeper's first decision once he has reacted to each shot, so a goal without a dive names
+                // what kept him still.
+                let ball = world.State.Ball
+
+                match ball.Trajectory with
+                | Some(TrajectoryIntent.Struck(shooter, _, _, _)) when guards.Count = 0 ->
+                    let side = if Array.contains shooter world.Home.RosterIds then ClubSide.Away else ClubSide.Home
+
+                    match KeeperSave.assess sctx world side with
+                    | KeeperSave.NotAShotAtHim
+                    | KeeperSave.StillReacting _ -> ()
+                    | KeeperSave.OutOfReach(required, reach, seconds) ->
+                        guards.Add $"out of reach by<{0.5 * ceil ((required - reach) / 0.5)}m left<{0.1 * ceil (seconds / 0.1)}s" |> ignore
+                    | KeeperSave.CanReach _ -> guards.Add "can reach" |> ignore
+                    | other -> guards.Add $"{other}" |> ignore
+                | _ -> ()
+
                 for event in events do
                     match event.Data with
                     | EventData.PhysicalContact record ->
@@ -81,10 +101,15 @@ module Program =
                                 lastBall <- $"contact ContactTrap speed>{5.0 * floor (speed / 5.0)} line<{5.0 * ceil (line / 5.0)}m z>{0.5 * floor (float record.PointZ / 0.5)}"
                     | EventData.Foul(_, _, severity, _, _) -> add $"foul {severity} after {lastContact}"
                     | EventData.Card(_, card) -> add $"card {card}"
-                    | EventData.FootContact(actor, _, kind, x, _, _) ->
+                    | EventData.FootContact(actor, _, kind, x, y, _) ->
                         if kind = FootTouchKind.Kick StrikeKind.Shot then
                             dived <- false
                             shotTick <- int event.Tick
+                            guards.Clear()
+                            let distance = sqrt ((float Pitch.HalfLength - abs (float x)) ** 2.0 + float y ** 2.0)
+                            let zone = if distance < 6.0 then "a <6m" elif distance < 11.0 then "b 6-11m" elif distance < 16.5 then "c 11-16.5m" elif distance < 25.0 then "d 16.5-25m" else "e 25m+"
+                            add $"shot from {zone}"
+                            shotZone <- zone
 
                         let team = if Array.contains actor world.Home.RosterIds then "home" else "away"
                         lastBall <- $"touch {kind} by {team} line<{5.0 * ceil (float (Pitch.HalfLength - abs x) / 5.0)}m"
@@ -109,12 +134,20 @@ module Program =
                                 | Some gk ->
                                     let x = float (MatchWorld.posX defending.Frame gk)
                                     let line = abs (float (MatchMath.ownGoalX (MatchWorld.oppOf scorer)) - x)
-                                    $"keeper {5.0 * floor (line / 5.0)}m off line"
+                                    let y = float (MatchWorld.posY defending.Frame gk)
+                                    let lateral = abs (float world.State.Ball.Position.Y - y)
+                                    $"keeper {5.0 * floor (line / 5.0)}m off line lateral<{0.5 * ceil (lateral / 0.5)} z<{0.5 * ceil (float world.State.Ball.Position.Z / 0.5)}"
                                 | None -> "no keeper"
                             | _ -> ""
                         add $"keeper: goal after {lastBall} dived={dived} flight<{0.25 * ceil (flight / 0.25)}s {keeperState}"
+                        let seen = guards |> Seq.sort |> String.concat ", "
+                        add $"keeper: goal guards {seen}"
+                        add $"goal from {shotZone}"
                     | EventData.CrossAttempt _ -> lastBall <- "cross"
-                    | EventData.Woodwork _ -> lastBall <- "woodwork"
+                    | EventData.Woodwork(_, part, x, _, z) ->
+                        let behind = abs (float x) > float Pitch.HalfLength
+                        add $"woodwork {part} after {lastBall} behind={behind} z<{0.5 * ceil (float z / 0.5)}"
+                        lastBall <- "woodwork"
                     | EventData.Interception _ -> lastBall <- "interception"
                     | EventData.SetPiece(kind, side) -> add $"setpiece {kind} for {side} after {lastBall}"
                     | EventData.Offside _ -> add "offside"

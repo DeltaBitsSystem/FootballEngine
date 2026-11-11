@@ -56,7 +56,10 @@ module Shot =
         // A strike aimed below the ground is a skidding shot along the turf.
         let aimZ = max 0.0 (intendedZ + verticalError)
 
-        let speed = min (float cfg.Ball.MaxShotSpeed) (22.0 + float p.Pace * 0.06)
+        // Tucking a finish inside the post is done with the side of the foot, so placement costs power: the keeper
+        // gets more time on the shots aimed furthest from him.
+        let power = float cfg.Actions.ShotSpeedBase + float cfg.Actions.ShotSpeedStrength * float p.Strength / 100.0
+        let speed = min (float cfg.Ball.MaxShotSpeed) (power * (1.0 - cfg.Actions.ShotPlacementSpeedCost * placement))
         let angle = atan2 (aimY - float y) goalDistanceX
 
         // Placed finishes curl the ball back toward the aim point; the solver keeps the target, only the path bends.

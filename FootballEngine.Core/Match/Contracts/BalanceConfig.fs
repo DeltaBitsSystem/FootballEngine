@@ -256,6 +256,12 @@ type ActionsConfig =
       ShotDistanceToGoalMultiplier: float
       /// Upper bound of the sidespin a shooter can impart to curl the ball around the keeper.
       ShotCurlSpin: float<radianPerSecond>
+      /// Strike speed of a finisher with no strength, struck for power rather than placement.
+      ShotSpeedBase: float<meterPerSecond>
+      /// Extra full-power strike speed of a finisher at Strength 100.
+      ShotSpeedStrength: float<meterPerSecond>
+      /// Share of strike speed given up to place a finish tight to the post with the side of the foot.
+      ShotPlacementSpeedCost: float
       CrossArrivalHeight: float<meter>
       DuelSteepness: float
       DuelMomentumBonus: float
@@ -921,6 +927,11 @@ module BalanceConfig =
           ShotDistanceToGoalMultiplier = 0.02
           // A curled finish carries roughly 5–8 rev/s of sidespin.
           ShotCurlSpin = 40.0<radianPerSecond>
+          // Driven top-flight shots reach ~28 m/s and placed side-foot finishes ~15 m/s. 0.45 brings saves to ~70 %
+          // of shots on target; 0.35 left keepers stopping under 60 %.
+          ShotSpeedBase = 20.0<meterPerSecond>
+          ShotSpeedStrength = 9.0<meterPerSecond>
+          ShotPlacementSpeedCost = 0.45
           // Crosses are aimed to meet the receiver between knee and chest, where both feet and head can play them.
           CrossArrivalHeight = 0.9<meter>
           DuelSteepness = 8.0
