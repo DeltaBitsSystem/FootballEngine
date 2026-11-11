@@ -84,16 +84,6 @@ module AutoTuner =
             Set = fun c v -> withDec c (fun d -> { d with DecisionTemperature = v })
             Min = 0.05
             Max = 0.5 }
-          // Calibrate actual momentum transfer, not a reach margin that would manufacture remote contacts.
-          { Name = "receptionVelocityRetention"
-            Get = fun c -> (ballCfg c).ReceptionVelocityRetention
-            Set =
-              fun c v ->
-                  withBallCfg c (fun b ->
-                      { b with
-                          ReceptionVelocityRetention = v })
-            Min = 0.02
-            Max = 0.5 }
           { Name = "passRollingSpinRatio"
             Get = fun c -> (ballCfg c).PassRollingSpinRatio
             Set = fun c v -> withBallCfg c (fun b -> { b with PassRollingSpinRatio = v })

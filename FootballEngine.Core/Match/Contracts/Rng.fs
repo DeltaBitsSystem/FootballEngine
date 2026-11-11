@@ -38,6 +38,21 @@ module Rng =
         rng.S3 <- (rng.S3 <<< 45) ||| (rng.S3 >>> 19)
         result, rng
 
+    /// FNV-1a over the UTF-16 code units: a stable 64-bit key for a named stream.
+    let keyOf (name: string) : uint64 =
+        let mutable hash = 0xcbf29ce484222325UL
+
+        for c in name do
+            hash <- (hash ^^^ uint64 c) * 0x100000001b3UL
+
+        hash
+
+    /// An independent stream for one consumer within one step. Each system draws from its own stream, so what
+    /// one system consumes never shifts the numbers another receives: an A/B change to one system leaves the
+    /// rest of the match's randomness common to both runs.
+    let stream (stepKey: uint64) (consumerKey: uint64) : Rng =
+        ofSeed (splitMix64 (stepKey ^^^ splitMix64 consumerKey))
+
     /// [0, 1)
     let double (rng: Rng) : float * Rng =
         let u, rng' = nextU64 rng

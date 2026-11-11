@@ -21,6 +21,7 @@
     <Compile Include="Systems\Ball\ContactTests.fs"/>
     <Compile Include="Systems\Ball\OutcomeTests.fs"/>
     <Compile Include="Systems\Ball\PossessionTests.fs"/>
+    <Compile Include="Systems\Ball\StrikeTechniqueTests.fs"/>
     <Compile Include="Stepper\SchedulerTests.fs"/>
     <Compile Include="Stepper\FlowTests.fs"/>
     <Compile Include="Stepper\MatchClockTests.fs"/>

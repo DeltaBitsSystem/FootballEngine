@@ -115,7 +115,8 @@ module FootMotionTests =
                                       { world.State.Ball.Position with
                                           Vx = 12.0<meterPerSecond> } } }
 
-                  BallFootContact.receive sctx world events ClubSide.Home 5
+                  // The first touch of a carry absorbs the pass down to 2 m/s; this is the producer Possession uses.
+                  BallFootContact.recordTouch sctx world events ClubSide.Home 5 ContactFoot.Right FootTouchKind.Receive -10.0 0.0 0.0
                   let output = Array.zeroCreate<MotionEvidence> 2
 
                   Expect.equal
@@ -128,10 +129,7 @@ module FootMotionTests =
                   Expect.equal output[0].CommitAt 9<subtick> "exact touch boundary"
                   Expect.equal output[0].IncomingVelocity.Value.X 12.0f "incoming velocity preserved"
 
-                  Expect.equal
-                      output[0].OutgoingVelocity.Value.X
-                      (float32 world.State.Ball.Position.Vx)
-                      "outgoing is absorption result")
+                  Expect.equal output[0].OutgoingVelocity.Value.X 2.0f "outgoing is absorption result")
               testCase "steady motion integration allocates no managed memory" (fun _ ->
                   let ball =
                       { TestBuilders.emptyBall with
@@ -347,7 +345,12 @@ module FootMotionTests =
                       BallFootContact.step sctx (Rng.ofSeed 1UL) world events |> ignore
 
                   Expect.isNone world.State.Ball.PendingStrike "contact consumes request"
-                  Expect.equal world.State.Ball.Position.Vx 15.0<meterPerSecond> "impulse at contact"
+                  // The kicker's technique turns the strike by a fraction of a degree, so the impulse is its speed.
+                  Expect.floatClose
+                      Accuracy.medium
+                      (MatchMath.speedOf world.State.Ball.Position.Vx world.State.Ball.Position.Vy)
+                      15.0
+                      "impulse at contact"
                   BallFootContact.step sctx (Rng.ofSeed 1UL) world events |> ignore
 
                   Expect.equal

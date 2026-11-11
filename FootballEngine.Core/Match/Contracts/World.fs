@@ -146,6 +146,11 @@ type ContactScratch(capacity: int) =
     let airborneAtStart = Array.zeroCreate<bool> size
     let resolvedBodyPairs = Array.zeroCreate<bool> (size * size)
     let resolvedBallPlayers = Array.zeroCreate<bool> size
+    let reach = Array.zeroCreate<float> size
+    let bodyReach = Array.zeroCreate<float> size
+    let endX = Array.zeroCreate<float> size
+    let endY = Array.zeroCreate<float> size
+    let travel = Array.zeroCreate<float> size
 
     member val Count = 0 with get, set
     member val SaturationCount = 0UL with get, set
@@ -164,6 +169,14 @@ type ContactScratch(capacity: int) =
     member _.AirborneAtStart = airborneAtStart
     member _.ResolvedBodyPairs = resolvedBodyPairs
     member _.ResolvedBallPlayers = resolvedBallPlayers
+    /// Bound on how far any contact surface of a body extends from its root this step.
+    member _.Reach = reach
+    /// Horizontal part of Reach that can meet another body: torso and boot, not the head.
+    member _.BodyReach = bodyReach
+    /// Predicted end of the current sub-step and the horizontal distance travelled to it.
+    member _.EndX = endX
+    member _.EndY = endY
+    member _.Travel = travel
 
 /// The single object systems see. All arrays/books owned by this match.
 type World =

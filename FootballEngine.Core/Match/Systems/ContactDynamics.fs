@@ -216,6 +216,33 @@ module ContactDynamics =
             ValueSome candidate
         | _ -> current
 
+    /// Broad-phase bounds, once per tick: actions and morphology do not change within it. Every surface stays
+    /// within Reach of its root (head at the full height, a committed boot at most the longer leg reach plus the
+    /// foot and its execution error); BodyReach is the horizontal part a body or boot can meet another body with.
+    /// Bodies, or a body and the ball, further apart than their bounds plus the step's travel cannot touch, so
+    /// skipping them changes no result: every narrow test would miss.
+    let private computeReach (ctx: MatchContext) (world: World) (scratch: ContactScratch) =
+        let cfg = ctx.Config.Contact
+
+        let legReach =
+            max (float ctx.Config.ContactAction.FootReach) (float ctx.Config.ContactAction.SlidingReach)
+            + float cfg.LegRadius
+            + footContactRadius cfg
+
+        for a = 0 to scratch.Count - 1 do
+            let frame = (MatchWorld.team world scratch.Sides[a]).Frame
+            let slot = scratch.Slots[a]
+            let foot = float (profileAt ctx world scratch a).Morphology.FootLength + float cfg.FootRadius * 2.0
+
+            let error =
+                match frame.ContactActions[slot] with
+                | Some action ->
+                    sqrt (float action.ErrorX ** 2.0 + float action.ErrorY ** 2.0 + float action.ErrorZ ** 2.0)
+                | None -> 0.0
+
+            scratch.BodyReach[a] <- scratch.Radius[a] + legReach + foot + error
+            scratch.Reach[a] <- scratch.Height[a] + scratch.BodyReach[a]
+
     let private findEarliest
         (ctx: MatchContext)
         (world: World)
@@ -230,79 +257,49 @@ module ContactDynamics =
         if ball.GKHoldSince.IsNone then
             ballEnd <- BallDynamics.integrate ctx.Config.Ball duration world.State.Tick ball
 
+        let ballTravel =
+            let p0, p1 = ball.Position, ballEnd.Position
+            let dx, dy, dz = float (p1.X - p0.X), float (p1.Y - p0.Y), float (p1.Z - p0.Z)
+            sqrt (dx * dx + dy * dy + dz * dz)
+
+        for a = 0 to scratch.Count - 1 do
+            let x1 = predictedAxis scratch.StartX[a] scratch.VelocityX[a] scratch.AccelerationX[a] duration
+            let y1 = predictedAxis scratch.StartY[a] scratch.VelocityY[a] scratch.AccelerationY[a] duration
+            let dx, dy = x1 - scratch.StartX[a], y1 - scratch.StartY[a]
+            scratch.EndX[a] <- x1
+            scratch.EndY[a] <- y1
+            scratch.Travel[a] <- sqrt (dx * dx + dy * dy)
+
         for a = 0 to scratch.Count - 1 do
             let ax0, ay0, az0 = scratch.StartX[a], scratch.StartY[a], scratch.StartZ[a]
             let ax1 = predictedAxis ax0 scratch.VelocityX[a] scratch.AccelerationX[a] duration
             let ay1 = predictedAxis ay0 scratch.VelocityY[a] scratch.AccelerationY[a] duration
 
             for b = a + 1 to scratch.Count - 1 do
-                let pairIndex = a * scratch.Sides.Length + b
+                let dx, dy = scratch.StartX[b] - ax0, scratch.StartY[b] - ay0
+                let bound = scratch.BodyReach[a] + scratch.BodyReach[b] + scratch.Travel[a] + scratch.Travel[b]
 
-                if not scratch.ResolvedBodyPairs[pairIndex] then
-                    let bx0, by0, bz0 = scratch.StartX[b], scratch.StartY[b], scratch.StartZ[b]
-                    let bx1 = predictedAxis bx0 scratch.VelocityX[b] scratch.AccelerationX[b] duration
-                    let by1 = predictedAxis by0 scratch.VelocityY[b] scratch.AccelerationY[b] duration
-                    let relativeX0, relativeY0 = bx0 - ax0, by0 - ay0
-                    let relativeX1, relativeY1 = bx1 - ax1, by1 - ay1
-                    let radius = scratch.Radius[a] + scratch.Radius[b]
+                if dx * dx + dy * dy <= bound * bound then
+                    let pairIndex = a * scratch.Sides.Length + b
 
-                    match sweptTime relativeX0 relativeY0 0.0 relativeX1 relativeY1 0.0 radius with
-                    | Some fraction ->
-                        let za = predictedAxis az0 scratch.VelocityZ[a] 0.0 (duration * fraction)
-                        let zb = predictedAxis bz0 scratch.VelocityZ[b] 0.0 (duration * fraction)
-                        let aLow = za + scratch.Height[a] * cfg.CapsuleLowerHeightRatio
-                        let aHigh = za + scratch.Height[a] * cfg.CapsuleUpperHeightRatio
-                        let bLow = zb + scratch.Height[b] * cfg.CapsuleLowerHeightRatio
-                        let bHigh = zb + scratch.Height[b] * cfg.CapsuleUpperHeightRatio
+                    if not scratch.ResolvedBodyPairs[pairIndex] then
+                        let bx0, by0, bz0 = scratch.StartX[b], scratch.StartY[b], scratch.StartZ[b]
+                        let bx1 = predictedAxis bx0 scratch.VelocityX[b] scratch.AccelerationX[b] duration
+                        let by1 = predictedAxis by0 scratch.VelocityY[b] scratch.AccelerationY[b] duration
+                        let relativeX0, relativeY0 = bx0 - ax0, by0 - ay0
+                        let relativeX1, relativeY1 = bx1 - ax1, by1 - ay1
+                        let radius = scratch.Radius[a] + scratch.Radius[b]
 
-                        if aLow <= bHigh && bLow <= aHigh then
-                            best <-
-                                betterCandidate
-                                    cfg.SimultaneousTolerance
-                                    ctx
-                                    world
-                                    scratch
-                                    { Fraction = fraction
-                                      PlayerA = a
-                                      PlayerB = b
-                                      IsBall = false
-                                      Surface = ContactSurface.ContactTorso
-                                      FootFraction = 0.0
-                                      Gloves = false }
-                                    best
-                    | None -> ()
+                        match sweptTime relativeX0 relativeY0 0.0 relativeX1 relativeY1 0.0 radius with
+                        | Some fraction ->
+                            let za = predictedAxis az0 scratch.VelocityZ[a] 0.0 (duration * fraction)
+                            let zb = predictedAxis bz0 scratch.VelocityZ[b] 0.0 (duration * fraction)
+                            let aLow = za + scratch.Height[a] * cfg.CapsuleLowerHeightRatio
+                            let aHigh = za + scratch.Height[a] * cfg.CapsuleUpperHeightRatio
+                            let bLow = zb + scratch.Height[b] * cfg.CapsuleLowerHeightRatio
+                            let bHigh = zb + scratch.Height[b] * cfg.CapsuleUpperHeightRatio
 
-                // A tackle that misses the ball meets the legs: tripping and kicking are the boot striking them (Law 12).
-                // Only opponents are scanned; a boot among teammates is an accident the torso solver already separates.
-                if scratch.Sides[a] <> scratch.Sides[b] then
-                    let bx0, by0 = scratch.StartX[b], scratch.StartY[b]
-                    let bx1 = predictedAxis bx0 scratch.VelocityX[b] scratch.AccelerationX[b] duration
-                    let by1 = predictedAxis by0 scratch.VelocityY[b] scratch.AccelerationY[b] duration
-
-                    let considerBoot tackler victim tx0 ty0 tx1 ty1 vx0 vy0 vx1 vy1 =
-                        let tacklerFrame = (MatchWorld.team world scratch.Sides[tackler]).Frame
-                        let tacklerSlot = scratch.Slots[tackler]
-                        let victimFrame = (MatchWorld.team world scratch.Sides[victim]).Frame
-
-                        match bootChallenge ctx.Config.ContactAction world.State.Tick tacklerFrame tacklerSlot with
-                        | Some action when
-                            victimFrame.ContactState[scratch.Slots[victim]].Status <> BodyContactStatus.BodyFalling
-                            ->
-                            let morphology = (profileAt ctx world scratch tackler).Morphology
-                            let footX0, footY0, _ = footPositionFor ctx tacklerFrame tacklerSlot (Some action) morphology tx0 ty0 0.8
-                            let footX1, footY1, _ = footPositionFor ctx tacklerFrame tacklerSlot (Some action) morphology tx1 ty1 0.8
-
-                            match
-                                sweptTime
-                                    (vx0 - footX0)
-                                    (vy0 - footY0)
-                                    0.0
-                                    (vx1 - footX1)
-                                    (vy1 - footY1)
-                                    0.0
-                                    (footContactRadius cfg + float cfg.LegRadius)
-                            with
-                            | Some fraction ->
+                            if aLow <= bHigh && bLow <= aHigh then
                                 best <-
                                     betterCandidate
                                         cfg.SimultaneousTolerance
@@ -310,18 +307,65 @@ module ContactDynamics =
                                         world
                                         scratch
                                         { Fraction = fraction
-                                          PlayerA = tackler
-                                          PlayerB = victim
+                                          PlayerA = a
+                                          PlayerB = b
                                           IsBall = false
-                                          Surface = ContactSurface.ContactFoot
-                                          FootFraction = 0.8
+                                          Surface = ContactSurface.ContactTorso
+                                          FootFraction = 0.0
                                           Gloves = false }
                                         best
-                            | None -> ()
-                        | _ -> ()
+                        | None -> ()
 
-                    considerBoot a b ax0 ay0 ax1 ay1 bx0 by0 bx1 by1
-                    considerBoot b a bx0 by0 bx1 by1 ax0 ay0 ax1 ay1
+                    // A tackle that misses the ball meets the legs: tripping and kicking are the boot striking them (Law 12).
+                    // Only opponents are scanned; a boot among teammates is an accident the torso solver already separates.
+                    if scratch.Sides[a] <> scratch.Sides[b] then
+                        let bx0, by0 = scratch.StartX[b], scratch.StartY[b]
+                        let bx1 = predictedAxis bx0 scratch.VelocityX[b] scratch.AccelerationX[b] duration
+                        let by1 = predictedAxis by0 scratch.VelocityY[b] scratch.AccelerationY[b] duration
+
+                        let considerBoot tackler victim tx0 ty0 tx1 ty1 vx0 vy0 vx1 vy1 =
+                            let tacklerFrame = (MatchWorld.team world scratch.Sides[tackler]).Frame
+                            let tacklerSlot = scratch.Slots[tackler]
+                            let victimFrame = (MatchWorld.team world scratch.Sides[victim]).Frame
+
+                            match bootChallenge ctx.Config.ContactAction world.State.Tick tacklerFrame tacklerSlot with
+                            | Some action when
+                                victimFrame.ContactState[scratch.Slots[victim]].Status <> BodyContactStatus.BodyFalling
+                                ->
+                                let morphology = (profileAt ctx world scratch tackler).Morphology
+                                let footX0, footY0, _ = footPositionFor ctx tacklerFrame tacklerSlot (Some action) morphology tx0 ty0 0.8
+                                let footX1, footY1, _ = footPositionFor ctx tacklerFrame tacklerSlot (Some action) morphology tx1 ty1 0.8
+
+                                match
+                                    sweptTime
+                                        (vx0 - footX0)
+                                        (vy0 - footY0)
+                                        0.0
+                                        (vx1 - footX1)
+                                        (vy1 - footY1)
+                                        0.0
+                                        (footContactRadius cfg + float cfg.LegRadius)
+                                with
+                                | Some fraction ->
+                                    best <-
+                                        betterCandidate
+                                            cfg.SimultaneousTolerance
+                                            ctx
+                                            world
+                                            scratch
+                                            { Fraction = fraction
+                                              PlayerA = tackler
+                                              PlayerB = victim
+                                              IsBall = false
+                                              Surface = ContactSurface.ContactFoot
+                                              FootFraction = 0.8
+                                              Gloves = false }
+                                            best
+                                | None -> ()
+                            | _ -> ()
+
+                        considerBoot a b ax0 ay0 ax1 ay1 bx0 by0 bx1 by1
+                        considerBoot b a bx0 by0 bx1 by1 ax0 ay0 ax1 ay1
 
             let side, slot = scratch.Sides[a], scratch.Slots[a]
             let team = MatchWorld.team world side
@@ -355,8 +399,16 @@ module ContactDynamics =
                     impulse.ActorId = profile.Id
                     && world.State.Tick - SimTick.value impulse.ContactTick <= cfg.StrikeSeparation)
 
+            let ballNear =
+                let dx, dy, dz = b0x - px0, b0y - py0, b0z - pz0
+                let bound = scratch.Reach[a] + float ball.Radius + ballTravel + scratch.Travel[a] + abs (pz1 - pz0)
+                dx * dx + dy * dy + dz * dz <= bound * bound
+                // A dive's gloves wait at a fixed point in the world, not relative to the keeper's root.
+                || team.Dive.IsSome
+
             if
-                ballContactAllowed world ball
+                ballNear
+                && ballContactAllowed world ball
                 && not ownerIsActor
                 && not isPendingStrikeActor
                 && not isCommittingStrikeActor
@@ -390,9 +442,8 @@ module ContactDynamics =
                                 best
                     | None -> ()
 
-                let considerSurface = considerSurfaceWith false
-
-                considerSurface
+                considerSurfaceWith
+                    false
                     ContactSurface.ContactTorso
                     px0
                     py0
@@ -403,7 +454,8 @@ module ContactDynamics =
                     scratch.Radius[a]
                     0.0
 
-                considerSurface
+                considerSurfaceWith
+                    false
                     ContactSurface.ContactHead
                     px0
                     py0
@@ -414,7 +466,8 @@ module ContactDynamics =
                     (float ctx.Config.Contact.HeadRadius)
                     0.0
 
-                considerSurface
+                considerSurfaceWith
+                    false
                     ContactSurface.ContactLeg
                     px0
                     py0
@@ -430,7 +483,8 @@ module ContactDynamics =
                     let footX0, footY0, footZ0 = footPosition ctx frame slot morphology px0 py0 footFraction
                     let footX1, footY1, footZ1 = footPosition ctx frame slot morphology px1 py1 footFraction
 
-                    considerSurface
+                    considerSurfaceWith
+                        false
                         ContactSurface.ContactFoot
                         footX0
                         footY0
@@ -443,8 +497,11 @@ module ContactDynamics =
 
                 let lateralX, lateralY = -sin facing * shoulderWidth * 0.55, cos facing * shoulderWidth * 0.55
 
-                for sign in [ -1.0; 1.0 ] do
-                    considerSurface
+                for hand = 0 to 1 do
+                    let sign = float (2 * hand - 1)
+
+                    considerSurfaceWith
+                        false
                         ContactSurface.ContactHand
                         (px0 + lateralX * sign)
                         (py0 + lateralY * sign)
@@ -901,9 +958,24 @@ module ContactDynamics =
         let inverseBall = 1.0 / float ctx.Ctx.Config.Contact.BallMass
         let inverseSum = inversePlayer + inverseBall
         let contactCfg = ctx.Ctx.Config.Contact
+        let trapping =
+            candidate.Surface = ContactSurface.ContactFoot
+            && actionAt frame slot |> Option.exists (fun prepared -> prepared.Kind = ContactActionKind.ContactTrap)
+        // First touch is ball control: the feel of the boot (dribbling) and the weight given to the ball (passing).
+        // What a receiver lacks in it shows more while he is off balance.
+        let missingTouch =
+            let touch = (float profile.Dribbling + float profile.Passing) / 200.0
+            let missing = 1.0 - MatchMath.clamp01 touch
+
+            if StrikeTechnique.offBalance frame slot then
+                min 1.0 (missing * contactCfg.OffBalanceTrapPenalty)
+            else
+                missing
         let restitution =
             if candidate.Gloves then
                 ctx.Ctx.Config.Keeper.ParryRestitution
+            elif trapping then
+                contactCfg.BallFootRestitution + contactCfg.TrapPoorRestitution * missingTouch * missingTouch
             elif candidate.Surface = ContactSurface.ContactFoot then
                 contactCfg.BallFootRestitution
             else
@@ -919,14 +991,12 @@ module ContactDynamics =
         let tangentY0 = relativeY - normalSpeed * ny
         let tangentZ0 = relativeZ - normalSpeed * nz
         let tangentLength = sqrt (tangentX0 * tangentX0 + tangentY0 * tangentY0 + tangentZ0 * tangentZ0)
-        let trapping =
-            candidate.Surface = ContactSurface.ContactFoot
-            && actionAt frame slot |> Option.exists (fun prepared -> prepared.Kind = ContactActionKind.ContactTrap)
         let coulomb = min (contactCfg.BallBodyFriction * normalImpulse) (tangentLength / inverseSum)
         // An intentional trap moves the foot with the ball; only passive contacts are bounded by Coulomb friction.
         let tangentImpulse =
             if trapping then
-                max coulomb (contactCfg.TrapTangentialAbsorption * tangentLength / inverseSum)
+                let absorption = contactCfg.TrapAbsorptionBase + contactCfg.TrapAbsorptionSkill * (1.0 - missingTouch)
+                max coulomb (absorption * tangentLength / inverseSum)
             else
                 coulomb
         let tangentX, tangentY, tangentZ =
@@ -1437,6 +1507,7 @@ module ContactDynamics =
         let mutable contactOrder = 0
         let mutable tickElapsed = 0.0
         let mutable tickImpacts = 0
+        computeReach ctx.Ctx world scratch
 
         for segment = 0 to segments - 1 do
             let mutable remaining = segmentDuration

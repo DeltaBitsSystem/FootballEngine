@@ -85,6 +85,7 @@ let main argv =
               contactTests
               outcomeTests
               possessionTests
+              FootballEngine.Core.Tests.Systems.Ball.StrikeTechniqueTests.strikeTechniqueTests
               schedulerTests
               flowTests
               matchClockTests

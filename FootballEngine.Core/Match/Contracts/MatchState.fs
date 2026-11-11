@@ -78,6 +78,7 @@ type FootMotion =
     { Actor: PlayerId
       Foot: ContactFoot
       Kind: FootTouchKind
+      Surface: StrikeSurface
       StartedAt: int<subtick>
       ContactAt: int<subtick>
       EndsAt: int<subtick>

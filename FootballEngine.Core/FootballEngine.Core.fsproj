@@ -109,6 +109,7 @@
     <Compile Include="Match\Systems\Ball\Physics.fs"/>
     <Compile Include="Match\Systems\Ball\Flight.fs"/>
     <Compile Include="Match\Systems\Players\KeeperSave.fs"/>
+    <Compile Include="Match\Systems\Ball\StrikeTechnique.fs"/>
     <Compile Include="Match\Systems\Ball\FootContact.fs"/>
     <Compile Include="Match\Systems\Players\BodyPhysics.fs"/>
     <Compile Include="Match\Systems\Ball\Contact.fs"/>

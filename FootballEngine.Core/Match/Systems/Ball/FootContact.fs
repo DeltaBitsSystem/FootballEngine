@@ -153,11 +153,18 @@ module BallFootContact =
                 withdrawTouch world
                 let cfg = ctx.Ctx.Config.Ball
                 let contact = world.State.Tick + cfg.KickWindup
+                let foot = lateralFoot world side slot
 
                 let motion =
                     { Actor = impulse.ActorId
-                      Foot = lateralFoot world side slot
+                      Foot = foot
                       Kind = FootTouchKind.Kick impulse.StrikeKind
+                      Surface =
+                        StrikeTechnique.choose
+                            ctx.Ctx.Config.StrikeTechnique
+                            impulse
+                            foot
+                            (float (MatchWorld.team world side).Frame.BodyFacing[slot])
                       StartedAt = world.State.Tick + 1<subtick>
                       ContactAt = contact + 1<subtick>
                       EndsAt = contact + cfg.KickRecovery + 1<subtick>
@@ -199,7 +206,7 @@ module BallFootContact =
                 { Tick = world.State.Tick
                   Data = EventData.FootStrikeCancelled impulse.ActorId }
 
-    let recordTouch (ctx: SystemContext) (world: World) (buffer: EventBuffer) side slot touchFoot kind vx vy outgoingVz =
+    let recordTouch (ctx: SystemContext) (world: World) (buffer: EventBuffer) side slot touchFoot kind (vx: float) (vy: float) (outgoingVz: float) =
         let actor = (MatchWorld.profileOf ctx.Ctx side slot).Id
         let cfg = ctx.Ctx.Config.Ball
 
@@ -207,6 +214,8 @@ module BallFootContact =
             { Actor = actor
               Foot = touchFoot
               Kind = kind
+              // Carrying and cushioning are side-foot touches.
+              Surface = StrikeSurface.Inside
               StartedAt = world.State.Tick
               ContactAt = world.State.Tick + 1<subtick>
               EndsAt = world.State.Tick + cfg.CarryTouchInterval + 1<subtick>
@@ -264,44 +273,6 @@ module BallFootContact =
             (vector motion.Point)
             (ValueSome incoming)
             (ValueSome outgoing)
-
-    let receive (ctx: SystemContext) (world: World) buffer side slot =
-        let frame = (MatchWorld.team world side).Frame
-        let ball = world.State.Ball
-        let retention = ctx.Ctx.Config.Ball.ReceptionVelocityRetention
-
-        let vx =
-            float frame.VelX[slot]
-            + (float ball.Position.Vx - float frame.VelX[slot]) * retention
-
-        let vy =
-            float frame.VelY[slot]
-            + (float ball.Position.Vy - float frame.VelY[slot]) * retention
-
-        recordTouch
-            ctx
-            world
-            buffer
-            side
-            slot
-            (lateralFoot world side slot)
-            FootTouchKind.Receive
-            (vx - float ball.Position.Vx)
-            (vy - float ball.Position.Vy)
-            (float ball.Position.Vz * retention)
-        // The boot absorbs relative momentum at first touch, not on a later possession timer.
-        MatchWorld.updateBall world (fun ball ->
-            { ball with
-                Position =
-                    { ball.Position with
-                        Vx = vx * 1.0<meterPerSecond>
-                        Vy = vy * 1.0<meterPerSecond>
-                        Vz = ball.Position.Vz * retention }
-                Spin =
-                    { X = ball.Spin.X * retention
-                      Y = ball.Spin.Y * retention
-                      Z = ball.Spin.Z * retention }
-                GKHoldSince = None })
 
     /// Re-leads the receiver at the moment of contact, since he kept moving during the wind-up. A ground pass is
     /// re-solved with the roll model for its new length, so its speed, arrival gate and target stay one solution;
@@ -376,6 +347,7 @@ module BallFootContact =
     let step: SystemStep =
         fun ctx rng world buffer ->
             let tick = world.State.Tick
+            let mutable rng = rng
 
             // An announced touch is stale once its carrier no longer controls the ball or its moment has passed
             // without a touch; the carry system re-announces after the next real touch.
@@ -448,6 +420,12 @@ module BallFootContact =
                                   Y = origin.Y
                                   Z = origin.Z }
                             LinearVelocity = velocity }
+
+                    // Technique, pressure and balance are read at contact, where the boot actually meets the ball.
+                    let struct (impulse, shaped) =
+                        StrikeTechnique.shape ctx.Ctx world pending.Side pending.Slot motion.Foot motion.Surface impulse rng
+
+                    rng <- shaped
 
                     let contactPoint, angular =
                         BallPhysics.strikeContact ctx.Ctx.Config.Ball world.State.Ball impulse

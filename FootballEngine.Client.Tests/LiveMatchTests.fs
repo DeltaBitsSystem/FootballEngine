@@ -735,6 +735,7 @@ let tests =
                   { Actor = FootballEngine.Core.Match.PlayerId 1
                     Foot = FootballEngine.Core.Match.ContactFoot.Right
                     Kind = FootballEngine.Core.Match.FootTouchKind.Kick FootballEngine.Core.Match.StrikeKind.Pass
+                    Surface = FootballEngine.Core.Match.StrikeSurface.Inside
                     StartedAt = 0<subtick>
                     ContactAt = 8<subtick>
                     EndsAt = 16<subtick>

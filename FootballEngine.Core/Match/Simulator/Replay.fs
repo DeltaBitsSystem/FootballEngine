@@ -11,7 +11,7 @@ module Replay =
     let private magic = 0x33525046
 
     [<Literal>]
-    let formatVersion = 12
+    let formatVersion = 13
 
     [<Literal>]
     let blockSize = 32
@@ -280,6 +280,14 @@ module Replay =
 
             writer.Write kind
             writer.Write restart
+
+            writer.Write(
+                match motion.Surface with
+                | StrikeSurface.Inside -> 0uy
+                | StrikeSurface.Instep -> 1uy
+                | StrikeSurface.Outside -> 2uy
+            )
+
             writer.Write(int motion.StartedAt)
             writer.Write(int motion.ContactAt)
             writer.Write(int motion.EndsAt)
@@ -326,10 +334,18 @@ module Replay =
                     FootTouchKind.Kick(StrikeKind.Restart restart)
                 | _ -> raise (InvalidDataException "Invalid contact kind in replay.")
 
+            let surface =
+                match reader.ReadByte() with
+                | 0uy -> StrikeSurface.Inside
+                | 1uy -> StrikeSurface.Instep
+                | 2uy -> StrikeSurface.Outside
+                | _ -> raise (InvalidDataException "Invalid strike surface in replay.")
+
             Some
                 { Actor = actor
                   Foot = foot
                   Kind = kind
+                  Surface = surface
                   StartedAt = reader.ReadInt32() * 1<subtick>
                   ContactAt = reader.ReadInt32() * 1<subtick>
                   EndsAt = reader.ReadInt32() * 1<subtick>

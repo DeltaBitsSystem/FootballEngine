@@ -643,11 +643,66 @@ module ContactTests =
                   Expect.equal contact.SurfaceA ContactSurface.ContactFoot "a lateral reception remains a foot touch"
                   Expect.equal contact.ControlAfter.Kind ContactControlKind.ReceivingBall "the supported lateral trap controls the slowed ball")
 
+              ; testCase "first touch follows technique: the same fast pass is cushioned by a good touch and bounces off a poor one" (fun _ ->
+                  let touchWith (touch: float32) (stable: bool) =
+                      let profiles = Array.copy ctx.HomeLineup.Profiles
+                      profiles[5] <- { profiles[5] with Dribbling = touch; Passing = touch }
+                      let c = { ctx with HomeLineup = { ctx.HomeLineup with Profiles = profiles } }
+                      let system = { Ctx = c; Clock = SimulationClock.defaultClock }
+                      let world = TestBuilders.minimalWorld ()
+                      placeAllFar world
+                      let frame = world.Home.Frame
+                      frame.PosX[5] <- 0.0f
+                      frame.PosY[5] <- 0.0f
+                      frame.BodyFacing[5] <- 0.0f
+
+                      if not stable then
+                          frame.ContactState[5] <- { frame.ContactState[5] with Status = BodyContactStatus.BodyStaggering }
+
+                      let action =
+                          ContactActionPlanner.prepare system world ClubSide.Home 5 ContactActionKind.ContactTrap None
+                          |> Option.defaultWith (fun () -> failtest "receiver must be eligible to prepare")
+
+                      world.Home.Frame.ContactActions[5] <- Some { action with Phase = ContactActionPhase.ContactActionCommitted }
+                      let footX = float profiles[5].Morphology.FootLength * 0.4
+
+                      world.State <-
+                          { world.State with
+                              Tick = action.CommitAt
+                              Flow = MatchFlow.Live
+                              Ball =
+                                  { TestBuilders.emptyBall with
+                                      Position =
+                                          { TestBuilders.emptyBall.Position with
+                                              X = (footX + 0.15) * 1.0<meter>
+                                              Vx = -15.0<meterPerSecond> } } }
+
+                      let physical = buffer ()
+                      ContactDynamics.step system (Rng.ofSeed 13UL) world physical |> ignore
+
+                      let record =
+                          physical.Events
+                          |> Seq.tryPick (fun event ->
+                              match event.Data with
+                              | EventData.PhysicalContact record when record.BallTouched -> Some record
+                              | _ -> None)
+                          |> Option.defaultWith (fun () -> failtest "the pass must reach the boot")
+
+                      record, MatchMath.speedOf world.State.Ball.Position.Vx world.State.Ball.Position.Vy
+
+                  let good, goodSpeed = touchWith 90.0f true
+                  let poor, poorSpeed = touchWith 20.0f true
+                  let _, staggeredSpeed = touchWith 55.0f false
+                  let _, steadySpeed = touchWith 55.0f true
+                  Expect.equal good.ControlAfter.Kind ContactControlKind.ReceivingBall "a good first touch kills the pass"
+                  Expect.equal poor.ControlAfter.Kind ContactControlKind.UncontrolledBall "a poor first touch loses it"
+                  Expect.isGreaterThan poorSpeed (goodSpeed + 1.0) "and the ball runs off the poor touch"
+                  Expect.isGreaterThan staggeredSpeed steadySpeed "the same receiver controls worse off balance")
               ; testCase "a prepared trap cushions a glancing ball that passive friction cannot control" (fun _ ->
                   // Regression: Coulomb friction bounded by the small normal impulse of a grazing touch left most
                   // receptions uncontrollable, so loose balls pinballed for ~20% of match time.
                   let glancing (absorption: float) (offset: float) =
-                      let c = { ctx with Config = { ctx.Config with Contact = { ctx.Config.Contact with TrapTangentialAbsorption = absorption } } }
+                      let c = { ctx with Config = { ctx.Config with Contact = { ctx.Config.Contact with TrapAbsorptionBase = absorption; TrapAbsorptionSkill = 0.0 } } }
                       let system = { Ctx = c; Clock = SimulationClock.defaultClock }
                       let world = TestBuilders.minimalWorld ()
                       placeAllFar world
@@ -678,6 +733,6 @@ module ContactTests =
                       |> Option.defaultWith (fun () -> failtest "fixture must produce a grazing foot contact")
 
                   let passive = (glancing 0.0 offset).Value
-                  let trapped = glancing ctx.Config.Contact.TrapTangentialAbsorption offset |> Option.defaultWith (fun () -> failtest "same geometry must touch")
+                  let trapped = glancing 0.9 offset |> Option.defaultWith (fun () -> failtest "same geometry must touch")
                   Expect.equal passive.ControlAfter.Kind ContactControlKind.UncontrolledBall "negative control: Coulomb-only trap leaves the grazing ball loose"
                   Expect.equal trapped.ControlAfter.Kind ContactControlKind.ReceivingBall "the cushioning foot controls the same grazing ball") ]

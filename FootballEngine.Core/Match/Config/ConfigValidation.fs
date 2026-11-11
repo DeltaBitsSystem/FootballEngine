@@ -191,8 +191,7 @@ module ConfigValidation =
               [ "SlipFriction", b.SlipFriction
                 "RollingResistance", b.RollingResistance
                 "CarryTechniqueError", b.CarryTechniqueError
-                "PassRollingSpinRatio", b.PassRollingSpinRatio
-                "ReceptionVelocityRetention", b.ReceptionVelocityRetention ] do
+                "PassRollingSpinRatio", b.PassRollingSpinRatio ] do
               if not (System.Double.IsFinite value) || value < 0.0 || value > 1.0 then
                   yield $"Ball.{name} must be finite and in [0, 1]"
           if
@@ -261,6 +260,29 @@ module ConfigValidation =
           // The swing cannot start before the touching foot's own stance has ended, nor after the contact.
           if g.CarrySwingLead <= 0.0 || g.CarrySwingLead > 0.5 then
               yield "Gait.CarrySwingLead must be in (0, 0.5]" ]
+
+    let validateStrikeTechnique (t: StrikeTechniqueConfig) : string list =
+        [ for name, s in [ "Inside", t.Inside; "Instep", t.Instep; "Outside", t.Outside ] do
+              // More than ~0.2 rad (11 degrees) at no technique is a miskick, not a surface.
+              if s.Spread < 0.0 || s.Spread > 0.2 then
+                  yield $"StrikeTechnique.{name}.Spread must be in [0, 0.2] rad"
+              // 2 rad/s per m/s is ~5 rev/s on a 15 m/s ball, the top of a curled free kick.
+              if s.SideSpinPerSpeed < 0.0 || s.SideSpinPerSpeed > 2.0 then
+                  yield $"StrikeTechnique.{name}.SideSpinPerSpeed must be in [0, 2] rad/s per m/s"
+          if t.OutsideAngle <= 0.0 || t.OutsideAngle >= System.Math.PI / 2.0 then
+              yield "StrikeTechnique.OutsideAngle must be in (0, pi/2) rad"
+          if t.InstepSpeed <= 0.0<meterPerSecond> || t.InstepSpeed > 40.0<meterPerSecond> then
+              yield "StrikeTechnique.InstepSpeed must be in (0, 40] m/s"
+          if t.TechniqueShare < 0.0 || t.TechniqueShare > 1.0 then
+              yield "StrikeTechnique.TechniqueShare must be in [0, 1]"
+          if t.PressureRadius < 0.0<meter> || t.PressureRadius > 10.0<meter> then
+              yield "StrikeTechnique.PressureRadius must be in [0, 10] m"
+          if t.PressureSpreadPerOpponent < 0.0 || t.PressureSpreadPerOpponent > 2.0 then
+              yield "StrikeTechnique.PressureSpreadPerOpponent must be in [0, 2]"
+          if t.ComposureShield < 0.0 || t.ComposureShield > 1.0 then
+              yield "StrikeTechnique.ComposureShield must be in [0, 1]"
+          if t.OffBalanceSpread < 1.0 || t.OffBalanceSpread > 5.0 then
+              yield "StrikeTechnique.OffBalanceSpread must be in [1, 5]" ]
 
     let validateMovement (m: MovementConfig) : string list =
         [ if m.CarryEffort < 0.0 || m.CarryEffort > 1.0 then
@@ -385,8 +407,13 @@ module ConfigValidation =
               yield "Contact.BallControlSpeed must be finite and in [0, 8] m/s"
           if not (System.Double.IsFinite(float c.MaximumTrapSpeed)) || c.MaximumTrapSpeed <= c.BallControlSpeed then
               yield "Contact.MaximumTrapSpeed must be finite and greater than BallControlSpeed"
-          if not (System.Double.IsFinite c.TrapTangentialAbsorption) || c.TrapTangentialAbsorption < 0.0 || c.TrapTangentialAbsorption > 1.0 then
-              yield "Contact.TrapTangentialAbsorption must be finite and in [0, 1]"
+          // Absorption is a share of the sliding speed: the best trap cannot absorb more than all of it.
+          if c.TrapAbsorptionBase < 0.0 || c.TrapAbsorptionSkill < 0.0 || c.TrapAbsorptionBase + c.TrapAbsorptionSkill > 1.0 then
+              yield "Contact.TrapAbsorptionBase and TrapAbsorptionSkill must be non-negative and sum to at most 1"
+          if c.TrapPoorRestitution < 0.0 || c.BallFootRestitution + c.TrapPoorRestitution > 1.0 then
+              yield "Contact.TrapPoorRestitution must be non-negative and keep the trap's restitution within 1"
+          if c.OffBalanceTrapPenalty < 1.0 || c.OffBalanceTrapPenalty > 4.0 then
+              yield "Contact.OffBalanceTrapPenalty must be in [1, 4]"
           if not (System.Double.IsFinite c.SupportedInverseMassScale) || c.SupportedInverseMassScale < 0.05 || c.SupportedInverseMassScale > 1.0 then
               yield "Contact.SupportedInverseMassScale must be finite and in [0.05, 1]"
           if not (System.Double.IsFinite c.AirborneInverseMassScale) || c.AirborneInverseMassScale < 0.5 || c.AirborneInverseMassScale > 2.0 then
@@ -961,6 +988,7 @@ module ConfigValidation =
             attackErrors @ transitionErrors @ validateBall config.Ball
             @ validateMovement config.Movement
             @ validateGait config.Gait
+            @ validateStrikeTechnique config.StrikeTechnique
             @ validateContact config.Contact
             @ validateContactAction config.ContactAction
             @ validateKeeper config.Keeper

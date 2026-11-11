@@ -193,6 +193,7 @@ module BallPossession =
                     { Actor = pid
                       Foot = nextFoot
                       Kind = FootTouchKind.Carry
+                      Surface = StrikeSurface.Inside
                       StartedAt = max (tick + 1<subtick>) (contact - lead)
                       ContactAt = contact
                       EndsAt = contact + cfg.CarryTouchInterval

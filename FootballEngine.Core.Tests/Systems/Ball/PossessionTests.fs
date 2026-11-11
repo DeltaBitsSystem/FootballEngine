@@ -286,6 +286,7 @@ module PossessionTests =
                                           Some
                                               { Actor = pid
                                                 Foot = ContactFoot.Right
+                                                Surface = StrikeSurface.Inside
                                                 Kind = FootTouchKind.Carry
                                                 StartedAt = tick - 100<subtick>
                                                 ContactAt = tick - 100<subtick>

@@ -45,6 +45,9 @@ type CompiledTrigger =
 
 type CompiledSystem =
     { Name: string
+      /// Keys the system's own random stream; derived from the name so adding or reordering systems does not
+      /// reassign another system's numbers.
+      StreamKey: uint64
       Triggers: CompiledTrigger[]
       Step: SystemStep }
 
@@ -71,6 +74,7 @@ module ScheduleCompiler =
             systems
             |> List.map (fun system ->
                 { Name = system.Name
+                  StreamKey = Rng.keyOf system.Name
                   Triggers = system.Triggers |> List.map compileTrigger |> Array.ofList
                   Step = system.Step })
             |> Array.ofList }

@@ -6,20 +6,12 @@ open System.IO
 open System.Text.Json
 open FootballEngine.Core.Match
 
-/// CLI:
-///   validate [n]        — run n matches with defaultConfig, print vs targets
-///   tune [sweeps] [n]   — coordinate-descent auto-calibration, then validate
-///   dump <path> [n]     — tune then dump the best knobs as JSON for the game
+/// CLI: see `usage`. Every command accepts `--set Path.Field=value` overrides and `--heldout` seeds.
 module Program =
 
     let seedBase = 42UL
 
     let private defaultArgs (args: string list) (def: string list) = if args.IsEmpty then def else args
-
-    let private validateCmd (n: int) (cfg: BalanceConfig) : int =
-        let metrics = Validator.validate cfg seedBase n
-        Validator.print "default config" metrics
-        0
 
     let private tuneCmd (sweeps: int) (n: int) : BalanceConfig =
         let start = BalanceConfig.defaultConfig
@@ -70,6 +62,8 @@ module Program =
         |> Array.Parallel.iter (fun seed ->
             let mutable lastContact = "none"
             let mutable lastBall = "none"
+            let mutable dived = false
+            let mutable shotTick = 0
 
             SimulatorRunner.runObserved cfg seed (fun world events ->
                 for event in events do
@@ -88,16 +82,37 @@ module Program =
                     | EventData.Foul(_, _, severity, _, _) -> add $"foul {severity} after {lastContact}"
                     | EventData.Card(_, card) -> add $"card {card}"
                     | EventData.FootContact(actor, _, kind, x, _, _) ->
+                        if kind = FootTouchKind.Kick StrikeKind.Shot then
+                            dived <- false
+                            shotTick <- int event.Tick
+
                         let team = if Array.contains actor world.Home.RosterIds then "home" else "away"
                         lastBall <- $"touch {kind} by {team} line<{5.0 * ceil (float (Pitch.HalfLength - abs x) / 5.0)}m"
                     | EventData.Shot _ ->
                         lastBall <- "shot"
                         add "keeper: shot"
-                    | EventData.KeeperDive _ -> add "keeper: dive"
+                    | EventData.KeeperDive _ ->
+                        dived <- true
+                        add "keeper: dive"
                     | EventData.Save _ ->
                         lastBall <- "save"
                         add "keeper: save"
-                    | EventData.Goal _ -> add $"keeper: goal after {lastBall}"
+                    | EventData.Goal _ ->
+                        let spin = abs (float world.State.Ball.Spin.Z)
+                        let speed = sqrt (float world.State.Ball.Position.Vx ** 2.0 + float world.State.Ball.Position.Vy ** 2.0)
+                        let flight = float (int event.Tick - shotTick) / 40.0
+                        let keeperState =
+                            match event.Data with
+                            | EventData.Goal(scorer, _, _, _) ->
+                                let defending = MatchWorld.team world (MatchWorld.oppOf scorer)
+                                match defending.GoalkeeperSlot with
+                                | Some gk ->
+                                    let x = float (MatchWorld.posX defending.Frame gk)
+                                    let line = abs (float (MatchMath.ownGoalX (MatchWorld.oppOf scorer)) - x)
+                                    $"keeper {5.0 * floor (line / 5.0)}m off line"
+                                | None -> "no keeper"
+                            | _ -> ""
+                        add $"keeper: goal after {lastBall} dived={dived} flight<{0.25 * ceil (flight / 0.25)}s {keeperState}"
                     | EventData.CrossAttempt _ -> lastBall <- "cross"
                     | EventData.Woodwork _ -> lastBall <- "woodwork"
                     | EventData.Interception _ -> lastBall <- "interception"
@@ -177,37 +192,123 @@ module Program =
         for KeyValue(key, value) in counts |> Seq.sortBy (fun kv -> kv.Key) do
             printfn "%7.2f  %s" (float value / float n) key
 
+    /// Tuning seeds start at 42; held-out seeds 1..n are never tuned on, so they judge whether a change generalises.
+    let private seedsFor heldOut n =
+        if heldOut then [| for i in 1..n -> uint64 i |]
+        else [| for i in 0 .. n - 1 -> seedBase + uint64 i * 1013UL |]
+
+    let private sweepCmd (cfg: BalanceConfig) (path: string) (values: string list) (seeds: uint64[]) =
+        printfn "sweep %s over %d matches per value" path seeds.Length
+        printfn "  %-10s %6s %6s %6s %6s %6s %6s %6s %6s" "value" "goals" "shots" "conv%" "save%" "pass%" "fouls" "yellow" "corner"
+
+        // All values run at once: a sweep is as slow as its slowest value, not the sum of them.
+        let results =
+            values
+            |> List.toArray
+            |> Array.Parallel.map (fun value ->
+                let checkedVariant =
+                    Overrides.apply cfg $"{path}={value}"
+                    |> Result.bind (fun variant ->
+                        ConfigValidation.validateAll variant
+                        |> Result.map (fun () -> variant)
+                        |> Result.mapError (fun errors -> "rejected: " + String.concat "; " errors))
+
+                value, checkedVariant |> Result.map (fun variant -> Report.run variant seeds))
+
+        for value, result in results do
+            match result with
+            | Error e -> printfn "  %-10s %s" value e
+            | Ok runs ->
+                let mean f = runs |> List.averageBy (fun (r: Report.MatchRun) -> f r)
+                let count key (r: Report.MatchRun) = match r.Counts.TryGetValue key with | true, v -> v | _ -> 0.0
+                let goals, shots = mean (count "goals"), mean (count "shots")
+                let saves, onTarget = mean (count "saves"), mean (count "on target")
+
+                printfn
+                    "  %-10s %6.1f %6.1f %6.1f %6.1f %6.1f %6.1f %6.1f %6.1f"
+                    value
+                    goals
+                    shots
+                    (100.0 * goals / max 1.0 shots)
+                    (100.0 * saves / max 1.0 onTarget)
+                    (mean (fun r -> r.Metrics.PassPct))
+                    (mean (fun r -> r.Metrics.Fouls))
+                    (mean (fun r -> r.Metrics.Yellows))
+                    (mean (fun r -> r.Metrics.Corners))
+
+    /// Wall time per system over one match on one thread: where a slow balance loop actually spends its time.
+    let private profileCmd (cfg: BalanceConfig) (seed: uint64) =
+        let timers = System.Collections.Generic.Dictionary<string, int64>()
+        let calls = System.Collections.Generic.Dictionary<string, int>()
+        let bytes = System.Collections.Generic.Dictionary<string, int64>()
+
+        let timed =
+            Scheduler.systems
+            |> List.map (fun spec ->
+                timers[spec.Name] <- 0L
+                calls[spec.Name] <- 0
+                bytes[spec.Name] <- 0L
+
+                { spec with
+                    Step =
+                        fun ctx rng world buffer ->
+                            let allocated = System.GC.GetAllocatedBytesForCurrentThread()
+                            let start = System.Diagnostics.Stopwatch.GetTimestamp()
+                            let result = spec.Step ctx rng world buffer
+                            bytes[spec.Name] <- bytes[spec.Name] + System.GC.GetAllocatedBytesForCurrentThread() - allocated
+                            timers[spec.Name] <- timers[spec.Name] + System.Diagnostics.Stopwatch.GetTimestamp() - start
+                            calls[spec.Name] <- calls[spec.Name] + 1
+                            result })
+
+        let total = System.Diagnostics.Stopwatch.StartNew()
+        let ticks = SimulatorRunner.runWith timed cfg seed
+        total.Stop()
+        let ms (t: int64) = float t * 1000.0 / float System.Diagnostics.Stopwatch.Frequency
+        let systemsMs = timers.Values |> Seq.sumBy ms
+        printfn "one match: %.0f ms wall, %d ticks, %.1f us/tick; systems %.0f ms, stepper and rest %.0f ms" total.Elapsed.TotalMilliseconds ticks (total.Elapsed.TotalMilliseconds * 1000.0 / float ticks) systemsMs (total.Elapsed.TotalMilliseconds - systemsMs)
+
+        for KeyValue(name, t) in timers |> Seq.sortByDescending (fun kv -> kv.Value) do
+            printfn "  %-24s %8.0f ms %5.1f %%  %7d calls %8.0f MB" name (ms t) (100.0 * ms t / total.Elapsed.TotalMilliseconds) calls[name] (float bytes[name] / 1e6)
+
+    let private usage () =
+        printfn "usage (any command takes --set Path.Field=value, repeatable; --heldout uses seeds 1..n):"
+        printfn "  validate [n=8]                       banded metrics with 95%% intervals and causal funnels"
+        printfn "  sweep <Path.Field> <v1,v2,...> [n=8]  one metric row per value"
+        printfn "  diagnose [n=4] | tune [sweeps] [n] | dump <path> [n]"
+        1
+
     [<EntryPoint>]
     let main argv =
-        let args = argv |> Array.toList
+        match Overrides.parse (List.ofArray argv) with
+        | Error e ->
+            eprintfn "%s" e
+            2
+        | Ok(cfg, applied, args) ->
+            let heldOut = List.contains "--heldout" args
+            let args = args |> List.filter ((<>) "--heldout")
+            let label = if applied.IsEmpty then "default config" else String.concat " " applied
+            let label = if heldOut then $"{label}, held-out seeds" else label
 
-        match args with
-        | "validate" :: rest ->
-            let n = defaultArgs rest [ "2" ] |> List.head |> int
-            validateCmd n BalanceConfig.defaultConfig
-        | [ "heldout" ] ->
-            // Seeds 1-4 are never used for tuning, so they judge whether a change generalises beyond the tuning seeds.
-            [ 1UL .. 4UL ]
-            |> List.toArray
-            |> Array.Parallel.map (fun seed -> SimulatorRunner.runOne BalanceConfig.defaultConfig seed)
-            |> Array.toList
-            |> List.map Metrics.ofWorld
-            |> Validator.print "held-out seeds 1-4"
-            0
-        | "tune" :: rest ->
-            let parts = defaultArgs rest [ "6"; "2" ]
-            let sweeps = parts.[0] |> int
-            let n = if parts.Length > 1 then parts.[1] |> int else 1
-            tuneCmd sweeps n |> ignore
-            0
-        | "diagnose" :: rest ->
-            let n = defaultArgs rest [ "4" ] |> List.head |> int
-            diagnoseCmd n BalanceConfig.defaultConfig
-            0
-        | "dump" :: path :: rest ->
-            let n = defaultArgs rest [ "1" ] |> List.head |> int
-            dumpCmd path n
-            0
-        | _ ->
-            printfn "usage: validate [n] | heldout | tune [sweeps] [n] | dump <path> [n] | diagnose [n]"
-            0
+            match args with
+            | "validate" :: rest ->
+                let n = defaultArgs rest [ "8" ] |> List.head |> int
+                Report.print label (Report.run cfg (seedsFor heldOut n))
+                0
+            | [ "sweep"; path; values ] -> sweepCmd cfg path (values.Split(',') |> List.ofArray) (seedsFor heldOut 8); 0
+            | [ "sweep"; path; values; n ] -> sweepCmd cfg path (values.Split(',') |> List.ofArray) (seedsFor heldOut (int n)); 0
+            | [ "profile" ] -> profileCmd cfg 42UL; 0
+            | "tune" :: rest ->
+                let parts = defaultArgs rest [ "6"; "2" ]
+                let sweeps = parts.[0] |> int
+                let n = if parts.Length > 1 then parts.[1] |> int else 1
+                tuneCmd sweeps n |> ignore
+                0
+            | "diagnose" :: rest ->
+                let n = defaultArgs rest [ "4" ] |> List.head |> int
+                diagnoseCmd n cfg
+                0
+            | "dump" :: path :: rest ->
+                let n = defaultArgs rest [ "1" ] |> List.head |> int
+                dumpCmd path n
+                0
+            | _ -> usage ()

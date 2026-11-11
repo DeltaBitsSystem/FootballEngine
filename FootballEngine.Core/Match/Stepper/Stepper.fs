@@ -289,9 +289,14 @@ module Stepper =
 
         // Systems run strictly in scheduler order: each may read what earlier systems
         // wrote this same tick — order is part of determinism.
+        // The match stream advances by exactly one draw per tick whatever the systems consume; each system gets
+        // its own stream from that draw (see Rng.stream).
+        let stepKey, advanced = Rng.nextU64 rng
+        rng <- advanced
+
         for spec in schedule.Systems do
             if fire ctx.Ctx.Config.DefensiveTransition.ReevaluateTicks simTick playClock world.State.Flow flags spec.Triggers then
-                rng <- spec.Step ctx rng world buffer
+                spec.Step ctx (Rng.stream stepKey spec.StreamKey) world buffer |> ignore
 
         // Stoppage must be computed before boundary checks: the half ends at
         // 90 + added, so added time has to exist before the whistle fires.

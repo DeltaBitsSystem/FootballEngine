@@ -9,56 +9,36 @@ module SimulatorRunner =
 
     let private maxTicks = 600000
 
-    let runOne (cfg: BalanceConfig) (seed: uint64) : World =
-        let ctx =
-            { TestBuilders.defaultCtx () with
-                Config = cfg }
-
+    /// The match loop shared by every runner. It drives the runtime `stepInto` with a schedule compiled once,
+    /// as a live session does; the `Stepper.step` test adapter recompiles the table and copies events every tick,
+    /// which cost a tenth of a balance run.
+    let private play (systems: SystemSpec list) (cfg: BalanceConfig) (seed: uint64) (observe: World -> MatchEvent[] -> int -> unit) =
+        let ctx = { TestBuilders.defaultCtx () with Config = cfg }
         let world = MatchFactory.create ctx
-
-        let sctx =
-            { Ctx = ctx
-              Clock = SimulationClock.defaultClock }
-
-        let buf =
-            { Events = ResizeArray()
-              Flags = { EventFlags.Bits = 0UL }
-              Applied = ResizeArray() }
-
+        let sctx = { Ctx = ctx; Clock = SimulationClock.defaultClock }
+        let buf = { Events = ResizeArray(); Flags = { EventFlags.Bits = 0UL }; Applied = ResizeArray() }
+        let schedule = ScheduleCompiler.compile systems
+        let output = Array.zeroCreate<MatchEvent> 256
         let mutable rng = Rng.ofSeed seed
-        let mutable safety = 0
+        let mutable ticks = 0
 
-        while safety < maxTicks && world.State.Flow <> MatchFlow.MatchEnded do
-            let rng', _, _ = Stepper.step Scheduler.systems sctx rng world buf
+        while ticks < maxTicks && world.State.Flow <> MatchFlow.MatchEnded do
+            let rng', _, count = Stepper.stepInto schedule sctx rng world buf output
             rng <- rng'
-            safety <- safety + 1
+            observe world output count
+            ticks <- ticks + 1
 
-        world
+        world, ticks
+
+    let runWith (systems: SystemSpec list) (cfg: BalanceConfig) (seed: uint64) : int =
+        play systems cfg seed (fun _ _ _ -> ()) |> snd
+
+    let runOne (cfg: BalanceConfig) (seed: uint64) : World =
+        play Scheduler.systems cfg seed (fun _ _ _ -> ()) |> fst
 
     /// Same match as `runOne`, handing every tick's applied events to `observe`.
     let runObserved (cfg: BalanceConfig) (seed: uint64) (observe: World -> MatchEvent seq -> unit) : World =
-        let ctx =
-            { TestBuilders.defaultCtx () with
-                Config = cfg }
-
-        let world = MatchFactory.create ctx
-        let sctx = { Ctx = ctx; Clock = SimulationClock.defaultClock }
-
-        let buf =
-            { Events = ResizeArray()
-              Flags = { EventFlags.Bits = 0UL }
-              Applied = ResizeArray() }
-
-        let mutable rng = Rng.ofSeed seed
-        let mutable safety = 0
-
-        while safety < maxTicks && world.State.Flow <> MatchFlow.MatchEnded do
-            let rng', _, _ = Stepper.step Scheduler.systems sctx rng world buf
-            rng <- rng'
-            observe world buf.Applied
-            safety <- safety + 1
-
-        world
+        play Scheduler.systems cfg seed (fun world output count -> observe world (Seq.take count output)) |> fst
 
     /// Runs `n` matches with different seeds and returns their metrics.
     /// Matches are independent (own world/buffer/rng), so they run in parallel.

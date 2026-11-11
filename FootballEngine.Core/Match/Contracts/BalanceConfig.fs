@@ -33,7 +33,6 @@ type BallConfig =
       CarryMaxSpeed: float<meterPerSecond>
       CarryTechniqueError: float
       PassRollingSpinRatio: float
-      ReceptionVelocityRetention: float
       BounceRestitution: float
       BounceFriction: float
       StopSpeedCutoff: float<meterPerSecond>
@@ -91,6 +90,32 @@ type GaitConfig =
       /// Cycles before a carry touch at which the touching foot leaves the ground to swing to the ball.
       CarrySwingLead: float }
 
+/// How one part of the boot shapes a kicked ball. `Spread` is the direction error (radians, one sigma) of a player
+/// with no technique. `SideSpinPerSpeed` is the side spin per m/s of launch; its sense belongs to the surface: the
+/// inside curls the ball toward the kicking foot's inside, the outside away from it.
+[<Struct>]
+type StrikeSurfaceConfig =
+    { Spread: float
+      SideSpinPerSpeed: float }
+
+/// Contact surfaces of the boot. The surface is chosen from the foot, the direction across the body and the launch
+/// speed; technique, pressure and balance at contact set how far a delivery strays from its aim.
+[<Struct>]
+type StrikeTechniqueConfig =
+    { Inside: StrikeSurfaceConfig
+      Instep: StrikeSurfaceConfig
+      Outside: StrikeSurfaceConfig
+      /// Angle (radians) toward the kicking foot's outer side beyond which the outside of the boot is used.
+      OutsideAngle: float
+      InstepSpeed: float<meterPerSecond>
+      /// Share of the surface spread a perfect technique removes.
+      TechniqueShare: float
+      PressureRadius: float<meter>
+      PressureSpreadPerOpponent: float
+      /// Share of the pressure effect a fully composed player ignores.
+      ComposureShield: float
+      OffBalanceSpread: float }
+
 /// Fixed-step collision, balance and recovery controls. Geometry fallbacks are
 /// explicit so missing player morphology never silently changes contact reach.
 [<Struct>]
@@ -112,7 +137,13 @@ type ContactConfig =
       BallBodyFriction: float
       BallControlSpeed: float<meterPerSecond>
       MaximumTrapSpeed: float<meterPerSecond>
-      TrapTangentialAbsorption: float
+      /// Share of the sliding speed a trap of no technique absorbs; technique adds `TrapAbsorptionSkill`.
+      TrapAbsorptionBase: float
+      TrapAbsorptionSkill: float
+      /// Extra restitution of a trap of no technique: a poor first touch bounces off the boot.
+      TrapPoorRestitution: float
+      /// Factor on a trap's lost technique while the receiver is off balance.
+      OffBalanceTrapPenalty: float
       SupportedInverseMassScale: float
       AirborneInverseMassScale: float
       StabilityRecoveryPerSecond: float
@@ -599,6 +630,7 @@ type BalanceConfig =
     { Ball: BallConfig
       Movement: MovementConfig
       Gait: GaitConfig
+      StrikeTechnique: StrikeTechniqueConfig
       Contact: ContactConfig
       ContactAction: ContactActionConfig
       Keeper: KeeperConfig
@@ -689,7 +721,6 @@ module BalanceConfig =
           CarryTechniqueError = 0.6
           // Ground passes leave the boot close to rolling; zero spin would lose substantial range while skidding.
           PassRollingSpinRatio = 0.975
-          ReceptionVelocityRetention = 0.12
           BounceRestitution = 0.6
           BounceFriction = 0.7
           StopSpeedCutoff = 0.06<meterPerSecond>
@@ -705,6 +736,24 @@ module BalanceConfig =
           ShootoutSaveBaseProbability = 0.45
           InterceptionPaceWeight = 0.12
           InterceptionIntentBoost = 1.25 }
+
+    let defaultStrikeTechnique: StrikeTechniqueConfig =
+        // A side-foot pass by an average passer (0.6) strays ~0.8 degrees, ~0.3 m over 20 m. The instep trades
+        // precision for pace, and the outside of the boot is the least precise but curls away from the body.
+        { Inside = { Spread = 0.025; SideSpinPerSpeed = 0.1 }
+          Instep = { Spread = 0.05; SideSpinPerSpeed = 0.0 }
+          Outside = { Spread = 0.06; SideSpinPerSpeed = 0.3 }
+          // A side-foot pass beyond ~35 degrees toward the kicking foot's outer side needs the hips turned; a
+          // player in stride flicks it with the outside instead.
+          OutsideAngle = 0.6
+          // Side-foot passes rarely exceed ~20 m/s; driven balls and clearances are struck with the laces.
+          InstepSpeed = 20.0<meterPerSecond>
+          TechniqueShare = 0.8
+          // A challenger within ~2.5 m forces a hurried strike.
+          PressureRadius = 2.5<meter>
+          PressureSpreadPerOpponent = 0.4
+          ComposureShield = 0.5
+          OffBalanceSpread = 2.0 }
 
     let defaultGait: GaitConfig =
         // Running cadence is nearly flat, ~2.7 steps/s at 3 m/s to ~3.2 at 5.5, and climbs toward ~4 at a sprint;
@@ -768,8 +817,14 @@ module BalanceConfig =
           BallControlSpeed = 2.5<meterPerSecond>
           MaximumTrapSpeed = 26.0<meterPerSecond>
           // A prepared trap cushions the ball with a moving foot; passive Coulomb friction alone left every
-          // glancing reception uncontrollable, so free balls pinballed for ~20% of match time.
-          TrapTangentialAbsorption = 0.9
+          // glancing reception uncontrollable, so free balls pinballed for ~20% of match time. An average
+          // technique (0.65) absorbs the 0.9 that achieved that.
+          TrapAbsorptionBase = 0.75
+          TrapAbsorptionSkill = 0.23
+          // The poor share is squared: a technique of 0.3 returns ~0.2 of a head-on pass, a 15 m/s ball
+          // leaves at ~3 m/s, above control speed, while 0.6 keeps it near 1.5 m/s.
+          TrapPoorRestitution = 0.3
+          OffBalanceTrapPenalty = 1.6
           SupportedInverseMassScale = 0.35
           AirborneInverseMassScale = 1.0
           StabilityRecoveryPerSecond = 0.85
@@ -799,7 +854,7 @@ module BalanceConfig =
           ShoulderHeightRatio = 0.82
           DiveSetup = 0.12<second>
           DiveSpeed = 4.2<meterPerSecond>
-          MaxDive = 1.7<meter>
+          MaxDive = 2.0<meter>
           HandRadius = 0.15<meter>
           // Calibrated so keepers stop roughly the top-flight share (~70 %) of shots on target; 0.3 m let 4 in 10 through.
           HandError = 0.2<meter>
@@ -975,7 +1030,7 @@ module BalanceConfig =
     let defaultReferee: RefereeConfig =
         // Top-flight referees book roughly one foul in six; nearly all of those are careless fouls stopping attacks.
         { FoulMinorChance = 0.0
-          FoulTacticalChance = 0.12
+          FoulTacticalChance = 0.1
           FoulYellowWorthyChance = 0.85
           FoulRedWorthyChance = 0.7
           SecondYellowSuspension = true
@@ -984,8 +1039,9 @@ module BalanceConfig =
           AdvantageWindow = 80<subtick>
           HomeCardBonus = 0.05
           CardAccumulationThreshold = 4
-          // Added to the booking chance when the foul stops the last defender's man near goal.
-          LastManFactor = 0.45
+          // Added to the booking chance when the foul stops the last defender's man near goal. The test is a
+          // proximity heuristic that also catches harmless fouls, so at 0.45 it booked ~3 per match on its own.
+          LastManFactor = 0.25
           PromisingAttackFactor = 0.2
           ZoneFactor = 0.2 }
 
@@ -1130,6 +1186,7 @@ module BalanceConfig =
         { Ball = defaultBall
           Movement = defaultMovement
           Gait = defaultGait
+          StrikeTechnique = defaultStrikeTechnique
           Contact = defaultContact
           ContactAction = defaultContactAction
           Keeper = defaultKeeper

@@ -154,7 +154,7 @@ module ReactionCoherenceTests =
                       world.Home.Frame.PosX[5] <- 0.0f
                       world.Home.Frame.PosY[5] <- 0.0f
                       let point: Vec3 = { X = 0.0<meter>; Y = 0.0<meter>; Z = 0.0<meter> }
-                      let motion = { Actor = plan.Executor; Foot = ContactFoot.Right; Kind = FootTouchKind.Receive; StartedAt = 0<subtick>; ContactAt = 0<subtick>; EndsAt = 100<subtick>; Point = point; BallCenter = point }
+                      let motion = { Actor = plan.Executor; Foot = ContactFoot.Right; Kind = FootTouchKind.Receive; Surface = StrikeSurface.Inside; StartedAt = 0<subtick>; ContactAt = 0<subtick>; EndsAt = 100<subtick>; Point = point; BallCenter = point }
                       world.State <- { world.State with Flow = MatchFlow.Restart { restart with Plan = Some plan; CommandIssued = true }; Ball = { TestBuilders.emptyBall with FootMotion = Some motion } }
                       let mutable perceptionTicks = []
                       let mutable decisionTicks = []

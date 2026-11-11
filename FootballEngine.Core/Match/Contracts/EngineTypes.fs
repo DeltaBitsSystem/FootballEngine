@@ -51,6 +51,14 @@ type ContactSurface =
     | ContactHand
     | ContactBall
 
+/// The part of the boot that meets a kicked ball. It decides the spin and the precision of the strike, and the
+/// viewer chooses the swing that matches it.
+[<Struct; RequireQualifiedAccess>]
+type StrikeSurface =
+    | Inside
+    | Instep
+    | Outside
+
 type ContactActionKind =
     | ContactContain
     | ContactShield
