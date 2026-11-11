@@ -902,67 +902,82 @@ module AppState =
                 navigated, SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings)
 
         | LiveMsg(LiveMsg.RuntimePublicationAvailable runtimeId) ->
-            match state.Match.RuntimeId with
-            | Some activeRuntime when activeRuntime = runtimeId ->
-                match MatchRuntime.tryTake runtimeId with
-                | None -> state, Cmd.none
-                | Some publication ->
-                    let nextWake = Cmd.ofMsg (LiveMsg(LiveMsg.RuntimePublicationAvailable runtimeId))
+            // One wake drains everything published since the last one, so the view is rebuilt once per batch
+            // rather than once per publication.
+            let rec drain budget state commands =
+                match state.Match.RuntimeId with
+                // A skip publishes as fast as the worker runs; the budget hands the thread back to rendering and
+                // continues on the next message instead of draining forever.
+                | Some activeRuntime when activeRuntime = runtimeId && budget = 0 ->
+                    state, Cmd.batch (Cmd.ofMsg (LiveMsg(LiveMsg.RuntimePublicationAvailable runtimeId)) :: commands)
+                | Some activeRuntime when activeRuntime = runtimeId ->
+                    match MatchRuntime.tryTake runtimeId with
+                    | None -> state, Cmd.batch commands
+                    | Some publication ->
+                        match publication with
+                        | MatchRuntimePublication.Connected(sessionId, fixture, revision, source) ->
+                            drain
+                                (budget - 1)
+                                { state with
+                                    Match =
+                                        MatchSlice.update
+                                            (LiveMsg.SessionConnected(sessionId, fixture, revision, source))
+                                            state.Match }
+                                commands
+                        | MatchRuntimePublication.CommandAccepted(commandId, point) ->
+                            drain
+                                (budget - 1)
+                                { state with
+                                    Match = MatchSlice.update (LiveMsg.CommandAccepted(commandId, point)) state.Match }
+                                commands
+                        | MatchRuntimePublication.CommandApplied(commandId, revision, appliedAt) ->
+                            drain
+                                (budget - 1)
+                                { state with
+                                    Match =
+                                        MatchSlice.update
+                                            (LiveMsg.CommandApplied(commandId, revision, appliedAt))
+                                            state.Match }
+                                commands
+                        | MatchRuntimePublication.CommandRejected(commandId, rejection) ->
+                            drain
+                                (budget - 1)
+                                { state with
+                                    Match = MatchSlice.update (LiveMsg.CommandRejected(commandId, rejection)) state.Match }
+                                commands
+                        | MatchRuntimePublication.StatusChanged status ->
+                            let nextState =
+                                { state with
+                                    Match = MatchSlice.update (LiveMsg.RuntimeStatusChanged status) state.Match }
 
-                    match publication with
-                    | MatchRuntimePublication.Connected(sessionId, fixture, revision, source) ->
-                        { state with
-                            Match =
-                                MatchSlice.update
-                                    (LiveMsg.SessionConnected(sessionId, fixture, revision, source))
-                                    state.Match },
-                        nextWake
-                    | MatchRuntimePublication.CommandAccepted(commandId, point) ->
-                        { state with
-                            Match = MatchSlice.update (LiveMsg.CommandAccepted(commandId, point)) state.Match },
-                        nextWake
-                    | MatchRuntimePublication.CommandApplied(commandId, revision, appliedAt) ->
-                        { state with
-                            Match =
-                                MatchSlice.update (LiveMsg.CommandApplied(commandId, revision, appliedAt)) state.Match },
-                        nextWake
-                    | MatchRuntimePublication.CommandRejected(commandId, rejection) ->
-                        { state with
-                            Match = MatchSlice.update (LiveMsg.CommandRejected(commandId, rejection)) state.Match },
-                        nextWake
-                    | MatchRuntimePublication.StatusChanged status ->
-                        let nextState =
+                            let pause =
+                                match nextState.Navigation.Current, status with
+                                | Route.Match _, _ -> Cmd.none
+                                | _, FootballEngine.LiveMatch.Live _ -> Cmd.ofMsg (LiveMsg LiveMsg.TogglePause)
+                                | _ -> Cmd.none
+
+                            drain (budget - 1) nextState (pause :: commands)
+                        | MatchRuntimePublication.Semantic semantic ->
+                            drain (budget - 1) { state with Match = MatchSlice.applySemantic semantic state.Match } commands
+                        | MatchRuntimePublication.Failed error ->
+                            MatchRuntime.close runtimeId
+
                             { state with
-                                Match = MatchSlice.update (LiveMsg.RuntimeStatusChanged status) state.Match }
+                                IsProcessing = false
+                                Match = MatchSlice.applyFailed error state.Match },
+                            Cmd.batch commands
+                        | MatchRuntimePublication.Finished result ->
+                            MatchRuntime.close runtimeId
 
-                        let pause =
-                            match nextState.Navigation.Current, status with
-                            | Route.Match _, _ -> Cmd.none
-                            | _, FootballEngine.LiveMatch.Live _ -> Cmd.ofMsg (LiveMsg LiveMsg.TogglePause)
-                            | _ -> Cmd.none
+                            { state with
+                                Match =
+                                    { MatchSlice.applyFinished runtimeId result state.Match with
+                                        RuntimeId = None
+                                        PendingResult = Some result } },
+                            Cmd.batch commands
+                | _ -> state, Cmd.batch commands
 
-                        nextState, Cmd.batch [ nextWake; pause ]
-                    | MatchRuntimePublication.Semantic semantic ->
-                        { state with
-                            Match = MatchSlice.applySemantic semantic state.Match },
-                        nextWake
-                    | MatchRuntimePublication.Failed error ->
-                        MatchRuntime.close runtimeId
-
-                        { state with
-                            IsProcessing = false
-                            Match = MatchSlice.applyFailed error state.Match },
-                        Cmd.none
-                    | MatchRuntimePublication.Finished result ->
-                        MatchRuntime.close runtimeId
-
-                        { state with
-                            Match =
-                                { MatchSlice.applyFinished runtimeId result state.Match with
-                                    RuntimeId = None
-                                    PendingResult = Some result } },
-                        Cmd.none
-            | _ -> state, Cmd.none
+            drain 64 state []
 
         | LiveMsg LiveMsg.ConfirmFinish ->
             match state.Match.PendingResult with

@@ -61,9 +61,15 @@ type private MatchRuntime
 
     let mutable worker: Task option = None
 
+    // 1 while a wake is in flight to the UI. Every wake costs a full update and view pass, so the UI is woken
+    // once per batch it has not drained yet rather than once per publication; 4x playback had flooded it.
+    let mutable wakePending = 0
+
     let enqueue (dispatch: Msg -> unit) publication =
         queue.Writer.WriteAsync(publication, cancellation.Token).AsTask().GetAwaiter().GetResult()
-        dispatch (Msg.LiveMsg(LiveMsg.RuntimePublicationAvailable runtimeId))
+
+        if Interlocked.Exchange(&wakePending, 1) = 0 then
+            dispatch (Msg.LiveMsg(LiveMsg.RuntimePublicationAvailable runtimeId))
 
     let buildJob () : Result<MatchJob, string> =
         match runMode with
@@ -347,7 +353,16 @@ type private MatchRuntime
 
                         let publishSemantic force frontier events =
                             let score = session.World.State.HomeScore, session.World.State.AwayScore
-                            let due = frontier - lastSemanticTick >= int policy.SemanticEvery * 1<subtick>
+                            // The cadence is per second watched, not per simulated second: at 4x a fixed tick
+                            // interval quadrupled the HUD updates the UI thread had to render.
+                            let multiplier =
+                                match speed with
+                                | Normal -> 1
+                                | Fast -> 2
+                                | VeryFast -> 4
+
+                            let due =
+                                frontier - lastSemanticTick >= int policy.SemanticEvery * multiplier * 1<subtick>
                             let scoreChanged = score <> lastSemanticScore
 
                             if force || due || scoreChanged then
@@ -685,10 +700,17 @@ type private MatchRuntime
     member _.Start(dispatch: Msg -> unit) =
         worker <- Some(Task.Run(fun () -> run dispatch))
 
+    /// A drained queue re-arms the wake; the second read covers a publication written between the empty read and
+    /// the re-arm, whose writer saw a wake still pending and so did not send one.
     member _.TryTake() : MatchRuntimePublication option =
         match queue.Reader.TryRead() with
         | true, publication -> Some publication
-        | _ -> None
+        | _ ->
+            Volatile.Write(&wakePending, 0)
+
+            match queue.Reader.TryRead() with
+            | true, publication -> Some publication
+            | _ -> None
 
     member _.Submit(command: LiveMatchCommand) =
         commandQueue.Writer.TryWrite command |> ignore

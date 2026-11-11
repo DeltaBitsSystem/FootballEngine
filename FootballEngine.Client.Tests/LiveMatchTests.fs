@@ -1012,6 +1012,89 @@ let tests =
                   Expect.isGreaterThan resumed.Frontier semantic.Frontier "resume advances semantic time"
                   Expect.isGreaterThan afterResume.Value frozen.Value "resume advances without replaying old poses")
 
+          testCase "4x playback keeps HUD updates per watched second and wakes the UI once per undrained batch"
+          <| fun _ ->
+              let matchId, gs = scheduledCareer ()
+              let host = MatchRuntimeHost()
+
+              let runtime =
+                  host.CreateUserMatch(matchId, gs, WorldClockOps.init gs.Season, None, MatchRunMode.Live policy)
+
+              let mutable wakes = 0
+
+              host.Start(
+                  runtime,
+                  fun message ->
+                      match message with
+                      | LiveMsg(LiveMsg.RuntimePublicationAvailable _) -> Interlocked.Increment &wakes |> ignore
+                      | _ -> ()
+              )
+
+              try
+                  let session, _ =
+                      awaitPublication host runtime (function
+                          | MatchRuntimePublication.Connected(session, fixture, _, _) -> Some(session, fixture)
+                          | _ -> None)
+
+                  // Nobody drains for a while: however much the worker publishes, at most one wake is in flight.
+                  Volatile.Write(&wakes, 0)
+                  Thread.Sleep 300
+                  Expect.isLessThanOrEqual (Volatile.Read &wakes) 1 "an undrained UI is woken once"
+
+                  // Counts the HUD updates seen over a wall-clock window and how far the match advanced.
+                  let watch (window: TimeSpan) =
+                      let clock = Stopwatch.StartNew()
+                      let mutable semantics = 0
+                      let mutable first = None
+                      let mutable last = None
+
+                      while clock.Elapsed < window do
+                          match host.TryTake runtime with
+                          | Some(MatchRuntimePublication.Failed error) -> failtest error
+                          | Some(MatchRuntimePublication.Semantic value) ->
+                              semantics <- semantics + 1
+                              first <- first |> Option.orElse (Some value)
+                              last <- Some value
+                          | Some _ -> ()
+                          | None -> Thread.Sleep 1
+
+                      let advanced =
+                          match first, last with
+                          | Some a, Some b -> int (b.Frontier - a.Frontier)
+                          | _ -> 0
+
+                      semantics, advanced, last
+
+                  let normalCount, normalAdvance, latest = watch (TimeSpan.FromSeconds 1.5)
+                  let latest = latest |> Option.defaultWith (fun () -> failtest "no HUD update at 1x")
+
+                  host.Submit(
+                      runtime,
+                      { CommandId = MatchCommandId 1UL
+                        SessionId = session
+                        ExpectedRevision = latest.Revision
+                        IssuedAt = latest.Frontier
+                        Payload = SetLiveSpeed VeryFast }
+                  )
+
+                  awaitPublication host runtime (function
+                      | MatchRuntimePublication.StatusChanged(FootballEngine.LiveMatch.Live VeryFast) -> Some()
+                      | _ -> None)
+
+                  let fastCount, fastAdvance, _ = watch (TimeSpan.FromSeconds 1.5)
+
+                  Expect.isGreaterThan
+                      (float fastAdvance)
+                      (2.5 * float normalAdvance)
+                      $"4x plays the match faster (1x {normalAdvance} ticks, 4x {fastAdvance})"
+
+                  Expect.isLessThanOrEqual
+                      (float fastCount)
+                      (1.5 * float normalCount + 1.0)
+                      $"HUD updates stay per watched second (1x {normalCount}, 4x {fastCount})"
+              finally
+                  host.Close runtime
+
           testCase "closing a runtime releases its stream and prevents stale attachment"
           <| fun _ ->
               let matchId, gs = scheduledCareer ()
