@@ -87,9 +87,9 @@ module PlayerSteering =
                 | IntentCode.Cover when transition -> ctx.Config.DefensiveTransition.CoverEffort
                 | IntentCode.Mark when transition -> ctx.Config.DefensiveTransition.ScreenEffort
                 | IntentCode.Regroup when transition -> ctx.Config.DefensiveTransition.RecoveryEffort
+                | IntentCode.BallCarry -> cfg.CarryEffort
                 | IntentCode.ExecuteRun
                 | IntentCode.Press
-                | IntentCode.BallCarry
                 | IntentCode.SetPieceRun -> 1.0
                 | _ -> phaseBoost
 

@@ -165,7 +165,13 @@ module BallContact =
                 record.ControlAfter.Kind = ContactControlKind.ReceivingBall
                 && record.ControlAfter.Player = Some record.Actor
 
-            let completed = record.Actor = receiver && controlled
+            // A completed pass is one a teammate controls (the Opta definition the calibration bands use); a
+            // teammate who takes a ball meant for his neighbour keeps possession just the same.
+            let completed =
+                controlled
+                && (record.Actor = receiver
+                    || (MatchWorld.teamOfPlayer ctx.Ctx record.Actor).IsSome
+                       && MatchWorld.teamOfPlayer ctx.Ctx record.Actor = MatchWorld.teamOfPlayer ctx.Ctx passer)
             let firstEvent = buffer.Events.Count
 
             emit (EventData.Pass(passer, Some receiver, distance, quality, completed, origin.X, origin.Y, ball.Position.X, ball.Position.Y))

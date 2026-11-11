@@ -84,6 +84,11 @@ type FootMotion =
       Point: Vec3
       BallCenter: Vec3 }
 
+/// The next carry touch, published ahead as a prepared task so the viewer can swing the boot to the ball. The
+/// touch that happens confirms it; anything else that takes the ball withdraws it.
+[<Struct>]
+type AnnouncedTouch = { TaskId: uint64; Motion: FootMotion }
+
 type PendingFootStrike =
     { MotionTaskId: uint64
       Impulse: BallImpulse
@@ -107,6 +112,7 @@ type BallState =
       Spin: Spin
       Orientation: System.Numerics.Quaternion
       FootMotion: FootMotion option
+      AnnouncedTouch: AnnouncedTouch voption
       PendingStrike: PendingFootStrike option
       Control: BallControl
       Trajectory: TrajectoryIntent option

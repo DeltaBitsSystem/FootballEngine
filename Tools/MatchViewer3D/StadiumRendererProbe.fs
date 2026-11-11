@@ -271,7 +271,12 @@ type private ProbePitch() as this =
                 IO.Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "player.glb")
 
              match CharacterAsset.load path with
-             | Ok character -> MotionPaletteEvaluator(character.Rig, motionConfig)
+             | Ok character ->
+                 let database = IO.Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "motion-db.bin")
+
+                 match MotionDatabase.load database |> Result.mapError string |> Result.bind (fun db -> MotionMatcher.Create(db, character.Rig, motionConfig, MatchingConfig.defaultConfig)) with
+                 | Ok matcher -> MotionPaletteEvaluator(character.Rig, motionConfig, Some matcher)
+                 | Error message -> invalidOp message
              | Error message -> invalidOp message)
 
     let baseTime = (if secondHalf then 73.0 else 37.0) * 60.0 + 24.0
@@ -310,6 +315,7 @@ type private ProbePitch() as this =
                       Facing = float32 player.BodyFacing
                       AngularVelocity = float32 player.AngularVelocity
                       Condition = float32 player.Condition / 100.0f
+                      GaitPhase = 0.0f
                       AttentionTarget =
                         ValueSome(
                             System.Numerics.Vector3(
@@ -788,5 +794,6 @@ module Program =
     let main args =
         match args with
         | [| "--motion-bench"; output |] -> ProceduralMotionBench.run output
-        | [| "--motion-corpus"; output |] -> MotionCorpus.run output
+        | [| "--motion-corpus"; output |] -> MotionCorpus.run output false
+        | [| "--motion-corpus"; "--matched"; output |] -> MotionCorpus.run output true
         | _ -> runNative args

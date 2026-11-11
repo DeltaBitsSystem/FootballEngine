@@ -54,6 +54,23 @@ module MotionCorpus =
           MaxSolePenetrationMetres: float32
           Residuals: int }
 
+    /// Carry touches over the whole half, judged at Core's contact instant: the support foot must be down and the
+    /// touching boot at the ball.
+    type TouchReport =
+        { Touches: int
+          /// The pose's capture labels the support foot as down: the foot is not in the air.
+          SupportLabelled: int
+          /// The stance lock holds the support foot at weight 0.5 or more; below that it yields to slip.
+          SupportPlanted: int
+          SwingPlanted: int
+          /// Capture stride phase within 0.1 cycle of Core's.
+          PhaseAligned: int
+          /// Touches whose task Core published ahead, so the boot could be swung to the ball.
+          Announced: int
+          MedianBootErrorMetres: float32
+          P90BootErrorMetres: float32
+          P95BootErrorMetres: float32 }
+
     let private require =
         function
         | Ok value -> value
@@ -186,14 +203,28 @@ module MotionCorpus =
         | Some a, None -> Some(a.Position, a.Facing)
         | _ -> None
 
-    let measure seed limit (windows: Window[]) =
+    /// `matched` evaluates poses with the motion matcher over the shipped capture; otherwise the procedural gait.
+    let measure seed limit (windows: Window[]) matched =
         let config = AnimationConfig.defaultConfig
+        let assets = Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer")
 
         let character =
-            CharacterAsset.load (Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "player.glb"))
+            CharacterAsset.load (Path.Combine(assets, "player.glb"))
             |> require
 
         let rig = character.Rig
+
+        let matcher =
+            if matched then
+                MotionDatabase.load (Path.Combine(assets, "motion-db.bin"))
+                |> Result.mapError string
+                |> Result.bind (fun db -> MotionMatcher.Create(db, rig, config, MatchingConfig.defaultConfig))
+                |> require
+                |> Some
+            else
+                None
+
+        let database = MotionDatabase.load (Path.Combine(assets, "motion-db.bin")) |> Result.mapError string |> require
 
         let identity =
             { PlannerVersion = MotionIdentity.plannerVersion
@@ -228,7 +259,19 @@ module MotionCorpus =
                     let root = MotionInput.vector position
                     let yaw = MotionInput.facing facing
                     let rotation = Matrix4x4.CreateRotationY yaw
-                    let struct (left, right) = PoseEvaluation.evaluateInto (config, rig, plan, time, root, yaw, scratch, palette, 0)
+
+                    // Planted means what the evaluator holds still: the matcher's full foot lock, or the procedural
+                    // support phase outside a ball overlay.
+                    let struct (left, right, plantedLeft, plantedRight) =
+                        match matcher with
+                        | Some matcher ->
+                            match matcher.Evaluate(runtime :> IMotionPlanSource, plan, time, root, yaw, scratch, palette, 0) with
+                            | ValueSome pose -> struct (pose.LeftResidual, pose.RightResidual, pose.LeftLock >= 1.0f, pose.RightLock >= 1.0f)
+                            | ValueNone -> struct (ValueNone, ValueNone, false, false)
+                        | None ->
+                            let struct (left, right) = PoseEvaluation.evaluateInto (config, rig, plan, time, root, yaw, scratch, palette, 0)
+                            struct (left, right, plan.Left.Phase = SupportPhase.Support && not plan.LeftOverlay.Active,
+                                    plan.Right.Phase = SupportPhase.Support && not plan.RightOverlay.Active)
 
                     if left.IsSome then acc.Residuals <- acc.Residuals + 1
                     if right.IsSome then acc.Residuals <- acc.Residuals + 1
@@ -253,13 +296,12 @@ module MotionCorpus =
                     acc.Previous <- joints
 
                     let feet =
-                        [| rig.LeftLeg, plan.Left, plan.LeftOverlay
-                           rig.RightLeg, plan.Right, plan.RightOverlay |]
+                        [| rig.LeftLeg, plantedLeft, plan.LeftOverlay
+                           rig.RightLeg, plantedRight, plan.RightOverlay |]
 
                     for index = 0 to 1 do
-                        let chain, foot, overlay = feet[index]
+                        let chain, planted, overlay = feet[index]
                         let sole = worldOf chain.Socket chain.End
-                        let planted = foot.Phase = SupportPhase.Support && not overlay.Active
 
                         if planted then
                             acc.SupportSamples <- acc.SupportSamples + 1
@@ -289,6 +331,45 @@ module MotionCorpus =
 
                     acc.Samples <- acc.Samples + 1
 
+        let pendingTouches = Queue<MotionEvidence>()
+        let mutable touches, supportPlanted, swingPlanted = 0, 0, 0
+        let mutable supportLabelled, phaseAligned, announced = 0, 0, 0
+        let preparedTasks = HashSet<uint64>()
+        let bootErrors = ResizeArray<float32>()
+
+        let judgeTouch (touch: MotionEvidence) =
+            match matcher, rootAt boundaries touch.Actor (float touch.CommitAt) with
+            | Some matcher, Some(position, facing) ->
+                let time = MotionTime.ofTicks (float touch.CommitAt)
+
+                match runtime.TryPlan(touch.Actor, time) |> require with
+                | ValueSome plan ->
+                    let root = MotionInput.vector position
+                    let yaw = MotionInput.facing facing
+
+                    match matcher.Evaluate(runtime :> IMotionPlanSource, plan, time, root, yaw, scratch, palette, 0) with
+                    | ValueSome pose ->
+                        let rightTouches = touch.Effector = MotionEffector.RightFoot
+                        let support, swing = if rightTouches then pose.LeftLock, pose.RightLock else pose.RightLock, pose.LeftLock
+                        let chain = if rightTouches then rig.RightLeg else rig.LeftLeg
+                        let rotation = Matrix4x4.CreateRotationY yaw
+                        let boot = Vector3.Transform(Vector3.Transform(chain.BallSocket, scratch.World[chain.End]), rotation) + root
+                        touches <- touches + 1
+                        if preparedTasks.Contains touch.TaskId then announced <- announced + 1
+                        if support >= 0.5f then supportPlanted <- supportPlanted + 1
+                        if swing >= 0.5f then swingPlanted <- swingPlanted + 1
+                        let supportBit = if rightTouches then 1uy else 2uy
+                        let frame = int (MathF.Round pose.Frame)
+                        if database.Contacts[frame] &&& supportBit <> 0uy then supportLabelled <- supportLabelled + 1
+
+                        let core = boundaries[int touch.CommitAt].Roots |> Array.find (fun root -> root.Actor = touch.Actor)
+                        let gap = core.GaitPhase - matcher.Features.Phase[frame]
+                        if abs (gap - MathF.Round gap) < 0.1f then phaseAligned <- phaseAligned + 1
+                        bootErrors.Add(Vector3.Distance(boot, MotionInput.vector touch.PredictedPoint))
+                    | ValueNone -> ()
+                | ValueNone -> ()
+            | _ -> ()
+
         let mutable nextFrame = 0.0
 
         play seed limit (fun boundary _ ->
@@ -296,6 +377,17 @@ module MotionCorpus =
             let tick = int boundary.Tick
             boundaries[tick] <- boundary
             boundaries.Remove(tick - runtime.RetentionTicks) |> ignore
+
+            for evidence in boundary.Evidence do
+                if evidence.Phase = MotionEvidencePhase.Prepared && evidence.Family = MotionFamily.Dribble then
+                    preparedTasks.Add evidence.TaskId |> ignore
+
+                if evidence.Phase = MotionEvidencePhase.Confirmed && evidence.Family = MotionFamily.Dribble && int evidence.CommitAt > openingTicks then
+                    pendingTouches.Enqueue evidence
+
+            // A touch is judged once the boundary after it exists, as the presentation delay guarantees.
+            while pendingTouches.Count > 0 && int (pendingTouches.Peek()).CommitAt + 1 <= tick do
+                judgeTouch (pendingTouches.Dequeue())
 
             // Display frames are evaluated once the boundary after them exists, as the presentation delay guarantees.
             while nextFrame + 1.0 <= float tick do
@@ -306,6 +398,21 @@ module MotionCorpus =
 
                 nextFrame <- nextFrame + ticksPerFrame)
 
+        let sorted = bootErrors |> Seq.sort |> Array.ofSeq
+        let quantile q = if sorted.Length = 0 then 0.0f else sorted[min (sorted.Length - 1) (int (q * float sorted.Length))]
+
+        let touchReport =
+            { Touches = touches
+              SupportLabelled = supportLabelled
+              SupportPlanted = supportPlanted
+              SwingPlanted = swingPlanted
+              PhaseAligned = phaseAligned
+              Announced = announced
+              MedianBootErrorMetres = quantile 0.5
+              P90BootErrorMetres = quantile 0.9
+              P95BootErrorMetres = quantile 0.95 }
+
+        touchReport,
         accumulators
         |> Array.map (fun acc ->
             { Kind = string acc.Window.Kind
@@ -323,12 +430,12 @@ module MotionCorpus =
               MaxSolePenetrationMetres = acc.MaxPenetration
               Residuals = acc.Residuals })
 
-    let run (outputPath: string) =
+    let run (outputPath: string) matched =
         let seed = 1UL
         // A full half gives every family, keeper dives and headers included, a chance to occur in open play.
         let limit = 45 * 60 * 40
         let windows = chooseWindows seed limit
-        let reports = measure seed limit windows
+        let touchReport, reports = measure seed limit windows matched
 
         let missing =
             Enum.GetValues<WindowKind>()
@@ -342,8 +449,10 @@ module MotionCorpus =
                DisplayHz = displayHz
                PopAcceleration = popAcceleration
                SkateSpeedFloor = skateSpeedFloor
+               Evaluator = (if matched then "motion matching" else "procedural")
                Root = "Root interpolated linearly between Core boundaries; the viewer interpolates replay snapshots"
                MissingKinds = missing
+               CarryTouches = (if matched then Some touchReport else None)
                Windows = reports
                TotalSkateMetres = reports |> Array.sumBy _.SkateMetres
                TotalPops = reports |> Array.sumBy _.Pops

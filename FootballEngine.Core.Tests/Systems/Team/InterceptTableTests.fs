@@ -13,8 +13,9 @@ module InterceptTableTests =
     let private testParams: InterceptTable.InterceptParams =
         { Ball = BalanceConfig.defaultConfig.Ball
           PlayerSpeedPerSecond = 8.0<meterPerSecond>
+          PlayerAcceleration = 8.0<meterPerSecondSquared>
           ControlRadius = 2.5<meter>
-          MaxSteps = 50 }
+          MaxSteps = 80 }
 
     let private ball
         (x: float<meter>)
@@ -37,15 +38,22 @@ module InterceptTableTests =
                   let near = InterceptTable.stepsToReach testParams b 0.0<meter> 0.0<meter>
                   let far = InterceptTable.stepsToReach testParams b 30.0<meter> 0.0<meter>
                   Expect.isLessThan near far "the closer player reaches first"
-                  // ceil((10 - 2.5) / (8 * 0.025)) = ceil(37.5) = 38
-                  Expect.equal near 38 "stationary ball closed-form step is exact")
+                  // From rest at 8 m/s²: 1 s and 4 m to reach 8 m/s, then the last 3.5 m take 0.4375 s, so 7.5 m
+                  // needs 1.4375 s = 57.5 ticks -> 58. Top speed from the first step would claim 38.
+                  Expect.equal near 58 "stationary ball closed-form step is exact")
+              testCase "a race from a standstill is slower than one at top speed" (fun _ ->
+                  let b = ball 10.0<meter> 0.0<meter> 0.0<meterPerSecond> 0.0<meterPerSecond>
+                  let instant = { testParams with PlayerAcceleration = 0.0<meterPerSecondSquared> }
+                  let ramped = InterceptTable.stepsToReach testParams b 0.0<meter> 0.0<meter>
+                  Expect.equal (InterceptTable.stepsToReach instant b 0.0<meter> 0.0<meter>) 38 "idealised reach"
+                  Expect.isGreaterThan ramped 38 "the acceleration limit costs time")
 
               testCase "moving ball: a player ahead of a fast ball gets a low step" (fun _ ->
                   let b = ball 0.0<meter> 0.0<meter> 10.0<meterPerSecond> 0.0<meterPerSecond>
                   let ahead = InterceptTable.stepsToReach testParams b 15.0<meter> 0.0<meter>
                   let behind = InterceptTable.stepsToReach testParams b -5.0<meter> 0.0<meter>
-                  Expect.isLessThan ahead 38 "ahead of a fast ball the interception is fast"
-                  Expect.isGreaterThanOrEqual behind 38 "a ball running away takes the whole horizon"
+                  Expect.isLessThan ahead 58 "ahead of a fast ball the interception is fast"
+                  Expect.isGreaterThanOrEqual behind 58 "a ball running away takes the whole horizon"
                   Expect.isLessThan ahead behind "the ahead player beats the chaser")
 
               testCase "deterministic: same inputs yield identical steps" (fun _ ->

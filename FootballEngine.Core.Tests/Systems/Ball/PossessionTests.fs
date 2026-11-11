@@ -260,4 +260,147 @@ module PossessionTests =
                   applyEvents world buf
 
                   Expect.equal world.State.Ball.Control (BallControl.Contesting ClubSide.Home) "keeper needs a physical save or foot contact"
-                  Expect.isEmpty buf.Events "keeper proximity cannot create a catch") ]
+                  Expect.isEmpty buf.Events "keeper proximity cannot create a catch")
+
+              testCase "a running carrier touches on the stride, with the foot swinging under the hips" (fun _ ->
+                  let gait = ctx.Config.Gait
+                  let pid = ctx.HomeLineup.Profiles.[5].Id
+
+                  // Phase now, phase one tick earlier is derived by the system from speed; the touch must fall only
+                  // on a crossing of the touch point, and the swinging foot is the one opposite the support half.
+                  let touchAt phase speed =
+                      let world = TestBuilders.minimalWorld ()
+                      place world ClubSide.Home 5 0.0<meter> 0.0<meter>
+                      let frame = (MatchWorld.team world ClubSide.Home).Frame
+                      frame.VelX.[5] <- float32 speed
+                      frame.GaitPhase.[5] <- float32 phase
+                      let tick = world.State.Tick
+                      let centre = world.State.Ball.Position
+
+                      world.State <-
+                          { world.State with
+                              Ball =
+                                  { world.State.Ball with
+                                      Control = BallControl.Controlled(ClubSide.Home, pid)
+                                      FootMotion =
+                                          Some
+                                              { Actor = pid
+                                                Foot = ContactFoot.Right
+                                                Kind = FootTouchKind.Carry
+                                                StartedAt = tick - 100<subtick>
+                                                ContactAt = tick - 100<subtick>
+                                                EndsAt = tick - 90<subtick>
+                                                Point = { X = centre.X; Y = centre.Y; Z = centre.Z }
+                                                BallCenter = { X = centre.X; Y = centre.Y; Z = centre.Z } } } }
+
+                      BallPossession.step sctx (Rng.ofSeed 3UL) world (buffer ()) |> ignore
+
+                      match world.State.Ball.FootMotion with
+                      | Some motion when motion.ContactAt > tick -> Some motion.Foot
+                      | _ -> None
+
+                  let cycles = Gait.cyclesPerSecond gait PhysicalMorphology.standard 5.0
+                  let step = cycles * float (SimulationClock.dt SimulationClock.defaultClock)
+                  let point = gait.CarryTouchPhase
+                  Expect.equal (touchAt (point + 0.5 * step) 5.0) (Some ContactFoot.Right) "left support: the right foot swings through"
+                  Expect.equal (touchAt (point + 0.5 + 0.5 * step) 5.0) (Some ContactFoot.Left) "right support: the left foot swings through"
+                  Expect.equal (touchAt (point + 0.25) 5.0) None "mid-flight between touch points: no touch"
+                  Expect.equal (touchAt (point + 1.5 * step) 5.0) None "the crossing was a tick ago and is not repeated"
+                  // A standing carrier's clock holds, so only the touch interval paces it.
+                  Expect.isSome (touchAt (point + 0.25) 0.0) "standing, the interval alone is enough")
+
+              testCase "a carry touch announces the next one, which lands on its tick and face, or is withdrawn" (fun _ ->
+                  let pid = ctx.HomeLineup.Profiles.[5].Id
+
+                  let journal (world: World) =
+                      let records = Array.zeroCreate<MotionEvidence> 256
+
+                      match world.Motion.Read(world.Motion.OldestSequence, System.Int32.MaxValue * 1<subtick>, records) with
+                      | Ok(struct (_, count)) -> records[.. count - 1]
+                      | Error error -> failtestf "journal unreadable: %A" error
+
+                  let running () =
+                      let world = TestBuilders.minimalWorld ()
+                      place world ClubSide.Home 5 0.0<meter> 0.0<meter>
+                      let frame = (MatchWorld.team world ClubSide.Home).Frame
+                      frame.VelX.[5] <- 5.0f
+
+                      world.State <-
+                          { world.State with
+                              Ball =
+                                  { world.State.Ball with
+                                      Control = BallControl.Controlled(ClubSide.Home, pid) } }
+
+                      // First touch: a reception, after which the next carry touch is known.
+                      BallPossession.step sctx (Rng.ofSeed 3UL) world (buffer ()) |> ignore
+                      world
+
+                  let world = running ()
+
+                  let announced =
+                      match world.State.Ball.AnnouncedTouch with
+                      | ValueSome announced -> announced
+                      | ValueNone -> failtest "a running carrier's touch must announce the next"
+
+                  let prepared =
+                      journal world
+                      |> Array.filter (fun record -> record.TaskId = announced.TaskId)
+
+                  Expect.equal (prepared |> Array.map _.Phase) [| MotionEvidencePhase.Prepared |] "published ahead, once"
+                  Expect.equal prepared[0].Family MotionFamily.Dribble "as a carry touch"
+                  Expect.isGreaterThan prepared[0].CommitAt (world.State.Tick + 1<subtick>) "for a later tick"
+                  Expect.isLessThanOrEqual prepared[0].StartedAt prepared[0].CommitAt "its swing starts before contact"
+
+                  // Advance the clock without moving anything: the committed touch fires exactly on its tick.
+                  let mutable touchedAt = None
+
+                  while touchedAt.IsNone && world.State.Tick < announced.Motion.ContactAt do
+                      world.State <- { world.State with Tick = world.State.Tick + 1<subtick> }
+                      BallPossession.step sctx (Rng.ofSeed 3UL) world (buffer ()) |> ignore
+
+                      match world.State.Ball.FootMotion with
+                      | Some motion when motion.ContactAt > prepared[0].OccurredAt + 1<subtick> -> touchedAt <- Some motion
+                      | _ -> ()
+
+                  match touchedAt with
+                  | None -> failtest "the announced touch never landed"
+                  | Some motion ->
+                      Expect.equal motion.ContactAt announced.Motion.ContactAt "on the announced tick"
+                      Expect.equal motion.Foot announced.Motion.Foot "with the announced boot"
+
+                  let confirmed =
+                      journal world
+                      |> Array.filter (fun record -> record.TaskId = announced.TaskId && record.Phase = MotionEvidencePhase.Confirmed)
+
+                  Expect.equal confirmed.Length 1 "the touch confirms the announced task rather than opening another"
+
+                  // Losing the ball withdraws whatever touch is announced at that moment.
+                  let pending =
+                      match world.State.Ball.AnnouncedTouch with
+                      | ValueSome next -> next
+                      | ValueNone -> failtest "the confirmed touch announces the following one"
+
+                  world.State <-
+                      { world.State with
+                          Ball = { world.State.Ball with Control = BallControl.Free } }
+
+                  BallFootContact.step sctx (Rng.ofSeed 3UL) world (buffer ()) |> ignore
+                  Expect.isTrue world.State.Ball.AnnouncedTouch.IsNone "no announcement survives the loss"
+
+                  let cancelled =
+                      journal world
+                      |> Array.filter (fun record -> record.TaskId = pending.TaskId && record.Phase = MotionEvidencePhase.Cancelled)
+
+                  Expect.equal cancelled.Length 1 "the viewer is told the swing will not land")
+
+              testCase "stride cadence rises with speed, falls with leg length and stops when standing" (fun _ ->
+                  let gait = ctx.Config.Gait
+                  let standard = PhysicalMorphology.standard
+                  let tall = PhysicalMorphology.ofStature 2.0f 85.0f ContactFoot.Right
+                  Expect.equal (Gait.cyclesPerSecond gait standard 0.1) 0.0 "standing does not cycle"
+                  Expect.isGreaterThan (Gait.cyclesPerSecond gait standard 7.0) (Gait.cyclesPerSecond gait standard 3.0) "faster is quicker"
+                  Expect.isLessThan (Gait.cyclesPerSecond gait tall 5.0) (Gait.cyclesPerSecond gait standard 5.0) "longer legs step slower"
+                  // Literature: ~2.7-3.2 steps/s between 3 and 5.5 m/s for a 1.8 m runner.
+                  let steps speed = 2.0 * Gait.cyclesPerSecond gait standard speed
+                  Expect.isTrue (steps 3.0 > 2.5 && steps 3.0 < 3.0) $"3 m/s: {steps 3.0:F2} steps/s"
+                  Expect.isTrue (steps 5.5 > 3.0 && steps 5.5 < 3.5) $"5.5 m/s: {steps 5.5:F2} steps/s") ]

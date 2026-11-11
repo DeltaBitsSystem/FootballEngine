@@ -62,6 +62,7 @@ module MotionTrack =
             writer.Write root.Facing
             writer.Write root.AngularVelocity
             writer.Write root.Condition
+            writer.Write root.GaitPhase
             writeOptional writer root.AttentionTarget
             writer.Write root.Morphology.Height
             writer.Write root.Morphology.Mass
@@ -127,6 +128,7 @@ module MotionTrack =
                   Facing = reader.ReadSingle()
                   AngularVelocity = reader.ReadSingle()
                   Condition = reader.ReadSingle()
+                  GaitPhase = reader.ReadSingle()
                   AttentionTarget = readOptional reader
                   Morphology =
                     { Height = reader.ReadSingle()

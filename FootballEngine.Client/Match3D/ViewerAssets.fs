@@ -11,6 +11,7 @@ type ViewerAssets =
       /// Dropped by the renderer once uploaded; the GPU copy is the only one the viewer needs.
       KitTextures: KitTextureData
       Character: CharacterAssetData
+      Motion: FootballEngine.Client.Animation.MotionDatabase
       Environment: HdrEnvironmentData
       Surfaces: SurfaceTexturePack
       Lighting: HdrLightingSettings
@@ -32,6 +33,9 @@ module ViewerAssets =
         let character =
             Task.Run(fun () -> timed "character" (fun () -> CharacterAsset.load (assetFile "player.glb")))
 
+        let motion =
+            Task.Run(fun () -> timed "motion database" (fun () -> FootballEngine.Client.Animation.MotionDatabase.load (assetFile "motion-db.bin")))
+
         let kit =
             Task.Run(fun () -> timed "stadium kit" (fun () -> StadiumKit.load (assetFile "StadiumKit")))
 
@@ -51,14 +55,19 @@ module ViewerAssets =
             character.GetAwaiter().GetResult()
             |> Result.mapError (fun message -> $"Cannot load the first-party animated character: {message}")
 
+        let motionData =
+            motion.GetAwaiter().GetResult()
+            |> Result.mapError (fun error -> $"Cannot load the motion database: %A{error}")
+
         let shadow = DirectionalShadow.stadium
 
-        match environment, surfaces, characterData, kitData with
-        | Error message, _, _, _
-        | _, Error message, _, _
-        | _, _, Error message, _
-        | _, _, _, Error message -> Error message
-        | Ok package, Ok surfacePack, Ok characterAsset, Ok(kitMesh, kitTextures) ->
+        match environment, surfaces, characterData, kitData, motionData with
+        | Error message, _, _, _, _
+        | _, Error message, _, _, _
+        | _, _, Error message, _, _
+        | _, _, _, Error message, _
+        | _, _, _, _, Error message -> Error message
+        | Ok package, Ok surfacePack, Ok characterAsset, Ok(kitMesh, kitTextures), Ok motionDatabase ->
             let settings =
                 { package.Settings with
                     ExposureStops = defaultArg exposureStops package.Settings.ExposureStops }
@@ -71,6 +80,7 @@ module ViewerAssets =
                     { Kit = kitMesh
                       KitTextures = kitTextures
                       Character = characterAsset
+                      Motion = motionDatabase
                       Environment = package.Environment
                       Surfaces = surfacePack
                       Lighting = lighting

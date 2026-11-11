@@ -160,6 +160,7 @@ module EventApply =
             team.Frame.BodyAngularVelocity.[inSlot] <- 0.0f
             team.Frame.BodyAngularAcceleration.[inSlot] <- 0.0f
             team.Frame.BodyTravelDistance.[inSlot] <- 0.0f
+            team.Frame.GaitPhase.[inSlot] <- 0.0f
             team.Frame.ContactState.[inSlot] <- BodyContactState.stable
             team.Frame.ActiveCache.Revision <- team.Frame.ActiveCache.Revision + 1
             team.SubsUsed <- team.SubsUsed + 1

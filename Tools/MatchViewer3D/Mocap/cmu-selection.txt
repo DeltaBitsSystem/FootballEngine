@@ -6,7 +6,8 @@
 35_17 35_18 35_19 35_20 35_21 35_22 35_23 35_24 35_25 35_26
 127_03 127_04 127_05 127_06 127_07 127_08 127_09 127_10 127_11 127_12 127_13 127_14 127_15 127_16 127_17 127_18 127_19 127_20
 143_01 143_02 143_03 143_04 143_42
-104_06 104_08 104_09 104_10 104_56 104_57
+# Subject 104 is left out because its foot channels flip by 50-130 degrees every few frames, which no repair can
+# tell apart from motion (8-14 bursts per trial after spike repair)
 134_12 134_13 134_14
 # footwork: defensive shuffle, tight and wide cuts (cleaned basketball footwork)
 78_01 78_02 78_03 78_06 78_07 78_08 78_09 78_10 78_12 78_24 78_25 78_26 78_27 78_32 78_35

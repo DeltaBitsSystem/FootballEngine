@@ -47,6 +47,7 @@ module MatchSession =
                   Facing = frame.BodyFacing[slot]
                   AngularVelocity = frame.BodyAngularVelocity[slot]
                   Condition = frame.Condition[slot]
+                  GaitPhase = frame.GaitPhase[slot]
                   AttentionTarget =
                     ValueSome(
                         System.Numerics.Vector3(

@@ -100,10 +100,10 @@ module AutoTuner =
             Min = 0.3
             Max = 1.0 }
           { Name = "foulYellowChance"
-            Get = fun c -> (refCfg c).FoulYellowWorthyChance
-            Set = fun c v -> withRefCfg c (fun r -> { r with FoulYellowWorthyChance = v })
-            Min = 0.05
-            Max = 0.6 }
+            Get = fun c -> (refCfg c).FoulTacticalChance
+            Set = fun c v -> withRefCfg c (fun r -> { r with FoulTacticalChance = v })
+            Min = 0.02
+            Max = 0.4 }
           { Name = "dribbleSuccess"
             Get = fun c -> (acts c).DribbleBaseSuccess
             Set = fun c v -> withActs c (fun a -> { a with DribbleBaseSuccess = v })

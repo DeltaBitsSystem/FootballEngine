@@ -133,10 +133,13 @@ module Actions =
 
         match owner with
         | Some(ownerSide, ownerId) when world.State.Flow = MatchFlow.Live ->
+            let ownerFrame = (MatchWorld.team world ownerSide).Frame
+            let ownerSlot = MatchWorld.slotOf ctx.Ctx ownerSide ownerId
             let ball = world.State.Ball.Position
             let config = ctx.Ctx.Config.ContactAction
             let movement = ctx.Ctx.Config.Movement
             let preparation = float config.StandingTacklePreparation / float ctx.Clock.SubTicksPerSecond
+            let slidePreparation = float config.SlidingTacklePreparation / float ctx.Clock.SubTicksPerSecond
 
             for side in [ ClubSide.Home; ClubSide.Away ] do
                 if side <> ownerSide then
@@ -146,25 +149,64 @@ module Actions =
                         let pid = team.RosterIds[slot]
                         let intent = team.Frame.Intent.Kind[slot]
 
-                        if pid <> ownerId && (intent = IntentCode.Press || intent = IntentCode.Recover) then
-                            let profile = MatchWorld.profileOf ctx.Ctx side slot
+                        let profile = MatchWorld.profileOf ctx.Ctx side slot
+                        let engaging = intent = IntentCode.Press || intent = IntentCode.Recover
+
+                        // Shape duties do not stop an outfielder from playing a ball that is already at his boot; only
+                        // the players sent to engage also close distance to make a challenge.
+                        if pid <> ownerId && not profile.IsGK then
                             let dx = float ball.X - float team.Frame.PosX[slot]
                             let dy = float ball.Y - float team.Frame.PosY[slot]
-                            let reach =
-                                float config.FootReach
-                                + float movement.SprintSpeed
-                                    * (0.5 + 0.006 * float profile.Pace)
-                                    * preparation
+                            let closing =
+                                if engaging then
+                                    float movement.SprintSpeed * (0.5 + 0.006 * float profile.Pace)
+                                else
+                                    0.0
 
-                            if dx * dx + dy * dy <= reach * reach then
-                                ContactActionPlanner.prepare
-                                    ctx
-                                    world
-                                    side
-                                    slot
-                                    ContactActionKind.ContactStandingTackle
-                                    (Some ownerId)
-                                |> ignore
+                            let reach = float config.FootReach + closing * preparation
+                            let slideReach = float config.SlidingReach + closing * slidePreparation
+                            let distanceSquared = dx * dx + dy * dy
+                            // A ball moving away from him can only be reached by going to ground; a recovering
+                            // defender takes that risk, a presser facing the carrier stays on his feet.
+                            let escaping = dx * float ball.Vx + dy * float ball.Vy > 0.0
+
+                            // Where the carrier and the ball will be when the boot commits: a carrier standing between
+                            // the defender and the ball shields it, and a goal-side defender reads that and holds.
+                            // One the carrier has already got past has nothing left to hold for and goes through the
+                            // man: the tactical foul that stops an attack.
+                            let ownGoal = float (MatchMath.ownGoalX side)
+                            let shielded seconds =
+                                match ownerSlot with
+                                | Some carrier when
+                                    abs (float ownerFrame.PosX[carrier] - ownGoal) >= abs (float team.Frame.PosX[slot] - ownGoal)
+                                    ->
+                                    let px, py = float team.Frame.PosX[slot], float team.Frame.PosY[slot]
+                                    let bx, by = float ball.X + float ball.Vx * seconds, float ball.Y + float ball.Vy * seconds
+                                    let cx = float ownerFrame.PosX[carrier] + float ownerFrame.VelX[carrier] * seconds
+                                    let cy = float ownerFrame.PosY[carrier] + float ownerFrame.VelY[carrier] * seconds
+                                    let sx, sy = bx - px, by - py
+                                    let length = sx * sx + sy * sy
+                                    let along = if length > 1e-9 then ((cx - px) * sx + (cy - py) * sy) / length else 0.0
+                                    let ox, oy = px + sx * along - cx, py + sy * along - cy
+                                    along > 0.0 && along < 1.0 && sqrt (ox * ox + oy * oy) < float config.TackleBodyClearance
+                                | _ -> false
+
+                            let kind =
+                                if distanceSquared <= reach * reach && not (shielded preparation) then
+                                    Some ContactActionKind.ContactStandingTackle
+                                elif
+                                    intent = IntentCode.Recover
+                                    && escaping
+                                    && distanceSquared <= slideReach * slideReach
+                                    && not (shielded slidePreparation)
+                                then
+                                    Some ContactActionKind.ContactSlidingTackle
+                                else
+                                    None
+
+                            kind
+                            |> Option.iter (fun kind ->
+                                ContactActionPlanner.prepare ctx world side slot kind (Some ownerId) |> ignore)
         | _ -> ()
 
     let private prepareReceptions (ctx: SystemContext) (world: World) =
@@ -172,16 +214,27 @@ module Actions =
         let cfg = ctx.Ctx.Config.ContactAction
         let horizon = float (cfg.TrapPreparation + cfg.CommittedDuration) / float ctx.Clock.SubTicksPerSecond
 
+        let intendedReceiver =
+            match ball.Trajectory with
+            | Some(TrajectoryIntent.Aimed(_, receiver, _)) -> Some receiver
+            | _ -> None
+
         match ball.Control with
         | BallControl.Free
         | BallControl.Airborne
         | BallControl.Contesting _ when world.State.Flow = MatchFlow.Live ->
             for side in [ ClubSide.Home; ClubSide.Away ] do
-                let frame = (MatchWorld.team world side).Frame
+                let team = MatchWorld.team world side
+                let frame = team.Frame
 
                 for slot in MatchWorld.activeSlots frame do
                     let intent = frame.Intent.Kind[slot]
-                    let pursuing = intent = IntentCode.Recover || intent = IntentCode.Press || intent = IntentCode.ExecuteRun
+                    // The player a pass is aimed at expects it whatever his current run, so he sets to receive it too.
+                    let pursuing =
+                        intent = IntentCode.Recover
+                        || intent = IntentCode.Press
+                        || intent = IntentCode.ExecuteRun
+                        || intendedReceiver = Some team.RosterIds[slot]
 
                     if pursuing && frame.ContactState[slot].Status <> BodyContactStatus.BodyFalling then
                         let dx = float ball.Position.X - float frame.PosX[slot]

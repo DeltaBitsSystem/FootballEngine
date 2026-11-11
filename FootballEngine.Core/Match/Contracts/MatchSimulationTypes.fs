@@ -17,7 +17,8 @@ module LiveExecutionPolicy =
           PoseEvery = 1<tickDelta>
           SemanticEvery = 10<tickDelta>
           BufferCapacity = 64
-          PresentationDelay = TimeSpan.FromMilliseconds 250.0 }
+          // Motion matching reads a second of future root trajectory; showing play one second late makes it real.
+          PresentationDelay = TimeSpan.FromSeconds 1.0 }
 
 /// Execution policy is part of the immutable match input, never of the worker
 /// schedule. A worker may advance the same policy in any sized deterministic slice.

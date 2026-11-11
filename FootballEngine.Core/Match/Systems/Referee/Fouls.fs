@@ -51,13 +51,6 @@ module RefereeFouls =
             let cfg = ctx.Ctx.Config
             let side = MatchWorld.teamOfPlayer ctx.Ctx fouler
 
-            let severityNum =
-                match severity with
-                | FoulSeverity.Minor -> 0.2
-                | FoulSeverity.Tactical -> 0.4
-                | FoulSeverity.YellowWorthy -> 0.7
-                | FoulSeverity.RedWorthy -> 0.95
-
             let lastMan =
                 match side with
                 | Some s ->
@@ -86,14 +79,18 @@ module RefereeFouls =
                         false
                 | None -> false
 
-            let pYellow =
-                MatchMath.clamp01 (
-                    cfg.Referee.FoulYellowWorthyChance
-                    + severityNum * 0.4
-                    + (if lastMan then 0.45 else 0.0)
-                )
+            let referee = cfg.Referee
 
-            let pRed = MatchMath.clamp01 (severityNum * cfg.Referee.FoulRedWorthyChance * 0.5)
+            // An excessive-force foul the referee does not send off is still at least a caution.
+            let pRed, pYellow =
+                match severity with
+                | FoulSeverity.Minor -> 0.0, referee.FoulMinorChance
+                | FoulSeverity.Tactical -> 0.0, referee.FoulTacticalChance
+                | FoulSeverity.YellowWorthy -> 0.0, referee.FoulYellowWorthyChance
+                | FoulSeverity.RedWorthy -> referee.FoulRedWorthyChance, 1.0 - referee.FoulRedWorthyChance
+
+            // Stopping the last line of defence near goal denies a scoring chance, which the contact cannot show.
+            let pYellow = MatchMath.clamp01 (pYellow + if lastMan then referee.LastManFactor else 0.0)
 
             let roll, rng' = Rng.double rng
 

@@ -297,3 +297,25 @@ module MatchWorld =
                 ArrivalGate = None
                 PreviousPosition = ValueNone
                 Impulse = None })
+
+/// The stride clock shared by body integration, which advances it, and ball carrying, which times touches on it.
+module Gait =
+    /// Cycles per second (two steps each), or zero when the legs do not cycle.
+    let cyclesPerSecond (gait: GaitConfig) (morphology: PhysicalMorphology) speed =
+        if speed <= float gait.StandingSpeed then
+            0.0
+        else
+            let leg = float (morphology.ThighLength + morphology.ShinLength)
+
+            0.5
+            * min gait.StepFrequencyMax (gait.StepFrequencyBase + gait.StepFrequencyPerSpeed * speed)
+            * sqrt (float gait.ReferenceLegLength / leg)
+
+    let wrap (phase: float) = phase - floor phase
+
+    /// The foot that swings under the body when the phase passes `phase`: the left foot supports the first half.
+    let swingFoot phase =
+        if wrap phase < 0.5 then
+            ContactFoot.Right
+        else
+            ContactFoot.Left

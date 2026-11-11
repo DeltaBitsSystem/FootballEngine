@@ -2059,13 +2059,13 @@ module Settings =
                        "DirectiveHysteresis")
                   yield
                       ("Referee.FoulYellowWorthyChance",
-                       "0-1 prob. amarilla — 0.15 default",
+                       "0-1 prob. amarilla por falta temeraria — 0.85 default",
                        "🎯",
                        foulYellowCtl,
                        "FoulYellowWorthyChance")
                   yield
                       ("Referee.FoulRedWorthyChance",
-                       "0-1 prob. roja — 0.05 default",
+                       "0-1 prob. roja por fuerza excesiva — 0.7 default",
                        "🎯",
                        foulRedCtl,
                        "FoulRedWorthyChance")

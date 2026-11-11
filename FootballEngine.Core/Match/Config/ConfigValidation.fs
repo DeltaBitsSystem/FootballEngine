@@ -183,7 +183,6 @@ module ConfigValidation =
                 "InertiaRatio", b.InertiaRatio
                 "FootReach", float b.FootReach
                 "FootContactHeight", float b.FootContactHeight
-                "CarryLeadTime", float b.CarryLeadTime
                 "CarryOffset", float b.CarryOffset
                 "CarryMaxSpeed", float b.CarryMaxSpeed ] do
               if not (System.Double.IsFinite value) || value <= 0.0 then
@@ -244,8 +243,29 @@ module ConfigValidation =
           if b.InterceptionIntentBoost < 0.0 || b.InterceptionIntentBoost > 5.0 then
               yield "Ball.InterceptionIntentBoost must be in [0, 5]" ]
 
+    let validateGait (g: GaitConfig) : string list =
+        [ // Human cadence spans roughly 1-5 steps per second from walk to sprint.
+          if g.StepFrequencyBase < 0.5 || g.StepFrequencyBase > 3.0 then
+              yield "Gait.StepFrequencyBase must be in [0.5, 3] Hz"
+          if g.StepFrequencyPerSpeed < 0.0 || g.StepFrequencyPerSpeed > 1.0 then
+              yield "Gait.StepFrequencyPerSpeed must be in [0, 1] Hz per m/s"
+          if g.StepFrequencyMax < g.StepFrequencyBase || g.StepFrequencyMax > 6.0 then
+              yield "Gait.StepFrequencyMax must be in [StepFrequencyBase, 6] Hz"
+          if g.ReferenceLegLength < 0.6<meter> || g.ReferenceLegLength > 1.2<meter> then
+              yield "Gait.ReferenceLegLength must be in [0.6, 1.2] m"
+          if g.StandingSpeed < 0.0<meterPerSecond> || g.StandingSpeed > 1.0<meterPerSecond> then
+              yield "Gait.StandingSpeed must be in [0, 1] m/s"
+          // A half cycle is one step: the touch must fall inside the support foot's own step.
+          if g.CarryTouchPhase < 0.0 || g.CarryTouchPhase >= 0.5 then
+              yield "Gait.CarryTouchPhase must be in [0, 0.5)"
+          // The swing cannot start before the touching foot's own stance has ended, nor after the contact.
+          if g.CarrySwingLead <= 0.0 || g.CarrySwingLead > 0.5 then
+              yield "Gait.CarrySwingLead must be in (0, 0.5]" ]
+
     let validateMovement (m: MovementConfig) : string list =
-        [ // Sprint 12 m/s is Bolt, 5 is jogging — outside not football
+        [ if m.CarryEffort < 0.0 || m.CarryEffort > 1.0 then
+              yield "Movement.CarryEffort must be in [0, 1]"
+          // Sprint 12 m/s is Bolt, 5 is jogging — outside not football
           if m.SprintSpeed < 5.0<meterPerSecond> || m.SprintSpeed > 12.0<meterPerSecond> then
               yield "Movement.SprintSpeed must be in [5, 12] m/s"
           if m.JogSpeed < 2.0<meterPerSecond> || m.JogSpeed > 8.0<meterPerSecond> then
@@ -447,6 +467,12 @@ module ConfigValidation =
               yield "ContactAction.CommittedDuration must be in [1, 80] subticks"
           if c.FootReach <= 0.0<meter> || c.FootReach > 1.2<meter> then
               yield "ContactAction.FootReach must be in (0, 1.2] m"
+          if c.SlidingReach <= c.FootReach || c.SlidingReach > 2.5<meter> then
+              yield "ContactAction.SlidingReach must exceed FootReach and be at most 2.5 m"
+          if c.ReceptionTargetTolerance < 0.0<meter> || c.ReceptionTargetTolerance > 5.0<meter> then
+              yield "ContactAction.ReceptionTargetTolerance must be in [0, 5] m"
+          if c.TackleBodyClearance < 0.0<meter> || c.TackleBodyClearance > 1.0<meter> then
+              yield "ContactAction.TackleBodyClearance must be in [0, 1] m"
           if c.HeadReach <= 0.0<meter> || c.HeadReach > 1.0<meter> then
               yield "ContactAction.HeadReach must be in (0, 1] m"
           if not (System.Double.IsFinite(float c.MaximumReorientation)) || c.MaximumReorientation < 0.0<radian> || c.MaximumReorientation > 3.1416<radian> then
@@ -739,14 +765,12 @@ module ConfigValidation =
               yield "Referee.FoulYellowWorthyChance must be in [0, 1]"
           if r.FoulRedWorthyChance < 0.0 || r.FoulRedWorthyChance > 1.0 then
               yield "Referee.FoulRedWorthyChance must be in [0, 1]"
-          // Foul chances are mutually exclusive distribution — sum >1 would overflow
+          // A harsher severity can never be sanctioned less often than a milder one.
           if
-              r.FoulMinorChance
-              + r.FoulTacticalChance
-              + r.FoulYellowWorthyChance
-              + r.FoulRedWorthyChance > 1.01
+              r.FoulMinorChance > r.FoulTacticalChance
+              || r.FoulTacticalChance > r.FoulYellowWorthyChance
           then
-              yield "Referee.Foul*Chance sum must be <= 1"
+              yield "Referee foul sanction chances must not decrease with severity"
           if r.VarGoalReviewDelay < 0.0<second> || r.VarGoalReviewDelay > 60.0<second> then
               yield "Referee.VarGoalReviewDelay must be in [0, 60] s"
           // Offside margin >1m would forgive obvious offsides
@@ -936,6 +960,7 @@ module ConfigValidation =
         let errs =
             attackErrors @ transitionErrors @ validateBall config.Ball
             @ validateMovement config.Movement
+            @ validateGait config.Gait
             @ validateContact config.Contact
             @ validateContactAction config.ContactAction
             @ validateKeeper config.Keeper

@@ -106,6 +106,7 @@ let main argv =
               chainLifetimeTests
               plannerBudgetTests
               FootballEngine.Core.Tests.Systems.Players.DuelContactTests.tests
+              FootballEngine.Core.Tests.Systems.Players.TackleFoulTests.tests
               FootballEngine.Core.Tests.Systems.Players.ReactionCoherenceTests.tests
               passTests
               shootoutTests

@@ -42,6 +42,7 @@
     <Compile Include="Systems\Players\ChainLifetimeTests.fs"/>
     <Compile Include="Systems\Players\PlannerBudgetTests.fs"/>
     <Compile Include="Systems\Players\DuelContactTests.fs"/>
+    <Compile Include="Systems\Players\TackleFoulTests.fs"/>
     <Compile Include="Systems\Players\ReactionCoherenceTests.fs"/>
     <Compile Include="Systems\Players\Actions\PassTests.fs"/>
     <Compile Include="Systems\Players\Actions\ShootoutTests.fs"/>

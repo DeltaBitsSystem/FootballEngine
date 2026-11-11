@@ -86,7 +86,8 @@ module BallFootContact =
         | BallControl.Receiving(s, p, _) -> s = side && p = actor
         | _ -> false
 
-    let private foot (world: World) side slot =
+    /// The foot on the ball's side of the body, for touches that are not timed by the stride.
+    let lateralFoot (world: World) side slot =
         let frame = (MatchWorld.team world side).Frame
         let facing = float frame.BodyFacing[slot]
         let ball = world.State.Ball.Position
@@ -99,6 +100,29 @@ module BallFootContact =
             ContactFoot.Left
         else
             ContactFoot.Right
+
+    /// Retracts an announced carry touch that will not happen, so the viewer does not swing at a ball now elsewhere.
+    let withdrawTouch (world: World) =
+        match world.State.Ball.AnnouncedTouch with
+        | ValueSome announced ->
+            publish world announced.TaskId MotionEvidencePhase.Cancelled announced.Motion (vector announced.Motion.Point) ValueNone ValueNone
+            MatchWorld.updateBall world (fun ball -> { ball with AnnouncedTouch = ValueNone })
+        | ValueNone -> ()
+
+    /// Publishes the next carry touch ahead of time; `point` is where the boot meets the ball's rear surface.
+    let announceTouch (world: World) (motion: FootMotion) =
+        withdrawTouch world
+        let taskId = world.Motion.NextSequence
+        publish world taskId MotionEvidencePhase.Prepared motion (vector motion.Point) ValueNone ValueNone
+        MatchWorld.updateBall world (fun ball -> { ball with AnnouncedTouch = ValueSome { TaskId = taskId; Motion = motion } })
+
+    /// Contact point on the ball's rear surface for a ball centred at (x, y) leaving along (vx, vy).
+    let rearPoint (cfg: BallConfig) (x: float) (y: float) (vx: float) (vy: float) : Vec3 =
+        let speed = max 1e-10 (sqrt (vx * vx + vy * vy))
+
+        { X = (x - vx / speed * float cfg.Radius) * 1.0<meter>
+          Y = (y - vy / speed * float cfg.Radius) * 1.0<meter>
+          Z = cfg.Radius }
 
     let emit tick (buffer: EventBuffer) (motion: FootMotion) =
         buffer.Events.Add
@@ -126,12 +150,13 @@ module BallFootContact =
         | _, Some side ->
             match MatchWorld.slotOf ctx.Ctx side impulse.ActorId with
             | Some slot when world.State.Ball.PendingStrike.IsNone && reachable ctx.Ctx world side slot ->
+                withdrawTouch world
                 let cfg = ctx.Ctx.Config.Ball
                 let contact = world.State.Tick + cfg.KickWindup
 
                 let motion =
                     { Actor = impulse.ActorId
-                      Foot = foot world side slot
+                      Foot = lateralFoot world side slot
                       Kind = FootTouchKind.Kick impulse.StrikeKind
                       StartedAt = world.State.Tick + 1<subtick>
                       ContactAt = contact + 1<subtick>
@@ -174,19 +199,46 @@ module BallFootContact =
                 { Tick = world.State.Tick
                   Data = EventData.FootStrikeCancelled impulse.ActorId }
 
-    let recordTouch (ctx: SystemContext) (world: World) (buffer: EventBuffer) side slot kind vx vy outgoingVz =
+    let recordTouch (ctx: SystemContext) (world: World) (buffer: EventBuffer) side slot touchFoot kind vx vy outgoingVz =
         let actor = (MatchWorld.profileOf ctx.Ctx side slot).Id
         let cfg = ctx.Ctx.Config.Ball
 
         let motion =
             { Actor = actor
-              Foot = foot world side slot
+              Foot = touchFoot
               Kind = kind
               StartedAt = world.State.Tick
               ContactAt = world.State.Tick + 1<subtick>
               EndsAt = world.State.Tick + cfg.CarryTouchInterval + 1<subtick>
-              Point = point cfg world.State.Ball vx vy
+              // A carry pushes the ball on from behind, so the boot meets the rear of its new path; a reception
+              // absorbs momentum and meets the face the impulse opposes.
+              Point =
+                match kind with
+                | FootTouchKind.Carry ->
+                    point cfg world.State.Ball (float world.State.Ball.Position.Vx + vx) (float world.State.Ball.Position.Vy + vy)
+                | _ -> point cfg world.State.Ball vx vy
               BallCenter = centre world.State.Ball }
+
+        // The touch that was announced confirms that task, meeting the ball on the face the swing was aimed at:
+        // a boot already on its way strikes where it was sent, and the new direction comes from the push, not
+        // from the boot circling the ball. Any other touch first retracts the announcement.
+        let struct (taskId, motion) =
+            match world.State.Ball.AnnouncedTouch with
+            | ValueSome announced when
+                announced.Motion.Actor = actor && announced.Motion.Foot = touchFoot && kind = FootTouchKind.Carry
+                ->
+                MatchWorld.updateBall world (fun ball -> { ball with AnnouncedTouch = ValueNone })
+                let aimed = announced.Motion
+
+                let face: Vec3 =
+                    { X = motion.BallCenter.X + (aimed.Point.X - aimed.BallCenter.X)
+                      Y = motion.BallCenter.Y + (aimed.Point.Y - aimed.BallCenter.Y)
+                      Z = motion.BallCenter.Z + (aimed.Point.Z - aimed.BallCenter.Z) }
+
+                struct (announced.TaskId, { motion with Point = face })
+            | _ ->
+                withdrawTouch world
+                struct (world.Motion.NextSequence, motion)
 
         MatchWorld.updateBall world (fun ball ->
             { ball with
@@ -206,7 +258,7 @@ module BallFootContact =
 
         publish
             world
-            world.Motion.NextSequence
+            taskId
             MotionEvidencePhase.Confirmed
             motion
             (vector motion.Point)
@@ -232,6 +284,7 @@ module BallFootContact =
             buffer
             side
             slot
+            (lateralFoot world side slot)
             FootTouchKind.Receive
             (vx - float ball.Position.Vx)
             (vy - float ball.Position.Vy)
@@ -323,6 +376,19 @@ module BallFootContact =
     let step: SystemStep =
         fun ctx rng world buffer ->
             let tick = world.State.Tick
+
+            // An announced touch is stale once its carrier no longer controls the ball or its moment has passed
+            // without a touch; the carry system re-announces after the next real touch.
+            match world.State.Ball.AnnouncedTouch with
+            | ValueSome announced ->
+                let controlled =
+                    match world.State.Ball.Control with
+                    | BallControl.Controlled(_, actor) -> actor = announced.Motion.Actor
+                    | _ -> false
+
+                if not controlled || tick > announced.Motion.ContactAt + ctx.Ctx.Config.Ball.CarryTouchInterval then
+                    withdrawTouch world
+            | ValueNone -> ()
 
             match world.State.Ball.PendingStrike, world.State.Ball.FootMotion with
             | Some pending, Some motion ->

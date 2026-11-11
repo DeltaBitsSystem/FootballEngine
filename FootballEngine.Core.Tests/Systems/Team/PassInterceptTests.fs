@@ -13,6 +13,7 @@ module PassInterceptTests =
     let private testParams: InterceptTable.InterceptParams =
         { Ball = BalanceConfig.defaultConfig.Ball
           PlayerSpeedPerSecond = 8.0<meterPerSecond>
+          PlayerAcceleration = 8.0<meterPerSecondSquared>
           ControlRadius = 2.5<meter>
           MaxSteps = 50 }
 

@@ -49,7 +49,8 @@ module AnimationConfig =
             1.0f
             / float32 FootballEngine.Core.Match.SimulationClock.defaultClock.SubTicksPerSecond
           WindowTicks = 256
-          // Historical playback needs forward headroom, not a second complete live window.
+          // Historical playback needs forward headroom, not a second complete live window. Motion matching inside a
+          // recovered window extrapolates its trajectory past this headroom rather than doubling the state budget.
           RecoveryWindowTicks = 32
           MaxActors = 22
           TasksPerActor = 4

@@ -12,15 +12,38 @@ module InterceptTable =
     type InterceptParams =
         { Ball: BallConfig
           PlayerSpeedPerSecond: float<meterPerSecond>
+          /// The body's acceleration limit: a race from a standstill is not run at top speed from the first step.
+          PlayerAcceleration: float<meterPerSecondSquared>
           ControlRadius: float<meter> // kickable area
           MaxSteps: int } // horizon cap: beyond this many ticks the ball is treated as unreachable
 
     let private dt = 1.0<second> / 40.0
 
+    /// The same limit ContactDynamics applies when it integrates a player toward his target velocity.
+    let bodyAcceleration (movement: MovementConfig) =
+        movement.Acceleration * max 0.1 (min 1.0 (float movement.Smoothing))
+
+    /// Distance covered from a standstill after the given time, accelerating to top speed and then holding it.
+    let reachableDistance (p: InterceptParams) (seconds: float) =
+        let top = float p.PlayerSpeedPerSecond
+        let acceleration = float p.PlayerAcceleration
+
+        // Validation keeps real configs positive; a hand-built zero means the instant-top-speed idealisation.
+        if acceleration <= 0.0 then
+            top * seconds
+        else
+            let rampTime = top / acceleration
+
+            if seconds <= rampTime then
+                0.5 * acceleration * seconds * seconds
+            else
+                top * seconds - top * rampTime * 0.5
+
     let parameters (intercept: InterceptConfig) (movement: MovementConfig) (ball: BallConfig) : InterceptParams =
         // This closed-form race estimate is conservative; authoritative motion remains BallDynamics.
         { Ball = ball
           PlayerSpeedPerSecond = movement.SprintSpeed
+          PlayerAcceleration = bodyAcceleration movement
           ControlRadius = intercept.ControlRadius
           MaxSteps = intercept.MaxSteps }
 
@@ -63,7 +86,6 @@ module InterceptTable =
     /// MaxSteps, keeping the result deterministic.
     let stepsToReach (p: InterceptParams) (ball: Spatial) (px: float<meter>) (py: float<meter>) : int =
         let control = float p.ControlRadius
-        let stepPerTick = float p.PlayerSpeedPerSecond * float dt
         let stepSeconds = float dt
         let mutable ballX = float ball.X
         let mutable ballY = float ball.Y
@@ -77,7 +99,7 @@ module InterceptTable =
         while not reached && n <= p.MaxSteps do
             let dx = playerX - ballX
             let dy = playerY - ballY
-            let reach = control + stepPerTick * float n
+            let reach = control + reachableDistance p (float n * stepSeconds)
 
             if dx * dx + dy * dy <= reach * reach then
                 reached <- true

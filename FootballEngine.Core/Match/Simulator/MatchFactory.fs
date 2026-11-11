@@ -190,6 +190,7 @@ module MatchFactory =
                       Z = 0.0<radianPerSecond> }
                   Orientation = System.Numerics.Quaternion.Identity
                   FootMotion = None
+                  AnnouncedTouch = ValueNone
                   PendingStrike = None
                   Control = BallControl.Free
                   Trajectory = None

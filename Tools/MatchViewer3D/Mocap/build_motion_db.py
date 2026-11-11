@@ -72,8 +72,26 @@ DIRECTION_CHILD = {
 }
 # Root trajectory smoothing: motion matching reads the path the body travels, not the pelvis sway within a stride.
 ROOT_SMOOTHING_SECONDS = 0.1
+# The pelvis heading swings a few degrees once per stride (~0.7 s at running pace); a 0.35 s Gaussian leaves under
+# 1 % of that swing in the root yaw, while the pelvis local takes the rest so every joint keeps its world pose.
+# Position keeps the shorter window: these captures start and stop within a second, and a long window would lag
+# the root behind the accelerating body.
+HEADING_SMOOTHING_SECONDS = 0.35
+# A joint stepping further than this between 60 Hz frames (1800 deg/s, beyond a kicking knee) and returning within
+# SPIKE_FRAMES is a source flip (Euler wrap or marker swap in the capture), not motion; it is re-interpolated.
+SPIKE_STEP_DEGREES = 30.0
+SPIKE_FRAMES = 6
+# The joint is back on its path once it is within the reach of its pre-spike speed (at least 10 deg/frame, at most
+# the spike step), with 2x slack; a flat 30 deg/frame reach accepted a slow joint's frame still inside the flip.
+SPIKE_MIN_REACH_DEGREES = 10.0
+SPIKE_RETURN_SLACK = 2.0
 # A foot is planted when its lowest point is within 5 cm of its standing height and slower than walking pace
 # (0.5 m/s); three frames of hysteresis stop single-frame flicker at heel strike.
+# Arm markers jitter at the frame rate, retargeted elbows stop dead at full extension and repaired shoulder flips
+# leave kinks; all reach the screen as fingertip flicks. A 5-tap binomial removes the 30 Hz jitter and keeps ~87 %
+# of 5 Hz motion (arm swing is 1.5-3 Hz). Legs are left raw: their contacts and kicks are the motion that matters.
+SMOOTHED_JOINTS = ("upper_arm.L", "forearm.L", "hand.L", "upper_arm.R", "forearm.R", "hand.R")
+SMOOTHING_TAPS = np.array([1.0, 4.0, 6.0, 4.0, 1.0]) / 16.0
 CONTACT_HEIGHT = 0.05
 CONTACT_SPEED = 0.5
 CONTACT_MIN_FRAMES = 3
@@ -136,6 +154,129 @@ def align(a, b):
         return 2 * np.outer(axis, axis) - np.eye(3)
     k = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
     return np.eye(3) + k + k @ k / (1 + c)
+
+
+def quat_angle(a, b):
+    return 2.0 * math.degrees(math.acos(min(1.0, abs(float(np.dot(a, b))))))
+
+
+def quat_slerp(a, b, t):
+    if np.dot(a, b) < 0:
+        b = -b
+    dot = min(1.0, float(np.dot(a, b)))
+    if dot > 0.9995:
+        q = a + (b - a) * t
+    else:
+        theta = math.acos(dot)
+        q = (math.sin((1 - t) * theta) * a + math.sin(t * theta) * b) / math.sin(theta)
+    return q / np.linalg.norm(q)
+
+
+def quat_mul(a, b):
+    x1, y1, z1, w1 = a
+    x2, y2, z2, w2 = b
+    return np.array([w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2, w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+                     w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2, w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2])
+
+
+def quat_conj(q):
+    return np.array([-q[0], -q[1], -q[2], q[3]])
+
+
+def quat_log(q):
+    q = -q if q[3] < 0 else q
+    length = float(np.linalg.norm(q[:3]))
+    return q[:3] * (2.0 * math.atan2(length, q[3]) / length) if length > 1e-9 else 2.0 * q[:3]
+
+
+def quat_exp(v):
+    angle = float(np.linalg.norm(v))
+    if angle < 1e-9:
+        q = np.array([v[0] * 0.5, v[1] * 0.5, v[2] * 0.5, 1.0])
+        return q / np.linalg.norm(q)
+    axis = v / angle
+    return np.array([*(axis * math.sin(angle / 2)), math.cos(angle / 2)])
+
+
+def hermite_fill(local, joint, first, last):
+    """Replace frames first+1..last-1 with a cubic that leaves `first` and arrives at `last` at their own speeds,
+    so the fill joins the sound path on both sides without the velocity kink a straight slerp leaves."""
+    count = local.shape[0]
+    base = local[first, joint]
+    inverse = quat_conj(base)
+    tangent = lambda f: quat_log(quat_mul(inverse, local[f, joint]))
+    span = last - first
+    end = tangent(last)
+    m0 = -tangent(first - 1) if first > 0 else np.zeros(3)
+    m1 = tangent(last + 1) - end if last + 1 < count else np.zeros(3)
+    # Edge velocities may already belong to the flip; capped at the chord speed the fill cannot overshoot it.
+    chord = float(np.linalg.norm(end)) / span
+    m0, m1 = (m * min(1.0, chord / max(float(np.linalg.norm(m)), 1e-9)) for m in (m0, m1))
+    for i in range(1, span):
+        t = i / span
+        h10, h01, h11 = t ** 3 - 2 * t ** 2 + t, -2 * t ** 3 + 3 * t ** 2, t ** 3 - t ** 2
+        v = h10 * span * m0 + h01 * end + h11 * span * m1
+        local[first + i, joint] = quat_mul(base, quat_exp(v))
+    # Uneven edge speeds bunch a cubic's motion into the middle; a fill that would itself step like a flip falls back
+    # to constant speed along the chord.
+    if any(quat_angle(local[f - 1, joint], local[f, joint]) > SPIKE_STEP_DEGREES for f in range(first + 1, last + 1)):
+        for i in range(1, span):
+            local[first + i, joint] = quat_mul(base, quat_exp(end * (i / span)))
+
+
+def align_hemispheres(local):
+    for f in range(1, local.shape[0]):
+        flip = np.einsum("ij,ij->i", local[f], local[f - 1]) < 0
+        local[f, flip] = -local[f, flip]
+
+
+def repair_spikes(local):
+    """Re-interpolate isolated bursts where a joint leaves its path and comes back; returns the repaired count.
+
+    A burst is a step above SPIKE_STEP_DEGREES after which, within SPIKE_FRAMES, the joint is back within the
+    distance it could have covered at that speed. At a clip edge there is no frame on the far side, so the burst is
+    replaced by the nearest sound frame instead.
+    """
+    repaired = 0
+    count = local.shape[0]
+    for joint in range(local.shape[1]):
+        f = 1
+        while f < count:
+            if quat_angle(local[f - 1, joint], local[f, joint]) > SPIKE_STEP_DEGREES:
+                good = local[f - 1, joint]
+                before = quat_angle(local[f - 2, joint], good) if f >= 2 else 0.0
+                reach = min(SPIKE_STEP_DEGREES, SPIKE_RETURN_SLACK * max(before, SPIKE_MIN_REACH_DEGREES))
+                back = next(
+                    (k for k in range(1, SPIKE_FRAMES + 1)
+                     if f + k < count and quat_angle(good, local[f + k, joint]) <= reach * (k + 1)),
+                    None,
+                )
+                if back is not None:
+                    hermite_fill(local, joint, f - 1, f + back)
+                    repaired += back
+                    f += back
+                elif count - f <= SPIKE_FRAMES:
+                    for i in range(f, count):
+                        local[i, joint] = good if np.dot(good, local[i, joint]) >= 0 else -good
+                    repaired += count - f
+                    f = count
+                elif f <= SPIKE_FRAMES:
+                    # The opening frames are the outliers: hold the first frame after them.
+                    for i in range(f):
+                        local[i, joint] = local[f, joint]
+                    repaired += f
+            f += 1
+    return repaired
+
+
+def smooth_joints(local, names):
+    """Low-pass the listed joints; consecutive rotations share a hemisphere, so a normalised average is a blend."""
+    radius = len(SMOOTHING_TAPS) // 2
+    for d, name in enumerate(names):
+        if name in SMOOTHED_JOINTS:
+            padded = np.pad(local[:, d], [(radius, radius), (0, 0)], mode="edge")
+            blended = sum(w * padded[k:k + local.shape[0]] for k, w in enumerate(SMOOTHING_TAPS))
+            local[:, d] = blended / np.linalg.norm(blended, axis=1, keepdims=True)
 
 
 def gaussian_smooth(values, sigma_frames):
@@ -385,7 +526,7 @@ def build_clip(rig, skeleton, trial, family, fps):
     ground = gaussian_smooth(pelvis[:, [0, 2]], ROOT_SMOOTHING_SECONDS * OUTPUT_HZ)
     pelvis_forward = np.array([world[f, rig.index["pelvis"]] @ np.linalg.inv(rig.rest_rotation[rig.index["pelvis"]]) @ [0, 0, 1] for f in range(count)])
     yaw = np.unwrap(np.arctan2(pelvis_forward[:, 0], pelvis_forward[:, 2]))
-    yaw = gaussian_smooth(yaw[:, None], ROOT_SMOOTHING_SECONDS * OUTPUT_HZ)[:, 0]
+    yaw = gaussian_smooth(yaw[:, None], HEADING_SMOOTHING_SECONDS * OUTPUT_HZ)[:, 0]
 
     local = np.zeros((count, len(rig.driven), 4))
     pelvis_local = np.zeros((count, 3))
@@ -399,6 +540,9 @@ def build_clip(rig, skeleton, trial, family, fps):
                 local[f, d] = -local[f, d]
         offset = pelvis[f] - np.array([ground[f, 0], 0.0, ground[f, 1]])
         pelvis_local[f] = root_rotation.T @ offset
+    spikes = repair_spikes(local)
+    align_hemispheres(local)
+    smooth_joints(local, [rig.names[joint] for joint in rig.driven])
 
     stats = {
         "trial": trial,
@@ -410,6 +554,7 @@ def build_clip(rig, skeleton, trial, family, fps):
         "floorOffsetMetres": round(floor, 4),
         "lowestFootMetres": round(lowest - floor, 4),
         "contactFraction": [round(float(contacts[:, 0].mean()), 3), round(float(contacts[:, 1].mean()), 3)],
+        "repairedSpikeFrames": spikes,
         "meanSpeed": round(float(np.mean(np.linalg.norm(np.diff(ground, axis=0), axis=1)) * OUTPUT_HZ), 3),
     }
     return {"ground": ground, "yaw": yaw, "pelvis": pelvis_local, "local": local, "contacts": contacts}, stats

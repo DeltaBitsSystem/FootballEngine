@@ -11,7 +11,7 @@ module Replay =
     let private magic = 0x33525046
 
     [<Literal>]
-    let formatVersion = 11
+    let formatVersion = 12
 
     [<Literal>]
     let blockSize = 32

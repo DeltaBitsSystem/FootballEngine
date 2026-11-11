@@ -19,6 +19,7 @@ module PassIntercept =
         : InterceptTable.InterceptParams =
         { Ball = ball
           PlayerSpeedPerSecond = movement.SprintSpeed
+          PlayerAcceleration = InterceptTable.bodyAcceleration movement
           ControlRadius = intercept.ControlRadius
           MaxSteps = intercept.MaxSteps }
 

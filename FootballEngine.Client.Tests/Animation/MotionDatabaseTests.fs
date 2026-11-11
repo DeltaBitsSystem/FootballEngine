@@ -2,6 +2,7 @@ namespace FootballEngine.Client.Tests.Animation
 
 open System
 open System.IO
+open System.Numerics
 open System.Text
 open Expecto
 open FootballEngine.Client.Animation
@@ -126,6 +127,25 @@ module MotionDatabaseTests =
 
                   for family in [ "locomotion"; "footwork"; "walking"; "kick"; "reach" ] do
                       Expect.isTrue (families.Contains family) $"family {family} is covered")
+              testCase "the shipped capture has no source flips and a root that does not sway with the stride" (fun _ ->
+                  // Faster than ~2400 deg/s between 60 Hz frames no joint moves, kicking knees included: such a step
+                  // is an Euler wrap or marker swap that the pose would show as a one-frame twist.
+                  let db = shipped.Force()
+                  let joints = db.DrivenJoints.Length
+
+                  for clip in db.Clips do
+                      for frame = clip.Start + 1 to clip.Start + clip.Count - 1 do
+                          for joint = 0 to joints - 1 do
+                              let dot = abs (Quaternion.Dot(db.Rotation(frame - 1, joint), db.Rotation(frame, joint)))
+                              let degrees = 2.0 * Math.Acos(min 1.0 (float dot)) * 180.0 / Math.PI
+                              Expect.isLessThan degrees 40.0 $"{clip.Name} {db.DrivenJoints[joint]} frame {frame - clip.Start}"
+
+                  // Straight running: the root heading follows the path, so its spread stays well under the pelvis swing.
+                  for name in [ "16_45"; "09_01"; "35_22" ] do
+                      let clip = db.Clips |> Array.find (fun clip -> clip.Name = name)
+                      let yaws = db.Yaw[clip.Start .. clip.Start + clip.Count - 1]
+                      let spread = float (Array.max yaws - Array.min yaws) * 180.0 / Math.PI
+                      Expect.isLessThan spread 6.0 $"{name} root heading spread {spread:F1} deg")
               testCase "running clips alternate short single-foot stances with flight, as a run must" (fun _ ->
                   // Labels are derived from the retargeted feet; an all-planted, never-planted or skating (stance that
                   // never ends) labeller fails here. Stance at running pace lasts ~0.1-0.3 s in the literature.

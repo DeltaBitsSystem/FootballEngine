@@ -85,6 +85,8 @@ type MotionRootSample =
       Facing: float32
       AngularVelocity: float32
       Condition: float32
+      /// Core's stride clock in [0, 1); the left foot supports the first half.
+      GaitPhase: float32
       AttentionTarget: Vector3 voption
       Morphology: PhysicalMorphology
       Active: bool }
@@ -144,6 +146,8 @@ module MotionContract =
         && System.Single.IsFinite sample.Condition
         && sample.Condition >= 0.0f
         && sample.Condition <= 1.0f
+        && sample.GaitPhase >= 0.0f
+        && sample.GaitPhase < 1.0f
         && positiveFinite sample.Morphology.Height
         && positiveFinite sample.Morphology.Mass
         && positiveFinite sample.Morphology.ThighLength

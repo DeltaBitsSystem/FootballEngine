@@ -100,14 +100,28 @@ module ConstraintSolve =
                     Vector3.Cross(knee - hip, endPoint - knee)
             let desiredNormal = Vector3.Cross(desiredKnee - hip, desiredEnd - desiredKnee)
 
+            let minimal = between (knee - hip) (desiredKnee - hip)
+
+            // A nearly straight input limb has no bend plane: its normal shrinks and flips sign through full
+            // extension, and trusting it would twist the whole limb half a turn. Without an authored hinge the
+            // solve fades to the minimal rotation as the input bend vanishes (sine of the bend below ~0.2).
+            let planeTrust =
+                if chain.HingeAxis.LengthSquared() > 0.5f then
+                    1.0f
+                else
+                    let bend = originalNormal.Length() / max 1e-8f (Vector3.Distance(hip, knee) * Vector3.Distance(knee, endPoint))
+                    let u = Math.Clamp((bend - 0.08f) / 0.12f, 0.0f, 1.0f)
+                    u * u * (3.0f - 2.0f * u)
+
             let upperRotation =
-                if originalNormal.LengthSquared() > 1e-12f && desiredNormal.LengthSquared() > 1e-12f then
+                if planeTrust > 0.0f && originalNormal.LengthSquared() > 1e-12f && desiredNormal.LengthSquared() > 1e-12f then
                     // Matching a bone direction alone leaves its hinge twisted relative to the skinned elbow or knee.
                     let originalFrame = bendFrame (knee - hip) originalNormal
                     let desiredFrame = bendFrame (desiredKnee - hip) desiredNormal
-                    Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(Matrix4x4.Transpose(originalFrame) * desiredFrame))
+                    let planar = Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(Matrix4x4.Transpose(originalFrame) * desiredFrame))
+                    Quaternion.Slerp(minimal, planar, planeTrust)
                 else
-                    between (knee - hip) (desiredKnee - hip)
+                    minimal
 
             rotate rig world chain.Upper upperRotation
             let solvedKnee = world[chain.Lower].Translation

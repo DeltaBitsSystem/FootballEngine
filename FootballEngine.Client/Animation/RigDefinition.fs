@@ -33,6 +33,8 @@ type RigCorrective =
 
 type RigDefinition =
     { Hash: string
+      /// Node names in evaluation order; motion data names the joints it drives.
+      Names: string[]
       Parents: int[]
       DescendantEnds: int[]
       Bind: RigLocalPose[]
@@ -72,6 +74,7 @@ module RigDefinition =
     let validate (rig: RigDefinition) =
         let mutable valid =
             rig.Parents.Length = rig.Bind.Length
+            && rig.Names.Length = rig.Bind.Length
             && rig.DescendantEnds.Length = rig.Bind.Length
             && rig.JointNodes.Length = rig.InverseBind.Length
 

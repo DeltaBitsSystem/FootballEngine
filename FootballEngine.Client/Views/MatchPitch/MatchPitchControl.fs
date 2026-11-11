@@ -184,7 +184,15 @@ type MatchPitchControl() as this =
                         match evaluator with
                         | Some value -> value
                         | None ->
-                            let value = MotionPaletteEvaluator(renderer.CharacterRig, AnimationConfig.defaultConfig)
+                            let matcher =
+                                match MotionMatcher.Create(renderer.MotionDatabase, renderer.CharacterRig, AnimationConfig.defaultConfig, MatchingConfig.defaultConfig) with
+                                | Ok matcher -> Some matcher
+                                | Error message ->
+                                    // A database that does not fit the rig leaves the procedural body rather than no players.
+                                    Diagnostics.Trace.WriteLine($"Motion matching disabled: {message}")
+                                    None
+
+                            let value = MotionPaletteEvaluator(renderer.CharacterRig, AnimationConfig.defaultConfig, matcher)
                             evaluator <- Some value
                             value
 

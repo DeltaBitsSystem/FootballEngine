@@ -329,6 +329,7 @@ module CharacterAsset =
 
         let rig =
             { Hash = MotionIdentity.rigHash path
+              Names = nodes |> Array.map _.Name
               Parents = parents
               DescendantEnds = RigDefinition.descendantEnds parents
               Bind = bind

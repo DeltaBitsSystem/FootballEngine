@@ -197,6 +197,8 @@ type TeamFrame =
       mutable BodyAngularVelocity: float32[]
       mutable BodyAngularAcceleration: float32[]
       mutable BodyTravelDistance: float32[]
+      /// Stride cycle in [0, 1): the first half has the left foot in support, the second the right.
+      mutable GaitPhase: float32[]
       mutable ContactGeneration: int[]
       mutable ContactState: BodyContactState[]
       mutable ContactActions: ContactAction option[]
@@ -438,6 +440,7 @@ module TeamFrame =
           BodyAngularVelocity = Array.zeroCreate<float32> slotCount
           BodyAngularAcceleration = Array.zeroCreate<float32> slotCount
           BodyTravelDistance = Array.zeroCreate<float32> slotCount
+          GaitPhase = Array.zeroCreate<float32> slotCount
           ContactGeneration = Array.zeroCreate<int> slotCount
           ContactState = Array.create slotCount BodyContactState.stable
           ContactActions = Array.create slotCount None

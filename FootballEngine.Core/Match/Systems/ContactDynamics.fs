@@ -39,17 +39,28 @@ module ContactDynamics =
         frame.ContactActions[slot]
         |> Option.filter (fun action -> action.Phase = ContactActionPhase.ContactActionCommitted)
 
-    let private footPosition
+    /// A boot challenge whose leg is still out: committed, or completed on the ball but within the committed window,
+    /// when a late follow-through can still catch the opponent's legs.
+    let private bootChallenge (config: ContactActionConfig) (tick: int<subtick>) (frame: TeamFrame) slot =
+        frame.ContactActions[slot]
+        |> Option.filter (fun action ->
+            (action.Kind = ContactActionKind.ContactStandingTackle || action.Kind = ContactActionKind.ContactSlidingTackle)
+            && action.Generation = frame.ContactGeneration[slot]
+            && (action.Phase = ContactActionPhase.ContactActionCommitted
+                || action.Phase = ContactActionPhase.ContactActionCompleted
+                   && tick < action.CommitAt + config.CommittedDuration))
+
+    let private footPositionFor
         (ctx: MatchContext)
         (frame: TeamFrame)
         slot
+        (action: ContactAction option)
         (morphology: PhysicalMorphology)
         rootX
         rootY
         forwardFraction
         : float * float * float =
         let baseFacing = float frame.BodyFacing[slot]
-        let action = actionAt frame slot
         let facing =
             match action with
             | Some committed ->
@@ -94,7 +105,12 @@ module ContactDynamics =
             // A committed boot is planted where the ball will be, not under the hips: a player meets a ball beside him
             // by stretching the leg sideways. Behind him he cannot, so that falls back to the reoriented stance.
             if distance > 1e-6 && abs change <= System.Math.PI / 2.0 then
-                let reach = min distance (float ctx.Config.ContactAction.FootReach)
+                let limit =
+                    match committed.Kind with
+                    | ContactActionKind.ContactSlidingTackle -> ctx.Config.ContactAction.SlidingReach
+                    | _ -> ctx.Config.ContactAction.FootReach
+
+                let reach = min distance (float limit)
                 let along = max 0.0 (reach - footLength * (0.8 - forwardFraction))
 
                 rootX + dx / distance * along + errorX, rootY + dy / distance * along + errorY, errorZ
@@ -106,6 +122,9 @@ module ContactDynamics =
             rootX + cos facing * footLength * forwardFraction + errorX,
             rootY + sin facing * footLength * forwardFraction + errorY,
             errorZ
+
+    let private footPosition ctx (frame: TeamFrame) slot morphology rootX rootY forwardFraction =
+        footPositionFor ctx frame slot (actionAt frame slot) morphology rootX rootY forwardFraction
 
     let private footContactRadius (contact: ContactConfig) =
         let radius = float contact.FootRadius
@@ -252,6 +271,57 @@ module ContactDynamics =
                                       Gloves = false }
                                     best
                     | None -> ()
+
+                // A tackle that misses the ball meets the legs: tripping and kicking are the boot striking them (Law 12).
+                // Only opponents are scanned; a boot among teammates is an accident the torso solver already separates.
+                if scratch.Sides[a] <> scratch.Sides[b] then
+                    let bx0, by0 = scratch.StartX[b], scratch.StartY[b]
+                    let bx1 = predictedAxis bx0 scratch.VelocityX[b] scratch.AccelerationX[b] duration
+                    let by1 = predictedAxis by0 scratch.VelocityY[b] scratch.AccelerationY[b] duration
+
+                    let considerBoot tackler victim tx0 ty0 tx1 ty1 vx0 vy0 vx1 vy1 =
+                        let tacklerFrame = (MatchWorld.team world scratch.Sides[tackler]).Frame
+                        let tacklerSlot = scratch.Slots[tackler]
+                        let victimFrame = (MatchWorld.team world scratch.Sides[victim]).Frame
+
+                        match bootChallenge ctx.Config.ContactAction world.State.Tick tacklerFrame tacklerSlot with
+                        | Some action when
+                            victimFrame.ContactState[scratch.Slots[victim]].Status <> BodyContactStatus.BodyFalling
+                            ->
+                            let morphology = (profileAt ctx world scratch tackler).Morphology
+                            let footX0, footY0, _ = footPositionFor ctx tacklerFrame tacklerSlot (Some action) morphology tx0 ty0 0.8
+                            let footX1, footY1, _ = footPositionFor ctx tacklerFrame tacklerSlot (Some action) morphology tx1 ty1 0.8
+
+                            match
+                                sweptTime
+                                    (vx0 - footX0)
+                                    (vy0 - footY0)
+                                    0.0
+                                    (vx1 - footX1)
+                                    (vy1 - footY1)
+                                    0.0
+                                    (footContactRadius cfg + float cfg.LegRadius)
+                            with
+                            | Some fraction ->
+                                best <-
+                                    betterCandidate
+                                        cfg.SimultaneousTolerance
+                                        ctx
+                                        world
+                                        scratch
+                                        { Fraction = fraction
+                                          PlayerA = tackler
+                                          PlayerB = victim
+                                          IsBall = false
+                                          Surface = ContactSurface.ContactFoot
+                                          FootFraction = 0.8
+                                          Gloves = false }
+                                        best
+                            | None -> ()
+                        | _ -> ()
+
+                    considerBoot a b ax0 ay0 ax1 ay1 bx0 by0 bx1 by1
+                    considerBoot b a bx0 by0 bx1 by1 ax0 ay0 ax1 ay1
 
             let side, slot = scratch.Sides[a], scratch.Slots[a]
             let team = MatchWorld.team world side
@@ -670,6 +740,95 @@ module ContactDynamics =
           ControlBefore = contactControl world.State.Ball
           ControlAfter = contactControl world.State.Ball }
 
+    /// The boot meets the opponent's leg. The leg is swept rather than bounced (no restitution) and the hit lands
+    /// below the centre of mass, so the victim takes a destabilising torque on top of the linear push.
+    let private resolveBootContact
+        (ctx: SystemContext)
+        (world: World)
+        (scratch: ContactScratch)
+        (candidate: ImpactCandidate)
+        (fraction: float)
+        (action: ContactAction)
+        : ContactRecord =
+        let tackler, victim = candidate.PlayerA, candidate.PlayerB
+        let tacklerSide, tacklerSlot = scratch.Sides[tackler], scratch.Slots[tackler]
+        let victimSide, victimSlot = scratch.Sides[victim], scratch.Slots[victim]
+        let tacklerFrame = (MatchWorld.team world tacklerSide).Frame
+        let victimFrame = (MatchWorld.team world victimSide).Frame
+        let morphology = (profileAt ctx.Ctx world scratch tackler).Morphology
+        let footX, footY, footZ =
+            footPositionFor
+                ctx.Ctx
+                tacklerFrame
+                tacklerSlot
+                (Some action)
+                morphology
+                scratch.StartX[tackler]
+                scratch.StartY[tackler]
+                candidate.FootFraction
+        let legX, legY = scratch.StartX[victim], scratch.StartY[victim]
+        let dx, dy = legX - footX, legY - footY
+        let distance = sqrt (dx * dx + dy * dy)
+        let nx, ny =
+            if distance > 1e-9 then
+                dx / distance, dy / distance
+            else
+                let facing = float tacklerFrame.BodyFacing[tacklerSlot]
+                cos facing, sin facing
+
+        let relativeX = scratch.VelocityX[victim] - scratch.VelocityX[tackler]
+        let relativeY = scratch.VelocityY[victim] - scratch.VelocityY[tackler]
+        let relativeZ = scratch.VelocityZ[victim] - scratch.VelocityZ[tackler]
+        let normalSpeed = relativeX * nx + relativeY * ny
+        let inverseTackler = effectiveInverseMass ctx.Ctx world scratch tackler
+        let inverseVictim = effectiveInverseMass ctx.Ctx world scratch victim
+        let contactCfg = ctx.Ctx.Config.Contact
+        let normalImpulse =
+            if normalSpeed < -float contactCfg.VelocitySlop then
+                -normalSpeed / max 1e-12 (inverseTackler + inverseVictim)
+            else
+                0.0
+
+        let impulseX, impulseY = normalImpulse * nx, normalImpulse * ny
+        let supportBefore = tacklerFrame.ContactState[tacklerSlot].Support
+        scratch.VelocityX[tackler] <- scratch.VelocityX[tackler] - impulseX * inverseTackler
+        scratch.VelocityY[tackler] <- scratch.VelocityY[tackler] - impulseY * inverseTackler
+        scratch.VelocityX[victim] <- scratch.VelocityX[victim] + impulseX * inverseVictim
+        scratch.VelocityY[victim] <- scratch.VelocityY[victim] + impulseY * inverseVictim
+        updateBodyResponse ctx.Ctx world scratch tackler (-impulseX) (-impulseY) 0.0
+        updateBodyResponse ctx.Ctx world scratch victim impulseX impulseY normalImpulse
+        let recordId = ContactId world.NextContactId
+        world.NextContactId <- world.NextContactId + 1UL
+
+        { Id = recordId
+          Actor = action.Actor
+          ActorGeneration = tacklerFrame.ContactGeneration[tacklerSlot]
+          Other = Some(playerIdAt ctx.Ctx world scratch victim)
+          OtherGeneration = Some victimFrame.ContactGeneration[victimSlot]
+          Action = Some action.Id
+          ActionKind = Some action.Kind
+          Tick = world.State.Tick
+          Fraction = fraction
+          PointX = (footX + legX) * 0.5 * 1.0<meter>
+          PointY = (footY + legY) * 0.5 * 1.0<meter>
+          PointZ = (scratch.StartZ[tackler] + footZ + float contactCfg.FootRadius) * 1.0<meter>
+          NormalX = nx
+          NormalY = ny
+          NormalZ = 0.0
+          SurfaceA = ContactSurface.ContactFoot
+          SurfaceB = ContactSurface.ContactLeg
+          RelativeVelocityX = relativeX * 1.0<meterPerSecond>
+          RelativeVelocityY = relativeY * 1.0<meterPerSecond>
+          RelativeVelocityZ = relativeZ * 1.0<meterPerSecond>
+          NormalImpulse = normalImpulse
+          TangentialImpulse = 0.0
+          SupportBefore = supportBefore
+          SupportAfter = tacklerFrame.ContactState[tacklerSlot].Support
+          BallTouched = false
+          BallTouchOrder = None
+          ControlBefore = contactControl world.State.Ball
+          ControlAfter = contactControl world.State.Ball }
+
     let private resolveBallContact
         (ctx: SystemContext)
         (world: World)
@@ -873,7 +1032,20 @@ module ContactDynamics =
                     Control = BallControl.Controlled(side, profile.Id)
                     GKHoldSince = Some world.State.Tick }
             elif controlledContact then
+                // A controlled touch cushions the ball over a long contact; the foot's friction leaves it rolling
+                // with its new velocity. Spin the trap left behind would otherwise survive into the next strike, whose
+                // impulse cannot remove a component along its own direction, and curve the pass along the grass.
+                let radius = float correctedBall.Radius
+                let spin =
+                    if correctedBall.Position.Z <= correctedBall.Radius then
+                        { X = -float correctedBall.Position.Vy / radius * 1.0<radianPerSecond>
+                          Y = float correctedBall.Position.Vx / radius * 1.0<radianPerSecond>
+                          Z = 0.0<radianPerSecond> }
+                    else
+                        correctedBall.Spin
+
                 { correctedBall with
+                    Spin = spin
                     Control = BallControl.Receiving(side, profile.Id, world.State.Tick) }
             else
                 correctedBall
@@ -980,6 +1152,18 @@ module ContactDynamics =
                                 ErrorX = float32 (errorX * factor)
                                 ErrorY = float32 (errorY * factor)
                                 ErrorZ = float32 (errorZ * factor) }
+
+                    // A slide is the price of the extra reach: the tackler is on the ground until the action ends, and
+                    // cannot recover the ball or a beaten duel during it.
+                    if action.Kind = ContactActionKind.ContactSlidingTackle then
+                        let state = frame.ContactState[slot]
+
+                        frame.ContactState[slot] <-
+                            { state with
+                                Status = BodyContactStatus.BodyFalling
+                                EnteredAt = tick
+                                ExitsAt = action.EndsAt
+                                Support = BodySupport.NoBodySupport }
                 | Some action when
                     action.Phase = ContactActionPhase.ContactActionCommitted
                     && tick >= action.CommitAt + cfg.CommittedDuration ->
@@ -1168,7 +1352,15 @@ module ContactDynamics =
                 world.Observation.Associate(event, ActionCause actionId)
         | _ -> ()
 
-    let private emitContactFoul (ctx: SystemContext) (world: World) (buffer: EventBuffer) (record: ContactRecord) =
+    /// ballFirst: the challenge had already played the ball. That is a fair tackle unless the follow-through is
+    /// dangerous, so only DangerousBallFirstSpeed and above makes it a foul.
+    let private emitContactFoul
+        (ctx: SystemContext)
+        (world: World)
+        (buffer: EventBuffer)
+        (record: ContactRecord)
+        (ballFirst: bool)
+        =
         let config = ctx.Ctx.Config.ContactAction
         let relativeSpeed =
             sqrt (
@@ -1184,12 +1376,36 @@ module ContactDynamics =
             | Some ContactActionKind.ContactSlidingTackle -> true
             | _ -> false
 
+        // A boot on the legs without the ball is a trip whatever its speed (Law 12: careless means a lack of
+        // consideration, not a fast impact); body charges are legal until they are careless, so they need speed.
+        let trip = record.SurfaceA = ContactSurface.ContactFoot && record.SurfaceB = ContactSurface.ContactLeg
+
+        let threshold =
+            if ballFirst then config.DangerousBallFirstSpeed
+            elif trip then 0.0<meterPerSecond>
+            else config.CarelessRelativeSpeed
+
         match challenge, record.Other with
-        | true, Some victim when record.NormalImpulse > 0.0 && relativeSpeed >= float config.CarelessRelativeSpeed ->
+        | true, Some victim when
+            (trip && not ballFirst || record.NormalImpulse > 0.0) && relativeSpeed >= float threshold
+            ->
+            // Force is what the offender brings: a carrier running onto a boot doubles the closing speed without the
+            // challenge being any more violent, so severity reads the offender's own speed, capped by the closing one.
+            let offenderSpeed =
+                match MatchWorld.teamOfPlayer ctx.Ctx record.Actor with
+                | Some side ->
+                    match MatchWorld.slotOf ctx.Ctx side record.Actor with
+                    | Some slot ->
+                        let frame = (MatchWorld.team world side).Frame
+                        let vx, vy = float frame.VelX[slot], float frame.VelY[slot]
+                        min relativeSpeed (sqrt (vx * vx + vy * vy))
+                    | None -> relativeSpeed
+                | None -> relativeSpeed
+
             let severity =
-                if relativeSpeed >= float config.ExcessiveRelativeSpeed then
+                if offenderSpeed >= float config.ExcessiveRelativeSpeed then
                     FoulSeverity.RedWorthy
-                elif relativeSpeed >= float config.RecklessRelativeSpeed then
+                elif offenderSpeed >= float config.RecklessRelativeSpeed then
                     FoulSeverity.YellowWorthy
                 else
                     FoulSeverity.Tactical
@@ -1296,13 +1512,28 @@ module ContactDynamics =
                             buffer.Events.Add
                                 { Tick = world.State.Tick
                                   Data = EventData.BallLoose(ball.Position.X, ball.Position.Y) }
+                    elif impact.Surface = ContactSurface.ContactFoot then
+                        let tacklerFrame = (MatchWorld.team world scratch.Sides[impact.PlayerA]).Frame
+                        let tacklerSlot = scratch.Slots[impact.PlayerA]
+
+                        match bootChallenge ctx.Ctx.Config.ContactAction world.State.Tick tacklerFrame tacklerSlot with
+                        | Some action ->
+                            let ballFirst = action.Phase = ContactActionPhase.ContactActionCompleted
+                            let record = resolveBootContact ctx world scratch impact fraction action
+                            publishContact ctx.Ctx world buffer record
+                            emitContactFoul ctx world buffer record ballFirst
+                            // One leg strike per challenge: the boot is spent, and a lingering overlap must not
+                            // re-trip the same player every remaining subtick.
+                            tacklerFrame.ContactActions[tacklerSlot] <-
+                                Some { action with Phase = ContactActionPhase.ContactActionRecovering }
+                        | None -> ()
                     else
                         let record = resolveBodyContact ctx world scratch impact fraction
                         scratch.ResolvedBodyPairs[impact.PlayerA * scratch.Sides.Length + impact.PlayerB] <- true
 
                         if record.NormalImpulse > 0.0 || record.TangentialImpulse > 0.0 || record.Action.IsSome then
                             publishContact ctx.Ctx world buffer record
-                            emitContactFoul ctx world buffer record
+                            emitContactFoul ctx world buffer record false
 
                     segmentImpacts <- segmentImpacts + 1
                     tickImpacts <- tickImpacts + 1
@@ -1337,6 +1568,17 @@ module ContactDynamics =
 
             let wasAirborne = scratch.AirborneAtStart[index]
             let isGrounded = scratch.StartZ[index] = 0.0 && scratch.VelocityZ[index] = 0.0
+            let gait = ctx.Ctx.Config.Gait
+            let speed = sqrt (scratch.VelocityX[index] ** 2.0 + scratch.VelocityY[index] ** 2.0)
+
+            // Airborne the legs do not cycle, and standing they do not either: landing or setting off resumes the
+            // stride where it stopped instead of starting mid-swing.
+            if isGrounded && not wasAirborne then
+                let morphology = (profileAt ctx.Ctx world scratch index).Morphology
+                let cycles = Gait.cyclesPerSecond gait morphology speed
+                let phase = float32 (Gait.wrap (float frame.GaitPhase[slot] + cycles * dt))
+                // Single precision can round a phase just below one up to one, outside the published range.
+                frame.GaitPhase[slot] <- if phase >= 1.0f then 0.0f else phase
 
             if wasAirborne && isGrounded then
                 let profile = profileAt ctx.Ctx world scratch index

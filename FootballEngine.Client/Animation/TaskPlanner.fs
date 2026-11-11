@@ -39,15 +39,17 @@ module TaskPlanner =
     let private refreshRecovery config time root effector (overlay: FootOverlay) =
         let finish = overlay.Recovery.Finish
         let target = landing config time finish root effector
-        if time < finish - 1.0f && Vector3.Distance(target, overlay.Recovery.Target) > config.RetargetDistance then
-            if time < overlay.Recovery.Start then
-                { overlay with Recovery = { overlay.Recovery with Target = target } }
-            else
-                let struct (mix, velocity) = socketState config.TickSeconds time overlay
-                { overlay with
-                    Recovery = Trajectory.retarget config.TickSeconds time target finish overlay.Recovery
-                    RecoverySocketStart = mix
-                    RecoverySocketVelocity = velocity }
+        // Before contact the landing does not shape the pose yet, and the recovery leaves the contact point with
+        // its own velocity whatever its target, so it is aimed once, when it begins. Retargeting through a long
+        // announced swing would only churn the retained overlays.
+        if time < overlay.Recovery.Start then
+            overlay
+        elif time < finish - 1.0f && Vector3.Distance(target, overlay.Recovery.Target) > config.RetargetDistance then
+            let struct (mix, velocity) = socketState config.TickSeconds time overlay
+            { overlay with
+                Recovery = Trajectory.retarget config.TickSeconds time target finish overlay.Recovery
+                RecoverySocketStart = mix
+                RecoverySocketVelocity = velocity }
         else
             overlay
 
@@ -65,8 +67,11 @@ module TaskPlanner =
                 || e.Family = MotionFamily.PhysicalContact
             let pointAvailable = e.Phase = MotionEvidencePhase.Prepared || e.ConfirmedPoint.IsSome
 
-            let existing = previous.Active && previous.TaskId = e.TaskId && previous.Sequence = e.Sequence
-            if r.Active && family && e.Effector = effector && int e.AvailableAt <= tick && int e.EndsAt >= tick && pointAvailable && (int e.CommitAt > tick || existing) then
+            // A confirmation revises the task it confirms: the swing already under way continues through contact.
+            let existing = previous.Active && previous.TaskId = e.TaskId
+            // A task announced ahead (the next carry touch) waits for its own start: before toe-off the foot is
+            // still the support the gait needs.
+            if r.Active && family && e.Effector = effector && int e.AvailableAt <= tick && int e.StartedAt <= tick && int e.EndsAt >= tick && pointAvailable && (int e.CommitAt > tick || existing) then
                 if selected < 0 || e.CommitAt < reservations[selected].Evidence.CommitAt || (e.CommitAt = reservations[selected].Evidence.CommitAt && e.TaskId < reservations[selected].Evidence.TaskId) then
                     selected <- i
 
@@ -79,8 +84,8 @@ module TaskPlanner =
 
         if selected >= 0 then
             let evidence = reservations[selected].Evidence
-            if previous.Active && previous.TaskId = evidence.TaskId && previous.Sequence = evidence.Sequence then
-                refreshRecovery config time root effector previous
+            if previous.Active && previous.TaskId = evidence.TaskId then
+                { refreshRecovery config time root effector previous with Sequence = evidence.Sequence }
             else
                 let target =
                     if evidence.Phase = MotionEvidencePhase.Confirmed then evidence.ConfirmedPoint.Value

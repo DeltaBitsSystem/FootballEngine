@@ -35,6 +35,31 @@ module SimulatorRunner =
 
         world
 
+    /// Same match as `runOne`, handing every tick's applied events to `observe`.
+    let runObserved (cfg: BalanceConfig) (seed: uint64) (observe: World -> MatchEvent seq -> unit) : World =
+        let ctx =
+            { TestBuilders.defaultCtx () with
+                Config = cfg }
+
+        let world = MatchFactory.create ctx
+        let sctx = { Ctx = ctx; Clock = SimulationClock.defaultClock }
+
+        let buf =
+            { Events = ResizeArray()
+              Flags = { EventFlags.Bits = 0UL }
+              Applied = ResizeArray() }
+
+        let mutable rng = Rng.ofSeed seed
+        let mutable safety = 0
+
+        while safety < maxTicks && world.State.Flow <> MatchFlow.MatchEnded do
+            let rng', _, _ = Stepper.step Scheduler.systems sctx rng world buf
+            rng <- rng'
+            observe world buf.Applied
+            safety <- safety + 1
+
+        world
+
     /// Runs `n` matches with different seeds and returns their metrics.
     /// Matches are independent (own world/buffer/rng), so they run in parallel.
     let runMatches (cfg: BalanceConfig) (seedBase: uint64) (n: int) : MatchMetrics list =

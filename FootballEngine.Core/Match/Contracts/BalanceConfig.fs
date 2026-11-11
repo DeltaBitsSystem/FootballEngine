@@ -29,7 +29,6 @@ type BallConfig =
       KickWindup: int<subtick>
       KickRecovery: int<subtick>
       CarryTouchInterval: int<subtick>
-      CarryLeadTime: float<second>
       CarryOffset: float<meter>
       CarryMaxSpeed: float<meterPerSecond>
       CarryTechniqueError: float
@@ -75,7 +74,22 @@ type MovementConfig =
       ConditionImpactThreshold: float
       IntentFloor: float
       IntentHysteresis: float
-      CommittedRunDuration: int<subtick> }
+      CommittedRunDuration: int<subtick>
+      /// Share of the jog-to-sprint range a carrier uses with the ball at their feet.
+      CarryEffort: float }
+
+/// Stride clock. Step frequency rises with speed and falls with leg length (pendulum scaling), so ball touches
+/// and the viewer's feet share one cadence.
+[<Struct>]
+type GaitConfig =
+    { StepFrequencyBase: float
+      StepFrequencyPerSpeed: float
+      StepFrequencyMax: float
+      ReferenceLegLength: float<meter>
+      StandingSpeed: float<meterPerSecond>
+      CarryTouchPhase: float
+      /// Cycles before a carry touch at which the touching foot leaves the ground to swing to the ball.
+      CarrySwingLead: float }
 
 /// Fixed-step collision, balance and recovery controls. Geometry fallbacks are
 /// explicit so missing player morphology never silently changes contact reach.
@@ -163,6 +177,14 @@ type ContactActionConfig =
       CommittedDuration: int<subtick>
       RecoveryDuration: int<subtick>
       FootReach: float<meter>
+      /// Horizontal reach of a sliding tackle's boot from the hips, the body travelling on the ground behind it.
+      SlidingReach: float<meter>
+      /// A receiver keeps running to where the pass was aimed while the rolling ball will arrive within this of it;
+      /// re-solving the meet point for every small deviation turns him away from a run the passer already led.
+      ReceptionTargetTolerance: float<meter>
+      /// A tackle is only launched when the carrier's body stays at least this far off the boot's path to the ball;
+      /// closer, the boot would go through his legs, which is a trip rather than a challenge.
+      TackleBodyClearance: float<meter>
       HeadReach: float<meter>
       MaximumReorientation: float<radian>
       ExecutionErrorScale: float<meter>
@@ -326,7 +348,10 @@ type DefensiveTransitionConfig =
 
 [<Struct>]
 type RefereeConfig =
-    { FoulMinorChance: float
+    { /// Chance each physically judged severity is sanctioned: careless fouls are booked only for what the contact
+      /// alone cannot show (a promising attack stopped, persistent infringement); reckless means a caution and
+      /// excessive force a dismissal (Law 12), short of the referee misjudging it.
+      FoulMinorChance: float
       FoulTacticalChance: float
       FoulYellowWorthyChance: float
       FoulRedWorthyChance: float
@@ -573,6 +598,7 @@ type TacticalTradeoffConfig =
 type BalanceConfig =
     { Ball: BallConfig
       Movement: MovementConfig
+      Gait: GaitConfig
       Contact: ContactConfig
       ContactAction: ContactActionConfig
       Keeper: KeeperConfig
@@ -658,12 +684,11 @@ module BalanceConfig =
           KickWindup = 6<subtick>
           KickRecovery = 12<subtick>
           CarryTouchInterval = 7<subtick>
-          CarryLeadTime = 0.12<second>
           CarryOffset = 0.32<meter>
           CarryMaxSpeed = 9.0<meterPerSecond>
           CarryTechniqueError = 0.6
           // Ground passes leave the boot close to rolling; zero spin would lose substantial range while skidding.
-          PassRollingSpinRatio = 0.8
+          PassRollingSpinRatio = 0.975
           ReceptionVelocityRetention = 0.12
           BounceRestitution = 0.6
           BounceFriction = 0.7
@@ -680,6 +705,23 @@ module BalanceConfig =
           ShootoutSaveBaseProbability = 0.45
           InterceptionPaceWeight = 0.12
           InterceptionIntentBoost = 1.25 }
+
+    let defaultGait: GaitConfig =
+        // Running cadence is nearly flat, ~2.7 steps/s at 3 m/s to ~3.2 at 5.5, and climbs toward ~4 at a sprint;
+        // the CMU locomotion corpus measures 1.4-1.8 cycles/s between 3 and 5 m/s, matching this within ~10 %.
+        { StepFrequencyBase = 2.0
+          StepFrequencyPerSpeed = 0.22
+          StepFrequencyMax = 4.6
+          ReferenceLegLength = 0.9<meter>
+          // Below this the player shuffles in place; the phase holds so a restart does not begin mid-swing.
+          StandingSpeed = 0.3<meterPerSecond>
+          // Phase after the support foot's strike at which the swing foot passes under the hips. CMU runs at
+          // 3-6 m/s keep the striking foot down for the first ~0.2 cycle; its middle is where a dribbler meets the
+          // ball with the other foot planted.
+          CarryTouchPhase = 0.08
+          // Toe-off of the touching foot: CMU stance lasts ~0.2 cycle, so the foot lifts ~0.3 cycle before it
+          // passes under the hips at mid-swing.
+          CarrySwingLead = 0.3 }
 
     let defaultMovement: MovementConfig =
         { SprintSpeed = 8.5<meterPerSecond>
@@ -702,7 +744,10 @@ module BalanceConfig =
           ConditionImpactThreshold = 0.1
           IntentFloor = 0.2
           IntentHysteresis = 0.05
-          CommittedRunDuration = 240<subtick> }
+          CommittedRunDuration = 240<subtick>
+          // Close control caps a carrier near 6.4 m/s: tracking data puts dribbling well below a free sprint, and
+          // a touch every stride cannot be kept up at full speed.
+          CarryEffort = 0.4 }
 
     let defaultContact: ContactConfig =
         { BodyRadiusFallback = 0.31<meter>
@@ -777,6 +822,13 @@ module BalanceConfig =
           // A 0.85 m leg (~0.47 of stature) with the pelvis dropped to ~0.6 m in a lunge reaches ~0.6 m horizontally;
           // the striking surface sits ~0.1 m beyond the ankle. Further than this the body would have to step first.
           FootReach = 0.7<meter>
+          // The full 0.95 m leg goes out flat while the hips drop and keep sliding, so the boot meets a ball well beyond
+          // a standing lunge; ~1.5 m is what a defender closing from just out of standing range can still reach.
+          SlidingReach = 1.5<meter>
+          // Beyond a boot-length either side the ball is off the line he is running; he then re-solves the meet point.
+          ReceptionTargetTolerance = 1.0<meter>
+          // Boot (0.16 m envelope) plus the carrier's leg (0.12 m): the swept contact radius ContactDynamics tests.
+          TackleBodyClearance = 0.28<meter>
           HeadReach = 0.28<meter>
           MaximumReorientation = 0.45<radian>
           ExecutionErrorScale = 0.14<meter>
@@ -784,8 +836,11 @@ module BalanceConfig =
           ShieldOffset = 0.34<meter>
           NewImpactThreshold = 0.72<meterPerSecond>
           CarelessRelativeSpeed = 1.2<meterPerSecond>
-          RecklessRelativeSpeed = 2.5<meterPerSecond>
-          ExcessiveRelativeSpeed = 4.2<meterPerSecond>
+          // Read against the offender's own speed. A defender at a jog (3-4 m/s) who catches the leg is careless;
+          // reckless needs the momentum of a committed run, and excessive force near top sprint (8.5 m/s) into the
+          // leg, which keeps straight reds near the top-flight ~0.1 per match.
+          RecklessRelativeSpeed = 3.5<meterPerSecond>
+          ExcessiveRelativeSpeed = 7.5<meterPerSecond>
           DangerousBallFirstSpeed = 3.6<meterPerSecond> }
 
     let defaultActions: ActionsConfig =
@@ -820,7 +875,7 @@ module BalanceConfig =
           GkPunchChance = 0.15
           GkParryChance = 0.1
           GkDistributionPressureRadius = 15.0<meter>
-          DribbleBaseSuccess = 0.55
+          DribbleBaseSuccess = 0.375
           DribbleRiskWeight = 0.2
           TackleBaseSuccess = 0.5
           DecisionSoftmaxTemperature = 1.0
@@ -917,17 +972,19 @@ module BalanceConfig =
         { BaseRisk = 0; OffsideCrossRisk = 2 }
 
     let defaultReferee: RefereeConfig =
-        { FoulMinorChance = 0.55
-          FoulTacticalChance = 0.25
-          FoulYellowWorthyChance = 0.15
-          FoulRedWorthyChance = 0.05
+        // Top-flight referees book roughly one foul in six; nearly all of those are careless fouls stopping attacks.
+        { FoulMinorChance = 0.0
+          FoulTacticalChance = 0.12
+          FoulYellowWorthyChance = 0.85
+          FoulRedWorthyChance = 0.7
           SecondYellowSuspension = true
           VarGoalReviewDelay = 15.0<second>
           VarOffsideMargin = 0.1<meter>
           AdvantageWindow = 80<subtick>
           HomeCardBonus = 0.05
           CardAccumulationThreshold = 4
-          LastManFactor = 0.3
+          // Added to the booking chance when the foul stops the last defender's man near goal.
+          LastManFactor = 0.45
           PromisingAttackFactor = 0.2
           ZoneFactor = 0.2 }
 
@@ -1071,6 +1128,7 @@ module BalanceConfig =
     let defaultConfig: BalanceConfig =
         { Ball = defaultBall
           Movement = defaultMovement
+          Gait = defaultGait
           Contact = defaultContact
           ContactAction = defaultContactAction
           Keeper = defaultKeeper

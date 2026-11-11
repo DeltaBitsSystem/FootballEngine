@@ -25,6 +25,20 @@ module MotionEvidenceTests =
           IncomingVelocity = ValueNone
           OutgoingVelocity = ValueNone }
 
+    let private root tick =
+        { Actor = PlayerId 7
+          Generation = 0
+          Position = Vector3(float32 tick * 0.1f, 2.0f, 0.0f)
+          Velocity = Vector3(4.0f, 0.0f, 0.0f)
+          Facing = 0.5f
+          AngularVelocity = 0.0f
+          Condition = 0.9f
+          // Distinct per tick so a dropped or misordered field cannot survive by coincidence.
+          GaitPhase = float32 (tick % 97) / 97.0f
+          AttentionTarget = ValueNone
+          Morphology = PhysicalMorphology.standard
+          Active = true }
+
     let tests =
         testList
             "MotionEvidence"
@@ -34,7 +48,7 @@ module MotionEvidenceTests =
                   for tick = 0 to 256 do
                       let boundary =
                           { Tick = tick * 1<subtick>
-                            Roots = [||]
+                            Roots = [| root tick |]
                             Evidence = [| record tick MotionEvidencePhase.Confirmed |] }
 
                       Expect.equal (writer.Append boundary) (Ok()) "contiguous boundary accepted"
@@ -51,6 +65,8 @@ module MotionEvidenceTests =
                           boundaries[2].Evidence[0]
                           (record 130 MotionEvidencePhase.Confirmed)
                           "all evidence fields survive"
+
+                      Expect.equal boundaries[2].Roots[0] (root 130) "all root fields survive, stride phase included"
 
                   let incompatible = Array.copy bytes
                   incompatible[0] <- 0uy

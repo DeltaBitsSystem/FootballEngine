@@ -26,6 +26,7 @@ module MotionRuntimeTests =
                  Facing = 0.0f
                  AngularVelocity = 0.0f
                  Condition = 1.0f
+                 GaitPhase = 0.0f
                  AttentionTarget = ValueSome(Vector3(5.0f, 2.0f, 0.11f))
                  Morphology = PhysicalMorphology.standard
                  Active = true } |]

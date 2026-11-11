@@ -113,6 +113,7 @@ module ProceduralMotionBench =
                           Facing = float32 (actor % 4) * MathF.PI * 0.5f + float32 (max 0 (phase - 280)) * 0.025f
                           AngularVelocity = if phase >= 280 then 1.0f else 0.0f
                           Condition = 1.0f - float32 actor * 0.02f
+                          GaitPhase = 0.0f
                           AttentionTarget = ValueSome(Vector3(40.0f, 4.0f, 0.11f))
                           Morphology = PhysicalMorphology.standard
                           Active = true })

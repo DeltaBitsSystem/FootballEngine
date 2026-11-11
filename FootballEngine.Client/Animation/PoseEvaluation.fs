@@ -49,18 +49,18 @@ module PoseEvaluation =
         let normal = Vector3.Normalize(inward - direction * Vector3.Dot(inward, direction))
         ConstraintSolve.orient rig world arm normal direction
 
-    let private target config time (foot: FootPlan) (overlay: FootOverlay) =
+    let footTaskTarget config time (foot: FootPlan) (overlay: FootOverlay) =
         if overlay.Active && MotionTime.value time <= overlay.Recovery.Finish then
             let struct (position, _) = TaskPlanner.overlayPoint config (MotionTime.value time) overlay
             position
         else
             footTarget config (MotionTime.value time) foot
 
-    let private socket config time (overlay: FootOverlay) (leg: RigLimb) stature =
+    let taskSocket config time (overlay: FootOverlay) (leg: RigLimb) stature =
         let mix = if overlay.Active && MotionTime.value time <= overlay.Recovery.Finish then let struct (value, _) = TaskPlanner.socketState config.TickSeconds (MotionTime.value time) overlay in value else 0.0f
         Vector3.Lerp(leg.Socket, leg.BallSocket, mix) * stature
 
-    let private requiredPelvisDrop (world: Matrix4x4[]) (leg: RigLimb) target =
+    let requiredPelvisDrop (world: Matrix4x4[]) (leg: RigLimb) target =
         let hip = world[leg.Upper].Translation
         let knee = world[leg.Lower].Translation
         let ankle = world[leg.End].Translation
@@ -98,20 +98,20 @@ module PoseEvaluation =
                     matrix * scratch.World[rig.Parents[node]]
 
         let left =
-            MotionInput.localPoint rootPosition facing (target config time plan.Left plan.LeftOverlay)
+            MotionInput.localPoint rootPosition facing (footTaskTarget config time plan.Left plan.LeftOverlay)
 
         let right =
-            MotionInput.localPoint rootPosition facing (target config time plan.Right plan.RightOverlay)
+            MotionInput.localPoint rootPosition facing (footTaskTarget config time plan.Right plan.RightOverlay)
 
         let stature = plan.Root.Morphology.Height / 1.8f
 
         let leftLeg =
             { rig.LeftLeg with
-                Socket = socket config time plan.LeftOverlay rig.LeftLeg stature }
+                Socket = taskSocket config time plan.LeftOverlay rig.LeftLeg stature }
 
         let rightLeg =
             { rig.RightLeg with
-                Socket = socket config time plan.RightOverlay rig.RightLeg stature }
+                Socket = taskSocket config time plan.RightOverlay rig.RightLeg stature }
         // Fix socket orientation before solving its point, then restore it after chain rotations.
         orientFoot config time rig scratch.World leftLeg plan.Left
         orientFoot config time rig scratch.World rightLeg plan.Right

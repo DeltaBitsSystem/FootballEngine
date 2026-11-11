@@ -31,6 +31,7 @@
         <Compile Include="Animation\BodyPose.fs"/>
         <Compile Include="Animation\ConstraintSolve.fs"/>
         <Compile Include="Animation\PoseEvaluation.fs"/>
+        <Compile Include="Animation\MotionMatching.fs"/>
         <Compile Include="Animation\MotionValidation.fs"/>
         <Compile Include="Animation\MotionRuntime.fs"/>
         <Compile Include="Animation\MotionCheckpointCodec.fs"/>

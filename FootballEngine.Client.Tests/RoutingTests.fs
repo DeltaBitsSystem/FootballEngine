@@ -186,7 +186,7 @@ let matchNavigationTests =
                   Expect.equal matchId fixture.Id "the current user match opens"
               | message -> failtestf "expected prematch navigation first, got %A" message
 
-          testCase "replay v11 preserves body orientation and remaps active substitutes"
+          testCase "replay v12 preserves body orientation and remaps active substitutes"
           <| fun _ ->
               let snapshot: Replay.ReplaySnapshot =
                   { Tick = 0<subtick>
@@ -284,7 +284,7 @@ let matchNavigationTests =
                       restored
                       0.0
 
-              Expect.equal replay.Meta.Version 11 "visual replay schema is explicit"
+              Expect.equal replay.Meta.Version 12 "visual replay schema is explicit"
               Expect.equal restored.HomeTravelDistance snapshot.HomeTravelDistance "travel distance survives replay"
               Expect.equal frame.Players.Length 4 "only active players are rendered"
               Expect.equal frame.Officials.Length 3 "the referee team is projected"

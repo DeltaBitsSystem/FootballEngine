@@ -84,6 +84,7 @@ module MotionTimelineTests =
                         + float32 (max 0 (min 40 (tick - 200))) * 0.02f
                       AngularVelocity = if tick > 200 && tick < 240 then 0.8f else 0.0f
                       Condition = 1.0f - float32 index * 0.02f
+                      GaitPhase = 0.0f
                       AttentionTarget = ValueSome(Vector3(5.0f, 4.0f, 0.11f))
                       Morphology = PhysicalMorphology.standard
                       Active = true })
@@ -265,6 +266,8 @@ module MotionTimelineTests =
               testCase "sequential ingestion allocates zero bytes after warmup for 22 actors" (fun _ ->
                   let runtime = MotionRuntime(config, identity ())
                   let captured = boundaries ()
+                  // The replayed second window continues the sequence numbering of the first, whatever its count.
+                  let shift = captured[0..255] |> Array.sumBy (fun boundary -> uint64 boundary.Evidence.Length)
 
                   let samples =
                       captured
@@ -280,7 +283,7 @@ module MotionTimelineTests =
                                       repeated.Evidence
                                       |> Array.map (fun record ->
                                           { record with
-                                              Sequence = record.Sequence + 44UL
+                                              Sequence = record.Sequence + shift
                                               OccurredAt = record.OccurredAt + 256<subtick>
                                               AvailableAt = record.AvailableAt + 256<subtick>
                                               StartedAt = record.StartedAt + 256<subtick>

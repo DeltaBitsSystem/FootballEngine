@@ -47,7 +47,7 @@ let tests =
               let names = skin.Joints |> Seq.mapi (fun index node -> node.Name, index) |> Map.ofSeq
               let root =
                   { Actor = PlayerId 1; Generation = 1; Position = Vector3.Zero; Velocity = Vector3.Zero
-                    Facing = 0.0f; AngularVelocity = 0.0f; Condition = 1.0f; AttentionTarget = ValueNone
+                    Facing = 0.0f; AngularVelocity = 0.0f; Condition = 1.0f; GaitPhase = 0.0f; AttentionTarget = ValueNone
                     Morphology = PhysicalMorphology.standard; Active = true }
               let config = AnimationConfig.defaultConfig
               for speed in [| 0.0f; 4.0f |] do
@@ -101,6 +101,7 @@ let tests =
                   let bindHelper = get "supportBindLocal"
                   let rig =
                       { asset.Value.Rig with
+                          Names = [| "root"; "source"; "support" |]
                           Parents = [| -1; 0; 0 |]
                           DescendantEnds = [| 2; 1; 2 |]
                           Bind = [| pose Matrix4x4.Identity; pose bindSource; pose bindHelper |]

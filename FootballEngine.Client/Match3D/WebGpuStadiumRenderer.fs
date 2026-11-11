@@ -282,6 +282,7 @@ type WebGpuStadiumRenderer
 
     member _.NativeWindow = window
     member _.CharacterRig = character.Rig
+    member _.MotionDatabase = assets.Motion
     member _.HudUploadBytes = hud |> Option.map _.UploadBytes |> Option.defaultValue 0L
 
     // Diagnostics can time completed work without making production rendering wait for the GPU every frame.
