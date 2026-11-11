@@ -400,6 +400,7 @@ type private ProbePitch() as this =
                         else
                             FootballEngine.Core.Match.ContactFoot.Right
                       Kind = FootballEngine.Core.Match.FootTouchKind.Kick FootballEngine.Core.Match.StrikeKind.Pass
+                      Surface = FootballEngine.Core.Match.StrikeSurface.Inside
                       StartedAt = (tick - 6) * 1<FootballEngine.Core.Match.subtick>
                       ContactAt = tick * 1<FootballEngine.Core.Match.subtick>
                       EndsAt = (tick + 12) * 1<FootballEngine.Core.Match.subtick>
