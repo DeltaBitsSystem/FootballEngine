@@ -149,12 +149,14 @@ module Planner =
     let private passOf (s: ChainState) distance =
         BallAero.pass s.PassBall s.PassArrivalSpeed s.PassArrivalSpeedGain (float distance)
 
-    let simulatePass (s: ChainState) (receiverSlot: int) (rx: float<meter>) (ry: float<meter>) : ChainState =
-        let distance = MatchMath.dist s.BallX s.BallY rx ry
-        let flight = min s.Horizon ((passOf s distance).Seconds * 1.0<second>)
+    let private simulatePassWith (s: ChainState) (roll: BallAero.GroundPass) (receiverSlot: int) : ChainState =
+        let flight = min s.Horizon (roll.Seconds * 1.0<second>)
         let next = advance s flight
         let struct(_, x, y) = next.OurPos |> Array.find (fun struct(slot, _, _) -> slot = receiverSlot)
         { next with BallX = x; BallY = y; CarrierSlot = receiverSlot }
+
+    let simulatePass (s: ChainState) (receiverSlot: int) (rx: float<meter>) (ry: float<meter>) : ChainState =
+        simulatePassWith s (passOf s (MatchMath.dist s.BallX s.BallY rx ry)) receiverSlot
 
     /// Check if a receiver is offside given the current state.
     let isOffside (s: ChainState) (rx: float<meter>) : bool =
@@ -178,13 +180,13 @@ module Planner =
         (s: ChainState)
         (rx: float<meter>)
         (ry: float<meter>)
+        (d: float)
+        (roll: BallAero.GroundPass)
         : bool =
-        let d = MatchMath.dist s.BallX s.BallY rx ry
-
         if d <= 0.0 || d > float s.MaxPassDistance then
             false
         else
-            let speed = (passOf s d).LaunchSpeed * 1.0<meterPerSecond>
+            let speed = roll.LaunchSpeed * 1.0<meterPerSecond>
 
             let ball =
                 { X = s.BallX
@@ -230,9 +232,11 @@ module Planner =
             match findReceiver state slot with
             | ValueSome(struct(_, x, y)) when slot <> state.CarrierSlot && not (Set.contains slot state.OurGoalkeeperSlots) && not (isOffside state x) ->
                 let distance = MatchMath.dist state.BallX state.BallY x y
-                let flight = (passOf state distance).Seconds * 1.0<second>
-                if distance >= float cfg.MinimumPassDistance && flight <= state.Horizon && isPassFeasible pparams state x y then
-                    let next = simulatePass state slot x y
+                // The roll is solved once: feasibility and the simulated flight fly the same pass.
+                let roll = passOf state distance
+                let flight = roll.Seconds * 1.0<second>
+                if distance >= float cfg.MinimumPassDistance && flight <= state.Horizon && isPassFeasible pparams state x y distance roll then
+                    let next = simulatePassWith state roll slot
                     Some(next, Pass(slot, next.BallX, next.BallY))
                 else None
             | _ -> None

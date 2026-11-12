@@ -59,7 +59,7 @@ module ContactDynamics =
         rootX
         rootY
         forwardFraction
-        : float * float * float =
+        : struct (float * float * float) =
         let baseFacing = float frame.BodyFacing[slot]
         let facing =
             match action with
@@ -113,15 +113,15 @@ module ContactDynamics =
                 let reach = min distance (float limit)
                 let along = max 0.0 (reach - footLength * (0.8 - forwardFraction))
 
-                rootX + dx / distance * along + errorX, rootY + dy / distance * along + errorY, errorZ
+                struct (rootX + dx / distance * along + errorX, rootY + dy / distance * along + errorY, errorZ)
             else
-                rootX + cos facing * footLength * forwardFraction + errorX,
-                rootY + sin facing * footLength * forwardFraction + errorY,
-                errorZ
+                struct (rootX + cos facing * footLength * forwardFraction + errorX,
+                        rootY + sin facing * footLength * forwardFraction + errorY,
+                        errorZ)
         | _ ->
-            rootX + cos facing * footLength * forwardFraction + errorX,
-            rootY + sin facing * footLength * forwardFraction + errorY,
-            errorZ
+            struct (rootX + cos facing * footLength * forwardFraction + errorX,
+                    rootY + sin facing * footLength * forwardFraction + errorY,
+                    errorZ)
 
     let private footPosition ctx (frame: TeamFrame) slot morphology rootX rootY forwardFraction =
         footPositionFor ctx frame slot (actionAt frame slot) morphology rootX rootY forwardFraction
@@ -187,17 +187,17 @@ module ContactDynamics =
         let b = 2.0 * (x0 * dx + y0 * dy + z0 * dz)
 
         if c <= 0.0 then
-            Some 0.0
+            ValueSome 0.0
         elif a <= 1e-18 then
-            None
+            ValueNone
         else
             let discriminant = b * b - 4.0 * a * c
 
             if discriminant < 0.0 then
-                None
+                ValueNone
             else
                 let time = (-b - sqrt discriminant) / (2.0 * a)
-                if time >= 0.0 && time <= 1.0 then Some time else None
+                if time >= 0.0 && time <= 1.0 then ValueSome time else ValueNone
 
     let private betterCandidate tolerance ctx world scratch candidate current =
         let key impact =
@@ -279,7 +279,7 @@ module ContactDynamics =
         (scratch: ContactScratch)
         (ball: BallState)
         (duration: float)
-        : ImpactCandidate voption * BallState =
+        : struct (ImpactCandidate voption * BallState) =
         let cfg = ctx.Config.Contact
         let mutable best = ValueNone
         let mutable ballEnd = ball
@@ -327,7 +327,7 @@ module ContactDynamics =
                         let radius = scratch.Radius[a] + scratch.Radius[b]
 
                         match sweptTime relativeX0 relativeY0 0.0 relativeX1 relativeY1 0.0 radius with
-                        | Some fraction ->
+                        | ValueSome fraction ->
                             let za = predictedAxis az0 scratch.VelocityZ[a] 0.0 (duration * fraction)
                             let zb = predictedAxis bz0 scratch.VelocityZ[b] 0.0 (duration * fraction)
                             let aLow = za + scratch.Height[a] * cfg.CapsuleLowerHeightRatio
@@ -350,7 +350,7 @@ module ContactDynamics =
                                           FootFraction = 0.0
                                           Gloves = false }
                                         best
-                        | None -> ()
+                        | ValueNone -> ()
 
                     // A tackle that misses the ball meets the legs: tripping and kicking are the boot striking them (Law 12).
                     // Only opponents are scanned; a boot among teammates is an accident the torso solver already separates.
@@ -369,8 +369,8 @@ module ContactDynamics =
                                 victimFrame.ContactState[scratch.Slots[victim]].Status <> BodyContactStatus.BodyFalling
                                 ->
                                 let morphology = (profileAt ctx world scratch tackler).Morphology
-                                let footX0, footY0, _ = footPositionFor ctx tacklerFrame tacklerSlot (Some action) morphology tx0 ty0 0.8
-                                let footX1, footY1, _ = footPositionFor ctx tacklerFrame tacklerSlot (Some action) morphology tx1 ty1 0.8
+                                let struct (footX0, footY0, _) = footPositionFor ctx tacklerFrame tacklerSlot (Some action) morphology tx0 ty0 0.8
+                                let struct (footX1, footY1, _) = footPositionFor ctx tacklerFrame tacklerSlot (Some action) morphology tx1 ty1 0.8
 
                                 match
                                     sweptTime
@@ -382,7 +382,7 @@ module ContactDynamics =
                                         0.0
                                         (footContactRadius cfg + float cfg.LegRadius)
                                 with
-                                | Some fraction ->
+                                | ValueSome fraction ->
                                     best <-
                                         betterCandidate
                                             cfg.SimultaneousTolerance
@@ -397,7 +397,7 @@ module ContactDynamics =
                                               FootFraction = 0.8
                                               Gloves = false }
                                             best
-                                | None -> ()
+                                | ValueNone -> ()
                             | _ -> ()
 
                         considerBoot a b ax0 ay0 ax1 ay1 bx0 by0 bx1 by1
@@ -456,7 +456,7 @@ module ContactDynamics =
                                     (b1z - cz1)
                                     (surfaceRadius + float ball.Radius)
                             with
-                            | Some fraction ->
+                            | ValueSome fraction ->
                                 best <-
                                     betterCandidate
                                         cfg.SimultaneousTolerance
@@ -471,7 +471,7 @@ module ContactDynamics =
                                           FootFraction = footFraction
                                           Gloves = gloves }
                                         best
-                            | None -> ()
+                            | ValueNone -> ()
 
                         considerSurfaceWith
                             false
@@ -511,8 +511,8 @@ module ContactDynamics =
 
                         for feature = 0 to 2 do
                             let footFraction = float feature * 0.4
-                            let footX0, footY0, footZ0 = footPosition ctx frame slot morphology px0 py0 footFraction
-                            let footX1, footY1, footZ1 = footPosition ctx frame slot morphology px1 py1 footFraction
+                            let struct (footX0, footY0, footZ0) = footPosition ctx frame slot morphology px0 py0 footFraction
+                            let struct (footX1, footY1, footZ1) = footPosition ctx frame slot morphology px1 py1 footFraction
 
                             considerSurfaceWith
                                 false
@@ -564,7 +564,7 @@ module ContactDynamics =
                                 0.0
                         | _ -> ()
 
-        best, ballEnd
+        struct (best, ballEnd)
 
     let private advancePlayers (ctx: SystemContext) (world: World) (scratch: ContactScratch) duration =
         let movement = ctx.Ctx.Config.Movement
@@ -844,7 +844,7 @@ module ContactDynamics =
         let tacklerFrame = (MatchWorld.team world tacklerSide).Frame
         let victimFrame = (MatchWorld.team world victimSide).Frame
         let morphology = (profileAt ctx.Ctx world scratch tackler).Morphology
-        let footX, footY, footZ =
+        let struct (footX, footY, footZ) =
             footPositionFor
                 ctx.Ctx
                 tacklerFrame
@@ -940,7 +940,7 @@ module ContactDynamics =
             | ContactSurface.ContactLeg ->
                 scratch.StartX[index], scratch.StartY[index], scratch.StartZ[index] + height * 0.20, float ctx.Ctx.Config.Contact.LegRadius
             | ContactSurface.ContactFoot ->
-                let footX, footY, footZ =
+                let struct (footX, footY, footZ) =
                     footPosition
                         ctx.Ctx
                         frame
@@ -1548,7 +1548,7 @@ module ContactDynamics =
             let mutable saturated = false
 
             while remaining > ctx.Ctx.Config.Contact.ToiTolerance && not saturated do
-                let candidate, ballEnd = findEarliest ctx.Ctx world scratch ball remaining
+                let struct (candidate, ballEnd) = findEarliest ctx.Ctx world scratch ball remaining
 
                 match candidate with
                 | ValueNone ->
@@ -1668,12 +1668,16 @@ module ContactDynamics =
             frame.VelZ[slot] <- float32 scratch.VelocityZ[index]
             frame.BodyTravelDistance[slot] <-
                 frame.BodyTravelDistance[slot]
-                + float32 (sqrt ((scratch.StartX[index] - oldX) ** 2.0 + (scratch.StartY[index] - oldY) ** 2.0))
+                + float32 (
+                    let dx, dy = scratch.StartX[index] - oldX, scratch.StartY[index] - oldY
+                    sqrt (dx * dx + dy * dy))
 
             let wasAirborne = scratch.AirborneAtStart[index]
             let isGrounded = scratch.StartZ[index] = 0.0 && scratch.VelocityZ[index] = 0.0
             let gait = ctx.Ctx.Config.Gait
-            let speed = sqrt (scratch.VelocityX[index] ** 2.0 + scratch.VelocityY[index] ** 2.0)
+            let speed =
+                let vx, vy = scratch.VelocityX[index], scratch.VelocityY[index]
+                sqrt (vx * vx + vy * vy)
 
             // Airborne the legs do not cycle, and standing they do not either: landing or setting off resumes the
             // stride where it stopped instead of starting mid-swing.
@@ -1719,7 +1723,9 @@ module ContactDynamics =
         if ball.GKHoldSince.IsNone then
             ball <- { ball with PreviousPosition = ValueSome originalBallPosition }
 
-        MatchWorld.updateBall world (fun _ -> ball)
+        // Captured through an immutable copy: a closure over the mutable itself would box it for the whole solve.
+        let finalBall = ball
+        MatchWorld.updateBall world (fun _ -> finalBall)
         let _ = tickElapsed, tickImpacts
         currentRng
 
