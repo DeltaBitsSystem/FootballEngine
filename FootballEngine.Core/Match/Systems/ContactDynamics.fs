@@ -42,13 +42,17 @@ module ContactDynamics =
     /// A boot challenge whose leg is still out: committed, or completed on the ball but within the committed window,
     /// when a late follow-through can still catch the opponent's legs.
     let private bootChallenge (config: ContactActionConfig) (tick: int<subtick>) (frame: TeamFrame) slot =
-        frame.ContactActions[slot]
-        |> Option.filter (fun action ->
+        // A match, not Option.filter: the filter's closure was allocated for every pair the solver scanned.
+        match frame.ContactActions[slot] with
+        | Some action when
             (action.Kind = ContactActionKind.ContactStandingTackle || action.Kind = ContactActionKind.ContactSlidingTackle)
             && action.Generation = frame.ContactGeneration[slot]
             && (action.Phase = ContactActionPhase.ContactActionCommitted
                 || action.Phase = ContactActionPhase.ContactActionCompleted
-                   && tick < action.CommitAt + config.CommittedDuration))
+                   && tick < action.CommitAt + config.CommittedDuration)
+            ->
+            frame.ContactActions[slot]
+        | _ -> None
 
     let private footPositionFor
         (ctx: MatchContext)
@@ -241,6 +245,7 @@ module ContactDynamics =
                 | None -> 0.0
 
             scratch.BodyReach[a] <- scratch.Radius[a] + legReach + foot + error
+            scratch.MayBoot[a] <- (bootChallenge ctx.Config.ContactAction world.State.Tick frame slot).IsSome
             scratch.Reach[a] <- scratch.Height[a] + scratch.BodyReach[a]
 
     /// Marks the bodies that can still meet the ball before the tick ends: a necessary condition for findEarliest's
@@ -346,7 +351,11 @@ module ContactDynamics =
                 if dx * dx + dy * dy <= bound * bound then
                     let pairIndex = a * scratch.Sides.Length + b
 
-                    if not scratch.ResolvedBodyPairs[pairIndex] then
+                    // The relative path is the straight segment sweptTime tests, at most both travels long: torsos
+                    // further apart than their radii plus that cannot meet, so the test is skipped, not changed.
+                    let torsoBound = scratch.Radius[a] + scratch.Radius[b] + scratch.Travel[a] + scratch.Travel[b] + 1e-9
+
+                    if not scratch.ResolvedBodyPairs[pairIndex] && dx * dx + dy * dy <= torsoBound * torsoBound then
                         let bx0, by0, bz0 = scratch.StartX[b], scratch.StartY[b], scratch.StartZ[b]
                         let bx1 = predictedAxis bx0 scratch.VelocityX[b] scratch.AccelerationX[b] duration
                         let by1 = predictedAxis by0 scratch.VelocityY[b] scratch.AccelerationY[b] duration
@@ -382,7 +391,7 @@ module ContactDynamics =
 
                     // A tackle that misses the ball meets the legs: tripping and kicking are the boot striking them (Law 12).
                     // Only opponents are scanned; a boot among teammates is an accident the torso solver already separates.
-                    if scratch.Sides[a] <> scratch.Sides[b] then
+                    if scratch.Sides[a] <> scratch.Sides[b] && (scratch.MayBoot[a] || scratch.MayBoot[b]) then
                         let bx0, by0 = scratch.StartX[b], scratch.StartY[b]
                         let bx1 = predictedAxis bx0 scratch.VelocityX[b] scratch.AccelerationX[b] duration
                         let by1 = predictedAxis by0 scratch.VelocityY[b] scratch.AccelerationY[b] duration
