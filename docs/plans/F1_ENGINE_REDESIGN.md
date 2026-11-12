@@ -155,3 +155,39 @@ compatibilidad hacia atrás: se reemplazan contratos en lugar de adaptarlos. Con
   el resultado deportivo cambia, el tiempo total no es comparable (cambian los ticks y los eventos): se compara
   el sistema tocado.
 
+
+## 9. Propuesta central: cognición y física en paralelo, desfasadas un tick
+
+Medido: un relevo entre dos hilos que esperan activamente cuesta 0,07–0,08 µs (`Task.Run` + `Wait`: 0,8 µs).
+Paralelizar dentro del partido es viable. Pero partir cada sistema en dos rinde poco, porque el tick (~20 µs)
+está repartido en muchos sistemas de 1–15 µs, y algunos tienen un único dueño por naturaleza (la física, el
+portador).
+
+La división que sí escala es por **qué** se calcula:
+
+| Hilo | Sistemas | Costo hoy por partido |
+|---|---|---|
+| Cognición | TeamPerceive, TeamTransition, TeamDecide, TeamPosition, TeamEmergent, TeamAttack, PlayerPerception, PlayerIntent, PlayerSteering, PlayerDecision | ~2,6 s |
+| Mundo | RestartController, Actions, BallFootContact, KeeperSave, ContactDynamics, Ball*, Referee, Manager, EventApply | ~2,7 s |
+
+En el tick n el hilo del mundo simula la física con las decisiones ya tomadas, mientras el hilo de cognición
+decide sobre la foto del tick n−1. Los dos trabajan a la vez y se encuentran una vez por tick (~0,1 µs).
+Techo: ~2× (de ~5,3 s a ~2,7 s), sumado a lo que bajen las demás mejoras.
+
+- **Determinista por construcción.** La cognición lee siempre la foto n−1 y escribe solo propuestas (velocidades
+  objetivo, intenciones, acciones pendientes) que el mundo aplica en n+1. El resultado no depende de qué hilo
+  termina primero, ni de cuántos núcleos haya: con un solo hilo corre las dos mitades seguidas y da lo mismo.
+- **Contrato explícito de dueños.** El estado se parte en *físico* (cuerpos, pelota, reloj, marcador; lo escribe
+  solo el mundo) y *mental* (intenciones, memoria, forma, planes; lo escribe solo la cognición). Lo que cruza
+  la frontera son la foto (mundo → cognición) y las propuestas (cognición → mundo). El compilador lo hace
+  cumplir con tipos separados.
+- **Cambio deportivo:** las decisiones llegan con 25 ms más de retraso. La reacción humana es de ~200 ms, así que
+  es realista, pero cambia resultados: validación held-out y recalibración.
+- **Eventos.** Los sistemas de cognición que hoy se despiertan por eventos del tick anterior siguen igual: ya
+  leen las banderas del tick previo.
+
+Orden de trabajo:
+1. Separar los tipos de estado físico y mental, y la foto que los cruza (cambio grande de contratos; el
+   compilador lista cada lectura cruzada).
+2. Correr las dos mitades en secuencia con el desfase: valida el diseño sin hilos (held-out).
+3. Correrlas en dos hilos con relevo por espera activa; un test exige el mismo hash con 1 y con 2 hilos.
