@@ -73,8 +73,10 @@ tarda 1:45.
 
 ### F3 — Simple y entendible
 
-Estado (2026-11-12): 1 hecho (AGENTS.md según el árbol real; scripts muertos y visor 2D Skia eliminados). 2, 3 y 4
-pendientes.
+Estado (2026-11-12): 1 hecho (AGENTS.md según el árbol real; scripts muertos y visor 2D Skia eliminados). 3 hecho
+fuera del motor: ModSystem en siete módulos por etapa, Settings en cuatro, PlayerView y Display fuera de UI.
+ContactDynamics se parte dentro del rediseño de F1 (`F1_ENGINE_REDESIGN.md`), que separa su estado. 2 y 4
+pendientes; 4 también depende de ese rediseño.
 
 1. AGENTS.md reescrito según el árbol real; un mapa de una página por subsistema.
 2. Decisión de jugador por **valor esperado** (xG del remate vs valor de mantener/pasar) con parámetros con nombre
