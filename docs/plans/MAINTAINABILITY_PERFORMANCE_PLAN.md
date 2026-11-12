@@ -35,7 +35,9 @@ con la misma semilla) salvo donde un cambio se justifique y recalibre.
 
 Aceptación: hash de eventos idéntico en el corpus de semillas; perfil antes/después en el commit.
 
-Progreso (2026-11-12, `Training profile`, mismo hash `5fba0ac3801af028` en `hash 4`): 12,8 s → 5,8 s por partido;
+Progreso (2026-11-12): 12,8 s → ~5,0 s por partido. Refactors puros con hash idéntico; el único cambio numérico
+(2 segmentos de contacto en vez de 4) validado held-out con 48 partidos, referencia nueva `12d27136516b9ad0`.
+Antes de ese cambio, 5,8 s:
 ContactDynamics 2,2 s / 181 MB, PlayerDecision 0,94 s, TeamPosition 0,94 s, RestartController 0,15 s / 43 MB.
 Suite Core 4:04 → 1:59 (837/837). Lo que queda pide cambios de estructura, no micro-ajustes: menos segmentos de
 contacto por tick con la misma precisión, índice espacial compartido, planner sin `Set`/closures.
@@ -48,7 +50,14 @@ contacto por tick con la misma precisión, índice espacial compartido, planner 
 3. Con F1, la suite completa debería bajar de 4 min a < 1 min sin tocar cargas.
 4. `dotnet fsi scripts/dev.fsx` único: build, fast tests, format y profile con un comando.
 
+Estado (2026-11-12): 1 hecho (0 warnings en todos los proyectos y Tools, `TreatWarningsAsErrors` global); 2 hecho
+(`--fast`: 863 casos en ~30 s de ejecución); 4 hecho (`scripts/dev.fsx`). 3 pendiente de F1: la suite completa
+tarda 1:45.
+
 ### F3 — Simple y entendible
+
+Estado (2026-11-12): 1 hecho (AGENTS.md según el árbol real; scripts muertos y visor 2D Skia eliminados). 2, 3 y 4
+pendientes.
 
 1. AGENTS.md reescrito según el árbol real; un mapa de una página por subsistema.
 2. Decisión de jugador por **valor esperado** (xG del remate vs valor de mantener/pasar) con parámetros con nombre
