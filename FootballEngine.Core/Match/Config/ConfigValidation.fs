@@ -755,6 +755,8 @@ module ConfigValidation =
           // Candidate 0 would evaluate none, >20 hurts perf
           if p.EvalCandidateCount < 1 || p.EvalCandidateCount > 20 then
               yield "Positioning.EvalCandidateCount must be in [1, 20]"
+          if p.RefineGroups < 1 || p.RefineGroups > 11 then
+              yield "Positioning.RefineGroups must be in [1, 11]"
           if p.EvalMinTeammateDist < 0.5<meter> || p.EvalMinTeammateDist > 20.0<meter> then
               yield "Positioning.EvalMinTeammateDist must be in [0.5, 20] m"
           if p.EvalOppOurWeight < 0.0 || p.EvalOppOurWeight > 1.0 then

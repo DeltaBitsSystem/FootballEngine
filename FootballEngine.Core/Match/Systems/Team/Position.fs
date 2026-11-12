@@ -143,7 +143,7 @@ module TeamPosition =
             team.OwnPositions.[i] <- FPoint.ofXY (x * dir) y
             team.MirroredPositions.[i] <- FPoint.ofXY (x * -dir) y
 
-    let private positionTeam (ctx: MatchContext) (world: World) (side: ClubSide) : unit =
+    let private positionTeam (ctx: MatchContext) (world: World) (side: ClubSide) (refineGroup: int voption) : unit =
         let team = MatchWorld.team world side
         let frame = team.Frame
         let lineup = MatchWorld.lineup ctx side
@@ -253,45 +253,53 @@ module TeamPosition =
 
         for activeIndex in 0 .. active.Length - 1 do
             let i = active.[activeIndex]
-            let tx = team.FormationTargets.[i].X
-            let ty = team.FormationTargets.[i].Y
+            // Off a full update only the group whose turn it is re-reads the spacing; the others keep the target
+            // they last chose. The keeper's angle follows the ball every update.
+            let due =
+                match refineGroup with
+                | ValueSome group -> i = gkSlot || activeIndex % posCfg.RefineGroups = group
+                | ValueNone -> true
 
-            let refinedTarget =
-                if i = gkSlot then
-                    // The keeper stands on the line from his goal centre to the predicted ball, so he covers the
-                    // shooting angle and is already on the path of a ball played toward his goal.
-                    let goalFx = -float Pitch.HalfLength
-                    let towardX = float ballFx - goalFx
-                    let towardY = float ballFy
-                    let ballDistance = max 1.0 (sqrt (towardX * towardX + towardY * towardY))
-                    let depth = min (float posCfg.GkMaxAdvance) (posCfg.GkDepthRatio * ballDistance)
-                    let targetY = MatchMath.clamp (-float Pitch.GoalHalfWidth) (float Pitch.GoalHalfWidth) (depth * towardY / ballDistance)
-                    FPoint.ofXY (goalFx + depth * towardX / ballDistance) targetY
-                else
-                    FieldEvaluator.refineInto
-                        evalParams
-                        ownPositions
-                        active
-                        i
-                        oppPositions
-                        opponentActive
-                        team.EvaluatorScratch
-                        tx
-                        ty
+            if due then
+                let tx = team.FormationTargets.[i].X
+                let ty = team.FormationTargets.[i].Y
 
-            let fx' =
-                if defending && i <> gkSlot then
-                    min refinedTarget.X (float offLine * dir - 1.0)
-                else
-                    refinedTarget.X
+                let refinedTarget =
+                    if i = gkSlot then
+                        // The keeper stands on the line from his goal centre to the predicted ball, so he covers the
+                        // shooting angle and is already on the path of a ball played toward his goal.
+                        let goalFx = -float Pitch.HalfLength
+                        let towardX = float ballFx - goalFx
+                        let towardY = float ballFy
+                        let ballDistance = max 1.0 (sqrt (towardX * towardX + towardY * towardY))
+                        let depth = min (float posCfg.GkMaxAdvance) (posCfg.GkDepthRatio * ballDistance)
+                        let targetY = MatchMath.clamp (-float Pitch.GoalHalfWidth) (float Pitch.GoalHalfWidth) (depth * towardY / ballDistance)
+                        FPoint.ofXY (goalFx + depth * towardX / ballDistance) targetY
+                    else
+                        FieldEvaluator.refineInto
+                            evalParams
+                            ownPositions
+                            active
+                            i
+                            oppPositions
+                            opponentActive
+                            team.EvaluatorScratch
+                            tx
+                            ty
 
-            let wx = fx' * dir
-            let inset = float posCfg.TargetInset
-            let safeHalfLength = float Pitch.HalfLength - inset
-            let safeHalfWidth = float Pitch.HalfWidth - inset
-            team.Shape.TargetsX.[i] <- float32 (MatchMath.clamp (-safeHalfLength) safeHalfLength wx)
+                let fx' =
+                    if defending && i <> gkSlot then
+                        min refinedTarget.X (float offLine * dir - 1.0)
+                    else
+                        refinedTarget.X
 
-            team.Shape.TargetsY.[i] <- float32 (MatchMath.clamp (-safeHalfWidth) safeHalfWidth refinedTarget.Y)
+                let wx = fx' * dir
+                let inset = float posCfg.TargetInset
+                let safeHalfLength = float Pitch.HalfLength - inset
+                let safeHalfWidth = float Pitch.HalfWidth - inset
+                team.Shape.TargetsX.[i] <- float32 (MatchMath.clamp (-safeHalfLength) safeHalfLength wx)
+
+                team.Shape.TargetsY.[i] <- float32 (MatchMath.clamp (-safeHalfWidth) safeHalfWidth refinedTarget.Y)
 
     let private assignDefensiveTasks (ctx: MatchContext) (world: World) side mode primary cover rest1 rest2 =
         let team = MatchWorld.team world side
@@ -471,7 +479,17 @@ module TeamPosition =
             let position side =
                 let team = MatchWorld.team world side
 
-                positionTeam ctx.Ctx world side
+                // A team that did not position on the previous update (kick-off, a dead ball) refines everyone.
+                let cadence = int ctx.Ctx.Config.DefensiveTransition.ReevaluateTicks
+                let groups = ctx.Ctx.Config.Positioning.RefineGroups
+
+                let refineGroup =
+                    if groups <= 1 || team.LastRoleAssignmentTick < 0<subtick> || int (tick - team.LastRoleAssignmentTick) > cadence then
+                        ValueNone
+                    else
+                        ValueSome((int tick / max 1 cadence) % groups)
+
+                positionTeam ctx.Ctx world side refineGroup
                 match team.Defense.Episode with
                 | Some episode when episode.EndedAt.IsNone ->
                     let rest1, rest2 = TransitionGeometry.restDefenders world side

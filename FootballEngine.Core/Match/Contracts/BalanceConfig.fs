@@ -513,6 +513,7 @@ type PositioningConfig =
       EvalGoalWeight: float
       EvalSearchRadius: float<meter>
       EvalCandidateCount: int
+      RefineGroups: int
       EvalMinTeammateDist: float<meter>
       EvalOppOurWeight: float
       LateralSwapThreshold: float<meter>
@@ -1036,6 +1037,9 @@ module BalanceConfig =
           EvalGoalWeight = 0.4
           EvalSearchRadius = 4.0<meter>
           EvalCandidateCount = 5
+          // Outfielders re-read the local spacing one group per update, about every 0.2 s each: closer to how
+          // often a person re-evaluates where to stand than the whole team ten times a second, at half the cost.
+          RefineGroups = 2
           EvalMinTeammateDist = 5.0<meter>
           EvalOppOurWeight = 0.25
           LateralSwapThreshold = 1.5<meter>
