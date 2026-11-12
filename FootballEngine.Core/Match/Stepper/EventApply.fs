@@ -672,8 +672,30 @@ module EventApply =
             | EventData.SetPieceAt(kind, side, x, y) ->
                 applyRestart ctx world tick (restartCause world kind) kind side x y |> ignore
                 queuePending world buffer tick
+            | EventData.RestartPlanned plan ->
+                // A plan for a restart that was since replaced or already planned is stale cognition output.
+                match world.State.Flow with
+                | MatchFlow.Restart restart when restart.Id = plan.Id && restart.Phase = RestartPhase.Awarded ->
+                    world.State <-
+                        { world.State with
+                            Flow =
+                                MatchFlow.Restart
+                                    { restart with
+                                        Plan = Some plan
+                                        Phase = RestartPhase.Positioning } }
+                | _ -> ()
+            | EventData.RestartPlanChanged(id, RestartPlanChangeReason.PlanningFailed) ->
+                // No legal plan exists, so play resumes rather than waiting forever on a restart nobody can take.
+                match world.State.Flow with
+                | MatchFlow.Restart restart when restart.Id = id && restart.Phase = RestartPhase.Awarded ->
+                    world.State <-
+                        { world.State with
+                            Flow =
+                                MatchFlow.Restart
+                                    { restart with
+                                        Phase = RestartPhase.Completed } }
+                | _ -> ()
             | EventData.RestartAwarded _
-            | EventData.RestartPlanned _
             | EventData.RestartAuthorized _
             | EventData.RestartCommandIssued _
             | EventData.RestartContact _

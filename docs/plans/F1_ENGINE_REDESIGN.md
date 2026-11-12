@@ -248,3 +248,15 @@ Lo que falta para correr la cognición en otro hilo, en orden:
    (primero cognición, después mundo); `PendingActions` con doble buffer como las intenciones.
 3. **Dueños únicos** de `Condition` (al mundo) y `Directive` (a la cognición), según la sección 10.
 4. **Dos hilos con relevo por espera activa;** un test exige el mismo hash con 1 y con 2 hilos.
+
+## 13. Reanudaciones partidas entre cognición y mundo (2026-11-12)
+
+`RestartPlanning` (cognición) arma el plan y manda a los jugadores a sus puestos; el plan viaja en
+`RestartPlanned` y `EventApply` lo aplica al estado, igual que un fallo de planificación
+(`RestartPlanChanged PlanningFailed`). `RestartController` (mundo) solo autoriza, ejecuta el saque y vuelve al
+juego: es el único que escribe el flujo. El árbitro señala la dirección desde la concesión, no desde el plan.
+El plan llega un tick más tarde. Held-out 48: error total 11,62, 7/8 en banda (los córners siguen fuera).
+Hash `84dd920156d15efd`. Perfil: un partido en 5,49 s.
+
+El test de cliente "4x playback keeps HUD updates…" falla con la suite completa también en la base
+(1x 64 ticks, 4x 160): depende del reloj de pared bajo carga y queda pendiente aparte.

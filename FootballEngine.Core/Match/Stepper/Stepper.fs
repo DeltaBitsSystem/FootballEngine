@@ -10,16 +10,14 @@ module Stepper =
 
         let refereeX, refereeY, signal =
             match world.State.Flow with
+            // The award already fixes kind, side and spot, so the referee points before any plan exists.
             | MatchFlow.Restart restart ->
-                match restart.Plan with
-                | Some plan ->
-                    let lateral = if plan.Spot.Y >= 0.0<meter> then -4.0 else 4.0
+                let lateral = if restart.Spot.Y >= 0.0<meter> then -4.0 else 4.0
 
-                    let x, y =
-                        MatchMath.pitchClamp (float plan.Spot.X - 5.0) (float plan.Spot.Y + lateral)
+                let x, y =
+                    MatchMath.pitchClamp (float restart.Spot.X - 5.0) (float restart.Spot.Y + lateral)
 
-                    x, y, RefereeSignal.RestartDirection(plan.Kind, plan.Side)
-                | None -> float ball.X, float ball.Y, RefereeSignal.Whistle
+                x, y, RefereeSignal.RestartDirection(restart.Kind, restart.Side)
             | _ ->
                 let x, y = MatchMath.pitchClamp (float ball.X - 7.0) (float ball.Y + 5.0)
                 x, y, RefereeSignal.NoSignal
@@ -191,7 +189,7 @@ module Stepper =
             if world.Observation.Enabled then
                 let cause =
                     match ev.Data with
-                    | EventData.RestartPlanned(id, _)
+                    | EventData.RestartPlanned { Id = id }
                     | EventData.RestartAuthorized id
                     | EventData.RestartCommandIssued(id, _)
                     | EventData.RestartContact(id, _, _)

@@ -225,7 +225,7 @@ type EventData =
     | SetPiece of kind: SetPieceKind * side: ClubSide
     | SetPieceAt of kind: SetPieceKind * side: ClubSide * x: float<meter> * y: float<meter>
     | RestartAwarded of RestartAward
-    | RestartPlanned of id: RestartId * executor: PlayerId
+    | RestartPlanned of plan: RestartPlan
     | RestartAuthorized of id: RestartId
     | RestartCommandIssued of id: RestartId * actor: PlayerId
     | RestartContact of id: RestartId * actor: PlayerId * kind: SetPieceKind
@@ -493,7 +493,7 @@ module MatchEvent =
             let h = hashSide h award.Side
             let h = hashFloat h award.X
             hashFloat h award.Y
-        | EventData.RestartPlanned(id, executor) -> hashPlayer (fnv (fnv h 37UL) (RestartId.value id)) executor
+        | EventData.RestartPlanned plan -> hashPlayer (fnv (fnv h 37UL) (RestartId.value plan.Id)) plan.Executor
         | EventData.RestartAuthorized id -> fnv (fnv h 38UL) (RestartId.value id)
         | EventData.RestartCommandIssued(id, actor) -> hashPlayer (fnv (fnv h 39UL) (RestartId.value id)) actor
         | EventData.RestartContact(id, actor, kind) ->
@@ -504,6 +504,7 @@ module MatchEvent =
                 match reason with
                 | RestartPlanChangeReason.ExecutorInvalidated -> 0UL
                 | RestartPlanChangeReason.ParticipantInvalidated _ -> 1UL
+                | RestartPlanChangeReason.PlanningFailed -> 2UL
 
             fnv (fnv (fnv h 42UL) (RestartId.value id)) reasonTag
         | EventData.BallLoose(x, y) -> hashFloat (hashFloat (fnv h 7UL) x) y

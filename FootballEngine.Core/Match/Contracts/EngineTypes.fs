@@ -214,6 +214,7 @@ type RestartAction =
 type RestartPlanChangeReason =
     | ExecutorInvalidated
     | ParticipantInvalidated of PlayerId
+    | PlanningFailed
 
 type FoulSeverity =
     | Minor
@@ -248,6 +249,31 @@ type RestartCause =
     | Foul of offender: PlayerId option * victim: PlayerId option
     | Offside of player: PlayerId
     | VAROverturn of VARIncident
+
+[<Struct>]
+type Vec2 = { X: float<meter>; Y: float<meter> }
+
+module Vec2 =
+
+    let create (x: float<meter>) (y: float<meter>) : Vec2 = { X = x; Y = y }
+
+[<Struct>]
+type RestartTarget =
+    { Side: ClubSide
+      Player: PlayerId
+      Role: RestartRole
+      Position: Vec2 }
+
+type RestartPlan =
+    { Id: RestartId
+      Cause: RestartCause
+      Kind: SetPieceKind
+      Side: ClubSide
+      Spot: Vec2
+      Executor: PlayerId
+      Targets: RestartTarget array
+      Action: RestartAction
+      AwardTick: int<subtick> }
 
 type RestartAward =
     { Id: RestartId

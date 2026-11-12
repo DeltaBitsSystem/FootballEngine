@@ -97,7 +97,7 @@ module RestartContractTests =
 
                       for event in out.Events do
                           match event.Data with
-                          | EventData.RestartPlanned(id, _) ->
+                          | EventData.RestartPlanned { Id = id } ->
                               // The match holds one restart; a new award (a foul in the tick the ball went out)
                               // replaces the one in progress, which then never completes.
                               if not (planned.ContainsKey id) then
@@ -358,6 +358,7 @@ module RestartContractTests =
                           let slot = MatchWorld.slotOf ctx side plan.Executor |> Option.get
                           let events = buffer ()
                           let ctx' = stepContext ctx
+                          RestartPlanning.step ctx' (Rng.ofSeed 17UL) world events |> ignore
                           RestartController.step ctx' (Rng.ofSeed 17UL) world events |> ignore
                           CognitionLatch.step ctx' (Rng.ofSeed 0UL) world events |> ignore
                           PlayerSteering.step ctx' (Rng.ofSeed 17UL) world events |> ignore

@@ -136,6 +136,7 @@
     <Compile Include="Match\Systems\Players\Actions\Cross.fs"/>
     <Compile Include="Match\Systems\Players\Actions\GK.fs"/>
      <Compile Include="Match\Systems\Players\Actions.fs"/>
+     <Compile Include="Match\Systems\Players\RestartPlanning.fs"/>
      <Compile Include="Match\Systems\Players\RestartController.fs"/>
     <Compile Include="Match\Systems\Team\WinProbability.fs"/>
     <Compile Include="Match\Systems\Team\Situation.fs"/>
