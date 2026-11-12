@@ -98,7 +98,10 @@ module RestartContractTests =
                       for event in out.Events do
                           match event.Data with
                           | EventData.RestartPlanned(id, _) ->
+                              // The match holds one restart; a new award (a foul in the tick the ball went out)
+                              // replaces the one in progress, which then never completes.
                               if not (planned.ContainsKey id) then
+                                  planned.Clear()
                                   planned[id] <- event.Tick
                           | EventData.RestartCommandIssued(id, _) ->
                               issued[id] <- (match issued.TryGetValue id with | true, n -> n | _ -> 0) + 1

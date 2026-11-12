@@ -331,15 +331,18 @@ module PlayerIntent =
 
             let steps = InterceptTable.stepsToReach p ball.Position (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
 
+            let arrival = InterceptTable.ballInertiaPoint p ball.Position (int (gate - tick))
+
             let onLine (target: Vec2) =
-                let arrival = InterceptTable.ballInertiaPoint p ball.Position (int (gate - tick))
                 let dx, dy = float arrival.X - float target.X, float arrival.Y - float target.Y
                 let tolerance = float ctx.Config.ContactAction.ReceptionTargetTolerance
                 dx * dx + dy * dy <= tolerance * tolerance
 
             let ax, ay =
                 match ball.Impulse |> Option.bind _.IntendedTarget with
-                | Some target when rolling && onLine target -> float target.X, float target.Y
+                // The run the passer led is kept, but he stands where the ball actually arrives: the tolerance is wider
+                // than his foot reach, and waiting on the aimed point let a slightly mis-hit pass roll past him and out.
+                | Some target when rolling && onLine target -> float arrival.X, float arrival.Y
                 | _ when rolling && steps < p.MaxSteps ->
                     let meet = InterceptTable.ballInertiaPoint p ball.Position steps
                     float meet.X, float meet.Y

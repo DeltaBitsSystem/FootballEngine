@@ -37,10 +37,50 @@ module DuelContactTests =
 
         world
 
+    let private rollingTowards (distance: float32) =
+        let world = MatchFactory.create ctx
+
+        for teamSide in [ ClubSide.Home; ClubSide.Away ] do
+            let team = MatchWorld.team world teamSide
+
+            for slot in MatchWorld.activeSlots team.Frame do
+                team.Frame.PosX[slot] <- if teamSide = ClubSide.Home then -30.0f else 30.0f
+                team.Frame.PosY[slot] <- 15.0f + float32 slot * 2.0f
+
+        let frame = world.Home.Frame
+        frame.PosX[5] <- distance
+        frame.PosY[5] <- 0.0f
+        frame.Intent.Kind[5] <- IntentCode.Recover
+        frame.Intent.Phase[5] <- IntentPhase.Executing
+
+        world.State <-
+            { world.State with
+                Flow = MatchFlow.Live
+                Ball =
+                    { TestBuilders.emptyBall with
+                        Control = BallControl.Free
+                        Position = { TestBuilders.emptyBall.Position with Vx = 10.0<meterPerSecond> } } }
+
+        world
+
     let tests =
         testList
             "DuelContact"
-            [ testCase "take-on proposes a timed shield without awarding possession" (fun _ ->
+            [ testCase "a trap is armed only once the ball comes closest within the commit window" (fun _ ->
+                  // At 10 m/s a ball 2 m away is closest after the 0.15 s preparation-and-commit horizon; arming
+                  // then left the boot recovering as the ball rolled by, and the pass ran out for a corner.
+                  let far = rollingTowards 2.0f
+                  Actions.step system (Rng.ofSeed 1UL) far (buffer ()) |> ignore
+                  Expect.isNone far.Home.Frame.ContactActions[5] "a ball still too far away is not trapped yet"
+
+                  let near = rollingTowards 1.0f
+                  Actions.step system (Rng.ofSeed 1UL) near (buffer ()) |> ignore
+
+                  match near.Home.Frame.ContactActions[5] with
+                  | Some action -> Expect.equal action.Kind ContactActionKind.ContactTrap "the receiver sets to trap it"
+                  | None -> failtest "a ball arriving inside the window is trapped")
+
+              testCase "take-on proposes a timed shield without awarding possession" (fun _ ->
                   for side in [ ClubSide.Home; ClubSide.Away ] do
                       let world = carrierWorld side
                       let team = MatchWorld.team world side

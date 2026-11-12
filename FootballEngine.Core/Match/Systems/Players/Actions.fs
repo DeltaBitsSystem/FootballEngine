@@ -242,16 +242,17 @@ module Actions =
                         let vx = float ball.Position.Vx - float frame.VelX[slot]
                         let vy = float ball.Position.Vy - float frame.VelY[slot]
                         let speedSquared = vx * vx + vy * vy
-                        let closestAt =
-                            if speedSquared > 1e-9 then
-                                MatchMath.clamp 0.0 horizon (-(dx * vx + dy * vy) / speedSquared)
-                            else
-                                0.0
+                        let approach =
+                            if speedSquared > 1e-9 then -(dx * vx + dy * vy) / speedSquared else 0.0
+                        let closestAt = MatchMath.clamp 0.0 horizon approach
                         let closestX, closestY = dx + vx * closestAt, dy + vy * closestAt
                         let height = float ball.Position.Z + float ball.Position.Vz * closestAt
 
+                        // A ball that comes closest after the horizon is set for on a later pass: clamping it to the
+                        // horizon armed the trap early, and the boot was recovering when the ball rolled by.
                         if
-                            closestX * closestX + closestY * closestY <= float cfg.FootReach ** 2.0
+                            approach <= horizon
+                            && closestX * closestX + closestY * closestY <= float cfg.FootReach ** 2.0
                             && abs (height - float frame.PosZ[slot]) <= float ctx.Ctx.Config.Ball.FootContactHeight
                         then
                             ContactActionPlanner.prepare ctx world side slot ContactActionKind.ContactTrap None |> ignore
