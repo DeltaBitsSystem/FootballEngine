@@ -51,24 +51,30 @@ module FieldEvaluator =
 
         best
 
-    let private nearestDistAtSlots
+    /// Squared distances are compared and only the winner is rooted: sqrt is monotonic and correctly rounded,
+    /// so the result is the same as taking the minimum of the roots.
+    let inline private nearestDistAtSlots
         (pts: PositionPoint[])
         (slots: int[])
         (excludedSlot: int)
         (x: float)
         (y: float)
         : float =
+        let qx = float (float32 x)
+        let qy = float (float32 y)
         let mutable best = System.Double.MaxValue
 
         for slot in slots do
             if slot <> excludedSlot then
                 let pt = pts.[slot]
-                let d = MatchMath.distF32 (float32 x) (float32 y) (float32 pt.X) (float32 pt.Y)
+                let dx = qx - float (float32 pt.X)
+                let dy = qy - float (float32 pt.Y)
+                let d2 = dx * dx + dy * dy
 
-                if d < best then
-                    best <- d
+                if d2 < best then
+                    best <- d2
 
-        best
+        if best = System.Double.MaxValue then best else sqrt best
 
     let inline private scoreAtSlots
         (p: EvaluatorParams)
@@ -152,6 +158,27 @@ module FieldEvaluator =
         candidates p baseX baseY
         |> Array.maxBy (fun pt -> score p teammates opponents pt.X pt.Y)
 
+    /// The candidate cloud repeats every call, so its directions are computed once per candidate count.
+    /// The table is built whole before it is published, which keeps concurrent matches safe.
+    let mutable private unitCircle: struct (float * float)[] = [||]
+
+    let private unitCircleFor (count: int) =
+        let table = unitCircle
+
+        if table.Length = count then
+            table
+        else
+            let built =
+                Array.init count (fun k ->
+                    if k = 0 then
+                        struct (0.0, 0.0)
+                    else
+                        let ang = 2.0 * System.Math.PI * float (k - 1) / float (count - 1)
+                        struct (cos ang, sin ang))
+
+            unitCircle <- built
+            built
+
     let refineInto
         (p: EvaluatorParams)
         (teammates: PositionPoint[])
@@ -166,10 +193,11 @@ module FieldEvaluator =
         let count = max 1 p.CandidateCount
         let extra = if p.OffsideX.IsSome then 1 else 0
         scratch.[0] <- FPoint.ofXY baseX baseY
+        let directions = unitCircleFor count
 
         for k in 1 .. count - 1 do
-            let ang = 2.0 * System.Math.PI * float (k - 1) / float (count - 1)
-            scratch.[k] <- FPoint.ofXY (baseX + p.SearchRadius * cos ang) (baseY + p.SearchRadius * sin ang)
+            let struct (c, s) = directions.[k]
+            scratch.[k] <- FPoint.ofXY (baseX + p.SearchRadius * c) (baseY + p.SearchRadius * s)
 
         match p.OffsideX with
         | Some lineX -> scratch.[count] <- FPoint.ofXY (lineX - 1.0) baseY
