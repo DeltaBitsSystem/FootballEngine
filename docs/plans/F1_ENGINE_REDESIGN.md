@@ -211,3 +211,24 @@ estado de la pelota y del `MatchState` cruza aparte, por `MatchWorld` y los even
 
 La frontera es angosta: unos 8 campos de propuesta, la foto física y 3 conflictos con dueño obvio. El paso 1 de
 la sección 9 (tipos separados) es tratable.
+
+## 11. Experimento: desfasar las órdenes motoras un tick (2026-11-12)
+
+Se emuló en secuencia el diseño de la sección 9 en su forma más simple: la física aplicaba la velocidad y la
+orientación objetivo que Steering propuso el tick anterior. Held-out 48 contra la referencia (`b5ce1b9a365b8c72`):
+
+| Métrica | Referencia | Desfasado |
+|---|---|---|
+| Error total | 12,45 | 16,57 |
+| Córners | 31,6 | 35,2 |
+| Goles | 3,6 | 4,2 |
+| Pases completados | 84,3 % | 83,3 % |
+
+El cambio se revirtió. Un tick de retraso en el control motor hace llegar tarde a los receptores: el control
+motor es un reflejo y tiene que leer el estado del mismo tick.
+
+Corrección del diseño: la frontera entre hilos va **por encima de Steering**. El hilo del mundo corre Steering,
+Actions, la física y la pelota sobre el tick actual (~3,1 s hoy); el hilo de cognición corre percepción, forma,
+intención y decisión con la foto del tick anterior (~2,1 s). El desfase pasa a las intenciones y decisiones, que
+cambian a 2–10 Hz. Techo: ~1,7× en vez de ~2×. Antes de construirlo hay que emular ese desfase (Steering y
+Actions leyendo intenciones y acciones del tick anterior) y validarlo igual que este.
