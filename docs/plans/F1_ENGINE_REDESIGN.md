@@ -141,3 +141,17 @@ compatibilidad hacia atrás: se reemplazan contratos en lugar de adaptarlos. Con
 - El paso 7 (cola sin barrera por día) queda para después: no mejora un partido individual.
 - Paso 1 hecho: `dotnet fsi scripts/dev.fsx perf` corre `Training profile --gate perf/budget.txt`, con
   asignación por sistema (independiente de la máquina) y tiempo total del partido en la máquina de referencia.
+
+## 8. Correcciones al medir (2026-11-12)
+
+- **El `TickSnapshot` rinde menos de lo estimado.** La intercepción de la pelota actual ya se calcula una vez
+  (TeamPosition) y queda en el `World`. PassIntercept y el Planner calculan pelotas hipotéticas, que no se
+  comparten. La estimación de 0,4–0,7 s queda en duda hasta medir qué cálculos se repiten de verdad.
+- **"Geometry" no es geometría:** es una cadencia de 4 ticks más eventos.
+- **TeamPosition:** refinamiento por jugador 406 ms, intercepción 258 ms, línea defensiva e inercia 54 ms,
+  resto chico. Paso 5 aplicado al posicionamiento (`Positioning.RefineGroups = 2`): 895 → 721 ms; held-out 7/8
+  en banda y error total 11,91 → 12,45. Hash nuevo `b5ce1b9a365b8c72`.
+- **Método:** una corrida varía ±10 % por sistema. Toda decisión se toma con el mínimo de 3 corridas, y cuando
+  el resultado deportivo cambia, el tiempo total no es comparable (cambian los ticks y los eventos): se compara
+  el sistema tocado.
+
