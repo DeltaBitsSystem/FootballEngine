@@ -608,7 +608,7 @@ module MatchPhase =
                         Played = true
                         HomeScore = Some finalWorld.State.HomeScore
                         AwayScore = Some finalWorld.State.AwayScore
-                        Events = result.Events }
+                        Events = MatchEvent.record result.Events }
 
                 let outcome =
                     { FixtureId = fixtureId

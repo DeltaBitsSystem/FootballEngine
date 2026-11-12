@@ -109,7 +109,40 @@ module MatchSessionTests =
                   Expect.equal
                       (irregular.EventsHash, irregular.Final.State.HomeScore, irregular.Final.State.AwayScore)
                       (whole.EventsHash, whole.Final.State.HomeScore, whole.Final.State.AwayScore)
-                      "advance boundaries cannot change the sporting result")
+                      "advance boundaries cannot change the sporting result"
+
+                  // The result hash covers the sporting record only; the physics must not depend on the cut either.
+                  Expect.sequenceEqual
+                      (irregular.Events |> List.map MatchEvent.id)
+                      (whole.Events |> List.map MatchEvent.id)
+                      "advance boundaries cannot change any event, physical ones included")
+              testCase "a fixture keeps the sporting record and its hash, not the physics" (fun _ ->
+                  let outcome = create Simulator.RunMode.Fast 11 |> MatchSession.finish |> unwrap
+                  let record = MatchEvent.record outcome.Events
+
+                  let physical =
+                      record
+                      |> List.filter (fun ev ->
+                          match ev.Data with
+                          | EventData.PhysicalContact _
+                          | EventData.FootContact _
+                          | EventData.RestartCommandIssued _ -> true
+                          | _ -> false)
+
+                  Expect.isEmpty physical "contacts, foot strikes and restart commands stay with the live run"
+
+                  Expect.isLessThan
+                      (float record.Length)
+                      (0.25 * float outcome.Events.Length)
+                      "physics is most of a match's events, so dropping it shrinks what a save keeps"
+
+                  Expect.equal (Simulator.eventsHash record) outcome.EventsHash "the stored record verifies against the result hash"
+
+                  let goals events =
+                      events |> List.filter (fun ev -> match ev.Data with EventData.Goal _ -> true | _ -> false)
+
+                  Expect.equal (goals record) (goals outcome.Events) "every goal is kept"
+                  Expect.equal (List.length (goals record)) (outcome.Final.State.HomeScore + outcome.Final.State.AwayScore) "the record still explains the score")
               testCase "Replay finish produces deterministic terminal state" (fun _ ->
                   let outcome =
                       create (Simulator.RunMode.Replay 11<tickDelta>) 11

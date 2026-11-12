@@ -36,10 +36,13 @@ type MatchOutcome =
 module MatchOutcomeHash =
     let private fnv (h: uint64) (v: uint64) : uint64 = (h ^^^ v) * 1099511628211UL
 
+    /// Hashes the sporting record only, so a fixture that stores the record and a run that kept every event
+    /// agree on the same result.
     let eventsHash (events: MatchEvent list) : uint64 =
         let mutable hash = 1469598103934665603UL
 
         for ev in events do
-            hash <- fnv hash (MatchEvent.id ev |> EventId.value)
+            if MatchEvent.isRecord ev then
+                hash <- fnv hash (MatchEvent.id ev |> EventId.value)
 
         hash

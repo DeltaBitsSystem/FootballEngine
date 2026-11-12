@@ -663,6 +663,25 @@ module MatchEvent =
     /// introduces explicit event ids.
     let id (ev: MatchEvent) : EventId = EventId(structuralHash ev)
 
+    /// The sporting record a played fixture keeps. Contacts, foot strikes, body flights and the restart
+    /// lifecycle are the physics of one live run (~95 % of its events): kept on every fixture they made a career
+    /// save grow by tens of megabytes per match, and no consumer after the final whistle reads them.
+    let isRecord (ev: MatchEvent) : bool =
+        match ev.Data with
+        | EventData.PhysicalContact _
+        | EventData.FootContact _
+        | EventData.FootStrikeCancelled _
+        | EventData.PlayerBodyFlight _
+        | EventData.RestartPlanned _
+        | EventData.RestartAuthorized _
+        | EventData.RestartCommandIssued _
+        | EventData.RestartContact _
+        | EventData.RestartCompleted _
+        | EventData.RestartPlanChanged _ -> false
+        | _ -> true
+
+    let record (events: MatchEvent list) : MatchEvent list = List.filter isRecord events
+
     /// For tests/diagnostics only — the viewer derives its own text from EventData.
     let describe (ev: MatchEvent) : string =
         match ev.Data with
