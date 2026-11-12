@@ -457,7 +457,8 @@ type PlannerConfig =
       BeamWidth: int
       DribbleDuration: float<second>
       MinimumPassDistance: float<meter>
-      ShootingRange: float<meter> }
+      ShootingRange: float<meter>
+      PassTableResolution: float<meter> }
 
 type CollectiveAttackConfig =
     { Enabled: bool
@@ -1114,7 +1115,10 @@ module BalanceConfig =
           BeamWidth = 3
           DribbleDuration = 0.5<second>
           MinimumPassDistance = 0.5<meter>
-          ShootingRange = 32.0<meter> }
+          ShootingRange = 32.0<meter>
+          // The planner reads candidate passes from solutions sampled this far apart instead of solving each one:
+          // at 5 cm the interpolated flight stays within a millisecond of the exact roll.
+          PassTableResolution = 0.05<meter> }
 
     let defaultScout: ScoutConfig =
         { MemoryHalfLifeDays = 30.0

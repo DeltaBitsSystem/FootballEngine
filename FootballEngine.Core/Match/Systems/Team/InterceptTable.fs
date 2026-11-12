@@ -151,10 +151,11 @@ module InterceptTable =
             built
 
     [<Sealed>]
-    type RolledBall(p: InterceptParams, ball: Spatial) =
-        let xs = Array.zeroCreate<float> (p.MaxSteps + 1)
-        let ys = Array.zeroCreate<float> (p.MaxSteps + 1)
-        let reaches = reachesFor p
+    type RolledBall(initial: InterceptParams, ball: Spatial) =
+        let mutable p = initial
+        let mutable xs = Array.zeroCreate<float> (p.MaxSteps + 1)
+        let mutable ys = Array.zeroCreate<float> (p.MaxSteps + 1)
+        let mutable reaches = reachesFor p
         let mutable filled = -1
         let mutable ballX = float ball.X
         let mutable ballY = float ball.Y
@@ -180,6 +181,43 @@ module InterceptTable =
                 xs[filled] <- ballX
                 ys[filled] <- ballY
 
+        /// Re-aims the roll at a new ball, keeping the buffers: passes and intercepts are raced thousands of times
+        /// a match, and two fresh arrays per race were a sixth of a match's allocations.
+        member _.Reset(parameters: InterceptParams, next: Spatial) =
+            if parameters.MaxSteps + 1 > xs.Length then
+                xs <- Array.zeroCreate (parameters.MaxSteps + 1)
+                ys <- Array.zeroCreate (parameters.MaxSteps + 1)
+
+            p <- parameters
+            reaches <- reachesFor parameters
+            filled <- -1
+            ballX <- float next.X
+            ballY <- float next.Y
+            velocityX <- float next.Vx
+            velocityY <- float next.Vy
+
+        /// Whether the player reaches the ball within `limit` steps: the same test as `StepsFor(px, py) <= limit`,
+        /// without rolling the ball past a step that can no longer change the verdict.
+        member _.ReachesWithin(px: float<meter>, py: float<meter>, limit: int) : bool =
+            let playerX = float px
+            let playerY = float py
+            let last = min limit p.MaxSteps
+            let mutable n = 0
+            let mutable reached = false
+
+            while not reached && n <= last do
+                if n > filled then fillTo n
+                let dx = playerX - xs[n]
+                let dy = playerY - ys[n]
+                let reach = reaches[n]
+
+                if dx * dx + dy * dy <= reach * reach then
+                    reached <- true
+
+                n <- n + 1
+
+            reached || limit >= p.MaxSteps
+
         member _.StepsFor(px: float<meter>, py: float<meter>) : int =
             let playerX = float px
             let playerY = float py
@@ -200,6 +238,25 @@ module InterceptTable =
                 n <- n + 1
 
             result
+
+    /// Rolled balls lent per thread: matches run in parallel, and a race never outlives the call that rents it.
+    [<AbstractClass; Sealed>]
+    type RolledBalls =
+        [<System.ThreadStatic; DefaultValue>]
+        static val mutable private free: System.Collections.Generic.Stack<RolledBall>
+
+        static member Rent(p: InterceptParams, ball: Spatial) =
+            if isNull RolledBalls.free then
+                RolledBalls.free <- System.Collections.Generic.Stack()
+
+            if RolledBalls.free.Count > 0 then
+                let rolled = RolledBalls.free.Pop()
+                rolled.Reset(p, ball)
+                rolled
+            else
+                RolledBall(p, ball)
+
+        static member Return(rolled: RolledBall) = RolledBalls.free.Push rolled
 
     /// Per-team aggregate: the minimum steps define who is first to the ball,
     /// which is what the pressing and situation logic compares. SelfStep and
@@ -294,7 +351,7 @@ module InterceptTable =
     let computeBothInto (p: InterceptParams) (world: World) : unit =
         let ball = world.State.Ball.Position
         let maxSteps = p.MaxSteps
-        let rolled = RolledBall(p, ball)
+        let rolled = RolledBalls.Rent(p, ball)
 
         let sideInfo side (steps: int[]) =
             let frame = (MatchWorld.team world side).Frame
@@ -313,12 +370,13 @@ module InterceptTable =
                     elif step < secondStep then
                         secondStep <- step
 
-            bestStep, secondStep
+            struct (bestStep, secondStep)
 
         let homeSteps = world.Home.Intercept.SlotSteps
         let awaySteps = world.Away.Intercept.SlotSteps
-        let homeBest, homeSecond = sideInfo ClubSide.Home homeSteps
-        let awayBest, awaySecond = sideInfo ClubSide.Away awaySteps
+        let struct (homeBest, homeSecond) = sideInfo ClubSide.Home homeSteps
+        let struct (awayBest, awaySecond) = sideInfo ClubSide.Away awaySteps
+        RolledBalls.Return rolled
 
         world.Home.Intercept <-
             { ComputedAt = world.State.Tick

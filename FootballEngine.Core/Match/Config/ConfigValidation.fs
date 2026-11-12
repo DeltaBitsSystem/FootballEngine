@@ -948,7 +948,7 @@ module ConfigValidation =
                   yield "CollectiveAttack.PressureCount must be in [1, 10]"
               if config.Planner.BeamWidth < 1 || config.Planner.BeamWidth > 8 then
                   yield "Planner.BeamWidth must be in [1, 8]"
-              for name, value, maximum in ["DribbleDuration", float config.Planner.DribbleDuration, 3.0; "MinimumPassDistance", float config.Planner.MinimumPassDistance, 5.0; "ShootingRange", float config.Planner.ShootingRange, float Pitch.HalfLength] do
+              for name, value, maximum in ["DribbleDuration", float config.Planner.DribbleDuration, 3.0; "MinimumPassDistance", float config.Planner.MinimumPassDistance, 5.0; "ShootingRange", float config.Planner.ShootingRange, float Pitch.HalfLength; "PassTableResolution", float config.Planner.PassTableResolution, 1.0] do
                   if not (System.Double.IsFinite value) || value <= 0.0 || value > maximum then
                       yield sprintf "Planner.%s must be finite and in (0, %.2f]" name maximum ]
         let transition = config.DefensiveTransition

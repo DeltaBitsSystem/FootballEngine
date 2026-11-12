@@ -95,7 +95,7 @@ module PassIntercept =
         (offsideLine: float<meter>)
         : bool =
         // One roll raced by receiver and interceptors alike; the same verdict as interceptorStep/passArrivalStep.
-        let rolled = InterceptTable.RolledBall(p, ball)
+        let rolled = InterceptTable.RolledBalls.Rent(p, ball)
         let opponents = (MatchWorld.team world (MatchWorld.oppOf side)).Frame
         let mutable interceptor = p.MaxSteps
 
@@ -108,4 +108,5 @@ module PassIntercept =
 
         let own = (MatchWorld.team world side).Frame
         let arrival = rolled.StepsFor(MatchWorld.posX own receiverSlot, MatchWorld.posY own receiverSlot)
+        InterceptTable.RolledBalls.Return rolled
         interceptor + riskFor cfg world side receiverSlot ball offsideLine > arrival

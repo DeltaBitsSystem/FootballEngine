@@ -226,4 +226,20 @@ module PlannerTests =
 
                   let r = search sGkOnLine [ (1, 9, 0.6) ]
                   Expect.hasLength r 1 "one pass option"
-                  Expect.isGreaterThanOrEqual r.[0].Chain.Length 2 "the pass stays playable past the keeper") ]
+                  Expect.isGreaterThanOrEqual r.[0].Chain.Length 2 "the pass stays playable past the keeper")
+
+              testCase "tabled passes fly the exact roll within a millisecond at every playable length" (fun _ ->
+                  let s = state 5 [ 5, 0.0, 0.0 ] []
+                  let mutable worstSeconds = 0.0
+                  let mutable worstSpeed = 0.0
+
+                  // Millimetre lengths fall between the table's samples, where interpolation error peaks.
+                  for millimetres in 0 .. 1 .. int (float s.MaxPassDistance * 1000.0) do
+                      let distance = float millimetres / 1000.0
+                      let exact = BallAero.pass s.PassBall s.PassArrivalSpeed s.PassArrivalSpeedGain distance
+                      let tabled = Planner.tabledPass cfg.PassTableResolution s distance
+                      worstSeconds <- max worstSeconds (abs (tabled.Seconds - exact.Seconds))
+                      worstSpeed <- max worstSpeed (abs (tabled.LaunchSpeed - exact.LaunchSpeed))
+
+                  Expect.isLessThan worstSeconds 1e-3 $"flight error {worstSeconds:E2} s"
+                  Expect.isLessThan worstSpeed 1e-2 $"launch error {worstSpeed:E2} m/s") ]
