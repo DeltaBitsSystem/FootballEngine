@@ -12,15 +12,15 @@ module RestartController =
 
     let private projectTargets (ctx: MatchContext) (world: World) (plan: RestartPlan) =
         for target in plan.Targets do
-            match MatchWorld.slotOf ctx target.Side target.Player with
-            | Some slot ->
+            match MatchWorld.slotIndex ctx target.Side target.Player with
+            | -1 -> ()
+            | slot ->
                 let frame = (MatchWorld.team world target.Side).Frame
                 frame.Intent.Kind.[slot] <- IntentCode.SetPieceRun
                 frame.Intent.TargetX.[slot] <- float32 target.Position.X
                 frame.Intent.TargetY.[slot] <- float32 target.Position.Y
                 frame.Intent.Phase.[slot] <- IntentPhase.Executing
                 frame.Intent.ExitTrigger.[slot] <- ExitTrigger.None
-            | None -> ()
 
     let private planOnce (ctx: SystemContext) (world: World) (restart: RestartState) (buffer: EventBuffer) =
         match

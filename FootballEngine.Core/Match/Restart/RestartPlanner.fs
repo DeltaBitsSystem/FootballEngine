@@ -303,16 +303,17 @@ module RestartRules =
                 add Rule.TargetReachability (Some target.Player) "target is outside the pitch"
 
             let currentPosition =
-                MatchWorld.slotOf ctx target.Side target.Player
-                |> Option.map (fun slot ->
+                match MatchWorld.slotIndex ctx target.Side target.Player with
+                | -1 -> ValueNone
+                | slot ->
                     let frame = (MatchWorld.team world target.Side).Frame
-                    clampPoint (float (MatchWorld.posX frame slot)) (float (MatchWorld.posY frame slot)))
+                    ValueSome(clampPoint (float (MatchWorld.posX frame slot)) (float (MatchWorld.posY frame slot)))
 
             match currentPosition with
-            | Some current ->
+            | ValueSome current ->
                 if distance current target.Position > float ctx.Config.SetPiece.MaxTargetDistance then
                     add Rule.TargetReachability (Some target.Player) "target is unreachable"
-            | None -> add Rule.TargetReachability (Some target.Player) "target player is not in the lineup"
+            | ValueNone -> add Rule.TargetReachability (Some target.Player) "target player is not in the lineup"
 
             if target.Side = opponents then
                 match plan.Kind, target.Role with
@@ -320,7 +321,10 @@ module RestartRules =
                     let required = float ctx.Config.SetPiece.WallDistance
                     let tolerance = float ctx.Config.SetPiece.TargetTolerance
                     let targetDistance = distance target.Position spot
-                    let currentDistance = currentPosition |> Option.map (fun current -> distance current spot) |> Option.defaultValue required
+                    let currentDistance =
+                        match currentPosition with
+                        | ValueSome current -> distance current spot
+                        | ValueNone -> required
 
                     if targetDistance + tolerance < required then
                         add Rule.OpponentDistance (Some target.Player) "corner target is inside the minimum distance"
@@ -373,4 +377,4 @@ module RestartRules =
             | _ -> add Rule.ThrowInGeometry None "throw-in has no legal receiver action"
 
         { Valid = errors.Count = 0
-          Violations = List.ofSeq errors }
+          Violations = if errors.Count = 0 then [] else List.ofSeq errors }

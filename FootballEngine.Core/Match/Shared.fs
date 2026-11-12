@@ -102,8 +102,25 @@ module MatchWorld =
         else
             None
 
+    /// The slot of a player, or -1: per-tick callers look players up for every restart target and must not
+    /// allocate an option each time.
+    let slotIndex (ctx: MatchContext) (side: ClubSide) (pid: PlayerId) : int =
+        let profiles = (lineup ctx side).Profiles
+        let mutable found = -1
+        let mutable i = 0
+
+        while found < 0 && i < profiles.Length do
+            if profiles.[i].Id = pid then
+                found <- i
+
+            i <- i + 1
+
+        found
+
     let slotOf (ctx: MatchContext) (side: ClubSide) (pid: PlayerId) : int option =
-        (lineup ctx side).Profiles |> Array.tryFindIndex (fun p -> p.Id = pid)
+        match slotIndex ctx side pid with
+        | -1 -> None
+        | slot -> Some slot
 
     let profileOf (ctx: MatchContext) (side: ClubSide) (slot: int) : PlayerProfile = (lineup ctx side).Profiles.[slot]
 
