@@ -52,7 +52,7 @@ module CareerFlow =
 
     let continuation (state: State) =
         match state.Mode with
-        | InGame(gs, _) when state.IsProcessing -> Working
+        | InGame(_, _) when state.IsProcessing -> Working
         | InGame(gs, _) ->
             match state.Match.RequestedMatchId with
             | Some id when state.Match.PendingResult.IsSome -> ReturnToMatch(id, Postmatch)

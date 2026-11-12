@@ -601,7 +601,6 @@ module Tactics =
 
     let private selectionInfoRow
         (p: Player)
-        (isStarter: bool)
         (slotRole: Position option)
         (dispatch: AppMsgs.Msg -> unit)
         =
@@ -790,7 +789,7 @@ module Tactics =
             [ yield columnHeaders :> IView
               yield!
                   allPlayers
-                  |> List.map (fun (p, isStarter, slotRole) -> selectionInfoRow p isStarter slotRole dispatch :> IView) ]
+                  |> List.map (fun (p, _, slotRole) -> selectionInfoRow p slotRole dispatch :> IView) ]
 
         Border.create
             [ Border.background Theme.BgCard
@@ -814,7 +813,7 @@ module Tactics =
 
     // ── Bottom: Substitutes bar ───────────────────────────────────────
 
-    let private substituteSlot (p: Player option) (idx: int) dispatch =
+    let private substituteSlot (p: Player option) (idx: int) =
         let bgColor, borderColor, textColor, name, subText =
             match p with
             | Some player ->
@@ -855,7 +854,7 @@ module Tactics =
                                         TextBlock.horizontalAlignment HorizontalAlignment.Center ] ] ]
               ) ]
 
-    let private substitutesBar (benchPlayers: Player list) (dispatch: AppMsgs.Msg -> unit) =
+    let private substitutesBar (benchPlayers: Player list) =
         let slots = [ 0..9 ] |> List.map (fun i -> List.tryItem i benchPlayers)
 
         Border.create
@@ -889,7 +888,7 @@ module Tactics =
                                                 TextBlock.fontSize 12.0
                                                 TextBlock.foreground Theme.TextMuted ] ] ]
                               // Slot grid
-                              yield! slots |> List.mapi (fun i p -> substituteSlot p i dispatch :> IView) ] ]
+                              yield! slots |> List.mapi (fun i p -> substituteSlot p i :> IView) ] ]
               ) ]
 
     // ── Top bar ───────────────────────────────────────────────────────
@@ -1172,7 +1171,7 @@ module Tactics =
                                           Border.borderBrush Theme.Border
                                           Border.borderThickness (1.0, 0.0, 0.0, 0.0)
                                           Border.child (selectionInfoPanel starterIds benchPlayers gs dispatch) ] ] ]
-                        Border.create [ Grid.row 2; Border.child (substitutesBar benchPlayers dispatch) ] ] ]
+                        Border.create [ Grid.row 2; Border.child (substitutesBar benchPlayers) ] ] ]
             |> View.withKey $"tactics-{currentFormation}-{starterIds.Count}"
             :> IView
 

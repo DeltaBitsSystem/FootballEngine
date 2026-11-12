@@ -2,12 +2,6 @@
   "version": 2,
   "assets": [
     {
-      "id": "pitch.floodlit-v1",
-      "kind": "procedural",
-      "source": "Views/MatchPitch/PitchRenderer.fs",
-      "license": "LicenseRef-FootballEngine"
-    },
-    {
       "id": "player.broadcast-v1",
       "kind": "blender-rendered",
       "source": "generate_players.py#players.blend",
@@ -17,12 +11,6 @@
         "player-keeper.png",
         "player-official.png"
       ],
-      "license": "LicenseRef-FootballEngine"
-    },
-    {
-      "id": "ball.classic-v1",
-      "kind": "procedural",
-      "source": "Views/MatchPitch/EntityRenderer.fs#ball",
       "license": "LicenseRef-FootballEngine"
     },
     {

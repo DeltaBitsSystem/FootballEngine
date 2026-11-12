@@ -140,7 +140,7 @@ let tests =
                   File.WriteAllBytes(path, bytes)
                   let manifestPath = Path.Combine(target, "manifest.json")
                   let manifest = JsonNode.Parse(File.ReadAllText manifestPath)
-                  manifest["files"][0]["sha256"] <- JsonValue.Create(Convert.ToHexString(SHA256.HashData bytes))
+                  manifest.["files"].[0].["sha256"] <- JsonValue.Create(Convert.ToHexString(SHA256.HashData bytes))
                   File.WriteAllText(manifestPath, manifest.ToJsonString())
                   Expect.isError (HdrLighting.loadEnvironment target) "infinite scene radiance cannot propagate"))
           testCase "truncated BRDF and incompatible layout fail without a legacy fallback" (fun _ ->

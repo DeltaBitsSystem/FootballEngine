@@ -17,6 +17,9 @@ open FootballEngine.Icons
 
 module UI =
 
+    /// One shared cursor: a view rebuilt on every update would otherwise create a native cursor handle each time.
+    let handCursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand)
+
     type ButtonVariant =
         | Primary
         | Secondary
@@ -457,7 +460,7 @@ module UI =
                           TextBlock.foreground tokens.Colors.TextPrimary ]
                     TextBox.create
                         [ TextBox.text value
-                          TextBox.watermark placeholder
+                          TextBox.placeholderText placeholder
                           TextBox.fontSize tokens.Typography.Body
                           TextBox.minHeight tokens.Controls.StandardHeight
                           TextBox.padding (tokens.Spacing.Md, tokens.Spacing.Sm)
@@ -1389,7 +1392,7 @@ module PlayerView =
               Border.cornerRadius Theme.RadiusLg
               Border.padding (16.0, 12.0)
               Border.margin (0.0, 0.0, 0.0, 8.0)
-              Border.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
+              Border.cursor UI.handCursor
               Border.onTapped (fun _ -> onSelect ())
               Border.child (
                   Grid.create

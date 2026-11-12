@@ -468,15 +468,15 @@ module Shots =
         info.ArgumentList.Add("-window")
         info.ArgumentList.Add(string id)
         info.ArgumentList.Add(path)
-        use process = Process.Start info
-        let errors = process.StandardError.ReadToEndAsync()
+        use capture = Process.Start info
+        let errors = capture.StandardError.ReadToEndAsync()
 
-        if not (process.WaitForExit 15000) then
-            process.Kill(true)
-            process.WaitForExit()
+        if not (capture.WaitForExit 15000) then
+            capture.Kill(true)
+            capture.WaitForExit()
             invalidOp "Native match capture timed out."
 
-        if process.ExitCode <> 0 then
+        if capture.ExitCode <> 0 then
             invalidOp $"Native match capture failed: {errors.GetAwaiter().GetResult()}"
 
     let private captureTo (window: Window) (path: string) native =
@@ -493,7 +493,7 @@ module Shots =
             let h = max 1 (int size.Height)
             use bmp = new RenderTargetBitmap(PixelSize(w, h), Vector(96.0, 96.0))
             bmp.Render(window)
-            bmp.Save(path)
+            bmp.Save(path, Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default)
 
     let private encodeVideo (output: string) (fps: int) framesDir =
         do
@@ -619,11 +619,6 @@ module Shots =
 
                     Dispatcher.UIThread.Invoke(fun () -> dispatch (LiveMsg(LiveMsg.CommandSubmitted command)))
                 | None -> ()
-
-            let matchSecond () =
-                live ()
-                |> Option.map (fun state -> float (int state.Clock.Elapsed) / float SimulationClock.defaultClock.SubTicksPerSecond)
-                |> Option.defaultValue 0.0
 
             let goals () =
                 live () |> Option.map (fun state -> fst state.Score + snd state.Score) |> Option.defaultValue 0
@@ -845,7 +840,6 @@ module Shots =
                         | _ -> eprintfn $"Ignoring --viewer-stadium '{value}': expected reputation,level,seed."
                     | _ -> ()
 
-                    let results = ResizeArray<string>()
                     let options = Text.Json.JsonWriterOptions(Indented = true)
                     use stream = new MemoryStream()
                     let writer = new Text.Json.Utf8JsonWriter(stream, options)

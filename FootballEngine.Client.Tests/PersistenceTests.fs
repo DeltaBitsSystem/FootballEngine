@@ -1762,8 +1762,8 @@ let executionRandomnessTests =
               PlayedMatches = []
               Logs = []
               SeasonComplete = false }
-        let protected, _ = UpdateSim.handle (AppMsgs.AiMatchesDone staleAiResult) first
-        Expect.equal protected first "a same-day result from an older attempt cannot overwrite the accepted seed"
+        let guarded, _ = UpdateSim.handle (AppMsgs.AiMatchesDone staleAiResult) first
+        Expect.equal guarded first "a same-day result from an older attempt cannot overwrite the accepted seed"
 
 let executionSchemaTests =
     testCase "schema seven cannot silently acquire execution randomness defaults"

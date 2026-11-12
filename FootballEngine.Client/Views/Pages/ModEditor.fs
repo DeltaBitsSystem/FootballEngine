@@ -349,7 +349,7 @@ module ModEditor =
                                             "Package ID"
                                             (TextBox.create
                                                 [ TextBox.text state.Manifest.Id
-                                                  TextBox.watermark "community.my-mod"
+                                                  TextBox.placeholderText "community.my-mod"
                                                   TextBox.onTextChanged (fun t ->
                                                       dispatch (
                                                           ModEditorMsg(UpdateManifest(fun m -> { m with Id = t }))
@@ -358,7 +358,7 @@ module ModEditor =
                                             "Version"
                                             (TextBox.create
                                                 [ TextBox.text state.Manifest.Version
-                                                  TextBox.watermark "1.0.0"
+                                                  TextBox.placeholderText "1.0.0"
                                                   TextBox.onTextChanged (fun t ->
                                                       dispatch (
                                                           ModEditorMsg(UpdateManifest(fun m -> { m with Version = t }))
@@ -403,7 +403,7 @@ module ModEditor =
                                             [ TextBox.text (String.concat "\n" state.Manifest.Dependencies)
                                               TextBox.acceptsReturn true
                                               TextBox.height 62.0
-                                              TextBox.watermark "Optional package IDs"
+                                              TextBox.placeholderText "Optional package IDs"
                                               TextBox.onTextChanged (fun text ->
                                                   dispatch (
                                                       ModEditorMsg(
@@ -528,7 +528,7 @@ module ModEditor =
                                           TextBlock.fontSize 12.0
                                           TextBlock.foreground Theme.TextSub ] ] ]
                         TextBox.create
-                            [ TextBox.watermark "Search countries..."
+                            [ TextBox.placeholderText "Search countries..."
                               TextBox.text state.SearchQuery
                               TextBox.onTextChanged (fun text -> dispatch (ModEditorMsg(SearchMod text))) ]
                         UI.primaryButton "Add country" (Some IconName.add) (fun _ ->
@@ -927,7 +927,7 @@ module ModEditor =
                                                       [ Grid.column 1
                                                         TextBox.text cup.Format
                                                         TextBox.margin (0.0, 0.0, 8.0, 0.0)
-                                                        TextBox.watermark "e.g. SK:SingleLeg:NoExtraTime"
+                                                        TextBox.placeholderText "e.g. SK:SingleLeg:NoExtraTime"
                                                         TextBox.onTextChanged (fun t ->
                                                             updateCup i (fun c -> { c with Format = t })) ]
                                                   Border.create

@@ -28,7 +28,7 @@ module LateralPairs =
     /// right (positive Y) in the team's resting shape. Returns a fresh array;
     /// the caller's `targets` is left untouched so the function stays pure.
     let solve
-        (params: PairParams)
+        (pairParams: PairParams)
         (current: PositionPoint[])
         (targets: PositionPoint[])
         (pairs: (int * int)[])
@@ -39,14 +39,14 @@ module LateralPairs =
             let noSwap = optionCost current l r targets.[l] targets.[r]
             let swap = optionCost current l r targets.[r] targets.[l]
 
-            if swap < noSwap - params.SwapThreshold then
+            if swap < noSwap - pairParams.SwapThreshold then
                 result.[l] <- targets.[r]
                 result.[r] <- targets.[l]
 
         result
 
     let solveInPlace
-        (params: PairParams)
+        (pairParams: PairParams)
         (current: PositionPoint[])
         (targets: PositionPoint[])
         (pairs: (int * int)[])
@@ -55,7 +55,7 @@ module LateralPairs =
             let noSwap = optionCost current l r targets.[l] targets.[r]
             let swap = optionCost current l r targets.[r] targets.[l]
 
-            if swap < noSwap - params.SwapThreshold then
+            if swap < noSwap - pairParams.SwapThreshold then
                 let left = targets.[l]
                 targets.[l] <- targets.[r]
                 targets.[r] <- left

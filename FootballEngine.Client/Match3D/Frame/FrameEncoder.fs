@@ -1,4 +1,4 @@
-#nowarn "9"
+#nowarn "9" "51"
 
 namespace FootballEngine.Client.Match3D
 

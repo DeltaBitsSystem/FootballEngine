@@ -269,8 +269,6 @@ module Transfers =
                           TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
 
     let private negotiationPanel (p: Player) (buyer: Club) (neg: Negotiation) (dispatch: Msg -> unit) =
-        let minFee = Player.playerValue p.CurrentSkill * 0.5m
-        let maxFee = Player.playerValue p.CurrentSkill * 2.0m
 
         let stepContent =
             match neg.Stage with
@@ -1008,7 +1006,7 @@ module Transfers =
                                                                   TextBox.text ts.SearchQuery
                                                                   TextBox.onTextChanged (fun q ->
                                                                       dispatch (TransferMsg(Search q)))
-                                                                  TextBox.watermark "Search players..."
+                                                                  TextBox.placeholderText "Search players..."
                                                                   TextBox.background "Transparent"
                                                                   TextBox.borderThickness 0.0
                                                                   TextBox.padding (4.0, 10.0)

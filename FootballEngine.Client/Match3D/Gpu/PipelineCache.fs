@@ -108,22 +108,22 @@ module RenderPipelines =
         match blend with
         | Replace -> None
         | Additive ->
-            let mutable component = BlendComponent()
-            component.Operation <- BlendOperation.Add
-            component.SrcFactor <- BlendFactor.One
-            component.DstFactor <- BlendFactor.One
+            let mutable blend = BlendComponent()
+            blend.Operation <- BlendOperation.Add
+            blend.SrcFactor <- BlendFactor.One
+            blend.DstFactor <- BlendFactor.One
             let mutable state = BlendState()
-            state.Color <- component
-            state.Alpha <- component
+            state.Color <- blend
+            state.Alpha <- blend
             Some state
         | PremultipliedAlpha ->
-            let mutable component = BlendComponent()
-            component.Operation <- BlendOperation.Add
-            component.SrcFactor <- BlendFactor.One
-            component.DstFactor <- BlendFactor.OneMinusSrcAlpha
+            let mutable blend = BlendComponent()
+            blend.Operation <- BlendOperation.Add
+            blend.SrcFactor <- BlendFactor.One
+            blend.DstFactor <- BlendFactor.OneMinusSrcAlpha
             let mutable state = BlendState()
-            state.Color <- component
-            state.Alpha <- component
+            state.Color <- blend
+            state.Alpha <- blend
             Some state
 
     /// Builds the pipeline described by a key. Stack-allocated descriptor arrays must stay alive until

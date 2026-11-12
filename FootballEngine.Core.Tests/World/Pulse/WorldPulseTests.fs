@@ -205,7 +205,7 @@ module WorldPulseTests =
             "WorldPulse"
             [ testCase "detectors feed the desk and the run is a no-op without them"
               <| fun _ ->
-                  let detector: PulseDetector = fun _ d -> [ streak 10 3 ]
+                  let detector: PulseDetector = fun _ _ -> [ streak 10 3 ]
                   let published = WorldPulse.runWith [ detector ] config date state
                   Expect.equal published.News.Length 1 "detector candidate published"
                   Expect.equal (WorldPulse.run config date state) state "phase 1 registers no detectors" ]

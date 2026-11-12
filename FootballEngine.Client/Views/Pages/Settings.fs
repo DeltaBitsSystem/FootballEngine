@@ -291,7 +291,7 @@ module Settings =
                                     StackPanel.verticalAlignment VerticalAlignment.Center
                                     StackPanel.children
                                         [ TextBox.create
-                                              [ TextBox.watermark "Buscar ajustes... (ej: tema, sonido)"
+                                              [ TextBox.placeholderText "Buscar ajustes... (ej: tema, sonido)"
                                                 TextBox.text state.Settings.SearchQuery
                                                 TextBox.width 280.0
                                                 TextBox.onTextChanged (fun t -> dispatch (SettingsMsg(SetSearch t))) ]
@@ -362,7 +362,6 @@ module Settings =
                                                 Button.onClick (fun _ ->
                                                     // why try clipboard: best effort — if Avalonia clipboard unavailable (headless test) we still dispatch Export which logs and notifies
                                                     try
-                                                        let json = SettingsSlice.exportState state.Settings
                                                         dispatch (SettingsMsg Export)
                                                     with _ ->
                                                         ()) ]
@@ -597,7 +596,7 @@ module Settings =
               let ctl2 =
                   TextBox.create
                       [ TextBox.text g.Accent
-                        TextBox.watermark "#00d492"
+                        TextBox.placeholderText "#00d492"
                         TextBox.width 140.0
                         TextBox.onTextChanged (fun t ->
                             dispatch (
@@ -2179,7 +2178,7 @@ module Settings =
                                             TextBlock.fontWeight FontWeight.Bold
                                             TextBlock.foreground Theme.TextMain ]
                                       TextBox.create
-                                          [ TextBox.watermark "Pega JSON exportado aquí para importar..."
+                                          [ TextBox.placeholderText "Pega JSON exportado aquí para importar..."
                                             TextBox.text importJsonDraft
                                             TextBox.height 80.0
                                             TextBox.acceptsReturn true
@@ -2197,7 +2196,6 @@ module Settings =
                                                         Button.cornerRadius 6.0
                                                         Button.onClick (fun _ ->
                                                             try
-                                                                let json = SettingsSlice.exportState state.Settings
                                                                 dispatch (SettingsMsg Export)
                                                             with _ ->
                                                                 ()) ]

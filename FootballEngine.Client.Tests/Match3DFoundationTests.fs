@@ -98,7 +98,7 @@ let tests =
               Expect.equal (area rectangles) 1200 "fallback covers the full window")
           testCase "an equal key returns the first pipeline and never builds a second one" (fun _ ->
               let released = ResizeArray<int>()
-              let cache = PipelineCache<RenderPipelineKey, int>(fun value -> released.Add value)
+              let cache = new PipelineCache<RenderPipelineKey, int>(fun value -> released.Add value)
               let builds = ref 0
 
               let build () =
@@ -113,7 +113,7 @@ let tests =
               Expect.equal builds.Value 1 "one build for equal keys"
               Expect.equal cache.Count 1 "one entry")
           testCase "a key that differs in blend or depth state is a separate pipeline" (fun _ ->
-              let cache = PipelineCache<RenderPipelineKey, int>(ignore)
+              let cache = new PipelineCache<RenderPipelineKey, int>(ignore)
               let builds = ref 0
 
               let build () =
@@ -141,7 +141,7 @@ let tests =
               Expect.equal builds.Value 4 "each state change builds its own pipeline"
               Expect.equal cache.Count 4 "four entries")
           testCase "a failed build is reported as a value and leaves nothing cached" (fun _ ->
-              let cache = PipelineCache<RenderPipelineKey, int>(ignore)
+              let cache = new PipelineCache<RenderPipelineKey, int>(ignore)
 
               let failure =
                   cache.GetOrAdd(opaqueKey, fun () -> Error(CreationFailed "the test pipeline"))
@@ -153,7 +153,7 @@ let tests =
               Expect.equal retry (Ok 7) "a later attempt can succeed")
           testCase "disposing the cache releases every pipeline exactly once" (fun _ ->
               let released = ResizeArray<int>()
-              let cache = PipelineCache<RenderPipelineKey, int>(fun value -> released.Add value)
+              let cache = new PipelineCache<RenderPipelineKey, int>(fun value -> released.Add value)
               cache.GetOrAdd(opaqueKey, fun () -> Ok 1) |> ignore
               cache.GetOrAdd({ opaqueKey with Samples = 1u }, fun () -> Ok 2) |> ignore
               (cache :> IDisposable).Dispose()

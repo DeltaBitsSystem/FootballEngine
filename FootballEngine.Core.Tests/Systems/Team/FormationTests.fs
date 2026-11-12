@@ -22,7 +22,7 @@ module FormationTests =
         let roles = lineup.Profiles |> Array.map (fun p -> p.Role)
         Formation.fromLineup roles lineup.BasePositions 1.0 anchors
 
-    let private strikerAndDefenders (slots: PositionPoint[]) (roles: SlotRole[]) =
+    let private strikerAndDefenders (roles: SlotRole[]) =
         let striker = roles |> Array.findIndex (fun r -> r = SlotRole.Striker)
 
         let defenders =
@@ -89,7 +89,7 @@ module FormationTests =
                   let f = homeFormation ()
                   let lineup = TestBuilders.makeFormationLineup 0
                   let roles = lineup.Profiles |> Array.map (fun p -> p.Role)
-                  let striker, defenders = strikerAndDefenders [||] roles
+                  let striker, defenders = strikerAndDefenders roles
 
                   let ballZones =
                       [| -35.0<meter>, 0.0<meter>
@@ -107,8 +107,7 @@ module FormationTests =
                   let f = homeFormation ()
                   let lineup = TestBuilders.makeFormationLineup 0
                   let roles = lineup.Profiles |> Array.map (fun p -> p.Role)
-                  let striker, defenders = strikerAndDefenders [||] roles
-                  let gk = roles |> Array.findIndex (fun r -> r = SlotRole.Goalkeeper)
+                  let striker, defenders = strikerAndDefenders roles
 
                   let wingers =
                       roles

@@ -48,7 +48,7 @@ module SchedulerTests =
                       { Tick = 0<subtick>
                         Data = EventData.Possession(ClubSide.Home, pid) }
 
-                  let rng, _, applied = Stepper.step [] sctx (Rng.ofSeed 3UL) world buf
+                  let _, _, applied = Stepper.step [] sctx (Rng.ofSeed 3UL) world buf
 
                   Expect.equal applied.Count 1 "one event applied"
 

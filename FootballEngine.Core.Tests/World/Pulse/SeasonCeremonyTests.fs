@@ -202,7 +202,10 @@ module SeasonCeremonyTests =
                       winner.Player.Value
                       "winner has the maximum goal count"
 
-                  let [ a; b; c ] = clubsOf gs |> List.truncate 3
+                  let a, b, c =
+                      match clubsOf gs |> List.truncate 3 with
+                      | [ a; b; c ] -> a, b, c
+                      | clubs -> failtestf "the fixture world has at least three clubs, got %d" clubs.Length
                   let pa = (squad a gs).Head.Id
                   let pb = (squad b gs).Head.Id
                   let pc = (squad c gs).Head.Id
@@ -234,7 +237,10 @@ module SeasonCeremonyTests =
               testCase "player of the season needs the minimum appearances"
               <| fun _ ->
                   let gs = finished.Value
-                  let [ a; b ] = clubsOf gs |> List.truncate 2
+                  let a, b =
+                      match clubsOf gs |> List.truncate 2 with
+                      | [ a; b ] -> a, b
+                      | clubs -> failtestf "the fixture world has at least two clubs, got %d" clubs.Length
                   let star = (squad a gs).Head.Id
                   let regular = (squad b gs).Head.Id
                   let home = ClubSide.Home
@@ -272,7 +278,10 @@ module SeasonCeremonyTests =
               testCase "young player never exceeds the age cap and ignores older stars"
               <| fun _ ->
                   let gs = finished.Value
-                  let [ a; b ] = clubsOf gs |> List.truncate 2
+                  let a, b =
+                      match clubsOf gs |> List.truncate 2 with
+                      | [ a; b ] -> a, b
+                      | clubs -> failtestf "the fixture world has at least two clubs, got %d" clubs.Length
                   let old = (squad a gs).Head.Id
                   let youth = (squad b gs).Head.Id
                   let home = ClubSide.Home

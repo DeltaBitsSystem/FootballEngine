@@ -359,14 +359,14 @@ module Scouting =
                                             [ TextBox.create
                                                   [ Grid.column 0
                                                     TextBox.text t.ScoutingCostText
-                                                    TextBox.watermark "Costo"
+                                                    TextBox.placeholderText "Costo"
                                                     TextBox.margin (0.0, 0.0, 6.0, 0.0)
                                                     TextBox.onTextChanged (fun v ->
                                                         dispatch (TransferMsg(SetScoutingCost v))) ]
                                               TextBox.create
                                                   [ Grid.column 1
                                                     TextBox.text t.ScoutingDaysText
-                                                    TextBox.watermark "Días"
+                                                    TextBox.placeholderText "Días"
                                                     TextBox.margin (0.0, 0.0, 6.0, 0.0)
                                                     TextBox.onTextChanged (fun v ->
                                                         dispatch (TransferMsg(SetScoutingDays v))) ]

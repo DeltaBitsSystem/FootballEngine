@@ -148,7 +148,7 @@ module PositioningTests =
                   let mutable rng = Rng.ofSeed 1234UL
                   let mutable guard = 0
                   let sampleEvery = 200<tickDelta> * 40<subtick / tickDelta>
-                  let mutable checked = 0
+                  let mutable checkedCount = 0
                   // (side, slot) pairs seen past a line at the previous sample
                   let mutable offPitchPrev = Set.empty
 
@@ -158,7 +158,7 @@ module PositioningTests =
                       guard <- guard + 1
 
                       if world.State.Tick % sampleEvery = 0<subtick> then
-                          checked <- checked + 1
+                          checkedCount <- checkedCount + 1
                           let mutable offPitchNow = Set.empty
 
                           for side in [ ClubSide.Home; ClubSide.Away ] do
@@ -193,7 +193,7 @@ module PositioningTests =
                           Expect.isEmpty stuck "a player stuck past a line at consecutive samples is a teleport bug"
                           offPitchPrev <- offPitchNow
 
-                  Expect.isGreaterThan checked 10 "sampled the match at multiple instants"
+                  Expect.isGreaterThan checkedCount 10 "sampled the match at multiple instants"
                   Expect.equal world.State.Flow MatchFlow.MatchEnded "match reached full time") ]
 
     let positioningTests =

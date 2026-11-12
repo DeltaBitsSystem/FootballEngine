@@ -526,7 +526,7 @@ module Home =
                         Async.StartImmediate(
                             async {
                                 try
-                                    let data = Avalonia.Input.DataTransfer()
+                                    let data = new Avalonia.Input.DataTransfer()
                                     data.Add(Avalonia.Input.DataTransferItem.CreateText(copyText))
                                     do! clipboard.SetDataAsync(data) |> Async.AwaitTask
                                 with _ ->

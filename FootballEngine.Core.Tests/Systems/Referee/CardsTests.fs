@@ -69,7 +69,7 @@ module CardsTests =
 
               testCase "red card bookkeeping counts a straight red" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
-                  let buf = runCards world [ CardColor.Red ]
+                  runCards world [ CardColor.Red ] |> ignore
 
                   Expect.equal world.Home.Cards.Reds 1 "red card booked"
                   Expect.equal world.Home.Cards.Yellows 0 "no yellows mixed in") ]

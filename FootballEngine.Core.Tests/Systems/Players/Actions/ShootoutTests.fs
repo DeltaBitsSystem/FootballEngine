@@ -18,7 +18,7 @@ module ShootoutTests =
             [ testCase "resolve is deterministic for a seed" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
                   let rng = Rng.ofSeed 1234UL
-                  let (h1, a1), rng' = Shootout.resolve sctx rng world
+                  let (h1, a1), _ = Shootout.resolve sctx rng world
                   // Re-run from the same seed: same result.
                   let rngB = Rng.ofSeed 1234UL
                   let (h2, a2), _ = Shootout.resolve sctx rngB world

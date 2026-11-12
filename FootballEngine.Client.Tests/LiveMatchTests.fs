@@ -451,7 +451,7 @@ let tests =
           testCase "ring buffer overwrites oldest poses without blocking and brackets adjacent poses"
           <| fun _ ->
               let stream =
-                  MatchPresentationStream(
+                  new MatchPresentationStream(
                       MatchRuntimeId 501UL,
                       { policy with
                           BufferCapacity = 3
@@ -485,7 +485,7 @@ let tests =
           testCase "presentation clock freezes at the frontier and resumes without jumping"
           <| fun _ ->
               let stream =
-                  MatchPresentationStream(
+                  new MatchPresentationStream(
                       MatchRuntimeId 502UL,
                       { policy with
                           PresentationDelay = TimeSpan.Zero }

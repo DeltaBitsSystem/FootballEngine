@@ -14,19 +14,19 @@ type PresentationLoop(request: Action<TimeSpan> -> unit, render: unit -> unit, o
             generation <- generation + 1
             let attachment = generation
 
-            let rec callback =
-                Action<TimeSpan>(fun _ ->
+            // A recursive function, not a self-referencing delegate value, which F# can only check at runtime.
+            let rec frame (_: TimeSpan) =
+                if active && generation = attachment then
+                    try
+                        render ()
+                    with error ->
+                        active <- false
+                        onError error
+
                     if active && generation = attachment then
-                        try
-                            render ()
-                        with error ->
-                            active <- false
-                            onError error
+                        request (Action<TimeSpan> frame)
 
-                        if active && generation = attachment then
-                            request callback)
-
-            request callback
+            request (Action<TimeSpan> frame)
 
     member _.Stop() =
         active <- false

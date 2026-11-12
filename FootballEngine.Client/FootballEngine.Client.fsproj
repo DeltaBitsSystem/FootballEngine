@@ -44,6 +44,7 @@
         <Compile Include="AppState\MatchRuntime.fs"/>
         <Compile Include="AppState\ModEditorPackage.fs"/>
         <Compile Include="Shots\Shots.fs"/>
+        <Compile Include="Views\Shared\DslExtensions.fs"/>
         <Compile Include="Views\Shared\Localization.fs"/>
         <Compile Include="Views\Theme.fs"/>
         <Compile Include="Views\Shared\ClubIdentity.fs"/>
@@ -116,9 +117,6 @@
         <Compile Include="Match3D\MatchPitchNative.fs"/>
         <Compile Include="Match3D\PresentationLoop.fs"/>
         <Compile Include="Match3D\RenderWorker.fs"/>
-        <Compile Include="Views\MatchPitch\RenderResources.fs"/>
-        <Compile Include="Views\MatchPitch\PitchRenderer.fs"/>
-        <Compile Include="Views\MatchPitch\EntityRenderer.fs"/>
         <Compile Include="Views\MatchPitch\MatchPitchControl.fs"/>
         <Compile Include="Views\Components\EventTimeline.fs"/>
         <Compile Include="Views\Components\StatsPanel.fs"/>

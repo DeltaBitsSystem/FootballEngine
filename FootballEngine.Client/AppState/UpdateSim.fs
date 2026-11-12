@@ -381,7 +381,7 @@ module UpdateSim =
 
             let nextState = applyDayResult matchDay.DayResult state
 
-            let matchId, homeClubId, awayClubId =
+            let matchId, _, _ =
                 match matchDay.DayResult.PlayedMatches with
                 | (fixtureId, f) :: _ -> Some fixtureId, Some f.HomeClubId, Some f.AwayClubId
                 | [] -> None, None, None

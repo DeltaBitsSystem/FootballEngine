@@ -1,5 +1,9 @@
 <Project>
   <PropertyGroup>
     <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    <!-- A warning hides the next real problem; every project stays at zero. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Package advisories change with an external database, not with this code, so they must not break a build. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
   </PropertyGroup>
 </Project>

@@ -37,7 +37,7 @@ module private ProbeLifecycle =
     let detachedOnce () = detached <- detached + 1
 
 [<Sealed>]
-type private ProbePitch() as this =
+type private ProbePitch() =
     inherit Control()
 
     let mutable renderer: WebGpuStadiumRenderer option = None
@@ -511,10 +511,10 @@ type private ProbePitch() as this =
                 info.ArgumentList.Add("-window")
                 info.ArgumentList.Add(string (uint64 parentWindow))
                 info.ArgumentList.Add(capturePath)
-                use process = Diagnostics.Process.Start(info)
-                process.WaitForExit()
+                use capture = Diagnostics.Process.Start(info)
+                capture.WaitForExit()
 
-                if process.ExitCode <> 0 then
+                if capture.ExitCode <> 0 then
                     invalidOp "Native HDR screenshot failed."
 
                 Console.Error.WriteLine($"Captured HDR frame: {capturePath}")
@@ -526,9 +526,9 @@ type private ProbePitch() as this =
                 info.ArgumentList.Add("-window")
                 info.ArgumentList.Add(string (uint64 parentWindow))
                 info.ArgumentList.Add(path)
-                use process = Diagnostics.Process.Start(info)
-                process.WaitForExit()
-                if process.ExitCode <> 0 then invalidOp "Native sequence capture failed."
+                use capture = Diagnostics.Process.Start(info)
+                capture.WaitForExit()
+                if capture.ExitCode <> 0 then invalidOp "Native sequence capture failed."
 
             if frameLimit > 0 && renderedFrames >= frameLimit then
                 if timings.Count > 0 then

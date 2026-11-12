@@ -144,7 +144,7 @@ module Db =
     let mutable private nextWriteId = 0L
 
     let waitForInFlightWrites () : Task =
-        inFlightWrites.Values |> Seq.map snd |> Seq.toArray |> Task.WhenAll :> Task
+        inFlightWrites.Values |> Seq.map snd |> Seq.toArray |> Task.WhenAll
 
     let waitForSlotWrites slot : Task =
         let path = slotPath slot
@@ -153,7 +153,6 @@ module Db =
         |> Seq.choose (fun (writePath, pending) -> if writePath = path then Some pending else None)
         |> Seq.toArray
         |> Task.WhenAll
-        :> Task
 
     let private gateFor slot =
         gates.GetOrAdd(slotPath slot, fun _ -> SlotWriteGate())

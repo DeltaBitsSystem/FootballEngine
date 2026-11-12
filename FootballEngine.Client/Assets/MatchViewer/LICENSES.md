@@ -1,6 +1,6 @@
 # Match Viewer Asset Licenses
 
-The code-generated pitch and ball, and the player sprite generator, are implemented in this repository. Their entries in `manifest.json` identify their source and the project's internal license reference; the repository currently has no standalone root `LICENSE` file, so distribution rights still need a project-level legal confirmation.
+The player sprite generator is implemented in this repository. Its entry in `manifest.json` identifies its source and the project's internal license reference; the repository currently has no standalone root `LICENSE` file, so distribution rights still need a project-level legal confirmation.
 
 The match stadium is generated at runtime for each home club from the original stadium kit below
 (`Match3D/StadiumLayout.fs`, `Match3D/StadiumGeometry.fs`). The earlier unattested `stadium.glb` has been removed from

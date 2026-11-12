@@ -172,7 +172,7 @@ module Training =
               Border.cornerRadius 8.0
               Border.padding (12.0, 8.0)
               Border.margin (0.0, 0.0, 8.0, 0.0)
-              Border.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
+              Border.cursor FootballEngine.Components.UI.handCursor
               Border.onPointerReleased (fun _ -> onSelect ())
               Border.child (
                   StackPanel.create
@@ -343,7 +343,7 @@ module Training =
               Border.borderBrush (if isSelected then Theme.Accent else "transparent")
               Border.borderThickness (3.0, 0.0, 0.0, 0.0)
               Border.padding (14.0, 9.0)
-              Border.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
+              Border.cursor FootballEngine.Components.UI.handCursor
               Border.onPointerReleased (fun _ -> onClick ())
               Border.child (
                   Grid.create
@@ -470,7 +470,7 @@ module Training =
               Border.borderThickness (if isSelected then 1.5 else 1.0)
               Border.cornerRadius 10.0
               Border.padding (12.0, 10.0)
-              Border.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
+              Border.cursor FootballEngine.Components.UI.handCursor
               Border.opacity (if isRehab then 0.85 else 1.0)
               Border.onPointerReleased (fun _ -> onSelect ())
               Border.child (
@@ -516,7 +516,7 @@ module Training =
               Border.cornerRadius 8.0
               Border.padding (10.0, 7.0)
               Border.margin (0.0, 0.0, 6.0, 6.0)
-              Border.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
+              Border.cursor FootballEngine.Components.UI.handCursor
               Border.onPointerReleased (fun _ -> onSelect ())
               Border.child (
                   StackPanel.create
@@ -600,7 +600,6 @@ module Training =
         let prev =
             TrainingPhaseEngine.previewWith cfg gs.CurrentDate tilt recoveryWeek ratings player
 
-        let gap = max 0 (player.PotentialSkill - player.CurrentSkill)
 
         let rehabBanner =
             match player.Status with
@@ -806,7 +805,7 @@ module Training =
                   Button.borderThickness 1.0
                   Button.cornerRadius 6.0
                   Button.foreground Theme.TextSub
-                  Button.cursor (Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand))
+                  Button.cursor FootballEngine.Components.UI.handCursor
                   Button.onClick (fun _ -> dispatch (TrainingMsg(TrainingMsg.BulkApply rule))) ]
             :> IView
 

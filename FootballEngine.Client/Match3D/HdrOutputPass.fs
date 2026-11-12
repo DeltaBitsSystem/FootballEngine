@@ -213,7 +213,7 @@ type HdrOutputPass
             uniform <- Some outputUniform
 
             do!
-                forEachMip (fun index ->
+                forEachMip (fun _ ->
                     result {
                         let! down = uniformBuffer "a bloom downsample uniform" bloomUniformFloats
                         downUniforms.Add down

@@ -189,17 +189,17 @@ module MotionDatabase =
                                 reader.Take(jointCount * 8)
                                 |> Result.map (fun at ->
                                     let scale = 1.0f / 32767.0f
-                                    let component index = float32 (BitConverter.ToInt16(data, at + index * 2)) * scale
+                                    let quaternionPart index = float32 (BitConverter.ToInt16(data, at + index * 2)) * scale
 
                                     for joint = 0 to jointCount - 1 do
                                         let first = joint * 4
 
                                         rotations.Add(
                                             Quaternion(
-                                                component first,
-                                                component (first + 1),
-                                                component (first + 2),
-                                                component (first + 3)
+                                                quaternionPart first,
+                                                quaternionPart (first + 1),
+                                                quaternionPart (first + 2),
+                                                quaternionPart (first + 3)
                                             )
                                         ))
                             | Error error, _
