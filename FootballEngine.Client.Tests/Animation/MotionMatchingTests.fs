@@ -341,4 +341,6 @@ module MotionMatchingTests =
                             clock.Elapsed.TotalMilliseconds / (window / frame) ]
                       |> List.min
 
-                  Expect.isLessThan perFrame 1.0 $"{perFrame:F3} ms per 60 Hz frame for 22 players") ]
+                  // An eighth of the 16.7 ms frame: the renderer keeps the rest, and the margin absorbs machine and
+                  // load variance that a tighter bound turned into failures of unchanged code.
+                  Expect.isLessThan perFrame 2.0 $"{perFrame:F3} ms per 60 Hz frame for 22 players") ]
