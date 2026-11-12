@@ -798,7 +798,7 @@ module Db =
                     | _, Error errors, _ -> Error(Corrupt(slot, String.concat "; " errors))
                     | _, _, Error error -> Error(Corrupt(slot, error))
                     | Ok(), Ok settings, Ok() ->
-                        match ModSystem.restoreDataSet dataLock with
+                        match ModResolution.restoreDataSet dataLock with
                         | Error error ->
                             Error(Corrupt(slot, error.Diagnostics |> List.map _.Message |> String.concat "; "))
                         | Ok resolved ->

@@ -9,11 +9,11 @@ open FootballEngine.Data
 
 module ModPackageIoTests =
     let private loadPackageContract: string -> Result<PackageSelection, ModError> =
-        ModSystem.loadPackage
+        ModWorkspace.loadPackage
 
     let private loadInstalledContract
         : string -> string -> string list -> string list -> Result<ResolvedDataSet, ModError> =
-        ModSystem.loadInstalled
+        ModWorkspace.loadInstalled
 
     let private expectOk context (result: Result<'a, ModError>) : 'a =
         match result with
@@ -30,7 +30,7 @@ module ModPackageIoTests =
     let private utf8Bytes (text: string) = Encoding.UTF8.GetBytes text
 
     let private sha256Text text =
-        text |> utf8Bytes |> ModSystem.hashSha256
+        text |> utf8Bytes |> ModParsing.hashSha256
 
     let private withTempDirectory (body: string -> unit) =
         let root =
@@ -110,16 +110,16 @@ module ModPackageIoTests =
 
     let private packageSha256 manifestWithoutHash (actualFiles: (string * byte[]) list) =
         let canonicalManifest =
-            ModSystem.canonicalizeJson manifestWithoutHash
+            ModParsing.canonicalizeJson manifestWithoutHash
             |> expectOk "manifest without packageSha256 must be canonical JSON"
 
         let canonicalFiles =
             actualFiles
             |> List.sortWith (fun (left, _) (right, _) -> StringComparer.Ordinal.Compare(left, right))
-            |> List.map (fun (path, bytes) -> path + "\n" + ModSystem.hashSha256 bytes)
+            |> List.map (fun (path, bytes) -> path + "\n" + ModParsing.hashSha256 bytes)
             |> String.concat "\n"
 
-        ModSystem.hashSha256 (utf8Bytes (canonicalManifest + "\n" + canonicalFiles))
+        ModParsing.hashSha256 (utf8Bytes (canonicalManifest + "\n" + canonicalFiles))
 
     let private writeWorkspace
         (root: string)
@@ -149,7 +149,7 @@ module ModPackageIoTests =
             File.WriteAllBytes(filePath, bytes)
 
         let defaultDeclarations =
-            actualFiles |> List.map (fun (path, bytes) -> path, ModSystem.hashSha256 bytes)
+            actualFiles |> List.map (fun (path, bytes) -> path, ModParsing.hashSha256 bytes)
 
         let declarations =
             declaredFiles
@@ -680,16 +680,16 @@ module ModPackageIoTests =
 
                       let builtinsDir, modsDir = makeInstalledRoots root
 
-                      ModSystem.packWorkspace firstWorkspace (Path.Combine(builtinsDir, "first.femod"))
+                      ModPackageFile.packWorkspace firstWorkspace (Path.Combine(builtinsDir, "first.femod"))
                       |> expectOk "first workspace must pack"
                       |> ignore
 
-                      ModSystem.packWorkspace secondWorkspace (Path.Combine(builtinsDir, "second.femod"))
+                      ModPackageFile.packWorkspace secondWorkspace (Path.Combine(builtinsDir, "second.femod"))
                       |> expectOk "second workspace must pack"
                       |> ignore
 
                       let tied =
-                          ModSystem.loadInstalledPackages builtinsDir modsDir [] []
+                          ModPackageFile.loadInstalledPackages builtinsDir modsDir [] []
                           |> expectError "equal priorities without order must fail"
 
                       Expect.isTrue
@@ -698,7 +698,7 @@ module ModPackageIoTests =
                           "same-priority packages require explicit precedence"
 
                       let resolved =
-                          ModSystem.loadInstalledPackages
+                          ModPackageFile.loadInstalledPackages
                               builtinsDir
                               modsDir
                               []

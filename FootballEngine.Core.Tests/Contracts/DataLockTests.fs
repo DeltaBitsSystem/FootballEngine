@@ -50,7 +50,7 @@ module DataLockTests =
         | Error error -> failtestf "%s: %A" message error
 
     let private resolve selections =
-        ModSystem.resolve selections |> expectOk "resolution should succeed"
+        ModResolution.resolve selections |> expectOk "resolution should succeed"
 
     let private assetJson sha256 required =
         sprintf
@@ -109,7 +109,7 @@ module DataLockTests =
                       "the lock contains exact package fields in final order"
 
                   Expect.equal
-                      (ModSystem.toDataLock resolved)
+                      (ModResolution.toDataLock resolved)
                       resolved.DataLock
                       "toDataLock returns the canonical dataset lock"
 

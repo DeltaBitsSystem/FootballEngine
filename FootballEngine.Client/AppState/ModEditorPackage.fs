@@ -19,22 +19,22 @@ module ModEditorPackage =
             manifestWithZeroHash.Replace($"\"packageSha256\": \"{zeroHash}\",", "")
 
         let canonicalManifest =
-            match ModSystem.canonicalizeJson manifestWithoutHash with
+            match ModParsing.canonicalizeJson manifestWithoutHash with
             | Ok value -> value
             | Error error -> failwithf "generated manifest could not be canonicalized: %A" error
 
         let canonicalFiles =
             files
             |> List.sortBy fst
-            |> List.map (fun (path, bytes) -> path + "\n" + ModSystem.hashSha256 bytes)
+            |> List.map (fun (path, bytes) -> path + "\n" + ModParsing.hashSha256 bytes)
             |> String.concat "\n"
 
-        ModSystem.hashSha256 (Encoding.UTF8.GetBytes(canonicalManifest + "\n" + canonicalFiles))
+        ModParsing.hashSha256 (Encoding.UTF8.GetBytes(canonicalManifest + "\n" + canonicalFiles))
 
     let private fileDeclarations files =
         files
         |> List.sortBy fst
-        |> List.map (fun (path, bytes) -> $"{{\"path\":{json path},\"sha256\":\"{ModSystem.hashSha256 bytes}\"}}")
+        |> List.map (fun (path, bytes) -> $"{{\"path\":{json path},\"sha256\":\"{ModParsing.hashSha256 bytes}\"}}")
         |> String.concat ","
 
     let private dependencyDeclarations (dependencies: string list) =
@@ -108,7 +108,7 @@ module ModEditorPackage =
         (countries: Map<string, CountryDataDto>)
         (intlComps: InternationalCompDto list)
         : Result<unit, ModError> =
-        buildPackageInput manifest countries intlComps |> ModSystem.validatePackage
+        buildPackageInput manifest countries intlComps |> ModContent.validatePackage
 
     let saveMod
         (basePath: string)
@@ -119,7 +119,7 @@ module ModEditorPackage =
         try
             let packageInput = buildPackageInput manifest countries intlComps
 
-            match ModSystem.validatePackage packageInput with
+            match ModContent.validatePackage packageInput with
             | Error error -> Error(error.Diagnostics |> List.map _.Message |> String.concat "; ")
             | Ok() ->
                 let workspace =
@@ -153,7 +153,7 @@ module ModEditorPackage =
                     let outputPath = Path.Combine(basePath, $"{safeId}-{safeVersion}.femod")
                     Directory.CreateDirectory basePath |> ignore
 
-                    match ModSystem.packWorkspace workspace outputPath with
+                    match ModPackageFile.packWorkspace workspace outputPath with
                     | Ok() -> Ok()
                     | Error error -> Error(error.Diagnostics |> List.map _.Message |> String.concat "; ")
                 finally

@@ -35,7 +35,7 @@ module WorldGenerationTests =
 
     let private resolved: ResolvedDataSet =
         match
-            ModSystem.resolve
+            ModResolution.resolve
                 [ { RelativePath = "test-world.femod"
                     Package = package } ]
         with
@@ -342,7 +342,7 @@ module WorldGenerationTests =
 
                       Expect.notEqual json countryJson "the fixture club was found in the country document"
 
-                      ModSystem.resolve
+                      ModResolution.resolve
                           [ { RelativePath = "test-world.femod"
                               Package =
                                 { package with

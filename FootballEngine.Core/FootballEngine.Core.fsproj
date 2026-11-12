@@ -53,7 +53,13 @@
     <Compile Include="Domain\SquadPlanner.fs"/>
      <Compile Include="Domain\FormationData.fs"/>
      <Compile Include="Domain\LineupOps.fs"/>
-     <Compile Include="GameData\ModSystem.fs"/>
+     <Compile Include="GameData\ModTypes.fs"/>
+    <Compile Include="GameData\ModPrimitives.fs"/>
+    <Compile Include="GameData\ModParsing.fs"/>
+    <Compile Include="GameData\ModContent.fs"/>
+    <Compile Include="GameData\ModResolution.fs"/>
+    <Compile Include="GameData\ModWorkspace.fs"/>
+    <Compile Include="GameData\ModPackageFile.fs"/>
      <Compile Include="GameData\ResolvedWorldData.fs"/>
      <Compile Include="GameData\DomainEncoders.fs"/>
      <Compile Include="GameData\JsonTypes.fs"/>

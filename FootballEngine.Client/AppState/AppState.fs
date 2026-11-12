@@ -1312,7 +1312,7 @@ module AppState =
                 Cmd.none
             | _ ->
                 match
-                    ModSystem.loadInstalledPackages
+                    ModPackageFile.loadInstalledPackages
                         ModPaths.builtinsDir
                         ModPaths.modsDir
                         state.Settings.Global.Data.ActiveMods

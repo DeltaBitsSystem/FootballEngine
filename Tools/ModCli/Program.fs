@@ -33,14 +33,14 @@ module Program =
     let main argv =
         match argv with
         | [| "validate"; workspace |] ->
-            ModSystem.loadPackage workspace
+            ModWorkspace.loadPackage workspace
             |> runResult (fun selection ->
                 printfn "%s@%s" selection.Package.Manifest.ModId selection.Package.Manifest.Version)
         | [| "pack"; workspace; output |] ->
-            ModSystem.packWorkspace workspace output
+            ModPackageFile.packWorkspace workspace output
             |> runResult (fun () -> printfn "Packed %s" output)
         | [| "inspect"; packagePath |] ->
-            ModSystem.loadFemod packagePath
+            ModPackageFile.loadFemod packagePath
             |> runResult (fun selection ->
                 printfn "%s@%s" selection.Package.Manifest.ModId selection.Package.Manifest.Version
                 printfn "Package hash: %s" selection.Package.PackageSha256

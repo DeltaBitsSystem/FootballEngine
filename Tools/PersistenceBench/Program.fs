@@ -31,7 +31,7 @@ let sampleWorld () =
 
     let resolved =
         match
-            ModSystem.resolve
+            ModResolution.resolve
                 [ { RelativePath = "benchmark.femod"
                     Package = package } ]
         with

@@ -38,7 +38,7 @@ let private career () =
 
     let resolved =
         match
-            ModSystem.resolve
+            ModResolution.resolve
                 [ { RelativePath = "test-live.femod"
                     Package = package } ]
         with

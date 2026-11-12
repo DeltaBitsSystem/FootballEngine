@@ -68,7 +68,7 @@ module ModContractTests =
     let private countryBytes =
         countryJson "country" "CONMEBOL" |> Encoding.UTF8.GetBytes
 
-    let private validDeclaredFiles = [ countryPath, ModSystem.hashSha256 countryBytes ]
+    let private validDeclaredFiles = [ countryPath, ModParsing.hashSha256 countryBytes ]
 
     let private fileDeclarations (files: (string * string) list) =
         files
@@ -162,7 +162,7 @@ module ModContractTests =
             ""
 
     let private canonicalJson context json =
-        ModSystem.canonicalizeJson json |> expectOk context
+        ModParsing.canonicalizeJson json |> expectOk context
 
     // The package identity excludes packageSha256 and then indexes all files by canonical path and bytes hash.
     let private packageSha256 manifestWithoutPackageHash (actualFiles: (string * byte[]) list) =
@@ -174,10 +174,10 @@ module ModContractTests =
             |> Map.ofList
             |> Map.toList
             |> List.sortBy fst
-            |> List.map (fun (path, bytes) -> path + "\n" + ModSystem.hashSha256 bytes)
+            |> List.map (fun (path, bytes) -> path + "\n" + ModParsing.hashSha256 bytes)
             |> String.concat "\n"
 
-        ModSystem.hashSha256 (Encoding.UTF8.GetBytes(canonicalManifest + "\n" + canonicalFiles))
+        ModParsing.hashSha256 (Encoding.UTF8.GetBytes(canonicalManifest + "\n" + canonicalFiles))
 
     let private makePackage
         (declaredFiles: (string * string) list)
@@ -244,7 +244,7 @@ module ModContractTests =
             "FootballEngine.Core.GameData.ModContract"
             [ test "a valid manifest is parsed without changing identity fields" {
                   let manifest: ModManifest =
-                      ModSystem.parseManifest standardParseFixture |> expectOk "valid manifest"
+                      ModParsing.parseManifest standardParseFixture |> expectOk "valid manifest"
 
                   Expect.equal manifest.FormatVersion currentFormatVersion "format version is preserved"
                   Expect.equal manifest.ModId "community.argentina" "mod ID is declared, not derived from a folder"
@@ -266,7 +266,7 @@ module ModContractTests =
                           ">=1.0.0 <2.0.0"
                           ""
 
-                  let error = ModSystem.parseManifest json |> expectError "missing formatVersion"
+                  let error = ModParsing.parseManifest json |> expectError "missing formatVersion"
 
                   expectDiagnostic
                       "MOD-MANIFEST-FORMAT-VERSION"
@@ -290,7 +290,7 @@ module ModContractTests =
                           ">=1.0.0 <2.0.0"
                           ""
 
-                  let error = ModSystem.parseManifest json |> expectError "older formatVersion"
+                  let error = ModParsing.parseManifest json |> expectError "older formatVersion"
 
                   expectDiagnostic
                       "MOD-MANIFEST-FORMAT-VERSION"
@@ -314,7 +314,7 @@ module ModContractTests =
                           ">=1.0.0 <2.0.0"
                           ""
 
-                  let error = ModSystem.parseManifest json |> expectError "future formatVersion"
+                  let error = ModParsing.parseManifest json |> expectError "future formatVersion"
 
                   expectDiagnostic
                       "MOD-MANIFEST-FORMAT-VERSION"
@@ -338,7 +338,7 @@ module ModContractTests =
                           ">=1.0.0 <2.0.0"
                           ""
 
-                  let error = ModSystem.parseManifest json |> expectError "incompatible content API"
+                  let error = ModParsing.parseManifest json |> expectError "incompatible content API"
 
                   expectDiagnostic "MOD-MANIFEST-CONTENT-API" "manifest.json" (Some "/api/content") "content API" error
               }
@@ -357,7 +357,7 @@ module ModContractTests =
                           ">=1.0.0 <2.0.0"
                           ""
 
-                  let error = ModSystem.parseManifest json |> expectError "nonzero scripts API"
+                  let error = ModParsing.parseManifest json |> expectError "nonzero scripts API"
 
                   expectDiagnostic
                       "MOD-MANIFEST-SCRIPTS-API"
@@ -382,7 +382,7 @@ module ModContractTests =
                           ""
 
                   let modIdError =
-                      ModSystem.parseManifest invalidModId |> expectError "uppercase mod ID"
+                      ModParsing.parseManifest invalidModId |> expectError "uppercase mod ID"
 
                   expectDiagnostic "MOD-ID-INVALID" "manifest.json" (Some "/modId") "lowercase" modIdError
 
@@ -400,7 +400,7 @@ module ModContractTests =
                           ""
 
                   let namespaceError =
-                      ModSystem.parseManifest invalidNamespace |> expectError "spaced namespace"
+                      ModParsing.parseManifest invalidNamespace |> expectError "spaced namespace"
 
                   expectDiagnostic
                       "MOD-NAMESPACE-INVALID"
@@ -412,7 +412,7 @@ module ModContractTests =
 
               test "ContentId keeps namespace, kind and local ID as stable identity components" {
                   let contentId: ContentId =
-                      ModSystem.parseContentId "community.argentina:club/river-plate"
+                      ModParsing.parseContentId "community.argentina:club/river-plate"
                       |> expectOk "valid content ID"
 
                   Expect.equal contentId.Namespace "community.argentina" "namespace is stable"
@@ -432,7 +432,7 @@ module ModContractTests =
 
                   for invalidId in invalidIds do
                       let error =
-                          ModSystem.parseContentId invalidId
+                          ModParsing.parseContentId invalidId
                           |> expectError ("invalid ContentId " + invalidId)
 
                       Expect.isTrue
@@ -455,7 +455,7 @@ module ModContractTests =
                           ">=1.0.0 <2.0.0"
                           ""
 
-                  let error = ModSystem.parseManifest json |> expectError "abbreviated SemVer"
+                  let error = ModParsing.parseManifest json |> expectError "abbreviated SemVer"
 
                   expectDiagnostic "MOD-SEMVER-INVALID" "manifest.json" (Some "/version") "SemVer" error
               }
@@ -475,7 +475,7 @@ module ModContractTests =
                           ""
 
                   let engineError =
-                      ModSystem.parseManifest invalidEngineVersion
+                      ModParsing.parseManifest invalidEngineVersion
                       |> expectError "abbreviated engine SemVer"
 
                   expectDiagnostic
@@ -499,7 +499,7 @@ module ModContractTests =
                           ""
 
                   let rangeError =
-                      ModSystem.parseManifest invalidRange |> expectError "invalid dependency range"
+                      ModParsing.parseManifest invalidRange |> expectError "invalid dependency range"
 
                   expectDiagnostic "MOD-RANGE-INVALID" "manifest.json" (Some "/dependencies/0/range") "range" rangeError
               }
@@ -519,7 +519,7 @@ module ModContractTests =
                           "\"mystery\": true,"
 
                   let unknownError =
-                      ModSystem.parseManifest unknownKey |> expectError "unknown manifest key"
+                      ModParsing.parseManifest unknownKey |> expectError "unknown manifest key"
 
                   expectDiagnostic "MOD-MANIFEST-UNKNOWN-KEY" "manifest.json" (Some "/mystery") "remove" unknownError
 
@@ -537,7 +537,7 @@ module ModContractTests =
                           "\"title\": \"shadow title\","
 
                   let duplicateError =
-                      ModSystem.parseManifest duplicateKey |> expectError "duplicate manifest key"
+                      ModParsing.parseManifest duplicateKey |> expectError "duplicate manifest key"
 
                   expectDiagnostic
                       "MOD-MANIFEST-DUPLICATE-KEY"
@@ -559,9 +559,9 @@ module ModContractTests =
               }
 
               test "SHA-256 is sensitive to every byte rather than object identity or length alone" {
-                  let oneZero = ModSystem.hashSha256 [| 0uy |]
-                  let twoZeros = ModSystem.hashSha256 [| 0uy; 0uy |]
-                  let oneByteChanged = ModSystem.hashSha256 [| 1uy |]
+                  let oneZero = ModParsing.hashSha256 [| 0uy |]
+                  let twoZeros = ModParsing.hashSha256 [| 0uy; 0uy |]
+                  let oneByteChanged = ModParsing.hashSha256 [| 1uy |]
 
                   Expect.equal oneZero.Length 64 "SHA-256 is represented by 64 hexadecimal characters"
                   Expect.notEqual oneZero twoZeros "adding a byte changes the hash"
@@ -569,7 +569,7 @@ module ModContractTests =
               }
 
               test "a valid package passes only after all declared file hashes are verified" {
-                  match ModSystem.validatePackage (validPackage ()) with
+                  match ModContent.validatePackage (validPackage ()) with
                   | Ok() -> ()
                   | Error error -> failtestf "valid package was rejected: %A" error
               }
@@ -581,7 +581,7 @@ module ModContractTests =
                   let package =
                       makePackage validDeclaredFiles [ countryPath, countryBytes; extraPath, extraBytes ] []
 
-                  let error = ModSystem.validatePackage package |> expectError "undeclared file"
+                  let error = ModContent.validatePackage package |> expectError "undeclared file"
 
                   expectDiagnostic "MOD-PACKAGE-FILE-UNDECLARED" extraPath None "declare" error
               }
@@ -592,7 +592,7 @@ module ModContractTests =
                   let package =
                       makePackage [ countryPath, wrongHash ] [ countryPath, countryBytes ] []
 
-                  let error = ModSystem.validatePackage package |> expectError "wrong file hash"
+                  let error = ModContent.validatePackage package |> expectError "wrong file hash"
 
                   expectDiagnostic "MOD-PACKAGE-FILE-HASH" countryPath None "recalculate" error
               }
@@ -602,9 +602,9 @@ module ModContractTests =
                   let bytes = Encoding.UTF8.GetBytes "{}"
 
                   let package =
-                      makePackage [ traversalPath, ModSystem.hashSha256 bytes ] [ traversalPath, bytes ] []
+                      makePackage [ traversalPath, ModParsing.hashSha256 bytes ] [ traversalPath, bytes ] []
 
-                  let error = ModSystem.validatePackage package |> expectError "path traversal"
+                  let error = ModContent.validatePackage package |> expectError "path traversal"
 
                   expectDiagnostic "MOD-PATH-TRAVERSAL" traversalPath None "relative" error
               }
@@ -613,7 +613,7 @@ module ModContractTests =
                   let package =
                       makePackage validDeclaredFiles [ countryPath, countryBytes ] [ countryPath ]
 
-                  let error = ModSystem.validatePackage package |> expectError "symlink entry"
+                  let error = ModContent.validatePackage package |> expectError "symlink entry"
 
                   expectDiagnostic "MOD-PATH-SYMLINK" countryPath None "symlink" error
               }
@@ -622,9 +622,9 @@ module ModContractTests =
                   let bytes = countryJson "country" "UNKNOWN_CONFEDERATION" |> Encoding.UTF8.GetBytes
 
                   let package =
-                      makePackage [ countryPath, ModSystem.hashSha256 bytes ] [ countryPath, bytes ] []
+                      makePackage [ countryPath, ModParsing.hashSha256 bytes ] [ countryPath, bytes ] []
 
-                  let error = ModSystem.validatePackage package |> expectError "unknown enum value"
+                  let error = ModContent.validatePackage package |> expectError "unknown enum value"
 
                   expectDiagnostic "MOD-ENUM-UNKNOWN" countryPath (Some "/confederation") "known" error
               }
@@ -642,7 +642,7 @@ module ModContractTests =
                           []
 
                   let error =
-                      ModSystem.validatePackage package |> expectError "multiple package errors"
+                      ModContent.validatePackage package |> expectError "multiple package errors"
 
                   Expect.isTrue (error.Diagnostics.Length >= 3) "all independent package errors are accumulated"
 

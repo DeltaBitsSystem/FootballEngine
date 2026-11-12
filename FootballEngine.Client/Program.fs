@@ -379,7 +379,7 @@ module Program =
 
         let resolvedData =
             match
-                Data.ModSystem.loadInstalledPackages
+                Data.ModPackageFile.loadInstalledPackages
                     builtinsDir
                     modsDir
                     initialGlobal.Data.ActiveMods
@@ -387,7 +387,7 @@ module Program =
             with
             | Error error ->
                 for diagnostic in error.Diagnostics do
-                    eprintfn "[ModSystem] %s %s" diagnostic.Code diagnostic.Message
+                    eprintfn "[Mods] %s %s" diagnostic.Code diagnostic.Message
 
                 None
             | Ok resolved -> Some resolved

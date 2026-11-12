@@ -1544,7 +1544,7 @@ let generatedCareerTests =
 
         let resolved =
             match
-                ModSystem.resolve
+                ModResolution.resolve
                     [ { RelativePath = "test-save.femod"
                         Package = package } ]
             with

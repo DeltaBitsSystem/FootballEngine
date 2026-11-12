@@ -91,7 +91,7 @@ module ModResolutionTests =
         | Ok value -> failtestf "%s: expected an error, got %A" message value
 
     let private resolveOne package : ResolvedDataSet =
-        ModSystem.resolve [ input "package.femod" package ]
+        ModResolution.resolve [ input "package.femod" package ]
         |> expectOk "single package should resolve"
 
     let modResolutionTests =
@@ -103,7 +103,7 @@ module ModResolutionTests =
                       emptyPackage "community.child" "1.0.0" "sha-child"
                       |> withDependencies [ "community.base", ">=1.0.0 <2.0.0" ]
 
-                  ModSystem.resolve [ input "child.femod" package ]
+                  ModResolution.resolve [ input "child.femod" package ]
                   |> expectError "a missing dependency must fail resolution"
 
               testCase "incompatible dependency range is rejected"
@@ -114,7 +114,7 @@ module ModResolutionTests =
                       emptyPackage "community.child" "1.0.0" "sha-child"
                       |> withDependencies [ "community.base", ">=2.0.0 <3.0.0" ]
 
-                  ModSystem.resolve [ input "child.femod" package; input "base.femod" basePackage ]
+                  ModResolution.resolve [ input "child.femod" package; input "base.femod" basePackage ]
                   |> expectError "an unsatisfied version range must fail resolution"
 
               testCase "dependency cycle is rejected"
@@ -127,7 +127,7 @@ module ModResolutionTests =
                       emptyPackage "community.second" "1.0.0" "sha-second"
                       |> withDependencies [ "community.first", ">=1.0.0 <2.0.0" ]
 
-                  ModSystem.resolve [ input "first.femod" first; input "second.femod" second ]
+                  ModResolution.resolve [ input "first.femod" first; input "second.femod" second ]
                   |> expectError "a dependency cycle must fail resolution"
 
               testCase "dependency lock is exact and stable"
@@ -143,12 +143,12 @@ module ModResolutionTests =
                   let expected = [ basePackage; featurePackage ]
 
                   let lockFromReversedInput =
-                      ModSystem.buildDependencyLock
+                      ModResolution.buildDependencyLock
                           [ input "z/feature.femod" featurePackage; input "a/base.femod" basePackage ]
                       |> expectOk "the selected packages should produce a lock"
 
                   let lockFromSortedInput =
-                      ModSystem.buildDependencyLock
+                      ModResolution.buildDependencyLock
                           [ input "a/base.femod" basePackage; input "z/feature.femod" featurePackage ]
                       |> expectOk "the same selected packages should produce a lock"
 
@@ -176,7 +176,7 @@ module ModResolutionTests =
                       |> withPatches [ PatchOperation.Replace(club, "dependent") ]
 
                   let resolved =
-                      ModSystem.resolve [ input "dependent.femod" dependentPackage; input "base.femod" basePackage ]
+                      ModResolution.resolve [ input "dependent.femod" dependentPackage; input "base.femod" basePackage ]
                       |> expectOk "a dependent patch should resolve after its dependency"
 
                   Expect.equal
@@ -206,7 +206,7 @@ module ModResolutionTests =
                       |> withPatches [ PatchOperation.Replace(club, "later") ]
 
                   let resolved =
-                      ModSystem.resolve
+                      ModResolution.resolve
                           [ input "later.femod" laterPackage
                             input "earlier.femod" earlierPackage
                             input "base.femod" basePackage ]
@@ -239,7 +239,7 @@ module ModResolutionTests =
                       |> withPatches [ PatchOperation.Replace(club, "after") ]
 
                   let resolved =
-                      ModSystem.resolve
+                      ModResolution.resolve
                           [ input "after.femod" afterPackage
                             input "before.femod" beforePackage
                             input "base.femod" basePackage ]
@@ -256,7 +256,7 @@ module ModResolutionTests =
 
                   let second = emptyPackage "community.tie-b" "1.0.0" "sha-b" |> withPriority 10
 
-                  ModSystem.resolve [ input "a.femod" first; input "b.femod" second ]
+                  ModResolution.resolve [ input "a.femod" first; input "b.femod" second ]
                   |> expectError "equal priority without precedence must fail"
 
               testCase "duplicate mod IDs are rejected"
@@ -264,7 +264,7 @@ module ModResolutionTests =
                   let first = emptyPackage "community.duplicate" "1.0.0" "sha-one"
                   let second = emptyPackage "community.duplicate" "2.0.0" "sha-two"
 
-                  ModSystem.resolve [ input "one.femod" first; input "two.femod" second ]
+                  ModResolution.resolve [ input "one.femod" first; input "two.femod" second ]
                   |> expectError "a mod ID can have only one selected package"
 
               testCase "duplicate content IDs are rejected"
@@ -279,7 +279,7 @@ module ModResolutionTests =
                       |> withPriority 20
                       |> withSports [ "community.shared:club/river", "second" ]
 
-                  ModSystem.resolve [ input "first.femod" first; input "second.femod" second ]
+                  ModResolution.resolve [ input "first.femod" first; input "second.femod" second ]
                   |> expectError "a ContentId can have only one owner"
 
               testCase "patch operations add replace remove and assert by ContentId"
@@ -290,7 +290,7 @@ module ModResolutionTests =
 
                   let initial = Map.ofList [ existing, "82"; removed, "retire" ]
 
-                  ModSystem.applyPatch
+                  ModResolution.applyPatch
                       initial
                       [ PatchOperation.Assert(existing, "82")
                         PatchOperation.Add(added, "new")
@@ -307,7 +307,7 @@ module ModResolutionTests =
                   let existing = makeContentId "community.base:club/river"
                   let initial = Map.ofList [ existing, "82" ]
 
-                  ModSystem.applyPatch initial [ PatchOperation.Assert(existing, "81") ]
+                  ModResolution.applyPatch initial [ PatchOperation.Assert(existing, "81") ]
                   |> expectError "an assert against a different value must fail"
 
               testCase "conflicting writes without precedence are rejected"
@@ -330,7 +330,7 @@ module ModResolutionTests =
                       |> withPriority 40
                       |> withPatches [ PatchOperation.Replace(club, "second") ]
 
-                  ModSystem.resolve
+                  ModResolution.resolve
                       [ input "first.femod" first
                         input "second.femod" second
                         input "base.femod" basePackage ]
@@ -348,11 +348,11 @@ module ModResolutionTests =
                       |> withPatches [ PatchOperation.Replace(makeContentId "community.base:club/river", "dependent") ]
 
                   let first =
-                      ModSystem.resolve [ input "dependent.femod" dependentPackage; input "base.femod" basePackage ]
+                      ModResolution.resolve [ input "dependent.femod" dependentPackage; input "base.femod" basePackage ]
                       |> expectOk "the first package order should resolve"
 
                   let second =
-                      ModSystem.resolve [ input "base.femod" basePackage; input "dependent.femod" dependentPackage ]
+                      ModResolution.resolve [ input "base.femod" basePackage; input "dependent.femod" dependentPackage ]
                       |> expectOk "the second package order should resolve"
 
                   Expect.equal first second "canonical resolution must not depend on input order"
@@ -426,7 +426,7 @@ module ModResolutionTests =
                       |> resolveOne
 
                   let restored =
-                      ModSystem.restoreDataSet resolved.DataLock
+                      ModResolution.restoreDataSet resolved.DataLock
                       |> expectOk "the saved snapshot should restore"
 
                   Expect.equal restored.SportsContent resolved.SportsContent "sports snapshot"
@@ -445,7 +445,7 @@ module ModResolutionTests =
                       { resolved.DataLock with
                           DependencyLockHash = String.replicate 64 "0" }
 
-                  Expect.isError (ModSystem.restoreDataSet invalidLock) "a mismatched dependency lock must fail"
+                  Expect.isError (ModResolution.restoreDataSet invalidLock) "a mismatched dependency lock must fail"
 
               testCase "invalid resolution does not publish a dataset"
               <| fun _ ->
@@ -460,5 +460,5 @@ module ModResolutionTests =
                       |> withDependencies [ "community.base", ">=1.0.0 <2.0.0" ]
                       |> withPatches [ PatchOperation.Assert(club, "81") ]
 
-                  ModSystem.resolve [ input "base.femod" basePackage; input "invalid.femod" invalidPackage ]
+                  ModResolution.resolve [ input "base.femod" basePackage; input "invalid.femod" invalidPackage ]
                   |> expectError "a failed patch must not publish a partial dataset" ]
