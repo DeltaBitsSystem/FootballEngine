@@ -57,6 +57,7 @@ module EventApply =
                 Support = BodySupport.NoBodySupport }
         team.Defense.Tasks[slot] <- None
         team.Frame.RunLookup.Remove slot |> ignore
+        team.Proposals.Remove slot |> ignore
         team.PendingActions.Remove slot |> ignore
 
     let private teamForPair (ctx: MatchContext) outgoing incoming =
@@ -179,7 +180,9 @@ module EventApply =
         | SetPieceKind.Penalty -> RestartCause.Foul(None, None)
 
     let private applyRestart (ctx: MatchContext) (world: World) tick cause kind side x y =
+        world.Home.Proposals.Clear()
         world.Home.PendingActions.Clear()
+        world.Away.Proposals.Clear()
         world.Away.PendingActions.Clear()
         let x, y = MatchMath.restartSpot kind side x y
 
@@ -234,7 +237,9 @@ module EventApply =
             | _ -> None
 
         if previousOwner <> Some(side, pid) then
+            world.Home.Proposals.Clear()
             world.Home.PendingActions.Clear()
+            world.Away.Proposals.Clear()
             world.Away.PendingActions.Clear()
 
         let pendingAdvantage =
@@ -563,7 +568,9 @@ module EventApply =
             | EventData.TeamInstruction _ -> ()
             | EventData.PhysicalContact contact -> applyPhysicalContact ctx world contact
             | EventData.BallLoose(x, y) ->
+                world.Home.Proposals.Clear()
                 world.Home.PendingActions.Clear()
+                world.Away.Proposals.Clear()
                 world.Away.PendingActions.Clear()
                 let side = world.State.Possession.LastGainer |> Option.defaultValue ClubSide.Home
 

@@ -434,6 +434,7 @@ module MatchSession =
         match command.Action with
         | ChangeTactics tactics ->
             applyTactics (MatchWorld.team session.World side) session.World.State.Tick tactics
+            (MatchWorld.team session.World side).Proposals.Clear()
             (MatchWorld.team session.World side).PendingActions.Clear()
             session.Buffer.Events.Add { Tick = session.World.State.Tick; Data = EventData.TeamInstruction side }
         | RequestSubstitution(outgoing, incoming) ->

@@ -82,6 +82,12 @@ type KeeperDive =
       Hand: Vec3
       Stretch: float }
 
+/// Team-level cognition the body reads, as the previous tick left it.
+[<Struct>]
+type LatchedTeam =
+    { OurPhase: PhaseKind
+      InTransition: bool }
+
 type TeamWorld =
     { mutable Frame: TeamFrame
       mutable Tactics: TacticsConfig
@@ -100,7 +106,11 @@ type TeamWorld =
       mutable EventWindow: EventWindow
       mutable Substitution: SubstitutionState
       Participation: ParticipationBook
+      /// Actions cognition proposed this tick; the latch moves them to PendingActions on the next one.
+      Proposals: System.Collections.Generic.Dictionary<int, PendingPlayerAction>
+      /// Actions the body may execute; owned by the world side.
       PendingActions: System.Collections.Generic.Dictionary<int, PendingPlayerAction>
+      mutable Latched: LatchedTeam
       Attack: CollectiveAttackState
       mutable LastCarrierSlot: int
       mutable LastRoleAssignmentTick: int<subtick>

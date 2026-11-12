@@ -416,6 +416,7 @@ module ContactTests =
                       for tick in 0 .. 5 do
                           world.State <- { world.State with Tick = tick * 1<subtick> }
                           let events = buffer ()
+                          rng <- CognitionLatch.step system rng world events
 
                           if preparing && tick % 2 = 0 then
                               rng <- Actions.step system rng world events

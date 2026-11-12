@@ -392,7 +392,7 @@ module PlayerDecision =
             | 4 -> ClearBall
             | _ -> DeliverCross
 
-        (MatchWorld.team world side).PendingActions[ slot ] <-
+        (MatchWorld.team world side).Proposals[ slot ] <-
             { Choice = choice
               DecidedAt = tick
               ExpiresAt = tick + ctx.Config.Movement.CommittedRunDuration }

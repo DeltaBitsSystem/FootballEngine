@@ -316,9 +316,29 @@ module PositionTests =
                   frame.Intent.CommittedUntil.[5] <- 10<subtick>
 
                   stepSteering world
+                  Expect.equal frame.Intent.Phase.[5] IntentPhase.Committed "the body never writes cognition's intention"
+                  CognitionLatch.step sctx (Rng.ofSeed 0UL) world (buffer ()) |> ignore
 
                   Expect.equal frame.Intent.Phase.[5] IntentPhase.Completed "expired run completes"
                   Expect.equal frame.Intent.ExitTrigger.[5] ExitTrigger.Expired "expiry is observable")
+
+              testCase "a body verdict on a replaced intention leaves the new one open" (fun _ ->
+                  let world = TestBuilders.minimalWorld ()
+                  let frame = world.Home.Frame
+                  world.State <- { world.State with Tick = 20<subtick> }
+                  frame.Intent.Kind.[5] <- IntentCode.ExecuteRun
+                  frame.Intent.TargetX.[5] <- 20.0f
+                  frame.Intent.TargetY.[5] <- 0.0f
+                  frame.Intent.Phase.[5] <- IntentPhase.Committed
+                  frame.Intent.CommittedUntil.[5] <- 10<subtick>
+
+                  stepSteering world
+                  frame.Intent.TargetX.[5] <- 25.0f
+                  frame.Intent.CommittedUntil.[5] <- 60<subtick>
+                  CognitionLatch.step sctx (Rng.ofSeed 0UL) world (buffer ()) |> ignore
+
+                  Expect.equal frame.Intent.Phase.[5] IntentPhase.Committed "the new run is still committed"
+                  Expect.equal frame.SteerExit.[5] ExitTrigger.None "the stale verdict is consumed")
 
               testCase "reassigns only after a directive change" (fun _ ->
                   let world = TestBuilders.minimalWorld ()

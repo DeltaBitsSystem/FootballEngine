@@ -53,7 +53,7 @@ module ReactionCoherenceTests =
                                   Step = fun ctx rng world buffer ->
                                       trace.Add spec.Name
                                       if spec.Name = "Actions" then
-                                          proposalAtActions <- world.Home.PendingActions.ContainsKey 5
+                                          proposalAtActions <- world.Home.Proposals.ContainsKey 5
                                           pressureAtActions <- world.Home.Frame.PressCount[5]
                                           cognitiveAtActions <- world.Home.Frame.Cognitive[5]
                                           laneAtActions <- world.Home.Frame.LaneClear[6]
@@ -88,7 +88,7 @@ module ReactionCoherenceTests =
                                   Step = fun ctx rng world buffer ->
                                       if names.Contains spec.Name then trace.Add spec.Name
                                       if spec.Name = "Actions" then
-                                          atActions <- Some(world.State.Ball.Control, world.Home.Frame.Cognitive[5], world.Home.Frame.Intent.Kind[5], world.Home.PendingActions.ContainsKey 5)
+                                          atActions <- Some(world.State.Ball.Control, world.Home.Frame.Cognitive[5], world.Home.Frame.Intent.Kind[5], world.Home.Proposals.ContainsKey 5)
                                       spec.Step ctx rng world buffer })
                       let buf = buffer ()
                       buf.Events.Add(event phase (EventData.Possession(ClubSide.Home, actor)))
@@ -133,7 +133,7 @@ module ReactionCoherenceTests =
                                   cognitiveAtDecision <- Some world.Home.Frame.Cognitive[5]
                                   pressureAtDecision <- Some world.Home.Frame.PressCount[5]
                                   laneAtDecision <- Some world.Home.Frame.LaneClear[6]
-                              if spec.Name = "Actions" then choiceAtActions <- world.Home.PendingActions.ContainsKey 5
+                              if spec.Name = "Actions" then choiceAtActions <- world.Home.Proposals.ContainsKey 5
                               spec.Step ctx rng world buffer })
                   let buf = buffer ()
                   buf.Events.Add(event 4 (EventData.Possession(ClubSide.Home, actor)))
@@ -324,7 +324,7 @@ module ReactionCoherenceTests =
                           else
                               { spec with
                                   Step = fun ctx rng world buffer ->
-                                      boundary <- Some(world.Home.PendingActions.ContainsKey 5, world.Home.PendingActions.ContainsKey 6, world.State.Ball.Control)
+                                      boundary <- Some(world.Home.PendingActions.ContainsKey 5 || world.Home.Proposals.ContainsKey 5, world.Home.Proposals.ContainsKey 6, world.State.Ball.Control)
                                       spec.Step ctx rng world buffer })
                   let buf = buffer ()
                   buf.Events.Add(event 1 (EventData.Possession(ClubSide.Home, newActor)))
@@ -419,8 +419,8 @@ module ReactionCoherenceTests =
                       buf.Events.Add(event 1 data)
                       Stepper.step systems system (Rng.ofSeed 3UL) world buf |> ignore
                       Expect.isTrue decision "participant event wakes decision"
-                      Expect.isFalse (world.Home.PendingActions.ContainsKey 6) "removed player's choice is released"
-                      match world.Home.PendingActions.TryGetValue 5 with
+                      Expect.isFalse (world.Home.PendingActions.ContainsKey 6 || world.Home.Proposals.ContainsKey 6) "removed player's choice is released"
+                      match world.Home.Proposals.TryGetValue 5 with
                       | true, { Choice = DeliverPass target } -> Expect.notEqual target 6 "new choice never targets removed player"
                       | true, _ -> ()
                       | _ -> failtest "active carrier did not produce a fresh off-cadence choice")

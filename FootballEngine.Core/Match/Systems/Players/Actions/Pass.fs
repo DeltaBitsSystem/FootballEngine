@@ -106,7 +106,7 @@ module Pass =
             rng
 
         // R5 — a cognitively tired receiver is harder to feed.
-        let receiverCognition = float frame.Cognitive.[targetSlot]
+        let receiverCognition = float frame.SteerCognitive.[targetSlot]
         let cognitiveQuality = 0.6 + 0.4 * receiverCognition
 
         if d > float cfg.Actions.MaxPassExecutionDistance then

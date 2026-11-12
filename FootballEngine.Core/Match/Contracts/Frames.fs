@@ -210,6 +210,11 @@ type TeamFrame =
       mutable SteerIntent: IntentFrame
       mutable SteerShapeX: float32[]
       mutable SteerShapeY: float32[]
+      /// How the body ended the intention it steered by (ExitTrigger codes). Written by the body, handed back to
+      /// cognition by the next latch, so the body never writes an intention cognition is still deciding.
+      mutable SteerExit: byte[]
+      /// Cognitive vitality as the previous tick left it, for actions the body executes.
+      mutable SteerCognitive: float32[]
       mutable Occupancy: OccupancyKind[]
       mutable SlotRoles: SlotRole[]
       mutable DefensiveRoles: DefensiveRole[]
@@ -474,6 +479,8 @@ module TeamFrame =
               ExitTrigger = Array.zeroCreate<byte> slotCount }
           SteerShapeX = Array.zeroCreate<float32> slotCount
           SteerShapeY = Array.zeroCreate<float32> slotCount
+          SteerExit = Array.zeroCreate<byte> slotCount
+          SteerCognitive = Array.create<float32> slotCount 1.0f
           Occupancy = Array.init slotCount (fun i -> OccupancyKind.Active i)
           SlotRoles = Array.create slotCount SlotRole.CenterMid
           DefensiveRoles = Array.create slotCount DefensiveRole.Unassigned

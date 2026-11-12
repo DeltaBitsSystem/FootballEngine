@@ -235,12 +235,7 @@ module TeamPosition =
         let gkSlot =
             match team.GoalkeeperSlot with
             | Some value -> value
-            | None ->
-                let value =
-                    lineup.Profiles |> Array.findIndex (fun p -> p.Role = SlotRole.Goalkeeper)
-
-                team.GoalkeeperSlot <- Some value
-                value
+            | None -> lineup.Profiles |> Array.findIndex (fun p -> p.Role = SlotRole.Goalkeeper)
 
         let defending =
             team.Blackboard.OurPhase = PhaseKind.Defending

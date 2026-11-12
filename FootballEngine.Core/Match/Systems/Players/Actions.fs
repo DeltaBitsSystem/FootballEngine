@@ -147,7 +147,7 @@ module Actions =
 
                     for slot in MatchWorld.activeSlots team.Frame do
                         let pid = team.RosterIds[slot]
-                        let intent = team.Frame.Intent.Kind[slot]
+                        let intent = team.Frame.SteerIntent.Kind[slot]
 
                         let profile = MatchWorld.profileOf ctx.Ctx side slot
                         let engaging = intent = IntentCode.Press || intent = IntentCode.Recover
@@ -228,7 +228,7 @@ module Actions =
                 let frame = team.Frame
 
                 for slot in MatchWorld.activeSlots frame do
-                    let intent = frame.Intent.Kind[slot]
+                    let intent = frame.SteerIntent.Kind[slot]
                     // The player a pass is aimed at expects it whatever his current run, so he sets to receive it too.
                     let pursuing =
                         intent = IntentCode.Recover

@@ -142,7 +142,15 @@ module MatchSessionTests =
                       events |> List.filter (fun ev -> match ev.Data with EventData.Goal _ -> true | _ -> false)
 
                   Expect.equal (goals record) (goals outcome.Events) "every goal is kept"
-                  Expect.equal (List.length (goals record)) (outcome.Final.State.HomeScore + outcome.Final.State.AwayScore) "the record still explains the score")
+                  let overturned =
+                      record
+                      |> List.filter (fun ev -> ev.Data = EventData.VARDecision VARResult.GoalOverturned)
+
+                  // A goal VAR overturns stays in the record beside its overturn, so both explain the score.
+                  Expect.equal
+                      (List.length (goals record) - List.length overturned)
+                      (outcome.Final.State.HomeScore + outcome.Final.State.AwayScore)
+                      "the record still explains the score")
               testCase "Replay finish produces deterministic terminal state" (fun _ ->
                   let outcome =
                       create (Simulator.RunMode.Replay 11<tickDelta>) 11

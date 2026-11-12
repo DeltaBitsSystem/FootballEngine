@@ -72,7 +72,7 @@ module PassTests =
                                         Vy = 0.0<meterPerSecond>
                                         Vz = 0.0<meterPerSecond> } } }
 
-                  fresh.Home.Frame.Cognitive.[7] <- 1.0f
+                  fresh.Home.Frame.SteerCognitive.[7] <- 1.0f
                   let qFresh = passQuality fresh 5 7 5UL
 
                   let tired = TestBuilders.minimalWorld ()
@@ -90,7 +90,7 @@ module PassTests =
                                         Vy = 0.0<meterPerSecond>
                                         Vz = 0.0<meterPerSecond> } } }
 
-                  tired.Home.Frame.Cognitive.[7] <- 0.3f
+                  tired.Home.Frame.SteerCognitive.[7] <- 0.3f
                   let qTired = passQuality tired 5 7 5UL
 
                   Expect.isGreaterThan qFresh qTired "a fresh receiver is easier to feed")
@@ -168,7 +168,7 @@ module PassTests =
               testCase "quality stays within bounds" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
                   standardLayout world
-                  world.Home.Frame.Cognitive.[7] <- 1.0f
+                  world.Home.Frame.SteerCognitive.[7] <- 1.0f
 
                   let q = passQuality world 5 7 3UL
                   Expect.isTrue (q >= 0.0 && q <= 1.0) "pass quality is a clamped probability") ]

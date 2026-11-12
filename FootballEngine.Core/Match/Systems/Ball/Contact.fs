@@ -13,7 +13,7 @@ module BallContact =
         | NoContact
 
     let private intentFactorOf (frame: TeamFrame) (slot: int) : float =
-        match frame.Intent.Kind.[slot] with
+        match frame.SteerIntent.Kind.[slot] with
         | IntentCode.Press
         | IntentCode.Recover
         | IntentCode.BallCarry
@@ -41,7 +41,7 @@ module BallContact =
         let intentFactor = intentFactorOf frame slot
 
         let recovering =
-            frame.Intent.Kind.[slot] = IntentCode.Recover
+            frame.SteerIntent.Kind.[slot] = IntentCode.Recover
             || (let vx = float frame.VelX.[slot]
                 let vy = float frame.VelY.[slot]
                 let dx = float x - float (MatchWorld.posX frame slot)

@@ -50,8 +50,8 @@ module DuelContactTests =
         let frame = world.Home.Frame
         frame.PosX[5] <- distance
         frame.PosY[5] <- 0.0f
-        frame.Intent.Kind[5] <- IntentCode.Recover
-        frame.Intent.Phase[5] <- IntentPhase.Executing
+        frame.SteerIntent.Kind[5] <- IntentCode.Recover
+        frame.SteerIntent.Phase[5] <- IntentPhase.Executing
 
         world.State <-
             { world.State with

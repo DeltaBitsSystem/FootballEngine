@@ -142,14 +142,16 @@ module MatchFactory =
               AppliedAt = None
               UsedIncoming = Set.empty }
           Participation = participation
+          Proposals = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
           PendingActions = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
+          Latched = { OurPhase = PhaseKind.Defending; InTransition = false }
           Attack = CollectiveAttackState.create (if side = ClubSide.Home then ctx.HomeClub.AttackPrior else ctx.AwayClub.AttackPrior)
           LastCarrierSlot = -1
           LastRoleAssignmentTick = -1<subtick>
           Dive = ValueNone
           FormationCache = None
           LateralPairs = None
-          GoalkeeperSlot = None
+          GoalkeeperSlot = lineup.Profiles |> Array.tryFindIndex (fun p -> p.Role = SlotRole.Goalkeeper)
           OwnPositions = Array.empty
           MirroredPositions = Array.empty
           FormationTargets = Array.empty

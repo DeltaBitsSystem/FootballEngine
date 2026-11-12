@@ -62,7 +62,7 @@ module ChainIntegrationTests =
 
                   let _ = PlayerDecision.choose ctx world ClubSide.Home 5 100<subtick> rng
 
-                  let assignment = world.Home.PendingActions[5]
+                  let assignment = world.Home.Proposals[5]
 
                   Expect.equal
                       assignment.ExpiresAt
@@ -84,7 +84,7 @@ module ChainIntegrationTests =
 
                   let a = Rng.ofSeed 42UL
                   let _ = PlayerDecision.choose ctx world ClubSide.Home 5 100<subtick> a
-                  let mA = world.Home.PendingActions[5]
+                  let mA = world.Home.Proposals[5]
                   let pA = CollectiveAttackState.snapshot world.Home.Attack
 
                   let world2 = chainWorld ()
@@ -97,7 +97,7 @@ module ChainIntegrationTests =
 
                   let b = Rng.ofSeed 42UL
                   let _ = PlayerDecision.choose ctx world2 ClubSide.Home 5 100<subtick> b
-                  let mB = world2.Home.PendingActions[5]
+                  let mB = world2.Home.Proposals[5]
                   let pB = CollectiveAttackState.snapshot world2.Home.Attack
 
                   Expect.equal mA mB "markers identical"

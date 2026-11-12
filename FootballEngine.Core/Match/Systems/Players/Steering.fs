@@ -67,8 +67,7 @@ module PlayerSteering =
                 if tick <= frame.SteerIntent.CommittedUntil.[slot] then
                     float frame.SteerIntent.TargetX.[slot], float frame.SteerIntent.TargetY.[slot], true
                 else
-                    frame.Intent.Phase.[slot] <- IntentPhase.Completed
-                    frame.Intent.ExitTrigger.[slot] <- ExitTrigger.Expired
+                    frame.SteerExit.[slot] <- ExitTrigger.Expired
                     float frame.SteerShapeX.[slot], float frame.SteerShapeY.[slot], false
 
         let px = float frame.PosX.[slot]
@@ -113,14 +112,14 @@ module PlayerSteering =
             let fatigue = 1.0 - (1.0 - cond) * float cfg.FatigueSpeedDecay
 
             let phaseBoost =
-                match team.Blackboard.OurPhase with
+                match team.Latched.OurPhase with
                 | PhaseKind.Attacking -> 0.25
                 | PhaseKind.TransitionAttack -> 0.35
                 | PhaseKind.Defending -> 0.1
                 | PhaseKind.TransitionDefend -> 0.2
 
             let speedMult =
-                let transition = team.Defense.Episode |> Option.exists (fun episode -> episode.EndedAt.IsNone)
+                let transition = team.Latched.InTransition
                 match frame.SteerIntent.Kind.[slot] with
                 | IntentCode.Cover when transition -> ctx.Config.DefensiveTransition.CoverEffort
                 | IntentCode.Mark when transition -> ctx.Config.DefensiveTransition.ScreenEffort
@@ -160,8 +159,7 @@ module PlayerSteering =
             && activeIntent
             && not (IntentCode.isContinuous frame.SteerIntent.Kind.[slot])
         then
-            frame.Intent.ExitTrigger.[slot] <- ExitTrigger.ReachedTarget
-            frame.Intent.Phase.[slot] <- IntentPhase.Completed
+            frame.SteerExit.[slot] <- ExitTrigger.ReachedTarget
 
     let private decayCondition (ctx: MatchContext) (clock: SimulationClock) (world: World) : unit =
         let dt = float (SimulationClock.dt clock)
