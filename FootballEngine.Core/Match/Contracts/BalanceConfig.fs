@@ -846,7 +846,9 @@ module BalanceConfig =
           SimultaneousTolerance = 0.00025
           SolverIterations = 4
           MaximumImpactIterations = 8
-          CurvedPathSegments = 4
+          // Two segments follow a curling ball as closely as four for every held-out statistic (48 matches) at 0.6 s less
+          // per match.
+          CurvedPathSegments = 2
           MaximumPathError = 0.01<meter>
           // The kicking leg and body still overlap the ball while it leaves; at even a soft 9 m/s pass it is
           // ~0.9 m clear after 4 ticks, so a later touch by the striker is a genuine second touch.
