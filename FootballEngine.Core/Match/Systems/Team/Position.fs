@@ -74,7 +74,7 @@ module TeamPosition =
             let mutable restDistance2 = 0.0
 
             // Only the first two sorted keys are needed; preserve the distance/slot ordering without materializing a sort.
-            let precedes distance slot bestDistance bestSlot =
+            let precedes (distance: float) (slot: int) (bestDistance: float) (bestSlot: int) =
                 let order = compare distance bestDistance
                 bestSlot < 0 || order < 0 || (order = 0 && slot < bestSlot)
 
@@ -352,10 +352,19 @@ module TeamPosition =
             let mutable screens = 0
             // Greedy one-to-one lane ownership is bounded by slots, not by combinations of player assignments.
             let outlets =
+                // Typed comparison: a tuple sort key is compared generically and boxes every float it reads.
+                let distanceOf slot =
+                    MatchMath.dist ball.X ball.Y (MatchWorld.posX opponent.Frame slot) (MatchWorld.posY opponent.Frame slot)
+
                 MatchWorld.activeSlots opponent.Frame
-                |> Array.sortBy (fun slot ->
-                    MatchMath.dist ball.X ball.Y (MatchWorld.posX opponent.Frame slot) (MatchWorld.posY opponent.Frame slot),
-                    float opponent.Frame.PosX[slot] * dir, slot)
+                |> Array.sortWith (fun a b ->
+                    let byDistance = compare (distanceOf a) (distanceOf b)
+
+                    if byDistance <> 0 then
+                        byDistance
+                    else
+                        let byDepth = compare (float opponent.Frame.PosX[a] * dir) (float opponent.Frame.PosX[b] * dir)
+                        if byDepth <> 0 then byDepth else compare a b)
             for outlet in outlets do
                 let ox, oy = float opponent.Frame.PosX[outlet], float opponent.Frame.PosY[outlet]
                 let distance = MatchMath.dist ball.X ball.Y (MatchWorld.posX opponent.Frame outlet) (MatchWorld.posY opponent.Frame outlet)
