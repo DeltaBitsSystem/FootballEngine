@@ -9,9 +9,10 @@ open FootballEngine.Client.Tests
 
 [<EntryPoint>]
 let main argv =
+    // The whole Client suite already fits the edit loop, so `--fast` selects everything.
     runTestsWithCLIArgs
         []
-        argv
+        (argv |> Array.filter ((<>) "--fast"))
         (testList
             "FootballEngine.Client"
             [ tests

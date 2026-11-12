@@ -23,6 +23,7 @@ Projects run sequentially to avoid competing builds and preserve readable logs. 
 ## Focused development
 
 ```sh
+dotnet fsi scripts/test.fsx --fast
 dotnet fsi scripts/test.fsx --project Core --list
 dotnet fsi scripts/test.fsx --project Core --filter "FootballEngine.Core.FootballEngine.Core.Contracts.Rng"
 dotnet fsi scripts/test.fsx --project Client
@@ -32,6 +33,8 @@ dotnet fsi scripts/test.fsx --help
 `--project` accepts Core, Client or the full project stem, such as `FootballEngine.Core.Tests`. New projects need no central list: name them `*.Tests.fsproj` and implement an executable Expecto entrypoint supporting the existing reporting options. Non-Expecto projects require an explicit runner design change, not silently treating `dotnet run` as tests.
 
 `--filter` is Expecto's dot-separated full-name prefix, not an arbitrary substring. Discover and copy names first. Prefer pairing it with `--project`: a filter selecting nothing in any selected project fails that project's gate. Test names currently sometimes repeat namespace segments; the runner does not rename them.
+
+`--fast` is the edit loop (about 30 s of execution): it leaves out the Core suites that simulate full matches, match corpora or seasons, listed as `fullOnly` in `FootballEngine.Core.Tests/Program.fs`. Client runs whole. It combines with `--project` and `--filter`, prints that it is not the gate, and never replaces the default run before integrating a change. A new suite goes in `fullOnly` only when it plays full matches or seasons; unit, contract and short-scenario suites stay in every run.
 
 `--list` only lists names, without executing game tests. It deliberately cannot combine with `--filter`, because Expecto's list mode does not reliably apply execution filters. `--self-test` checks infrastructure only. Neither mode certifies game acceptance. Arbitrary Expecto passthrough options are intentionally unsupported: they could override strictness, output or selection. Add a documented, tested runner option when a real use case requires one.
 

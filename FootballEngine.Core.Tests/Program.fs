@@ -69,94 +69,102 @@ open FootballEngine.Core.Tests.World.WorldGenerationTests
 
 [<EntryPoint>]
 let main argv =
-    let tests =
-        testList
-            "FootballEngine.Core"
-            [ FootballEngine.Core.Tests.Diagnostics.Gate0Tests.tests
-              rngTests
-              FootballEngine.Core.Tests.Contracts.MotionEvidenceTests.tests
-              FootballEngine.Core.Tests.Contracts.ObservationTests.tests
-              FootballEngine.Core.Tests.Contracts.ClockTests.clockTests
-              eventFlagTests
-              configTests
-              physicsTests
-              FootballEngine.Core.Tests.Systems.Ball.FootMotionTests.tests
-              gate1ImpulseTests
-              contactTests
-              outcomeTests
-              possessionTests
-              FootballEngine.Core.Tests.Systems.Ball.StrikeTechniqueTests.strikeTechniqueTests
-              FootballEngine.Core.Tests.Systems.Players.KeeperSaveTests.keeperSaveTests
-              schedulerTests
-              flowTests
-              matchClockTests
-              stepperTests
-              determinismTests
-              matchFactoryTests
-              chainSequenceTests
-              foulsTests
-              varTests
-              cardsTests
-              goalDetectionTests
-              FootballEngine.Core.Tests.Systems.Ball.BallFlightTests.tests
-              perceptionTests
-              decisionTests
-              plannerTests
-              plannerEvaluatorTests
-              steeringTests
-              chainIntegrationTests
-              chainLifetimeTests
-              plannerBudgetTests
-              FootballEngine.Core.Tests.Systems.Players.DuelContactTests.tests
-              FootballEngine.Core.Tests.Systems.Players.TackleFoulTests.tests
-              FootballEngine.Core.Tests.Systems.Players.ReactionCoherenceTests.tests
-              passTests
-              shootoutTests
-              formationTests
-              fieldEvaluatorTests
-              lateralPairsTests
-              interceptTableTests
-              interceptPressingTests
-              positionTests
-              FootballEngine.Core.Tests.Systems.Team.DefensiveTransitionTests.tests
-              FootballEngine.Core.Tests.Systems.Team.CollectiveAttackTests.tests
-              FootballEngine.Core.Tests.Systems.Players.PlannerTests.temporalTests
-              positioningTests
-              decideTests
-              passInterceptTests
-              emergentTests
-              offsideLineTests
-              FootballEngine.Core.Tests.Systems.Team.TacticalStaffAnalysisTests.tests
-              managerTests
-              eventApplyTests
-              restartContractTests
-              statsTests
-              scoutingTests
-              squadPlannerTests
-              scoutingWorldTests
-              trainingTests
-              tacticalPlanTests
-              tacticsTests
-              FootballEngine.Core.Tests.Contracts.BoundaryTests.tests
-              FootballEngine.Core.Tests.Contracts.AutosaveQueueTests.tests
-              FootballEngine.Core.Tests.Contracts.FinanceTests.tests
-              FootballEngine.Core.Tests.Contracts.MatchSessionTests.tests
-              FootballEngine.Core.Tests.Contracts.LivePresentationTests.tests
-              dataLockTests
-              FootballEngine.Core.Tests.GameData.ModContractTests.tests
-              FootballEngine.Core.Tests.GameData.ModResolutionTests.modResolutionTests
-              FootballEngine.Core.Tests.GameData.ModPackageIoTests.tests
-              worldKernelTests
-              FootballEngine.Core.Tests.World.TransferMarketTests.tests
-              competitionTests
-              c07Tests
-              worldGenerationTests
-              FootballEngine.Core.Tests.World.Pulse.WorldPulseTests.tests
-              FootballEngine.Core.Tests.World.Pulse.MatchStoriesTests.tests
-              FootballEngine.Core.Tests.World.Pulse.PressureTests.tests
-              FootballEngine.Core.Tests.World.Pulse.JobMarketTests.tests
-              FootballEngine.Core.Tests.World.Pulse.PlayerStoriesTests.tests
-              FootballEngine.Core.Tests.World.Pulse.MarketStoriesTests.tests
-              FootballEngine.Core.Tests.World.Pulse.SeasonCeremonyTests.tests ]
+    // Suites that simulate full matches, match corpora or seasons. The default run and the gate include them;
+    // `--fast` (scripts/test.fsx --fast) leaves them out for the edit loop and never certifies a change.
+    let fullOnly =
+        [ FootballEngine.Core.Tests.Diagnostics.Gate0Tests.tests
+          FootballEngine.Core.Tests.Contracts.MotionEvidenceTests.tests
+          FootballEngine.Core.Tests.Contracts.ObservationTests.tests
+          determinismTests
+          chainSequenceTests
+          steeringTests
+          plannerBudgetTests
+          FootballEngine.Core.Tests.Systems.Team.DefensiveTransitionTests.tests
+          FootballEngine.Core.Tests.Systems.Team.CollectiveAttackTests.tests
+          positioningTests
+          restartContractTests
+          FootballEngine.Core.Tests.Contracts.MatchSessionTests.tests
+          FootballEngine.Core.Tests.Contracts.LivePresentationTests.tests
+          worldGenerationTests
+          FootballEngine.Core.Tests.World.Pulse.MatchStoriesTests.tests
+          FootballEngine.Core.Tests.World.Pulse.PressureTests.tests
+          FootballEngine.Core.Tests.World.Pulse.JobMarketTests.tests
+          FootballEngine.Core.Tests.World.Pulse.PlayerStoriesTests.tests
+          FootballEngine.Core.Tests.World.Pulse.SeasonCeremonyTests.tests ]
 
-    runTestsWithCLIArgs [] argv tests
+    let everyRun =
+        [ rngTests
+          FootballEngine.Core.Tests.Contracts.ClockTests.clockTests
+          eventFlagTests
+          configTests
+          physicsTests
+          FootballEngine.Core.Tests.Systems.Ball.FootMotionTests.tests
+          gate1ImpulseTests
+          contactTests
+          outcomeTests
+          possessionTests
+          FootballEngine.Core.Tests.Systems.Ball.StrikeTechniqueTests.strikeTechniqueTests
+          FootballEngine.Core.Tests.Systems.Players.KeeperSaveTests.keeperSaveTests
+          schedulerTests
+          flowTests
+          matchClockTests
+          stepperTests
+          matchFactoryTests
+          foulsTests
+          varTests
+          cardsTests
+          goalDetectionTests
+          FootballEngine.Core.Tests.Systems.Ball.BallFlightTests.tests
+          perceptionTests
+          decisionTests
+          plannerTests
+          plannerEvaluatorTests
+          chainIntegrationTests
+          chainLifetimeTests
+          FootballEngine.Core.Tests.Systems.Players.DuelContactTests.tests
+          FootballEngine.Core.Tests.Systems.Players.TackleFoulTests.tests
+          FootballEngine.Core.Tests.Systems.Players.ReactionCoherenceTests.tests
+          passTests
+          shootoutTests
+          formationTests
+          fieldEvaluatorTests
+          lateralPairsTests
+          interceptTableTests
+          interceptPressingTests
+          positionTests
+          FootballEngine.Core.Tests.Systems.Players.PlannerTests.temporalTests
+          decideTests
+          passInterceptTests
+          emergentTests
+          offsideLineTests
+          FootballEngine.Core.Tests.Systems.Team.TacticalStaffAnalysisTests.tests
+          managerTests
+          eventApplyTests
+          statsTests
+          scoutingTests
+          squadPlannerTests
+          scoutingWorldTests
+          trainingTests
+          tacticalPlanTests
+          tacticsTests
+          FootballEngine.Core.Tests.Contracts.BoundaryTests.tests
+          FootballEngine.Core.Tests.Contracts.AutosaveQueueTests.tests
+          FootballEngine.Core.Tests.Contracts.FinanceTests.tests
+          dataLockTests
+          FootballEngine.Core.Tests.GameData.ModContractTests.tests
+          FootballEngine.Core.Tests.GameData.ModResolutionTests.modResolutionTests
+          FootballEngine.Core.Tests.GameData.ModPackageIoTests.tests
+          worldKernelTests
+          FootballEngine.Core.Tests.World.TransferMarketTests.tests
+          competitionTests
+          c07Tests
+          FootballEngine.Core.Tests.World.Pulse.WorldPulseTests.tests
+          FootballEngine.Core.Tests.World.Pulse.MarketStoriesTests.tests ]
+
+    let fast = argv |> Array.contains "--fast"
+    let expectoArgs = argv |> Array.filter ((<>) "--fast")
+
+    let tests =
+        testList "FootballEngine.Core" (if fast then everyRun else everyRun @ fullOnly)
+
+    runTestsWithCLIArgs [] expectoArgs tests

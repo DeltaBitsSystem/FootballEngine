@@ -7,15 +7,17 @@ type Options =
     { Project: string option
       Filter: string option
       List: bool
+      Fast: bool
       SelfTest: bool }
 
 let usage =
     """Repository tests (Expecto, built in Release)
-dotnet fsi scripts/test.fsx [--project Core|Client|<project-name>] [--filter <full-name-prefix>]
+dotnet fsi scripts/test.fsx [--project Core|Client|<project-name>] [--filter <full-name-prefix>] [--fast]
 dotnet fsi scripts/test.fsx [--project <name>] --list
 dotnet fsi scripts/test.fsx --self-test
 
 All test projects run by default. --filter uses Expecto's dot-separated full-name prefix.
+--fast leaves out the suites that simulate full matches or seasons: an edit loop, never the gate.
 Listing and self-test modes do not execute game tests. Reports: artifacts/tests/<run-id>/.
 No arbitrary Expecto arguments: the runner owns selection, strictness and reporting.
 """
@@ -25,6 +27,7 @@ let parseArgs arguments =
         { Project = None
           Filter = None
           List = false
+          Fast = false
           SelfTest = false }
 
     let rec parse options remaining =
@@ -38,6 +41,7 @@ let parseArgs arguments =
         | "--filter" :: value :: rest when options.Filter.IsNone && not (String.IsNullOrWhiteSpace value) ->
             parse { options with Filter = Some value } rest
         | "--list" :: rest when not options.List -> parse { options with List = true } rest
+        | "--fast" :: rest when not options.Fast -> parse { options with Fast = true } rest
         | "--self-test" :: rest when not options.SelfTest -> parse { options with SelfTest = true } rest
         | argument :: _ -> Error $"Invalid, repeated or incomplete argument: {argument}\n{usage}"
 
@@ -178,13 +182,15 @@ let runProject root results options (project: string) =
     | Error error -> Error error
     | Ok() ->
         let selection =
-            match options.Filter with
-            | Some prefix -> [ "--filter"; prefix ]
-            | None -> []
+            (match options.Filter with
+             | Some prefix -> [ "--filter"; prefix ]
+             | None -> [])
+            @ (if options.Fast then [ "--fast" ] else [])
 
         let expecto =
             if options.List then
                 [ "--list-tests"; "--no-spinner"; "--colours"; "0" ]
+                @ (if options.Fast then [ "--fast" ] else [])
             else
                 [ "--fail-on-focused-tests"
                   "--no-spinner"
@@ -245,4 +251,7 @@ let run root options =
                 outcomes |> List.sumBy (fun (_, result) -> result |> Result.defaultValue 0)
 
             printfn "Validated %d passing tests across %d project(s). Reports: %s" count projects.Length results
+
+            if options.Fast then
+                printfn "Fast tier only: the full-match and season suites did not run; this is not the gate."
             Ok()

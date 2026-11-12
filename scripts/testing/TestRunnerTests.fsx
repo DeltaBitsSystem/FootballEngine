@@ -29,6 +29,8 @@ let runSelfTests () =
         check "empty filter" (parseArgs [ "--filter"; " " ] |> Result.isError)
         check "duplicate selection" (parseArgs [ "--project"; "Core"; "--project"; "Client" ] |> Result.isError)
         check "list filter ambiguity" (parseArgs [ "--list"; "--filter"; "x" ] |> Result.isError)
+        check "fast tier" (parseArgs [ "--fast" ] |> Result.map (fun options -> options.Fast) = Ok true)
+        check "repeated fast" (parseArgs [ "--fast"; "--fast" ] |> Result.isError)
         check "self-test is exclusive" (parseArgs [ "--self-test"; "--project"; "Core" ] |> Result.isError)
         check "missing report" (validateReport (Path.Combine(root, "absent.xml")) |> Result.isError)
         check "malformed report" (report "not XML" |> Result.isError)
