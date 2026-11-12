@@ -232,3 +232,19 @@ Actions, la física y la pelota sobre el tick actual (~3,1 s hoy); el hilo de co
 intención y decisión con la foto del tick anterior (~2,1 s). El desfase pasa a las intenciones y decisiones, que
 cambian a 2–10 Hz. Techo: ~1,7× en vez de ~2×. Antes de construirlo hay que emular ese desfase (Steering y
 Actions leyendo intenciones y acciones del tick anterior) y validarlo igual que este.
+
+## 12. Frontera por encima de Steering: hecha y validada (2026-11-12)
+
+`CognitionLatch` (primero en el `SystemsTable`) copia las intenciones y la forma de cada equipo a lo que lee
+Steering, y Actions ejecuta una acción pendiente desde el tick siguiente al que se decidió. Held-out 48: error
+total 12,45 → 11,94, 7/8 en banda. Hash `0727ce16b65c8d5d`. Un test verifica el relevo y falla si Steering lee las
+intenciones en vivo.
+
+Lo que falta para correr la cognición en otro hilo, en orden:
+1. **Foto física de solo lectura** para la cognición: posiciones, velocidades, orientación, estado de contacto y
+   fatiga de los cuerpos, más la pelota y el `MatchState`, copiados al inicio del tick. La cognición deja de leer
+   el `TeamFrame` vivo.
+2. **Salidas propias por lado:** un `EventBuffer` y un registro de observación por hilo, unidos en orden fijo
+   (primero cognición, después mundo); `PendingActions` con doble buffer como las intenciones.
+3. **Dueños únicos** de `Condition` (al mundo) y `Directive` (a la cognición), según la sección 10.
+4. **Dos hilos con relevo por espera activa;** un test exige el mismo hash con 1 y con 2 hilos.
