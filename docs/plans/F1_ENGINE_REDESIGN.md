@@ -191,3 +191,23 @@ Orden de trabajo:
    compilador lista cada lectura cruzada).
 2. Correr las dos mitades en secuencia con el desfase: valida el diseño sin hilos (held-out).
 3. Correrlas en dos hilos con relevo por espera activa; un test exige el mismo hash con 1 y con 2 hilos.
+
+## 10. Frontera medida entre cognición y mundo (2026-11-12)
+
+Lecturas y escrituras de campos de `TeamFrame`/`TeamWorld` por archivo de sistema (búsqueda en el código; el
+estado de la pelota y del `MatchState` cruza aparte, por `MatchWorld` y los eventos):
+
+- **Cognición → mundo (propuestas):** `TargetVelX/Y`, `TargetFacing`, `PendingActions`, `Memory`, `Cognitive`,
+  `GoalkeeperSlot`.
+- **Mundo → cognición (foto):** posiciones, velocidades y orientación de los cuerpos, más la pelota, el reloj y el
+  flujo del partido.
+- **Escritos por los dos lados (conflictos a resolver):**
+  - `Intent.TargetX/Y/ExitTrigger`: RestartController manda a los jugadores a sus puestos en una reanudación.
+    Es un plan, no física: RestartController pasa a la cognición y sus autorizaciones siguen saliendo como
+    eventos.
+  - `Directive.SinceTick`: lo escriben TeamDecide y ManagerSystem. El entrenador es cognición.
+  - `Condition` (fatiga): la escribe Steering, pero es estado del cuerpo. Pasa al mundo, junto al movimiento.
+  - `Phase`, `Width`: nombres repetidos en records distintos, no un conflicto real.
+
+La frontera es angosta: unos 8 campos de propuesta, la foto física y 3 conflictos con dueño obvio. El paso 1 de
+la sección 9 (tipos separados) es tratable.
