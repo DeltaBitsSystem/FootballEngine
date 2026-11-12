@@ -35,6 +35,11 @@ con la misma semilla) salvo donde un cambio se justifique y recalibre.
 
 Aceptación: hash de eventos idéntico en el corpus de semillas; perfil antes/después en el commit.
 
+Progreso (2026-11-12, `Training profile`, mismo hash `5fba0ac3801af028` en `hash 4`): 12,8 s → 5,8 s por partido;
+ContactDynamics 2,2 s / 181 MB, PlayerDecision 0,94 s, TeamPosition 0,94 s, RestartController 0,15 s / 43 MB.
+Suite Core 4:04 → 1:59 (837/837). Lo que queda pide cambios de estructura, no micro-ajustes: menos segmentos de
+contacto por tick con la misma precisión, índice espacial compartido, planner sin `Set`/closures.
+
 ### F2 — Feedback rápido y limpio (DX)
 
 1. Warnings a cero y `TreatWarningsAsErrors` en todos los proyectos.
