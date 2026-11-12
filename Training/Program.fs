@@ -293,9 +293,18 @@ module Program =
                             calls[spec.Name] <- calls[spec.Name] + 1
                             result })
 
+        let pauseBefore = System.GC.GetTotalPauseDuration()
+        let gen0, gen1, gen2 = System.GC.CollectionCount 0, System.GC.CollectionCount 1, System.GC.CollectionCount 2
         let total = System.Diagnostics.Stopwatch.StartNew()
         let ticks = SimulatorRunner.runWith timed cfg seed
         total.Stop()
+
+        printfn
+            "gc: %.0f ms paused, collections gen0 %d gen1 %d gen2 %d"
+            (System.GC.GetTotalPauseDuration() - pauseBefore).TotalMilliseconds
+            (System.GC.CollectionCount 0 - gen0)
+            (System.GC.CollectionCount 1 - gen1)
+            (System.GC.CollectionCount 2 - gen2)
         let ms (t: int64) = float t * 1000.0 / float System.Diagnostics.Stopwatch.Frequency
         let systemsMs = timers.Values |> Seq.sumBy ms
         printfn "one match: %.0f ms wall, %d ticks, %.1f us/tick; systems %.0f ms, stepper and rest %.0f ms" total.Elapsed.TotalMilliseconds ticks (total.Elapsed.TotalMilliseconds * 1000.0 / float ticks) systemsMs (total.Elapsed.TotalMilliseconds - systemsMs)
@@ -303,10 +312,36 @@ module Program =
         for KeyValue(name, t) in timers |> Seq.sortByDescending (fun kv -> kv.Value) do
             printfn "  %-24s %8.0f ms %5.1f %%  %7d calls %8.0f MB" name (ms t) (100.0 * ms t / total.Elapsed.TotalMilliseconds) calls[name] (float bytes[name] / 1e6)
 
+    /// One FNV-1a hash over every applied event of each seed's match: an optimisation must leave it unchanged.
+    let private hashCmd (cfg: BalanceConfig) (seeds: uint64[]) =
+        let digest seed =
+            let mutable hash = 14695981039346656037UL
+            let mutable count = 0
+
+            let world =
+                SimulatorRunner.runObserved cfg seed (fun _ events ->
+                    for event in events do
+                        count <- count + 1
+
+                        for c in sprintf "%d %A" (int event.Tick) event.Data do
+                            hash <- (hash ^^^ uint64 c) * 1099511628211UL)
+
+            seed, hash, count, world.State.HomeScore, world.State.AwayScore
+
+        let results = seeds |> Array.Parallel.map digest
+        let mutable combined = 14695981039346656037UL
+
+        for seed, hash, count, home, away in results do
+            printfn "  seed %-6d %016x  %6d events  %d-%d" seed hash count home away
+            combined <- (combined ^^^ hash) * 1099511628211UL
+
+        printfn "combined %016x" combined
+
     let private usage () =
         printfn "usage (any command takes --set Path.Field=value, repeatable; --heldout uses seeds 1..n):"
         printfn "  validate [n=8]                       banded metrics with 95%% intervals and causal funnels"
         printfn "  sweep <Path.Field> <v1,v2,...> [n=8]  one metric row per value"
+        printfn "  hash [n=4]                           event hash per seed; optimisations must keep it"
         printfn "  diagnose [n=4] | tune [sweeps] [n] | dump <path> [n]"
         1
 
@@ -323,6 +358,9 @@ module Program =
             let label = if heldOut then $"{label}, held-out seeds" else label
 
             match args with
+            | "hash" :: rest ->
+                hashCmd cfg (seedsFor heldOut (defaultArgs rest [ "4" ] |> List.head |> int))
+                0
             | "validate" :: rest ->
                 let n = defaultArgs rest [ "8" ] |> List.head |> int
                 Report.print label (Report.run cfg (seedsFor heldOut n))

@@ -118,6 +118,63 @@ module InterceptTable =
 
         if reached then n else p.MaxSteps
 
+    /// The roll `stepsToReach` integrates, shared by every player raced against the same ball: the per-step drag
+    /// dominated pass and pressing evaluation, and was being recomputed once per player. Steps are integrated
+    /// lazily up to the furthest any query needs, with the same operations in the same order, so `StepsFor` equals
+    /// `stepsToReach` for every player.
+    [<Sealed>]
+    type RolledBall(p: InterceptParams, ball: Spatial) =
+        let xs = Array.zeroCreate<float> (p.MaxSteps + 1)
+        let ys = Array.zeroCreate<float> (p.MaxSteps + 1)
+        let reaches = Array.zeroCreate<float> (p.MaxSteps + 1)
+        let mutable filled = -1
+        let mutable ballX = float ball.X
+        let mutable ballY = float ball.Y
+        let mutable velocityX = float ball.Vx
+        let mutable velocityY = float ball.Vy
+
+        let fillTo n =
+            let stepSeconds = float dt
+            let control = float p.ControlRadius
+
+            while filled < n do
+                if filled >= 0 then
+                    let speed = sqrt (velocityX * velocityX + velocityY * velocityY)
+
+                    if speed > 1e-9 then
+                        let scale = nextGroundSpeed p speed / speed
+                        velocityX <- velocityX * scale
+                        velocityY <- velocityY * scale
+
+                    ballX <- ballX + velocityX * stepSeconds
+                    ballY <- ballY + velocityY * stepSeconds
+
+                filled <- filled + 1
+                xs[filled] <- ballX
+                ys[filled] <- ballY
+                reaches[filled] <- control + reachableDistance p (float filled * stepSeconds)
+
+        member _.StepsFor(px: float<meter>, py: float<meter>) : int =
+            let playerX = float px
+            let playerY = float py
+            let mutable n = 0
+            let mutable result = p.MaxSteps
+            let mutable reached = false
+
+            while not reached && n <= p.MaxSteps do
+                if n > filled then fillTo n
+                let dx = playerX - xs[n]
+                let dy = playerY - ys[n]
+                let reach = reaches[n]
+
+                if dx * dx + dy * dy <= reach * reach then
+                    reached <- true
+                    result <- n
+
+                n <- n + 1
+
+            result
+
     /// Per-team aggregate: the minimum steps define who is first to the ball,
     /// which is what the pressing and situation logic compares. SelfStep and
     /// TeammateStep are the min over the side's active outfielders (GK
@@ -129,6 +186,7 @@ module InterceptTable =
     let compute (p: InterceptParams) (world: World) (side: ClubSide) : InterceptState =
         let ball = world.State.Ball.Position
         let maxSteps = p.MaxSteps
+        let rolled = RolledBall(p, ball)
 
         let sideInfo (side: ClubSide) : int[] * int * int * int =
             // Single pass: fill SlotSteps and track the team aggregate minima
@@ -141,7 +199,7 @@ module InterceptTable =
             let mutable found = false
 
             for slot in MatchWorld.activeSlots frame do
-                let s = stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+                let s = rolled.StepsFor(MatchWorld.posX frame slot, MatchWorld.posY frame slot)
                 steps.[slot] <- s
 
                 if frame.SlotRoles[slot] <> SlotRole.Goalkeeper then
@@ -171,6 +229,7 @@ module InterceptTable =
     let computeBoth (p: InterceptParams) (world: World) : InterceptState * InterceptState =
         let ball = world.State.Ball.Position
         let maxSteps = p.MaxSteps
+        let rolled = RolledBall(p, ball)
 
         let sideInfo side =
             let frame = (MatchWorld.team world side).Frame
@@ -180,7 +239,7 @@ module InterceptTable =
             let mutable secondStep = maxSteps
 
             for slot in MatchWorld.activeSlots frame do
-                let step = stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+                let step = rolled.StepsFor(MatchWorld.posX frame slot, MatchWorld.posY frame slot)
                 steps.[slot] <- step
 
                 if frame.SlotRoles[slot] <> SlotRole.Goalkeeper then
@@ -209,6 +268,7 @@ module InterceptTable =
     let computeBothInto (p: InterceptParams) (world: World) : unit =
         let ball = world.State.Ball.Position
         let maxSteps = p.MaxSteps
+        let rolled = RolledBall(p, ball)
 
         let sideInfo side (steps: int[]) =
             let frame = (MatchWorld.team world side).Frame
@@ -217,7 +277,7 @@ module InterceptTable =
             let mutable secondStep = maxSteps
 
             for slot in MatchWorld.activeSlots frame do
-                let step = stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+                let step = rolled.StepsFor(MatchWorld.posX frame slot, MatchWorld.posY frame slot)
                 steps.[slot] <- step
 
                 if frame.SlotRoles[slot] <> SlotRole.Goalkeeper then

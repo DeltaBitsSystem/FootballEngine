@@ -120,44 +120,46 @@ module PlayerDecision =
                 // is not a target.
                 let laneOk = frame.LaneClear.[s2] && frame.FaceCone.[s2]
 
-                // F4 — the launched pass must beat the fastest interceptor.
-                let dM = max d 0.5 * 1.0<meter>
+                let uPass =
+                    w.PassBaseUtility
+                    + w.PassPassingWeight * ((passing - 60.0) / 40.0)
+                    + w.PassVisionWeight * ((vision - 60.0) / 40.0)
+                    + w.PassTargetBonus * space
+                    + w.PassAnticipationBonus * ((float p.Anticipation - 60.0) / 50.0)
+                    + w.PassTrajectoryBonus * (if longBall then 0.0 else 0.15)
+                    + (if longBall then
+                           float tactics.Directness * tradeoffs.DirectnessLongBallUtility
+                       else
+                           0.0)
+                    + (if attacking then 0.0 else w.PassAttackPhasePenalty)
+                    - w.PassHighPressPenalty * float pressure * w.PassHighPressFactor
+                    - (if offside then 0.8 else 0.0)
+                    + w.PersonalityTeamworkWeight * ((float p.Teamwork - 60.0) / 100.0)
+                    + w.PassConcentrationMod * (cognitive - 0.5)
+                    - passMemoryMod
+                    - (if laneOk then 0.0 else 0.6)
+                    + w.PersonalityConsistencyMod * (float frame.Cognitive.[s2] - 0.5)
 
-                let launchSpeed =
-                    (BallAero.pass ctx.Config.Ball ctx.Config.Actions.PassArrivalSpeed ctx.Config.Actions.PassArrivalSpeedGain d)
-                        .LaunchSpeed
-                    * 1.0<meterPerSecond>
+                // The interceptor check simulates every defender, so it only runs for receivers the cheap utility
+                // already rates above the bar; the option set is the same either way.
+                if uPass >= w.PassMinThreshold then
+                    // F4 — the launched pass must beat the fastest interceptor.
+                    let dM = max d 0.5 * 1.0<meter>
 
-                let launched =
-                    { X = world.State.Ball.Position.X
-                      Y = world.State.Ball.Position.Y
-                      Z = 0.0<meter>
-                      Vx = (rx - x) / dM * launchSpeed
-                      Vy = (ry - y) / dM * launchSpeed
-                      Vz = 0.0<meterPerSecond> }
+                    let launchSpeed =
+                        (BallAero.pass ctx.Config.Ball ctx.Config.Actions.PassArrivalSpeed ctx.Config.Actions.PassArrivalSpeedGain d)
+                            .LaunchSpeed
+                        * 1.0<meterPerSecond>
 
-                if PassIntercept.feasible ctx.Config.PassIntercept pparams world side s2 launched offsideLine then
-                    let uPass =
-                        w.PassBaseUtility
-                        + w.PassPassingWeight * ((passing - 60.0) / 40.0)
-                        + w.PassVisionWeight * ((vision - 60.0) / 40.0)
-                        + w.PassTargetBonus * space
-                        + w.PassAnticipationBonus * ((float p.Anticipation - 60.0) / 50.0)
-                        + w.PassTrajectoryBonus * (if longBall then 0.0 else 0.15)
-                        + (if longBall then
-                               float tactics.Directness * tradeoffs.DirectnessLongBallUtility
-                           else
-                               0.0)
-                        + (if attacking then 0.0 else w.PassAttackPhasePenalty)
-                        - w.PassHighPressPenalty * float pressure * w.PassHighPressFactor
-                        - (if offside then 0.8 else 0.0)
-                        + w.PersonalityTeamworkWeight * ((float p.Teamwork - 60.0) / 100.0)
-                        + w.PassConcentrationMod * (cognitive - 0.5)
-                        - passMemoryMod
-                        - (if laneOk then 0.0 else 0.6)
-                        + w.PersonalityConsistencyMod * (float frame.Cognitive.[s2] - 0.5)
+                    let launched =
+                        { X = world.State.Ball.Position.X
+                          Y = world.State.Ball.Position.Y
+                          Z = 0.0<meter>
+                          Vx = (rx - x) / dM * launchSpeed
+                          Vy = (ry - y) / dM * launchSpeed
+                          Vz = 0.0<meterPerSecond> }
 
-                    if uPass >= w.PassMinThreshold then
+                    if PassIntercept.feasible ctx.Config.PassIntercept pparams world side s2 launched offsideLine then
                         options <- (uPass, 1, float s2) :: options
 
         options

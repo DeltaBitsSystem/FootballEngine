@@ -219,7 +219,8 @@ module PlayerIntent =
 
         // The chaser runs to where he meets the rolling ball, not where it is now; aiming at the current position
         // trails a moving ball forever and lets slow balls roll out of play.
-        let chaseX, chaseY =
+        // Only the loose-ball chaser needs it, and it integrates the ball step by step, so it is not paid per player.
+        let chasePoint () =
             // Meeting the ball means getting a foot to it, not entering the decision table's generous kickable area.
             let p =
                 { InterceptTable.parameters ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball with
@@ -257,6 +258,7 @@ module PlayerIntent =
         elif looseBall then
             match frame.DefensiveRoles.[slot] with
             | _ when looseBallChaser = Some slot ->
+                let chaseX, chaseY = chasePoint ()
                 setRoleIntent frame slot IntentCode.Press (float32 chaseX) (float32 chaseY) tick
             | _ when p.Role = SlotRole.Goalkeeper ->
                 setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick

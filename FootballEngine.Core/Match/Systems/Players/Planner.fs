@@ -194,13 +194,14 @@ module Planner =
                   Vy = (float (ry - s.BallY) / d) * speed
                   Vz = 0.0<meterPerSecond> }
 
-            let receiverSteps = InterceptTable.stepsToReach pparams ball rx ry
+            let rolled = InterceptTable.RolledBall(pparams, ball)
+            let receiverSteps = rolled.StepsFor(rx, ry)
 
             let mutable bestOpponent = pparams.MaxSteps
 
             for struct (oslot, ox, oy) in s.OppPos do
                 if not (Set.contains oslot s.GoalkeeperSlots) then
-                    let steps = InterceptTable.stepsToReach pparams ball ox oy
+                    let steps = rolled.StepsFor(ox, oy)
 
                     if steps < bestOpponent then
                         bestOpponent <- steps
