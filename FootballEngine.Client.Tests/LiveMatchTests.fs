@@ -1041,7 +1041,8 @@ let tests =
                   Thread.Sleep 300
                   Expect.isLessThanOrEqual (Volatile.Read &wakes) 1 "an undrained UI is woken once"
 
-                  // Counts the HUD updates seen over a wall-clock window and how far the match advanced.
+                  // Pace is ticks per wall second between the first and last HUD update: at 4x updates are 40
+                  // ticks apart, so the raw first-to-last span loses up to a third of a 1.5 s window to sampling.
                   let watch (window: TimeSpan) =
                       let clock = Stopwatch.StartNew()
                       let mutable semantics = 0
@@ -1053,17 +1054,18 @@ let tests =
                           | Some(MatchRuntimePublication.Failed error) -> failtest error
                           | Some(MatchRuntimePublication.Semantic value) ->
                               semantics <- semantics + 1
-                              first <- first |> Option.orElse (Some value)
-                              last <- Some value
+                              let seen = value, clock.Elapsed.TotalSeconds
+                              first <- first |> Option.orElse (Some seen)
+                              last <- Some seen
                           | Some _ -> ()
                           | None -> Thread.Sleep 1
 
-                      let advanced =
+                      let pace =
                           match first, last with
-                          | Some a, Some b -> int (b.Frontier - a.Frontier)
-                          | _ -> 0
+                          | Some(a, ta), Some(b, tb) when tb > ta -> float (b.Frontier - a.Frontier) / (tb - ta)
+                          | _ -> 0.0
 
-                      semantics, advanced, last
+                      semantics, pace, last |> Option.map fst
 
                   let normalCount, normalAdvance, latest = watch (TimeSpan.FromSeconds 1.5)
                   let latest = latest |> Option.defaultWith (fun () -> failtest "no HUD update at 1x")
@@ -1084,9 +1086,9 @@ let tests =
                   let fastCount, fastAdvance, _ = watch (TimeSpan.FromSeconds 1.5)
 
                   Expect.isGreaterThan
-                      (float fastAdvance)
-                      (2.5 * float normalAdvance)
-                      $"4x plays the match faster (1x {normalAdvance} ticks, 4x {fastAdvance})"
+                      fastAdvance
+                      (2.5 * normalAdvance)
+                      $"4x plays the match faster (1x {normalAdvance:F0} ticks/s, 4x {fastAdvance:F0} ticks/s)"
 
                   Expect.isLessThanOrEqual
                       (float fastCount)

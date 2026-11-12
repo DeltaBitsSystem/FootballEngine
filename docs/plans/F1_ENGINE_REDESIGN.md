@@ -258,5 +258,5 @@ juego: es el único que escribe el flujo. El árbitro señala la dirección desd
 El plan llega un tick más tarde. Held-out 48: error total 11,62, 7/8 en banda (los córners siguen fuera).
 Hash `84dd920156d15efd`. Perfil: un partido en 5,49 s.
 
-El test de cliente "4x playback keeps HUD updates…" falla con la suite completa también en la base
-(1x 64 ticks, 4x 160): depende del reloj de pared bajo carga y queda pendiente aparte.
+El test de cliente "4x playback…" fallaba por muestreo: medía de la primera a la última publicación del HUD,
+que a 4x llegan cada 40 ticks. Ahora mide ticks por segundo entre publicaciones.
