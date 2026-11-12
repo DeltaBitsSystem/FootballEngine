@@ -151,6 +151,7 @@ type ContactScratch(capacity: int) =
     let endX = Array.zeroCreate<float> size
     let endY = Array.zeroCreate<float> size
     let travel = Array.zeroCreate<float> size
+    let ballCandidate = Array.zeroCreate<bool> size
 
     member val Count = 0 with get, set
     member val SaturationCount = 0UL with get, set
@@ -177,6 +178,8 @@ type ContactScratch(capacity: int) =
     member _.EndX = endX
     member _.EndY = endY
     member _.Travel = travel
+    /// Bodies that can still meet the ball in what is left of the tick; refreshed after every impact.
+    member _.BallCandidate = ballCandidate
 
 /// The single object systems see. All arrays/books owned by this match.
 type World =
