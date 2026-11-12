@@ -66,9 +66,6 @@
 !/FootballEngine.Tests/**
 !/Tools/**
 !/Training/**
-!bench.fsx
-!validate_matches.fsx
-!test_shot.fsx
 
 # --- Packaging y screenshots (assets estáticos) ---
 !/packaging/**

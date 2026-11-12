@@ -40,109 +40,59 @@ dotnet fantomas . --check   # check only, do not modify
 
 ## Project Architecture
 
-### Current architecture (authoritative)
+| Project | What it holds |
+|---|---|
+| `FootballEngine.Core` | Domain, game data, world progression and the match engine. No UI, no I/O beyond explicit adapters. |
+| `FootballEngine.Core.Tests` | Expecto suite for Core (domain, world, match laws and causal behaviour). |
+| `FootballEngine.Client` | Avalonia/FuncUI desktop app: MVU state, persistence (SQLite), runtime workers, WebGPU match viewer. |
+| `FootballEngine.Client.Tests` | Persistence, MVU, runtime workers, presentation, animation and asset contracts. Built separately. |
+| `Training` | Calibration and measurement CLI: `validate`, `sweep`, `profile`, `hash`, `diagnose`. |
+| `FootballEngine.Benchmarks` | BenchmarkDotNet micro-benchmarks. Built separately. |
+| `Tools/` | Probes and authoring tools (mod CLI, diagnostics, Blender pipelines). |
 
-The engine has moved out of Client. The historical layout and layer descriptions below are retained as context, not source paths or the current scheduler contract. Use these locations for new work:
+`FootballEngine.slnx` contains Core, Core.Tests, Client and Training.
 
-- `FootballEngine.Core/Match/Contracts/`: match state, frames, world, configuration, events, observation and session boundary.
-- `FootballEngine.Core/Match/Stepper/`: `Stepper.fs`, `EventApply.fs`, `SystemsTable.fs` (the sole scheduler table).
-- `FootballEngine.Core/Match/Systems/`: Ball, Players, Referee, Team and Manager systems; `Match/Restart/` owns restart planning.
-- `FootballEngine.Core/Match/Simulator/`: factory, Result-based `Simulator.runMatch`, visual replay projection. No `weightsPath` argument or exception-returning facade.
-- `FootballEngine.Client/`: Avalonia UI, runtime worker, persistence adapter and WebGPU presentation. Rendering never determines sporting outcomes.
-- Canonical test command (local and CI): `dotnet fsi scripts/test.fsx`. Select Core or Client with `--project Core` or `--project Client`; see `docs/TESTING.md`.
-- `FootballEngine.slnx` contains Core, Core.Tests, Client and Training. Client.Tests and Benchmarks are built separately.
-
-Decision proposals belong to `TeamWorld.PendingActions`; VAR snapshots belong to `World.Reviews`. Neither belongs in `TeamFrame.RunLookup`. Evidence is captured through `World.Observation`; format text/export outside ticks. Scheduling/visibility and determinism decisions are documented in `docs/evidence/MATCH_ENGINE_FOUNDATION.md`.
-
-### Solution Structure
-
-The solution (`FootballEngine.slnx`) contains 3 main projects:
-
-| Project | Type | Description |
-|---|---|---|
-| `FootballEngine.Client` | WinExe | Desktop application — domain, engine, UI |
-| `FootballEngine.Tests` | Exe | Test suite with Expecto |
-| `FootballEngine.Benchmarks` | Exe | Benchmarks with BenchmarkDotNet |
-
-Additional directories:
-- `Training/` — Weight calibration pipeline (separate project, not in .slnx)
-- `Data/` — Game data (countries, clubs, etc.)
-- `Tools/` — Auxiliary utilities
-
-### Inside FootballEngine.Client
-
-The client project has ~260 F# files organized in:
+### Match engine (`FootballEngine.Core/Match/`)
 
 ```
-FootballEngine.Client/
-├── Domain/              # Domain types: Player, Club, Match, GameState, etc.
-├── GameData/            # .femod resolution, JSON codecs, and resolved snapshots
-├── Database/            # SQLite — Entities, Serializers, Repository
-├── Engine/
-│   ├── Match/           # The match engine (the heart of the project)
-│   │   ├── Types/       # All types: BalanceConfig, SemanticEvent, SimState, etc.
-│   │   ├── Core/        # SimState, ConfigValidation, EventRouter, MatchStepper
-│   │   ├── Ball/        # BallAgent, BallPhysics, Interception
-│   │   ├── Referee/     # RefereeAgent, FoulAnalysis, VAR
-│   │   ├── Player/      # PlayerAgent (5 layers: Perception → Intent → Decision → Action → Steering)
-│   │   ├── Manager/     # ManagerAgent, SubstitutionIntelligence
-│   │   ├── TeamOrchestrator/ # Collective intelligence, EmergentLoops, Chemistry
-│   │   ├── Systems/     # CognitionSystem, ActionSystem, AdaptiveSystem
-│   │   └── Simulation/  # Simulator (runFast/runFull), Momentum, Snapshots
-│   └── WorldGeneration/ # World generation: players, clubs, fixtures
-├── AppState/            # UI state (MVU/Elmish): Types.fs, Slices, Update
-├── Views/               # Avalonia components: Pages/, Components/
-└── Program.fs           # Application entry point
+Contracts/   types only: World, frames, MatchState, MatchEvent/EventData, BalanceConfig, Rng, Observation
+Config/      ConfigValidation, effective config, weight merge
+Stepper/     Scheduler (SystemStep, triggers), SystemsTable (the one ordered system list), Stepper, EventApply
+Systems/     Ball/, Players/, Team/, Referee/, Manager/ — one module per system, each a SystemStep
+Restart/     restart planning and the laws a restart must satisfy
+Simulator/   MatchFactory, MatchSession, Simulator.runMatch (Result-based), replay projection
 ```
 
-### The 4 Layers of the Match Engine
+One tick, in order:
 
-```
-┌─────────────────────────────────────────────────────┐
-│  A — Foundational contract                          │
-│  SimState · MatchContext · BalanceConfig            │
-│  SemanticEvent · MatchFlow · SimulationClock        │
-├─────────────────────────────────────────────────────┤
-│  B — Simulator                                      │
-│  runFast · runFull                                  │
-├─────────────────────────────────────────────────────┤
-│  C — Stepper                                        │
-│  MatchStepper.updateOne · EventRouter               │
-├─────────────────────────────────────────────────────┤
-│  D — Agents                                         │
-│  BallAgent · RefereeAgent · TeamOrchestrator        │
-│  PlayerAgent · ManagerAgent                         │
-└─────────────────────────────────────────────────────┘
-```
+1. `Stepper` evaluates each system's triggers in `SystemsTable` order (event flags from the last tick, cadence, flow gates).
+2. A triggered system runs as `SystemStep = SystemContext -> Rng -> World -> EventBuffer -> Rng`. It reads `World`,
+   writes the state it owns and appends `MatchEvent`s to the buffer. Each system gets its own deterministic RNG stream.
+3. `EventApply` reduces the buffered events into `MatchState`; their kinds become the next tick's trigger flags.
 
-Layers only communicate downward. B knows C, C knows D. No layer knows the one above it.
+Systems never call each other: they communicate through `World` and events. Decision proposals live in
+`TeamWorld.PendingActions`, VAR snapshots in `World.Reviews`, evidence in `World.Observation`. Scheduling and
+determinism decisions are documented in `docs/evidence/MATCH_ENGINE_FOUNDATION.md`.
 
-**Fixed order within each tick (Layer C):**
-1. Physics — BallPhysics.update, MovementEngine
-2. BallAgent — possession, bounds, trajectories, emits SemanticEvents
-3. Drain events — SimStateOps.drainSemanticEvents
-4. EventRouter — which agents run this tick
-5. Agents — in the order the router determines
-6. MatchClock — halftime, fulltime, stoppage
+### World (`FootballEngine.Core/World/`)
 
-### MVU/Elmish for the UI
+`WorldRunner` and `WorldScheduler` advance the career calendar; `Phases/` (season steps), `Agents/` (clubs, boards,
+staff), `Supervisors/` and `Pulse/` (stories, pressure, job market, season ceremony) consume match results.
 
-The UI uses **Avalonia.FuncUI** with the Elmish pattern:
-- `AppState/Types.fs` — Defines global `State` and `Page` DU (`Loading | Setup | HomePage | Squad | Tactics | ...`)
-- `AppState/Msg.fs` — System messages
-- `AppState/Slices/` — Per-domain sub-states (SquadSlice, TacticsSlice, MatchSlice, etc.)
-- `Views/Pages/` — One view per page
-- `Views/Components/` — Reusable components (Sidebar, Header, MatchViewer, etc.)
+### Client (`FootballEngine.Client/`)
 
----
+`AppState/` holds the MVU state (`Types.fs`), messages (`Msg.fs`), slices and update modules; `Routing/Route.fs` the
+page routes; `Views/Pages` and `Views/Components` the FuncUI views; `Database/` persistence; `AppState/MatchRuntime.fs`
+the match worker feeding the viewer; `Match3D/` and `Animation/` the WebGPU viewer. Rendering never decides a
+sporting outcome.
 
 ## Architectural Principles (summary)
 
-1. **Individual and collective intelligence feed each other.** `TeamOrchestrator` sets the framework, `PlayerAgent` decides within that framework. Accumulated individual decisions are what the orchestrator reads to adjust.
+1. **Individual and collective intelligence feed each other.** The team systems (`Systems/Team`) set the framework, the player systems (`Systems/Players`) decide within it. Accumulated individual decisions are what the orchestrator reads to adjust.
 
 2. **Adding new intelligence must have an obvious home.** If someone wants the team to press better in transition, there must be exactly one place where that lives.
 
-3. **Agents never call each other.** Communication goes through `SimState`. An agent reads, does its work, writes to state or emits events. It never calls another agent directly.
+3. **Systems never call each other.** Communication goes through `World` and events. A system reads, does its work, writes the state it owns or emits events.
 
 4. **No behavior number lives outside BalanceConfig.** If it affects how the game behaves, it lives in `BalanceConfig` with a name that explains what it does.
 
@@ -152,7 +102,7 @@ The UI uses **Avalonia.FuncUI** with the Elmish pattern:
 
 7. **If something doesn't emit an event, it doesn't exist for the viewer.** Before implementing new behavior: what event does it emit? If the answer is "none", it's invisible.
 
-8. **Agents live in event time, not clock time.** Agents don't wake up because N ticks passed — they wake up because something relevant to them happened.
+8. **Systems live in event time, not clock time.** A system's triggers in `SystemsTable` name the events that wake it; a cadence is a fallback, not the reason it runs.
 
 9. **Comments justify, they don't narrate.** Every comment must answer "why" — a branch, a constant, an order, a guard. "What" comments are deleted, not kept.
 
@@ -167,13 +117,13 @@ The UI uses **Avalonia.FuncUI** with the Elmish pattern:
 
 ### Naming conventions
 - **Domain types:** `PlayerId`, `ClubId`, `CompetitionId` (wrapper types, not naked `int`)
-- **Agents:** `{Name}Agent` (PlayerAgent, RefereeAgent, ManagerAgent, BallAgent)
+- **Systems:** one module per system named for what it owns (`KeeperSave`, `ContactDynamics`, `TeamPosition`), exposing `step: SystemStep`
 - **Configuration:** `{Name}Config` inside `BalanceConfig` (DuelConfig, ShotConfig, etc.)
 - **Tests:** `{Name}Tests` in modules separated by layer
 
 ### Module organization
 - One file per main module
-- Types go in `Engine/Match/Types/`, logic in the folder corresponding to the agent/system
+- Types go in `Match/Contracts/`, logic in the `Match/Systems/` folder of the system that owns it
 - Compilation order matters: in the `.fsproj`, files are listed in dependency order
 
 ### Error handling
@@ -198,37 +148,29 @@ The UI uses **Avalonia.FuncUI** with the Elmish pattern:
 
 ### New match event
 
-1. Add the case to the `SemanticEvent` DU in `Engine/Match/Types/SemanticEvent.fs`
-2. Add the mapping in the `SemanticEvent` module (same file)
-3. Update `EventRouter.route` in `Engine/Match/Core/EventRouter.fs` to activate the correct agents
-4. If the event needs effects on the referee, add logic in `RefereeAgent`
-5. If it needs manager response, activate `RunManager` in the router
+1. Add the case to `EventData` and its `EventKind` in `Match/Contracts/MatchEvent.fs`; the compiler lists every
+   match that must handle it.
+2. Reduce it into `MatchState` in `Match/Stepper/EventApply.fs` if it changes state.
+3. Add its kind to the trigger flags of every system in `SystemsTable.fs` that must react.
 
-### New agent
+### New system
 
-1. Create file in the corresponding folder (e.g.: `Engine/Match/Manager/NewAgent.fs`)
-2. Follow the pattern of `PlayerAgent.tick : AgentContext -> PlayerResult`
-3. The agent reads from `SimState` (or a filtered view like `AgentContext`), emits `SemanticEvent`
-4. Register activation in `EventRouter`
-5. Add file to `.fsproj` in the correct position
+1. Create the module under the matching `Match/Systems/` folder with `let step: SystemStep`.
+2. Register it in `Match/Stepper/SystemsTable.fs`, at the position its inputs require, with its triggers.
+3. Keep the state it owns in `World` (or a frame/scratch it owns); no other system writes it.
+4. Add the file to `FootballEngine.Core.fsproj` in compilation order.
 
 ### New UI page
 
-1. Add case to the `Page` DU in `AppState/Types.fs`
-2. Create view in `Views/Pages/NewPage.fs`
-3. Add routing in `Program.fs` (match on `state.CurrentPage`)
-4. Add slice if it needs its own state in `AppState/Slices/`
-5. Add file to `.fsproj`
+1. Add its route in `Routing/Route.fs` and handle it where routes are matched (`Program.fs`, `AppState`).
+2. Create the view in `Views/Pages/`; add a slice in `AppState/Slices/` if it needs its own state.
+3. Add the files to `FootballEngine.Client.fsproj` and check it with the screenshot workflow (`Shots/`).
 
 ### New BalanceConfig field
 
-1. Add field to the corresponding record in `Engine/Match/Types/BalanceConfig.fs`
-2. Update `BalanceConfig.defaultConfig` with a reasonable default value
-3. Add validation in `Engine/Match/Core/ConfigValidation.fs`
-4. If it's an ML weight, add to the schema in `Engine/Match/ML/WeightsLoader.fs`
-5. **Never access `BalanceConfig.defaultConfig` directly in agent code** — pass as a parameter or read from `SimState.Config`
-
----
+1. Add the field to its record in `Match/Contracts/BalanceConfig.fs` and a default with a one-line why.
+2. Validate it in `Match/Config/ConfigValidation.fs`.
+3. Read it from `ctx.Config` in the system, never from `BalanceConfig.defaultConfig`.
 
 ## Test Structure
 
@@ -236,6 +178,7 @@ Tests are executable **Expecto** projects, not VSTest projects. `dotnet test` is
 
 ```bash
 dotnet fsi scripts/test.fsx                         # all discovered test projects, Release
+dotnet fsi scripts/test.fsx --fast                  # edit loop: leaves out full-match and season suites; not the gate
 dotnet fsi scripts/test.fsx --project Core --list    # discover current full names; does not execute tests
 dotnet fsi scripts/test.fsx --project Core --filter "FootballEngine.Core.FootballEngine.Core.Contracts.Rng"
 dotnet fsi scripts/test.fsx --project Client
@@ -273,11 +216,11 @@ Runner maintenance and exact commands: `docs/TESTING.md`.
 |---|---|---|
 | `failwith` in runtime code | Unhandled exceptions break the deterministic simulation | Use `Result<'T, 'E>` or `Option` |
 | `Unchecked.defaultof` | Garbage values that cause phantom bugs | Use `Option` or initialize explicitly |
-| Accessing `BalanceConfig.defaultConfig` directly | Hardcodes configuration, impossible to test with different configs | Pass as a parameter or read from `SimState.Config` |
+| Accessing `BalanceConfig.defaultConfig` directly | Hardcodes configuration, impossible to test with different configs | Read `ctx.Config` |
 | `printfn` for logging | Unstructured output, impossible to filter | Use `State.LogMessages` or `pushNotification` |
-| Agents calling each other | Direct coupling, breaks layer separation | Communicate via `SimState` and `SemanticEvent` |
+| Systems calling each other | Direct coupling, hides update order | Communicate via `World` and `MatchEvent` |
 | Balance numbers outside `BalanceConfig` | Impossible to tune and calibrate | Always in `BalanceConfig` |
-| Behavior without `SemanticEvent` | Invisible to the viewer and the rest of the system | Always emit an event |
+| Behavior without a `MatchEvent` | Invisible to the viewer and the rest of the system | Always emit an event |
 
 ---
 
@@ -322,6 +265,12 @@ Runner maintenance and exact commands: `docs/TESTING.md`.
 - For UI work, use the real deterministic screenshot workflow and inspect the generated images. A successful build does not prove layout, state, language, or interaction quality.
 
 ```bash
+# Everyday loop (see scripts/dev.fsx)
+dotnet fsi scripts/dev.fsx check        # build everything, fast test tier
+dotnet fsi scripts/dev.fsx test --full  # the gate
+dotnet fsi scripts/dev.fsx profile      # per-system time and allocation of one match
+dotnet fsi scripts/dev.fsx hash         # event hash: a pure refactor must not change it
+
 # Build
 dotnet build
 
@@ -347,16 +296,16 @@ dotnet run --project FootballEngine.Benchmarks/FootballEngine.Benchmarks.fsproj 
 
 | What you need | Where it is |
 |---|---|
-| Match state | `Engine/Match/Core/SimState.fs` |
-| Balance configuration | `Engine/Match/Types/BalanceConfig.fs` (~1670 lines) |
-| Semantic events | `Engine/Match/Types/SemanticEvent.fs` |
-| Event router | `Engine/Match/Core/EventRouter.fs` |
-| Simulator | `Engine/Match/Simulation/Simulator.fs` |
-| Match agents | `Engine/Match/Ball/`, `Referee/`, `Player/`, `Manager/`, `TeamOrchestrator/` |
-| UI state | `AppState/Types.fs` |
+| Match world and state | `FootballEngine.Core/Match/Contracts/World.fs`, `MatchState.fs` |
+| Balance configuration | `FootballEngine.Core/Match/Contracts/BalanceConfig.fs` |
+| Events | `FootballEngine.Core/Match/Contracts/MatchEvent.fs` |
+| System order and triggers | `FootballEngine.Core/Match/Stepper/SystemsTable.fs` |
+| Event reduction | `FootballEngine.Core/Match/Stepper/EventApply.fs` |
+| Running a match | `FootballEngine.Core/Match/Simulator/` |
+| Config validation | `FootballEngine.Core/Match/Config/ConfigValidation.fs` |
+| UI state | `FootballEngine.Client/AppState/Types.fs` |
 | Test builders | `FootballEngine.Core.Tests/Infrastructure/TestBuilders.fs` |
-| Config validation | `Engine/Match/Core/ConfigValidation.fs` |
-| ML weights | `Engine/Match/ML/WeightsLoader.fs` |
+| Performance plan | `docs/plans/MAINTAINABILITY_PERFORMANCE_PLAN.md` |
 
 ## Blender and original asset production
 
