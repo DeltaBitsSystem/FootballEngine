@@ -15,13 +15,20 @@ type ChainState =
       OppMotion: struct (int * float<meterPerSecond> * float<meterPerSecond>)[]
       Horizon: float<second>
       Confidence: float
-      GoalkeeperSlots: Set<int>
-      OurGoalkeeperSlots: Set<int>
+      /// Bit per slot; the search tests membership for every projected player, which a tree set made costly.
+      GoalkeeperSlots: uint64
+      OurGoalkeeperSlots: uint64
       PassBall: BallConfig
       PassArrivalSpeed: float<meterPerSecond>
       PassArrivalSpeedGain: float
       MaxPassDistance: float<meter>
       CarrySpeed: float<meterPerSecond> }
+
+/// Slot sets as one word each: a lineup has far fewer than 64 slots.
+module SlotMask =
+    let inline contains (slot: int) (mask: uint64) = (mask >>> slot) &&& 1UL = 1UL
+    let inline add (slot: int) (mask: uint64) = mask ||| (1UL <<< slot)
+    let ofSeq (slots: int seq) = Seq.fold (fun mask slot -> add slot mask) 0UL slots
 
 /// Action-chain planner: given the level-1 options from Decision, simulate
 /// multi-step continuations (pass → pass → shoot, etc.) and score each chain
@@ -124,7 +131,7 @@ module Planner =
                 let mutable second = 0.0<meter>
 
                 for struct (slot, x, _) in opponents do
-                    if not (Set.contains slot s.GoalkeeperSlots) then
+                    if not (SlotMask.contains slot s.GoalkeeperSlots) then
                         let position = x * s.Dir
 
                         if count = 0 || compare position first > 0 then
@@ -202,7 +209,7 @@ module Planner =
             let mutable bestOpponent = pparams.MaxSteps
 
             for struct (oslot, ox, oy) in s.OppPos do
-                if not (Set.contains oslot s.GoalkeeperSlots) then
+                if not (SlotMask.contains oslot s.GoalkeeperSlots) then
                     let steps = rolled.StepsFor(ox, oy)
 
                     if steps < bestOpponent then
@@ -230,7 +237,7 @@ module Planner =
             if used < min cfg.MaxEvaluateLimit frontierLimit then used <- used + 1; cost () else None
         let pass state slot =
             match findReceiver state slot with
-            | ValueSome(struct(_, x, y)) when slot <> state.CarrierSlot && not (Set.contains slot state.OurGoalkeeperSlots) && not (isOffside state x) ->
+            | ValueSome(struct(_, x, y)) when slot <> state.CarrierSlot && not (SlotMask.contains slot state.OurGoalkeeperSlots) && not (isOffside state x) ->
                 let distance = MatchMath.dist state.BallX state.BallY x y
                 // The roll is solved once: feasibility and the simulated flight fly the same pass.
                 let roll = passOf state distance
@@ -269,7 +276,7 @@ module Planner =
                 result |> Option.iter (fun (state, action) ->
                     chains[index] <- [|action|]
                     scores[index] <- utility + s.Confidence * (value w state - baseline)
-                    if code = 1 || code = 3 then states[index] <- Some [|(state, [|action|], Set.ofList [s.CarrierSlot; state.CarrierSlot])|])
+                    if code = 1 || code = 3 then states[index] <- Some [|(state, [|action|], SlotMask.add s.CarrierSlot 0UL |> SlotMask.add state.CarrierSlot)|])
             work[index] <- used - before
         for _ in 2 .. cfg.MaxChainLength do
             for index in 0 .. count - 1 do
@@ -278,7 +285,7 @@ module Planner =
                     let before = used
                     let remainingRoots = states[index..] |> Array.filter Option.isSome |> Array.length
                     frontierLimit <- used + (cfg.MaxEvaluateLimit - used + remainingRoots - 1) / max 1 remainingRoots
-                    let branches = ResizeArray<ChainState * ChainAction[] * Set<int> * float>()
+                    let branches = ResizeArray<ChainState * ChainAction[] * uint64 * float>()
                     for state, path, visited in beam do
                         // Stop and shoot competes with passing; it is not postponed until every pass fails.
                         if MatchMath.distanceToGoal state.Side state.BallX state.BallY < float cfg.ShootingRange then
@@ -288,10 +295,10 @@ module Planner =
                                 if score > scores[index] then chains[index] <- Array.append path [|Shoot|]; scores[index] <- score
                                 Some ()) |> ignore
                         for struct(slot, _, _) in state.OurPos do
-                            if not (Set.contains slot visited) && not (Set.contains slot state.OurGoalkeeperSlots) then
+                            if not (SlotMask.contains slot visited) && not (SlotMask.contains slot state.OurGoalkeeperSlots) then
                                 evaluate (fun () -> pass state slot) |> Option.iter (fun (next, action) ->
                                     let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value w next - baseline)
-                                    branches.Add(next, Array.append path [|action|], Set.add slot visited, score))
+                                    branches.Add(next, Array.append path [|action|], SlotMask.add slot visited, score))
                         evaluate (fun () -> carry state) |> Option.iter (fun (next, action) ->
                             let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value w next - baseline)
                             branches.Add(next, Array.append path [|action|], visited, score))
@@ -347,8 +354,8 @@ module Planner =
           OppMotion = motion oppFrame
           Horizon = ctx.Config.CollectiveAttack.AnticipationHorizon
           Confidence = confidence
-          GoalkeeperSlots = MatchWorld.activeSlots oppFrame |> Array.filter (fun slot -> oppFrame.SlotRoles[slot] = SlotRole.Goalkeeper) |> Set.ofArray
-          OurGoalkeeperSlots = MatchWorld.activeSlots frame |> Array.filter (fun slot -> frame.SlotRoles[slot] = SlotRole.Goalkeeper) |> Set.ofArray
+          GoalkeeperSlots = MatchWorld.activeSlots oppFrame |> Array.filter (fun slot -> oppFrame.SlotRoles[slot] = SlotRole.Goalkeeper) |> SlotMask.ofSeq
+          OurGoalkeeperSlots = MatchWorld.activeSlots frame |> Array.filter (fun slot -> frame.SlotRoles[slot] = SlotRole.Goalkeeper) |> SlotMask.ofSeq
           PassBall = ctx.Config.Ball
           PassArrivalSpeed = ctx.Config.Actions.PassArrivalSpeed
           PassArrivalSpeedGain = ctx.Config.Actions.PassArrivalSpeedGain
