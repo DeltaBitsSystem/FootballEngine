@@ -122,11 +122,39 @@ module InterceptTable =
     /// dominated pass and pressing evaluation, and was being recomputed once per player. Steps are integrated
     /// lazily up to the furthest any query needs, with the same operations in the same order, so `StepsFor` equals
     /// `stepsToReach` for every player.
+    [<Struct>]
+    type private ReachKey =
+        { Speed: float<meterPerSecond>
+          Acceleration: float<meterPerSecondSquared>
+          Control: float<meter>
+          Steps: int }
+
+    /// A player's reach after n steps depends only on the race parameters, not on the ball, so every rolled ball
+    /// shares one table. Published whole as one reference, so concurrent matches never see a partial table.
+    let mutable private reachTable: ReachKey * float[] = ({ Speed = 0.0<meterPerSecond>; Acceleration = 0.0<meterPerSecondSquared>; Control = 0.0<meter>; Steps = -1 }, [||])
+
+    let private reachesFor (p: InterceptParams) =
+        let key =
+            { Speed = p.PlayerSpeedPerSecond
+              Acceleration = p.PlayerAcceleration
+              Control = p.ControlRadius
+              Steps = p.MaxSteps }
+
+        let cachedKey, cached = reachTable
+
+        if cachedKey = key then
+            cached
+        else
+            let control = float p.ControlRadius
+            let built = Array.init (p.MaxSteps + 1) (fun n -> control + reachableDistance p (float n * float dt))
+            reachTable <- (key, built)
+            built
+
     [<Sealed>]
     type RolledBall(p: InterceptParams, ball: Spatial) =
         let xs = Array.zeroCreate<float> (p.MaxSteps + 1)
         let ys = Array.zeroCreate<float> (p.MaxSteps + 1)
-        let reaches = Array.zeroCreate<float> (p.MaxSteps + 1)
+        let reaches = reachesFor p
         let mutable filled = -1
         let mutable ballX = float ball.X
         let mutable ballY = float ball.Y
@@ -135,7 +163,6 @@ module InterceptTable =
 
         let fillTo n =
             let stepSeconds = float dt
-            let control = float p.ControlRadius
 
             while filled < n do
                 if filled >= 0 then
@@ -152,7 +179,6 @@ module InterceptTable =
                 filled <- filled + 1
                 xs[filled] <- ballX
                 ys[filled] <- ballY
-                reaches[filled] <- control + reachableDistance p (float filled * stepSeconds)
 
         member _.StepsFor(px: float<meter>, py: float<meter>) : int =
             let playerX = float px
