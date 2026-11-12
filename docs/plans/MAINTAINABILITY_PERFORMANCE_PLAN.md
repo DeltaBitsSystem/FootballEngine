@@ -42,6 +42,14 @@ ContactDynamics 2,2 s / 181 MB, PlayerDecision 0,94 s, TeamPosition 0,94 s, Rest
 Suite Core 4:04 → 1:59 (837/837). Lo que queda pide cambios de estructura, no micro-ajustes: menos segmentos de
 contacto por tick con la misma precisión, índice espacial compartido, planner sin `Set`/closures.
 
+Corrección deportiva (2026-11-12): las reanudaciones congelaban ~1/3 del partido (un penal con un defensor
+proyectado dentro del área por redondeo, un compañero parado sobre el balón que cancelaba el tiro libre ~30 000
+veces, el saque de arco puesto a 6,5 m mientras el plan mandaba al ejecutor a 5,5 m, expulsados que bloqueaban
+reglas). Juego vivo 129k → 202k ticks por partido; eventos 158k → 87k. Recalibrado (`ShotErrorBase` 0,26,
+`HandError` 0,16): held-out 48 partidos con 7/8 métricas en banda; los córners (39/partido, ya 31 antes) son el
+siguiente problema deportivo. Hash nuevo `8f3dbf11178e6bb6`. Con más juego vivo el partido cuesta ~6,5 s y
+PlayerDecision pasa a 1,4 s / 772 MB: es el próximo objetivo de F1.
+
 ### F2 — Feedback rápido y limpio (DX)
 
 1. Warnings a cero y `TreatWarningsAsErrors` en todos los proyectos.

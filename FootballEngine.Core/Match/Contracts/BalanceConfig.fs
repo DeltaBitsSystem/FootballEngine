@@ -70,6 +70,8 @@ type MovementConfig =
       ConditionDecayPerSecond: float
       RecoveryPerSecond: float
       ReactiveRadius: float<meter>
+      /// A set-piece run sidesteps any body closer than this that stands ahead on its path.
+      SetPieceAvoidRadius: float<meter>
       ConditionImpactThreshold: float
       IntentFloor: float
       IntentHysteresis: float
@@ -302,7 +304,10 @@ type SetPieceConfig =
       WallArcSpread: float<meter>
       CornerNearZoneDist: float<meter>
       CornerFarZoneDist: float<meter>
-      ContactReadyRadius: float<meter>
+      /// How far behind the corner spot the taker waits, along the goal line into the pitch.
+      CornerTakerOffset: float<meter>
+      /// How far every player but the executor stands from the ball before the kick is authorized.
+      BallClearance: float<meter>
       TargetTolerance: float<meter>
       MaxTargetDistance: float<meter>
       /// How far inside the touchline a throw-in receiver is placed; the law needs the receiver on
@@ -796,6 +801,9 @@ module BalanceConfig =
           ConditionDecayPerSecond = 0.00006
           RecoveryPerSecond = 0.01
           ReactiveRadius = 3.0<meter>
+          // Two bodies meet at ~0.5 m; starting the sidestep a stride earlier lets a defender leaving the corner
+          // flag walk round the taker walking in, instead of the two pressing chest to chest until full time.
+          SetPieceAvoidRadius = 1.5<meter>
           ConditionImpactThreshold = 0.1
           IntentFloor = 0.2
           IntentHysteresis = 0.05
@@ -864,8 +872,9 @@ module BalanceConfig =
           DiveSpeed = 4.2<meterPerSecond>
           MaxDive = 2.0<meter>
           HandRadius = 0.15<meter>
-          // Calibrated so keepers stop roughly the top-flight share (~70 %) of shots on target; 0.3 m let 4 in 10 through.
-          HandError = 0.2<meter>
+          // Calibrated so keepers stop roughly the top-flight share (~70 %) of shots on target; 0.3 m let 4 in 10 through,
+          // and 0.2 m fell to ~66 % once open play stopped being cut short by frozen restarts.
+          HandError = 0.16<meter>
           HandWindow = 3<subtick>
           // Driven shots above ~20 m/s are usually parried even by good handlers.
           CatchSpeed = 20.0<meterPerSecond>
@@ -921,8 +930,9 @@ module BalanceConfig =
           PassArrivalSpeedGain = 0.12
           MaxPassExecutionDistance = 65.0<meter>
           ShotQualityGate = 0.5
-          // ~0.2 rad for an average finisher under some pressure keeps roughly 40% of unblocked shots on target.
-          ShotErrorBase = 0.1
+          // Recalibrated once restarts stopped freezing a third of the match: with that much more open play, 0.26
+          // keeps ~36 % of shots on target (top flight ~33 %) and conversion near 12 %.
+          ShotErrorBase = 0.26
           ShotErrorSkill = 0.25
           ShotVerticalErrorRatio = 0.6
           ShotPostMargin = 1.2<meter>
@@ -973,7 +983,12 @@ module BalanceConfig =
           WallArcSpread = 1.5<meter>
           CornerNearZoneDist = 6.0<meter>
           CornerFarZoneDist = 12.0<meter>
-          ContactReadyRadius = 1.0<meter>
+          // A step behind the ball, well inside foot reach: a taker waiting a full metre back sat on the edge of
+          // reach, was authorized, and had every strike cancelled for being out of reach.
+          CornerTakerOffset = 0.6<meter>
+          // A body plus leg meets the ball up to ~1 m away; a teammate left standing on the spot touched the ball
+          // first, cancelled the kick and restarted the same free kick hundreds of times.
+          BallClearance = 2.0<meter>
           TargetTolerance = 1.0<meter>
           MaxTargetDistance = 70.0<meter>
           ThrowInReceiverInset = 3.0<meter> }

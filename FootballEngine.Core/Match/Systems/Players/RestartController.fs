@@ -60,7 +60,22 @@ module RestartController =
         =
         let validation = RestartRules.validate ctx.Ctx world plan
 
-        if validation.Valid then
+        let executorGone =
+            validation.Violations
+            |> List.exists (fun violation -> violation.Rule = RestartRules.Rule.ExecutorActive)
+
+        // An executor sent off or injured after planning never becomes ready; only a new plan picks a taker on the pitch.
+        if executorGone then
+            setRestart
+                world
+                { restart with
+                    Plan = None
+                    Phase = RestartPhase.Awarded }
+
+            buffer.Events.Add
+                { Tick = world.State.Tick
+                  Data = EventData.RestartPlanChanged(plan.Id, RestartPlanChangeReason.ExecutorInvalidated) }
+        elif validation.Valid then
             setRestart
                 world
                 { restart with

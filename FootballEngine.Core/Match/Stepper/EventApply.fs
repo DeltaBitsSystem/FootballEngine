@@ -5,44 +5,8 @@ namespace FootballEngine.Core.Match
 /// discipline, active slots, restarts and match statistics.
 module EventApply =
 
-    let private restartSpot (kind: SetPieceKind) (side: ClubSide) (ball: BallState) : float<meter> * float<meter> =
-        match kind with
-        | SetPieceKind.KickOff -> 0.0<meter>, 0.0<meter>
-        | SetPieceKind.Corner ->
-            let y =
-                if ball.Position.Y >= 0.0<meter> then
-                    Pitch.HalfWidth
-                else
-                    -Pitch.HalfWidth
-
-            MatchMath.goalX side, y
-        | SetPieceKind.ThrowIn ->
-            let y =
-                if ball.Position.Y >= 0.0<meter> then
-                    Pitch.HalfWidth - Pitch.ThrowInInset
-                else
-                    -(Pitch.HalfWidth - Pitch.ThrowInInset)
-
-            let x =
-                MatchMath.clamp (-(float Pitch.HalfLength - 0.5)) (float Pitch.HalfLength - 0.5) (float ball.Position.X)
-
-            x * 1.0<meter>, y
-        | SetPieceKind.GoalKick ->
-            let dir = MatchMath.goalDirection side
-
-            MatchMath.ownGoalX side + 6.5<meter> * dir, 0.0<meter>
-        | SetPieceKind.FreeKick ->
-            let x =
-                MatchMath.clamp (-(float Pitch.HalfLength - 0.5)) (float Pitch.HalfLength - 0.5) (float ball.Position.X)
-
-            let y =
-                MatchMath.clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) (float ball.Position.Y)
-
-            x * 1.0<meter>, y * 1.0<meter>
-        | SetPieceKind.Penalty ->
-            let dir = MatchMath.goalDirection side
-
-            MatchMath.goalX side - 11.0<meter> * dir, 0.0<meter>
+    let private restartSpot (kind: SetPieceKind) (side: ClubSide) (ball: BallState) =
+        MatchMath.restartSpot kind side ball.Position.X ball.Position.Y
 
     let private isStoppage flow =
         match flow with
@@ -217,17 +181,7 @@ module EventApply =
     let private applyRestart (ctx: MatchContext) (world: World) tick cause kind side x y =
         world.Home.PendingActions.Clear()
         world.Away.PendingActions.Clear()
-        let x, y =
-            match kind with
-            | SetPieceKind.FreeKick ->
-                MatchMath.clamp (-(float Pitch.HalfLength - 0.5)) (float Pitch.HalfLength - 0.5) (float x)
-                * 1.0<meter>,
-                MatchMath.clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) (float y)
-                * 1.0<meter>
-            | SetPieceKind.Penalty ->
-                let dir = MatchMath.goalDirection side
-                MatchMath.goalX side - 11.0<meter> * dir, 0.0<meter>
-            | _ -> x, y
+        let x, y = MatchMath.restartSpot kind side x y
 
         let id = RestartId world.NextRestartId
         world.NextRestartId <- world.NextRestartId + 1UL

@@ -92,14 +92,24 @@ module RestartContractTests =
                           |> TestBuilders.requireMatchOutcome
 
                       let planned = System.Collections.Generic.Dictionary<RestartId, int<subtick>>()
+                      let issued = System.Collections.Generic.Dictionary<RestartId, int>()
                       let mutable longest = 0<subtick>
 
                       for event in out.Events do
                           match event.Data with
-                          | EventData.RestartPlanned(id, _) -> planned[id] <- event.Tick
-                          // The whistle ends a period with the ball dead; abandoning that restart is the law.
+                          | EventData.RestartPlanned(id, _) ->
+                              if not (planned.ContainsKey id) then
+                                  planned[id] <- event.Tick
+                          | EventData.RestartCommandIssued(id, _) ->
+                              issued[id] <- (match issued.TryGetValue id with | true, n -> n | _ -> 0) + 1
+                          // The whistle ends a period with the ball dead; abandoning that restart is the law, but a
+                          // restart frozen until the whistle still counts: it once hid a penalty that never was taken.
                           | EventData.HalfTime
-                          | EventData.FullTime -> planned.Clear()
+                          | EventData.FullTime ->
+                              for start in planned.Values do
+                                  longest <- max longest (event.Tick - start)
+
+                              planned.Clear()
                           | EventData.RestartCompleted id ->
                               match planned.TryGetValue id with
                               | true, start ->
@@ -117,7 +127,12 @@ module RestartContractTests =
                       Expect.isLessThan
                           longest
                           (SimulationClock.secondsToSubTicks SimulationClock.defaultClock 60.0<second>)
-                          (sprintf "seed %d: no restart takes a minute of match time" seed))
+                          (sprintf "seed %d: no restart takes a minute of match time" seed)
+
+                      // A kick the taker cannot complete is re-issued; tens of thousands of re-issues per match once
+                      // hid a teammate standing on the free-kick spot.
+                      let reissued = issued |> Seq.map _.Value |> Seq.fold max 0
+                      Expect.isLessThanOrEqual reissued 5 (sprintf "seed %d: no restart command is re-issued endlessly" seed))
 
               testCase "restart preparation signals its football cause" (fun _ ->
                   let ctx = TestBuilders.defaultCtx ()
@@ -805,6 +820,142 @@ module RestartContractTests =
                               (ExecutionContext.SetPiece kind)
                               "set-piece execution context is retained"
                       | None -> failtestf "%A did not create an impulse" kind)
+
+              testCase "penalty players beside the spot are planned outside the area and the arc" (fun _ ->
+                  let ctx = TestBuilders.defaultCtx ()
+                  let spotX = MatchMath.goalX ClubSide.Home - 11.0<meter>
+
+                  // Lateral positions sweep the arc so the radial projection lands exactly on it at many angles,
+                  // where rounding once sent a defender back into the area.
+                  for step in -40 .. 40 do
+                      let world = TestBuilders.minimalWorld ()
+                      let y = float step * 0.37
+                      world.Away.Frame.PosX[4] <- float32 spotX
+                      world.Away.Frame.PosY[4] <- float32 y
+                      world.Home.Frame.PosX[6] <- float32 spotX - 2.0f
+                      world.Home.Frame.PosY[6] <- float32 (-y)
+
+                      let plan =
+                          RestartPlanner.plan
+                              ctx
+                              world
+                              (RestartId 1UL)
+                              (RestartCause.Foul(None, None))
+                              SetPieceKind.Penalty
+                              ClubSide.Home
+                              spotX
+                              0.0<meter>
+                              0<subtick>
+                          |> Result.defaultWith (fun error -> failtestf "penalty planning failed: %A" error)
+
+                      for target in plan.Targets do
+                          if target.Role = RestartRole.Support then
+                              Expect.isFalse
+                                  (Pitch.isInPenaltyArea ClubSide.Home target.Position.X target.Position.Y)
+                                  (sprintf "y=%.2f: %A is planned outside the area" y target.Player)
+
+                              Expect.isGreaterThanOrEqual
+                                  (MatchMath.dist plan.Spot.X plan.Spot.Y target.Position.X target.Position.Y + 1e-6)
+                                  (float ctx.Config.SetPiece.WallDistance)
+                                  (sprintf "y=%.2f: %A is planned outside the arc" y target.Player)
+
+                      let positioned = TestBuilders.minimalWorld ()
+
+                      for target in plan.Targets do
+                          let team = MatchWorld.team positioned target.Side
+                          let slot = MatchWorld.slotIndex ctx target.Side target.Player
+                          team.Frame.PosX[slot] <- float32 target.Position.X
+                          team.Frame.PosY[slot] <- float32 target.Position.Y
+
+                      let area =
+                          (RestartRules.validate ctx positioned plan).Violations
+                          |> List.filter (fun violation -> violation.Rule = RestartRules.Rule.PenaltyArea)
+
+                      Expect.isEmpty area (sprintf "y=%.2f: players on their targets satisfy the area law" y))
+
+              testCase "a teammate standing on the free-kick spot is moved clear before the kick" (fun _ ->
+                  let ctx = TestBuilders.defaultCtx ()
+                  let world = TestBuilders.minimalWorld ()
+
+                  for slot in MatchWorld.activeSlots world.Home.Frame do
+                      world.Home.Frame.PosX[slot] <- -30.0f
+                      world.Home.Frame.PosY[slot] <- -30.0f + float32 slot * 5.0f
+                  world.Home.Frame.PosX[2] <- 0.0f
+                  world.Home.Frame.PosY[2] <- 0.0f
+                  world.Home.Frame.PosX[3] <- 0.3f
+                  world.Home.Frame.PosY[3] <- 0.0f
+
+                  let plan =
+                      RestartPlanner.plan
+                          ctx
+                          world
+                          (RestartId 1UL)
+                          (RestartCause.Foul(None, None))
+                          SetPieceKind.FreeKick
+                          ClubSide.Home
+                          0.0<meter>
+                          0.0<meter>
+                          0<subtick>
+                      |> Result.defaultWith (fun error -> failtestf "free-kick planning failed: %A" error)
+
+                  let teammate = ctx.HomeLineup.Profiles[3].Id
+                  Expect.equal plan.Executor ctx.HomeLineup.Profiles[2].Id "the player on the ball takes the kick"
+                  let target = plan.Targets |> Array.find (fun t -> t.Player = teammate)
+
+                  Expect.isGreaterThanOrEqual
+                      (MatchMath.dist plan.Spot.X plan.Spot.Y target.Position.X target.Position.Y + 1e-6)
+                      (float ctx.Config.SetPiece.BallClearance)
+                      "the teammate is planned beyond the reach of his body"
+
+                  let blocking () =
+                      (RestartRules.validate ctx world plan).Violations
+                      |> List.exists (fun violation ->
+                          violation.Rule = RestartRules.Rule.BallClearance && violation.Player = Some teammate)
+
+                  Expect.isTrue (blocking ()) "the kick waits while the teammate's body can touch the ball"
+                  world.Home.Frame.PosX[3] <- float32 target.Position.X
+                  world.Home.Frame.PosY[3] <- float32 target.Position.Y
+                  Expect.isFalse (blocking ()) "the kick is allowed once he stands on his target")
+
+              testCase "a player sent off after planning cannot hold up the restart" (fun _ ->
+                  let ctx = TestBuilders.defaultCtx ()
+                  let world = TestBuilders.minimalWorld ()
+
+                  for slot in MatchWorld.activeSlots world.Home.Frame do
+                      world.Home.Frame.PosX[slot] <- -30.0f
+                      world.Home.Frame.PosY[slot] <- -30.0f + float32 slot * 5.0f
+                  world.Home.Frame.PosX[2] <- 0.0f
+                  world.Home.Frame.PosY[2] <- 0.0f
+                  world.Away.Frame.PosX[5] <- 0.4f
+                  world.Away.Frame.PosY[5] <- 0.0f
+
+                  let plan =
+                      RestartPlanner.plan
+                          ctx
+                          world
+                          (RestartId 1UL)
+                          (RestartCause.Foul(None, None))
+                          SetPieceKind.FreeKick
+                          ClubSide.Home
+                          0.0<meter>
+                          0.0<meter>
+                          0<subtick>
+                      |> Result.defaultWith (fun error -> failtestf "free-kick planning failed: %A" error)
+
+                  let offender = ctx.AwayLineup.Profiles[5].Id
+
+                  let involved () =
+                      (RestartRules.validate ctx world plan).Violations
+                      |> List.exists (fun violation -> violation.Player = Some offender)
+
+                  Expect.isTrue (involved ()) "standing on the ball he blocks the kick while he is on the pitch"
+
+                  world.Away.Frame.Occupancy[5] <-
+                      OccupancyKind.Sidelined
+                          { Id = offender
+                            Reason = PlayerOutReason.RedCard }
+
+                  Expect.isFalse (involved ()) "once sent off he no longer takes part in the restart")
 
               testCase "a loose ball never sticks to the touchline during live play" (fun _ ->
                   let ctx = TestBuilders.defaultCtx ()

@@ -8,6 +8,44 @@ namespace FootballEngine.Core.Match
 /// read it.
 module PlayerSteering =
 
+    /// Set-piece positioning is uncontested, so a run turns aside from the nearest body ahead of it instead of
+    /// pressing into it; contact resolution alone left two players walking into each other frozen chest to chest.
+    /// Turning away from the side the body stands on, and to the right when it is dead ahead, means two players
+    /// meeting head-on pass each other rather than mirroring each other's step.
+    let private sidestep (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) (ux: float) (uy: float) =
+        let frame = (MatchWorld.team world side).Frame
+        let px = float frame.PosX.[slot]
+        let py = float frame.PosY.[slot]
+        let radius = float ctx.Config.Movement.SetPieceAvoidRadius
+        let mutable nearest = radius * radius
+        let mutable lateral = 0.0
+        let mutable found = false
+
+        for otherSide in [| ClubSide.Home; ClubSide.Away |] do
+            let other = (MatchWorld.team world otherSide).Frame
+
+            for o in MatchWorld.activeSlots other do
+                if otherSide <> side || o <> slot then
+                    let ox = float other.PosX.[o] - px
+                    let oy = float other.PosY.[o] - py
+                    let d2 = ox * ox + oy * oy
+                    let ahead = ox * ux + oy * uy
+
+                    if ahead > 0.0 && d2 < nearest then
+                        nearest <- d2
+                        lateral <- ox * -uy + oy * ux
+                        found <- true
+
+        if not found then
+            ux, uy
+        else
+            // Positive lateral means the body is on the left, so the run bends right, and vice versa.
+            let turn = if lateral > 0.0 then -1.0 else if lateral < 0.0 then 1.0 else -1.0
+            let px', py' = -uy * turn, ux * turn
+            let sx, sy = ux + px', uy + py'
+            let n = sqrt (sx * sx + sy * sy)
+            sx / n, sy / n
+
     let private stepPlayer
         (ctx: MatchContext)
         (clock: SimulationClock)
@@ -105,8 +143,14 @@ module PlayerSteering =
                 else
                     desiredSpeed
 
-            frame.TargetVelX.[slot] <- float32 (dx / dist * speed)
-            frame.TargetVelY.[slot] <- float32 (dy / dist * speed)
+            let ux, uy =
+                if frame.Intent.Kind.[slot] = IntentCode.SetPieceRun then
+                    sidestep ctx world side slot (dx / dist) (dy / dist)
+                else
+                    dx / dist, dy / dist
+
+            frame.TargetVelX.[slot] <- float32 (ux * speed)
+            frame.TargetVelY.[slot] <- float32 (uy * speed)
         else
             frame.TargetVelX.[slot] <- 0.0f
             frame.TargetVelY.[slot] <- 0.0f

@@ -354,6 +354,8 @@ module ConfigValidation =
               yield "Movement.RecoveryPerSecond must be in [0, 0.1]"
           if m.ReactiveRadius < 0.5<meter> || m.ReactiveRadius > 10.0<meter> then
               yield "Movement.ReactiveRadius must be in [0.5, 10] m"
+          if m.SetPieceAvoidRadius < 0.5<meter> || m.SetPieceAvoidRadius > 5.0<meter> then
+              yield "Movement.SetPieceAvoidRadius must be in [0.5, 5] m"
           if m.ConditionImpactThreshold < 0.0 || m.ConditionImpactThreshold > 1.0 then
               yield "Movement.ConditionImpactThreshold must be in [0, 1]"
           if m.IntentFloor < 0.0 || m.IntentFloor > 1.0 then
@@ -653,8 +655,10 @@ module ConfigValidation =
               yield "SetPiece.CornerFarZoneDist must be in [5, 30] m"
           if s.CornerNearZoneDist >= s.CornerFarZoneDist then
               yield "SetPiece.CornerNearZoneDist must be < CornerFarZoneDist"
-          if s.ContactReadyRadius <= 0.0<meter> then
-              yield "SetPiece.ContactReadyRadius must be positive"
+          if s.CornerTakerOffset <= 0.0<meter> || s.CornerTakerOffset > 1.0<meter> then
+              yield "SetPiece.CornerTakerOffset must be in (0, 1] m"
+          if s.BallClearance < 1.0<meter> || s.BallClearance > s.WallDistance then
+              yield "SetPiece.BallClearance must be in [1, WallDistance] m"
           if s.TargetTolerance <= 0.0<meter> then
               yield "SetPiece.TargetTolerance must be positive"
           if s.MaxTargetDistance <= 0.0<meter> then

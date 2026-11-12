@@ -64,6 +64,22 @@ module MatchMath =
 
     let distanceToGoal (side: ClubSide) (x: float<meter>) (y: float<meter>) : float = dist x y (goalX side) 0.0<meter>
 
+    /// The legal ball spot for a restart of `kind` awarded to `side` near (x, y). Idempotent, and the only place a
+    /// spot is computed: the award placed a goal kick a metre from where the plan sent its taker, and every kick
+    /// was authorized out of reach and cancelled.
+    let restartSpot (kind: SetPieceKind) (side: ClubSide) (x: float<meter>) (y: float<meter>) : float<meter> * float<meter> =
+        let towards (value: float<meter>) magnitude = if value >= 0.0<meter> then magnitude else -magnitude
+        // Half a metre inside the goal line keeps a free kick for an offence on the line playable.
+        let fieldX = clamp (-(float Pitch.HalfLength - 0.5)) (float Pitch.HalfLength - 0.5) (float x) * 1.0<meter>
+
+        match kind with
+        | SetPieceKind.KickOff -> 0.0<meter>, 0.0<meter>
+        | SetPieceKind.Corner -> goalX side, towards y Pitch.HalfWidth
+        | SetPieceKind.ThrowIn -> fieldX, towards y (Pitch.HalfWidth - Pitch.ThrowInInset)
+        | SetPieceKind.GoalKick -> ownGoalX side + Pitch.GoalAreaDepth * goalDirection side, 0.0<meter>
+        | SetPieceKind.FreeKick -> fieldX, clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) (float y) * 1.0<meter>
+        | SetPieceKind.Penalty -> goalX side - Pitch.PenaltySpotDistance * goalDirection side, 0.0<meter>
+
     /// One xG formula for the whole engine: the carrier's belief (Decision),
     /// the shot's strike value (Shot), and the planner's expectation must
     /// agree, or decisions would chase a number physics never delivers.

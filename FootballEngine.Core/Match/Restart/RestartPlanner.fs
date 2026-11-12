@@ -16,26 +16,12 @@ module RestartPlanner =
 
     let private distance (a: Vec2) (b: Vec2) = MatchMath.dist a.X a.Y b.X b.Y
 
-    let private restartSpot kind side x y : Vec2 =
+    let private executorPoint (ctx: MatchContext) (kind: SetPieceKind) (side: ClubSide) (spot: Vec2) : Vec2 =
         match kind with
-        | SetPieceKind.KickOff -> Vec2.create 0.0<meter> 0.0<meter>
         | SetPieceKind.Corner ->
-            Vec2.create
-                (MatchMath.goalX side)
-                (if y >= 0.0<meter> then
-                     Pitch.HalfWidth
-                 else
-                     -Pitch.HalfWidth)
-        | SetPieceKind.GoalKick ->
-            Vec2.create (MatchMath.ownGoalX side + Pitch.GoalAreaDepth * MatchMath.goalDirection side) 0.0<meter>
-        | SetPieceKind.Penalty ->
-            Vec2.create (MatchMath.goalX side - Pitch.PenaltySpotDistance * MatchMath.goalDirection side) 0.0<meter>
-        | SetPieceKind.ThrowIn
-        | SetPieceKind.FreeKick -> clampPoint (float x) (float y)
-
-    let private executorPoint (kind: SetPieceKind) (side: ClubSide) (spot: Vec2) : Vec2 =
-        match kind with
-        | SetPieceKind.Corner -> clampPoint (float spot.X - 1.0 * MatchMath.goalDirection side) (float spot.Y)
+            clampPoint
+                (float spot.X - float ctx.Config.SetPiece.CornerTakerOffset * MatchMath.goalDirection side)
+                (float spot.Y)
         | _ -> spot
 
     let private awayFrom (spot: Vec2) (point: Vec2) (required: float) : Vec2 =
@@ -51,7 +37,9 @@ module RestartPlanner =
             else
                 clampPoint (float spot.X + dx / d * required) (float spot.Y + dy / d * required)
 
-        if distance spot projected >= required then
+        // The radial projection lands exactly on the circle; rounding can leave it a hair inside, which used to
+        // send a penalty defender to a fallback point inside the area and freeze the kick.
+        if distance spot projected >= required - 1e-6 then
             projected
         else
             // Clipping a radial projection at a touchline can put the wall back inside the exclusion circle.
@@ -125,13 +113,15 @@ module RestartPlanner =
         (y: float<meter>)
         (awardTick: int<subtick>)
         : Result<RestartPlan, PlanError> =
-        let spot = restartSpot kind side x y
+        let spot =
+            let sx, sy = MatchMath.restartSpot kind side x y
+            Vec2.create sx sy
 
         match executorSlot world side kind spot with
         | None -> Error PlanError.NoExecutor
         | Some executorSlot ->
             let executor = (MatchWorld.lineup ctx side).Profiles.[executorSlot].Id
-            let executorTarget = executorPoint kind side spot
+            let executorTarget = executorPoint ctx kind side spot
             let opponent = MatchWorld.oppOf side
             let mutable targets = ResizeArray<RestartTarget>()
 
@@ -191,9 +181,9 @@ module RestartPlanner =
                                 else
                                     current
 
-                            RestartRole.Receiver, receiverTarget
+                            RestartRole.Receiver, awayFrom spot receiverTarget (float ctx.Config.SetPiece.BallClearance)
                         else
-                            RestartRole.Support, current
+                            RestartRole.Support, awayFrom spot current (float ctx.Config.SetPiece.BallClearance)
 
                     targets.Add
                         { Side = currentSide
@@ -227,6 +217,7 @@ module RestartRules =
         | KickoffGeometry
         | ThrowInGeometry
         | TargetReachability
+        | BallClearance
 
     type Violation =
         { Rule: Rule
@@ -289,16 +280,18 @@ module RestartRules =
             let actual =
                 clampPoint (float (MatchWorld.posX frame slot)) (float (MatchWorld.posY frame slot))
 
-            let executorTarget =
-                plan.Targets
-                |> Array.tryFind (fun target -> target.Player = plan.Executor)
-                |> Option.map (fun target -> target.Position)
-                |> Option.defaultValue spot
+            // Ready means the boot reaches the ball: authorizing from further away only had the strike cancelled.
+            if distance actual spot > float ctx.Config.Ball.FootReach then
+                add Rule.ExecutorReady (Some plan.Executor) "executor cannot reach the ball"
 
-            if distance actual executorTarget > float ctx.Config.SetPiece.ContactReadyRadius then
-                add Rule.ExecutorReady (Some plan.Executor) "executor is not within contact readiness radius"
+        // A player sent off or injured after planning has left the pitch; he cannot hold up the restart.
+        let onPitch (target: RestartTarget) =
+            target.Player = plan.Executor
+            || (match MatchWorld.slotIndex ctx target.Side target.Player with
+                | -1 -> false
+                | slot -> MatchWorld.isActive (MatchWorld.team world target.Side).Frame slot)
 
-        for target in plan.Targets do
+        for target in plan.Targets |> Array.filter onPitch do
             if not (insidePitch target.Position) then
                 add Rule.TargetReachability (Some target.Player) "target is outside the pitch"
 
@@ -313,6 +306,14 @@ module RestartRules =
             | ValueSome current ->
                 if distance current target.Position > float ctx.Config.SetPiece.MaxTargetDistance then
                     add Rule.TargetReachability (Some target.Player) "target is unreachable"
+
+                // A throw-in leaves the hands, so no body near the line can touch it before release.
+                if
+                    target.Player <> plan.Executor
+                    && plan.Kind <> SetPieceKind.ThrowIn
+                    && distance current spot < float ctx.Config.SetPiece.BallClearance - float ctx.Config.SetPiece.TargetTolerance
+                then
+                    add Rule.BallClearance (Some target.Player) "player is still at the ball"
             | ValueNone -> add Rule.TargetReachability (Some target.Player) "target player is not in the lineup"
 
             if target.Side = opponents then
@@ -359,7 +360,7 @@ module RestartRules =
                 | _ -> ()
 
         if plan.Kind = SetPieceKind.KickOff then
-            for target in plan.Targets do
+            for target in plan.Targets |> Array.filter onPitch do
                 if
                     target.Side = opponents
                     && MatchMath.dist target.Position.X target.Position.Y 0.0<meter> 0.0<meter> < 9.15
