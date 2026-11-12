@@ -50,6 +50,13 @@ reglas). Juego vivo 129k → 202k ticks por partido; eventos 158k → 87k. Recal
 siguiente problema deportivo. Hash nuevo `8f3dbf11178e6bb6`. Con más juego vivo el partido cuesta ~6,5 s y
 PlayerDecision pasa a 1,4 s / 772 MB: es el próximo objetivo de F1.
 
+Planner (2026-11-12): balones rodados reutilizados por hilo, un `ChainState` por rama y pases leídos de una tabla
+interpolada cada 5 cm (`Planner.PassTableResolution`, error acotado por test). Hash sin cambios
+`b7f74f92b9fb2bb2`; held-out idéntico. Partido 5,7 s → 5,45 s; PlayerDecision 0,78 s / 441 MB. Lo que queda:
+ContactDynamics (1,6 s, trabajo repartido: `findEarliest` 0,54 s, cotas 0,26 s, escritura 0,17 s) y
+TeamPosition (0,87 s, 15 µs por llamada). La meta de 1,5 s pide bajar la frecuencia de contacto o paralelizar
+por partido; ambas cosas necesitan validación held-out.
+
 ### F2 — Feedback rápido y limpio (DX)
 
 1. Warnings a cero y `TreatWarningsAsErrors` en todos los proyectos.
