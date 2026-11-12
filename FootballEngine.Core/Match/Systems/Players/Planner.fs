@@ -233,8 +233,10 @@ module Planner =
         let baseline = value w s
         let mutable used = 0
         let mutable frontierLimit = cfg.MaxEvaluateLimit
-        let evaluate cost =
-            if used < min cfg.MaxEvaluateLimit frontierLimit then used <- used + 1; cost () else None
+        // Spending the budget is a test, not a wrapper taking a thunk: one closure per evaluation dominated the
+        // planner's allocations.
+        let spend () =
+            if used < min cfg.MaxEvaluateLimit frontierLimit then used <- used + 1; true else false
         let pass state slot =
             match findReceiver state slot with
             | ValueSome(struct(_, x, y)) when slot <> state.CarrierSlot && not (SlotMask.contains slot state.OurGoalkeeperSlots) && not (isOffside state x) ->
@@ -265,14 +267,16 @@ module Planner =
             let code, target, utility = options[index]
             let before = used
             if cfg.Enabled then
-                let result = evaluate (fun () ->
-                    match code with
-                    | 1 -> pass s target
-                    | 3 -> carry s
-                    | 2 -> Some(s, Shoot)
-                    | 4 -> Some(s, Clear)
-                    | 5 -> Some(s, Cross(target, s.BallX, s.BallY))
-                    | _ -> None)
+                let result =
+                    if not (spend ()) then None
+                    else
+                        match code with
+                        | 1 -> pass s target
+                        | 3 -> carry s
+                        | 2 -> Some(s, Shoot)
+                        | 4 -> Some(s, Clear)
+                        | 5 -> Some(s, Cross(target, s.BallX, s.BallY))
+                        | _ -> None
                 result |> Option.iter (fun (state, action) ->
                     chains[index] <- [|action|]
                     scores[index] <- utility + s.Confidence * (value w state - baseline)
@@ -289,17 +293,16 @@ module Planner =
                     for state, path, visited in beam do
                         // Stop and shoot competes with passing; it is not postponed until every pass fails.
                         if MatchMath.distanceToGoal state.Side state.BallX state.BallY < float cfg.ShootingRange then
-                            evaluate (fun () ->
+                            if spend () then
                                 let _, _, utility = options[index]
                                 let score = utility + s.Confidence * (value w state - baseline + w.ShootValueWeight * MatchMath.xGFrom (MatchMath.distanceToGoal state.Side state.BallX state.BallY) w.ShootFinishingAssumption 1.0)
                                 if score > scores[index] then chains[index] <- Array.append path [|Shoot|]; scores[index] <- score
-                                Some ()) |> ignore
                         for struct(slot, _, _) in state.OurPos do
                             if not (SlotMask.contains slot visited) && not (SlotMask.contains slot state.OurGoalkeeperSlots) then
-                                evaluate (fun () -> pass state slot) |> Option.iter (fun (next, action) ->
+                                (if spend () then pass state slot else None) |> Option.iter (fun (next, action) ->
                                     let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value w next - baseline)
                                     branches.Add(next, Array.append path [|action|], SlotMask.add slot visited, score))
-                        evaluate (fun () -> carry state) |> Option.iter (fun (next, action) ->
+                        (if spend () then carry state else None) |> Option.iter (fun (next, action) ->
                             let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value w next - baseline)
                             branches.Add(next, Array.append path [|action|], visited, score))
                     let best = branches |> Seq.sortByDescending (fun (_, _, _, score) -> score) |> Seq.truncate cfg.BeamWidth |> Seq.toArray
