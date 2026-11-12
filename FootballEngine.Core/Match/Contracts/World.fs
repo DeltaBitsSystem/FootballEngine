@@ -152,6 +152,7 @@ type ContactScratch(capacity: int) =
     let endY = Array.zeroCreate<float> size
     let travel = Array.zeroCreate<float> size
     let ballCandidate = Array.zeroCreate<bool> size
+    let pairCandidates = Array.zeroCreate<uint64> size
 
     member val Count = 0 with get, set
     member val SaturationCount = 0UL with get, set
@@ -180,6 +181,9 @@ type ContactScratch(capacity: int) =
     member _.Travel = travel
     /// Bodies that can still meet the ball in what is left of the tick; refreshed after every impact.
     member _.BallCandidate = ballCandidate
+    /// Bit b of entry a (b > a): bodies a and b can still meet in what is left of the tick; refreshed after every impact.
+    /// One word per body is enough because the laws field at most 22 bodies.
+    member _.PairCandidates = pairCandidates
 
 /// The single object systems see. All arrays/books owned by this match.
 type World =

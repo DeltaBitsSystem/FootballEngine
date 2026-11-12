@@ -273,6 +273,30 @@ module ContactDynamics =
 
             scratch.BallCandidate[a] <- team.Dive.IsSome || dx * dx + dy * dy + dz * dz <= bound * bound
 
+    /// The pair counterpart of markBallCandidates: a body moves at most |v|·T + ½|a|·T over the rest of the tick
+    /// (pitch clamping only shortens it), so pairs further apart than both reaches and both such paths cannot pass
+    /// findEarliest's per-segment bound in any segment. Only those pairs are scanned, in the same order.
+    let private markPairCandidates (scratch: ContactScratch) remaining =
+        // Rounding headroom only; the bound is already conservative.
+        let margin = 0.05
+
+        for a = 0 to scratch.Count - 1 do
+            let vx, vy = scratch.VelocityX[a], scratch.VelocityY[a]
+            let ax, ay = scratch.AccelerationX[a], scratch.AccelerationY[a]
+            scratch.Travel[a] <- sqrt (vx * vx + vy * vy) * remaining + 0.5 * sqrt (ax * ax + ay * ay) * remaining * remaining
+
+        for a = 0 to scratch.Count - 1 do
+            let mutable mask = 0UL
+
+            for b = a + 1 to scratch.Count - 1 do
+                let dx, dy = scratch.StartX[b] - scratch.StartX[a], scratch.StartY[b] - scratch.StartY[a]
+                let bound = scratch.BodyReach[a] + scratch.BodyReach[b] + scratch.Travel[a] + scratch.Travel[b] + margin
+
+                if dx * dx + dy * dy <= bound * bound then
+                    mask <- mask ||| (1UL <<< b)
+
+            scratch.PairCandidates[a] <- mask
+
     let private findEarliest
         (ctx: MatchContext)
         (world: World)
@@ -311,7 +335,11 @@ module ContactDynamics =
             let ax1 = predictedAxis ax0 scratch.VelocityX[a] scratch.AccelerationX[a] duration
             let ay1 = predictedAxis ay0 scratch.VelocityY[a] scratch.AccelerationY[a] duration
 
-            for b = a + 1 to scratch.Count - 1 do
+            let mutable pending = scratch.PairCandidates[a]
+
+            while pending <> 0UL do
+                let b = System.Numerics.BitOperations.TrailingZeroCount pending
+                pending <- pending &&& (pending - 1UL)
                 let dx, dy = scratch.StartX[b] - ax0, scratch.StartY[b] - ay0
                 let bound = scratch.BodyReach[a] + scratch.BodyReach[b] + scratch.Travel[a] + scratch.Travel[b]
 
@@ -1540,6 +1568,7 @@ module ContactDynamics =
         let mutable tickImpacts = 0
         computeReach ctx.Ctx world scratch
         markBallCandidates ctx.Ctx world scratch ball dt
+        markPairCandidates scratch dt
 
         for segment = 0 to segments - 1 do
             let mutable remaining = segmentDuration
@@ -1641,6 +1670,7 @@ module ContactDynamics =
                     segmentImpacts <- segmentImpacts + 1
                     tickImpacts <- tickImpacts + 1
                     markBallCandidates ctx.Ctx world scratch ball (max 0.0 (dt - tickElapsed))
+                    markPairCandidates scratch (max 0.0 (dt - tickElapsed))
 
                     if advanceBy <= ctx.Ctx.Config.Contact.ToiTolerance then
                         remaining <- max 0.0 (remaining - ctx.Ctx.Config.Contact.ToiTolerance)
