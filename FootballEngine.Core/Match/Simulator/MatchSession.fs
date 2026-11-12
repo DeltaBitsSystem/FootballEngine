@@ -560,11 +560,16 @@ module MatchSession =
             while session.World.State.Tick < target
                   && session.World.State.Flow <> MatchFlow.MatchEnded
                   && failure.IsNone do
-                let due, later =
-                    session.Pending
-                    |> List.partition (fun c -> c.EffectiveTick = session.World.State.Tick)
+                // Almost every tick has no pending command; partitioning the empty list still allocates.
+                let due =
+                    match session.Pending with
+                    | [] -> []
+                    | pending ->
+                        let due, later =
+                            pending |> List.partition (fun c -> c.EffectiveTick = session.World.State.Tick)
 
-                session.Pending <- later
+                        session.Pending <- later
+                        due
 
                 for command in due do
                     match validateCommand session command with

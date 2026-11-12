@@ -7,38 +7,48 @@ open FootballEngine.Core.Tests.Infrastructure
 /// controls the whole match, so the same config always yields the same metrics.
 module SimulatorRunner =
 
-    let private maxTicks = 600000
-
-    /// The match loop shared by every runner. It drives the runtime `stepInto` with a schedule compiled once,
-    /// as a live session does; the `Stepper.step` test adapter recompiles the table and copies events every tick,
-    /// which cost a tenth of a balance run.
-    let private play (systems: SystemSpec list) (cfg: BalanceConfig) (seed: uint64) (observe: World -> MatchEvent[] -> int -> unit) =
+    /// The same session the game and `Simulator.runMatch` play, so calibration measures exactly the match a career
+    /// plays, input and config validation included. A tool may stop on an invalid config.
+    let private session (systems: SystemSpec list) (cfg: BalanceConfig) (seed: uint64) =
         let ctx = { TestBuilders.defaultCtx () with Config = cfg }
-        let world = MatchFactory.create ctx
-        let sctx = { Ctx = ctx; Clock = SimulationClock.defaultClock }
-        let buf = { Events = ResizeArray(); Flags = { EventFlags.Bits = 0UL }; Applied = ResizeArray() }
-        let schedule = ScheduleCompiler.compile systems
-        let output = Array.zeroCreate<MatchEvent> 256
-        let mutable rng = Rng.ofSeed seed
-        let mutable ticks = 0
 
-        while ticks < maxTicks && world.State.Flow <> MatchFlow.MatchEnded do
-            let rng', _, count = Stepper.stepInto schedule sctx rng world buf output
-            rng <- rng'
-            observe world output count
-            ticks <- ticks + 1
+        let effective =
+            match EffectiveConfig.fromBalance cfg with
+            | Ok effective -> effective
+            | Error error -> failwithf "invalid balance config: %A" error
 
-        world, ticks
+        let input =
+            { MatchId = seed
+              Context = ctx
+              Seed = seed
+              EffectiveConfig = effective
+              EngineVersion = "football-engine-core-01" }
 
+        match MatchSession.create systems input MatchRunMode.Fast with
+        | Ok session -> session
+        | Error error -> failwithf "match session rejected: %A" error
+
+    let private finish (session: MatchSession) =
+        match MatchSession.finish session with
+        | Ok outcome -> outcome.Final
+        | Error error -> failwithf "match did not finish: %A" error
+
+    /// Ticks played, for per-tick timings.
     let runWith (systems: SystemSpec list) (cfg: BalanceConfig) (seed: uint64) : int =
-        play systems cfg seed (fun _ _ _ -> ()) |> snd
+        int (finish (session systems cfg seed)).State.Tick
 
-    let runOne (cfg: BalanceConfig) (seed: uint64) : World =
-        play Scheduler.systems cfg seed (fun _ _ _ -> ()) |> fst
+    let runOne (cfg: BalanceConfig) (seed: uint64) : World = finish (session Scheduler.systems cfg seed)
 
     /// Same match as `runOne`, handing every tick's applied events to `observe`.
     let runObserved (cfg: BalanceConfig) (seed: uint64) (observe: World -> MatchEvent seq -> unit) : World =
-        play Scheduler.systems cfg seed (fun world output count -> observe world (Seq.take count output)) |> fst
+        let session = session Scheduler.systems cfg seed
+
+        while session.World.State.Flow <> MatchFlow.MatchEnded do
+            match MatchSession.advanceTo (session.World.State.Tick + 1<subtick>) session with
+            | Ok advance -> observe session.World advance.Events
+            | Error error -> failwithf "match did not advance: %A" error
+
+        finish session
 
     /// Runs `n` matches with different seeds and returns their metrics.
     /// Matches are independent (own world/buffer/rng), so they run in parallel.
