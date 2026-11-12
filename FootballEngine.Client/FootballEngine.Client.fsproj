@@ -70,6 +70,8 @@
         <Compile Include="AppState\UpdateModEditor.fs"/>
         <Compile Include="AppState\AppState.fs"/>
         <Compile Include="Views\Components\UI.fs"/>
+        <Compile Include="Views\Components\PlayerView.fs"/>
+        <Compile Include="Views\Components\Display.fs"/>
         <Compile Include="Views\Components\CareerJourney.fs"/>
         <Compile Include="Views\Components\Sidebar.fs"/>
         <Compile Include="Views\Components\Header.fs"/>
@@ -138,6 +140,9 @@
         <Compile Include="Views\Pages\Scouting.fs"/>
         <Compile Include="Views\Pages\Transfer.fs"/>
         <Compile Include="Views\Pages\ModEditor.fs"/>
+        <Compile Include="Views\Pages\SettingsWidgets.fs"/>
+        <Compile Include="Views\Pages\SettingsCards.fs"/>
+        <Compile Include="Views\Pages\SettingsAdvanced.fs"/>
         <Compile Include="Views\Pages\Settings.fs"/>
         <Compile Include="Program.fs"/>
     </ItemGroup>
