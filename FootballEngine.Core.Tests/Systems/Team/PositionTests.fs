@@ -22,6 +22,7 @@ module PositionTests =
         PlayerIntent.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
 
     let private stepSteering (world: World) : unit =
+        CognitionLatch.step sctx (Rng.ofSeed 0UL) world (buffer ()) |> ignore
         PlayerSteering.step sctx (Rng.ofSeed 42UL) world (buffer ()) |> ignore
 
     /// Places a team's frame so slot order is predictable; then forces a fresh

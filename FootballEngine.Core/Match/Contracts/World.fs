@@ -61,6 +61,7 @@ type PlayerActionChoice =
 
 type PendingPlayerAction =
     { Choice: PlayerActionChoice
+      DecidedAt: int<subtick>
       ExpiresAt: int<subtick> }
 
 type OffsideReviewSnapshot =

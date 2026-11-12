@@ -385,6 +385,7 @@ module DefensiveTransitionTests =
                   let before = Array.copy frame.PosX
                   let movementContext = DefensiveTransitionFixtures.systemContext ctx
                   let movementEvents = DefensiveTransitionFixtures.buffer ()
+                  CognitionLatch.step movementContext (Rng.ofSeed 0UL) world movementEvents |> ignore
                   PlayerSteering.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
                   ContactDynamics.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
                   Expect.notEqual frame.PosX before "targets produce real motion")
@@ -399,6 +400,7 @@ module DefensiveTransitionTests =
                   let before = world.Home.Frame.PosX[0]
                   let movementContext = DefensiveTransitionFixtures.systemContext ctx
                   let movementEvents = DefensiveTransitionFixtures.buffer ()
+                  CognitionLatch.step movementContext (Rng.ofSeed 0UL) world movementEvents |> ignore
                   PlayerSteering.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
                   ContactDynamics.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
                   Expect.notEqual world.Home.Frame.PosX[0] before "keeper is not frozen")
@@ -556,6 +558,7 @@ module DefensiveTransitionTests =
                       for world in [ fresh; tired ] do
                           let movementContext = DefensiveTransitionFixtures.systemContext ctx
                           let movementEvents = DefensiveTransitionFixtures.buffer ()
+                          CognitionLatch.step movementContext (Rng.ofSeed 0UL) world movementEvents |> ignore
                           PlayerSteering.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
                           ContactDynamics.step movementContext (Rng.ofSeed 1UL) world movementEvents |> ignore
                   Expect.isGreaterThan

@@ -359,6 +359,7 @@ module RestartContractTests =
                           let events = buffer ()
                           let ctx' = stepContext ctx
                           RestartController.step ctx' (Rng.ofSeed 17UL) world events |> ignore
+                          CognitionLatch.step ctx' (Rng.ofSeed 0UL) world events |> ignore
                           PlayerSteering.step ctx' (Rng.ofSeed 17UL) world events |> ignore
                           ContactDynamics.step ctx' (Rng.ofSeed 17UL) world events |> ignore
                           Expect.isLessThanOrEqual (abs frame.PosX.[slot]) 0.001f "executor remains within one millimetre of the ball on the X axis"

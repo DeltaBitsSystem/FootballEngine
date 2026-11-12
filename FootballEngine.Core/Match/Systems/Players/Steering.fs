@@ -59,17 +59,17 @@ module PlayerSteering =
         let cfg = ctx.Config.Movement
 
         let tx, ty, activeIntent =
-            match frame.Intent.Kind.[slot] with
-            | IntentCode.None -> float team.Shape.TargetsX.[slot], float team.Shape.TargetsY.[slot], false
+            match frame.SteerIntent.Kind.[slot] with
+            | IntentCode.None -> float frame.SteerShapeX.[slot], float frame.SteerShapeY.[slot], false
             | kind when IntentCode.isContinuous kind ->
-                float frame.Intent.TargetX.[slot], float frame.Intent.TargetY.[slot], true
+                float frame.SteerIntent.TargetX.[slot], float frame.SteerIntent.TargetY.[slot], true
             | _ ->
-                if tick <= frame.Intent.CommittedUntil.[slot] then
-                    float frame.Intent.TargetX.[slot], float frame.Intent.TargetY.[slot], true
+                if tick <= frame.SteerIntent.CommittedUntil.[slot] then
+                    float frame.SteerIntent.TargetX.[slot], float frame.SteerIntent.TargetY.[slot], true
                 else
                     frame.Intent.Phase.[slot] <- IntentPhase.Completed
                     frame.Intent.ExitTrigger.[slot] <- ExitTrigger.Expired
-                    float team.Shape.TargetsX.[slot], float team.Shape.TargetsY.[slot], false
+                    float frame.SteerShapeX.[slot], float frame.SteerShapeY.[slot], false
 
         let px = float frame.PosX.[slot]
         let py = float frame.PosY.[slot]
@@ -121,7 +121,7 @@ module PlayerSteering =
 
             let speedMult =
                 let transition = team.Defense.Episode |> Option.exists (fun episode -> episode.EndedAt.IsNone)
-                match frame.Intent.Kind.[slot] with
+                match frame.SteerIntent.Kind.[slot] with
                 | IntentCode.Cover when transition -> ctx.Config.DefensiveTransition.CoverEffort
                 | IntentCode.Mark when transition -> ctx.Config.DefensiveTransition.ScreenEffort
                 | IntentCode.Regroup when transition -> ctx.Config.DefensiveTransition.RecoveryEffort
@@ -144,7 +144,7 @@ module PlayerSteering =
                     desiredSpeed
 
             let ux, uy =
-                if frame.Intent.Kind.[slot] = IntentCode.SetPieceRun then
+                if frame.SteerIntent.Kind.[slot] = IntentCode.SetPieceRun then
                     sidestep ctx world side slot (dx / dist) (dy / dist)
                 else
                     dx / dist, dy / dist
@@ -158,7 +158,7 @@ module PlayerSteering =
         if
             dist < 1.0
             && activeIntent
-            && not (IntentCode.isContinuous frame.Intent.Kind.[slot])
+            && not (IntentCode.isContinuous frame.SteerIntent.Kind.[slot])
         then
             frame.Intent.ExitTrigger.[slot] <- ExitTrigger.ReachedTarget
             frame.Intent.Phase.[slot] <- IntentPhase.Completed

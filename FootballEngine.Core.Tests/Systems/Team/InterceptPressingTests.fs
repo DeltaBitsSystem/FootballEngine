@@ -145,6 +145,7 @@ module InterceptPressingTests =
                   let before = MatchMath.dist (MatchWorld.posX world.Home.Frame pressers[0]) (MatchWorld.posY world.Home.Frame pressers[0]) target.X target.Y
                   let movementContext = sctx ctx
                   let movementEvents = buffer ()
+                  CognitionLatch.step movementContext (Rng.ofSeed 0UL) world movementEvents |> ignore
                   PlayerSteering.step movementContext (Rng.ofSeed 11UL) world movementEvents |> ignore
                   ContactDynamics.step movementContext (Rng.ofSeed 11UL) world movementEvents |> ignore
 

@@ -205,6 +205,11 @@ type TeamFrame =
       mutable Condition: float32[]
       mutable Mental: MentalFrame
       mutable Intent: IntentFrame
+      /// The intentions and shape as cognition left them on the previous tick: what the body steers by. The
+      /// reflex works on the current tick, the decision it follows was taken one tick before.
+      mutable SteerIntent: IntentFrame
+      mutable SteerShapeX: float32[]
+      mutable SteerShapeY: float32[]
       mutable Occupancy: OccupancyKind[]
       mutable SlotRoles: SlotRole[]
       mutable DefensiveRoles: DefensiveRole[]
@@ -459,6 +464,16 @@ module TeamFrame =
               CommittedUntil = Array.zeroCreate<int<subtick>> slotCount
               CommittedAt = Array.zeroCreate<int<subtick>> slotCount
               ExitTrigger = Array.zeroCreate<byte> slotCount }
+          SteerIntent =
+            { Kind = Array.zeroCreate<byte> slotCount
+              TargetX = Array.zeroCreate<float32> slotCount
+              TargetY = Array.zeroCreate<float32> slotCount
+              Phase = Array.zeroCreate<byte> slotCount
+              CommittedUntil = Array.zeroCreate<int<subtick>> slotCount
+              CommittedAt = Array.zeroCreate<int<subtick>> slotCount
+              ExitTrigger = Array.zeroCreate<byte> slotCount }
+          SteerShapeX = Array.zeroCreate<float32> slotCount
+          SteerShapeY = Array.zeroCreate<float32> slotCount
           Occupancy = Array.init slotCount (fun i -> OccupancyKind.Active i)
           SlotRoles = Array.create slotCount SlotRole.CenterMid
           DefensiveRoles = Array.create slotCount DefensiveRole.Unassigned

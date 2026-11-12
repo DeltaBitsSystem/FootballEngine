@@ -122,6 +122,7 @@
     <Compile Include="Match\Systems\Ball\Outcome.fs"/>
      <Compile Include="Match\Systems\Ball\Possession.fs"/>
      <Compile Include="Match\Systems\Players\Steering.fs"/>
+     <Compile Include="Match\Systems\Players\CognitionLatch.fs"/>
      <Compile Include="Match\Systems\ContactDynamics.fs"/>
      <Compile Include="Match\Systems\Players\Perception.fs"/>
     <Compile Include="Match\Systems\Team\InterceptTable.fs"/>

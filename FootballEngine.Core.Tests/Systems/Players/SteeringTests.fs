@@ -21,6 +21,7 @@ module SteeringTests =
         PlayerIntent.step systemContext (Rng.ofSeed 1UL) world (buffer ()) |> ignore
 
     let private stepSteering world =
+        CognitionLatch.step systemContext (Rng.ofSeed 0UL) world (buffer ()) |> ignore
         PlayerSteering.step systemContext (Rng.ofSeed 1UL) world (buffer ()) |> ignore
 
     let private stepContact world =
@@ -256,6 +257,29 @@ module SteeringTests =
 
                   Expect.isLessThanOrEqual frame.PosX[slot] (float32 Pitch.HalfLength) "x remains in bounds"
                   Expect.isLessThanOrEqual frame.PosY[slot] (float32 Pitch.HalfWidth) "y remains in bounds")
+
+              testCase "the body steers by the intention latched at the start of the tick" (fun _ ->
+                  let world = TestBuilders.formationWorld ()
+                  let frame = world.Home.Frame
+                  let slot = 5
+                  frame.PosX[slot] <- 0.0f
+                  frame.PosY[slot] <- 0.0f
+                  frame.Intent.Kind[slot] <- IntentCode.BallCarry
+                  frame.Intent.TargetX[slot] <- 10.0f
+                  frame.Intent.TargetY[slot] <- 0.0f
+                  frame.Intent.Phase[slot] <- IntentPhase.Executing
+                  CognitionLatch.step systemContext (Rng.ofSeed 0UL) world (buffer ()) |> ignore
+
+                  // A decision taken during this tick reaches the body on the next one.
+                  frame.Intent.TargetX[slot] <- -10.0f
+                  PlayerSteering.step systemContext (Rng.ofSeed 1UL) world (buffer ()) |> ignore
+
+                  Expect.isGreaterThan frame.TargetVelX[slot] 0.0f "this tick follows the latched target"
+
+                  CognitionLatch.step systemContext (Rng.ofSeed 0UL) world (buffer ()) |> ignore
+                  PlayerSteering.step systemContext (Rng.ofSeed 1UL) world (buffer ()) |> ignore
+
+                  Expect.isLessThan frame.TargetVelX[slot] 0.0f "the next tick follows the new decision")
 
               testCase "body facing turns with bounded angular speed and acceleration" (fun _ ->
                   let world = TestBuilders.formationWorld ()

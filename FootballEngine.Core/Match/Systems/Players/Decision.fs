@@ -394,6 +394,7 @@ module PlayerDecision =
 
         (MatchWorld.team world side).PendingActions[ slot ] <-
             { Choice = choice
+              DecidedAt = tick
               ExpiresAt = tick + ctx.Config.Movement.CommittedRunDuration }
 
         if world.Observation.Enabled then

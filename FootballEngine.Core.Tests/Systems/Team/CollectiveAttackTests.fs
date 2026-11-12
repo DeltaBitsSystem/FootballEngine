@@ -196,6 +196,7 @@ module CollectiveAttackTests =
             for index in 1 .. 40 do
                 world.State <- { world.State with Tick = 400<subtick> + index * 1<subtick> }
                 let movementContext = systemContext ctx
+                CognitionLatch.step movementContext (Rng.ofSeed 0UL) world b |> ignore
                 PlayerSteering.step movementContext (Rng.ofSeed 1UL) world b |> ignore
                 ContactDynamics.step movementContext (Rng.ofSeed 1UL) world b |> ignore
             let finalDistance = MatchMath.dist (MatchWorld.posX world.Home.Frame e.Runner.Slot) (MatchWorld.posY world.Home.Frame e.Runner.Slot) e.Runner.Target.X e.Runner.Target.Y

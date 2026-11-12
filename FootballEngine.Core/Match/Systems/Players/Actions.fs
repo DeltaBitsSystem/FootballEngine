@@ -275,6 +275,8 @@ module Actions =
                     r <- GK.distribute ctx r world buffer side
                 else
                     match team.PendingActions.TryGetValue slot with
+                    // A decision reaches the body the tick after it is taken, as it would from a parallel mind.
+                    | true, a when a.DecidedAt >= tick -> ()
                     | true, a when a.ExpiresAt >= tick ->
                         world.Observation.BeginAction (MatchWorld.profileOf ctx.Ctx side slot).Id
 

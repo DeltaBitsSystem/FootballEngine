@@ -8,7 +8,7 @@ module ReactionCoherenceTests =
     let private ctx = TestBuilders.formationCtx ()
     let private system = { Ctx = ctx; Clock = SimulationClock.defaultClock }
     let private buffer () = { Events = ResizeArray(); Applied = ResizeArray(); Flags = { Bits = 0UL } }
-    let private proposal = { Choice = ContestDuel; ExpiresAt = 100<subtick> }
+    let private proposal = { Choice = ContestDuel; DecidedAt = -1<subtick>; ExpiresAt = 100<subtick> }
     let private names = set [ "PlayerPerception"; "PlayerIntent"; "PlayerSteering"; "PlayerDecision"; "Actions" ]
 
     let private worldAt tick =

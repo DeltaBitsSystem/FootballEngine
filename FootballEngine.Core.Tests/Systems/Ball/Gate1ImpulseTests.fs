@@ -162,7 +162,7 @@ module Gate1ImpulseTests =
 
                   world.Home.PendingActions[5] <-
                       { Choice = ClearBall
-                        ExpiresAt = 0<subtick> }
+                        DecidedAt = -1<subtick>; ExpiresAt = 0<subtick> }
 
                   Actions.step sctx (Rng.ofSeed 4UL) world (buffer ()) |> ignore
 

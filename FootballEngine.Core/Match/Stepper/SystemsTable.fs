@@ -32,7 +32,10 @@ module Scheduler =
         |> List.fold (fun flags kind -> EventFlags.union flags (EventFlags.ofKind kind)) decisionFlags
 
     let systems: SystemSpec list =
-        [ { Name = "TeamPerceive"
+        [ { Name = "CognitionLatch"
+            Triggers = [ Trigger.EveryTick ]
+            Step = CognitionLatch.step }
+          { Name = "TeamPerceive"
             Triggers = [ Trigger.WhenLive(Trigger.OnTransitionOrGeometry transitionFlags) ]
             Step = TeamPerceive.step }
           { Name = "TeamTransition"

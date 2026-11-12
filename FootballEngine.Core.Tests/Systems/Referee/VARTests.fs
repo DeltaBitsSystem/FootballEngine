@@ -25,7 +25,7 @@ module VARTests =
 
                   world.Home.PendingActions[9] <-
                       { Choice = TakeShot
-                        ExpiresAt = 50<subtick> }
+                        DecidedAt = -1<subtick>; ExpiresAt = 50<subtick> }
 
                   RefereeVAR.markOffsideSnapshot world ClubSide.Home 9 20.0<meter> 18.0<meter> 0<subtick>
                   RefereeVAR.markOffsideSnapshot world ClubSide.Away 9 -20.0<meter> -18.0<meter> 0<subtick>
