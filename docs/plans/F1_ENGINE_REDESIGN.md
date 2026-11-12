@@ -1,6 +1,6 @@
 # F1 — Rediseño del motor para rendimiento (propuesta para revisar)
 
-Estado: borrador para discutir. No hay código de este rediseño todavía.
+Estado: decidido (sección 7). Paso 1 hecho.
 
 ## 1. Lo medido (2026-11-12, Ryzen 5 5600X, 6 núcleos / 12 hilos, Release)
 
@@ -131,7 +131,13 @@ Cada paso deja el motor andando, con tests y hash o validación held-out:
 7. Cola de partidos sin barrera por día.
 8. Think de ambos equipos en paralelo, si la medición lo justifica.
 
-## 7. Decisión pendiente
+## 7. Decisión (2026-11-12)
 
-Qué se prioriza: throughput de temporadas, latencia de un partido individual, o ambas. Todos los pasos 1–6
-sirven para ambas porque bajan el costo por partido; la respuesta decide los pasos 7 y 8.
+Prioridad: **la velocidad de un partido individual**. Las temporadas ya se paralelizan por partido. Sin
+compatibilidad hacia atrás: se reemplazan contratos en lugar de adaptarlos. Consecuencias:
+
+- Los pasos 1–6 van tal cual; el 8 (Think de ambos equipos en paralelo) pasa a ser parte del objetivo, no
+  opcional, y la fase Think se diseña desde el paso 4 para correr por equipo sin estado compartido escrito.
+- El paso 7 (cola sin barrera por día) queda para después: no mejora un partido individual.
+- Paso 1 hecho: `dotnet fsi scripts/dev.fsx perf` corre `Training profile --gate perf/budget.txt`, con
+  asignación por sistema (independiente de la máquina) y tiempo total del partido en la máquina de referencia.

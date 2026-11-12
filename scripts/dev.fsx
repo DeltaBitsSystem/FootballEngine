@@ -6,6 +6,7 @@
 //   dotnet fsi scripts/dev.fsx test --full        every suite: the gate
 //   dotnet fsi scripts/dev.fsx format [--check]   Fantomas over the repository
 //   dotnet fsi scripts/dev.fsx profile            one headless match, time and allocation per system
+//   dotnet fsi scripts/dev.fsx perf               the profile held to perf/budget.txt: a regression fails here
 //   dotnet fsi scripts/dev.fsx hash [n]           event hash over n tuning seeds: a pure refactor must not change it
 //   dotnet fsi scripts/dev.fsx check              build, then the fast tier: before every commit
 
@@ -48,7 +49,7 @@ let training args =
           fun () -> run "dotnet" ([ "Training/bin/Release/net10.0/Training.dll" ] @ args) ]
 
 let usage () =
-    eprintfn "usage: dotnet fsi scripts/dev.fsx build | test [--full] | format [--check] | profile | hash [n] | check"
+    eprintfn "usage: dotnet fsi scripts/dev.fsx build | test [--full] | format [--check] | profile | perf | hash [n] | check"
     2
 
 let code =
@@ -59,6 +60,7 @@ let code =
     | [ "format" ] -> run "dotnet" [ "fantomas"; "." ]
     | [ "format"; "--check" ] -> run "dotnet" [ "fantomas"; "."; "--check" ]
     | [ "profile" ] -> training [ "profile" ]
+    | [ "perf" ] -> training [ "profile"; "--gate"; "perf/budget.txt" ]
     | [ "hash" ] -> training [ "hash"; "4" ]
     | [ "hash"; n ] -> training [ "hash"; n ]
     | [ "check" ] -> sequence [ build; fun () -> test false ]

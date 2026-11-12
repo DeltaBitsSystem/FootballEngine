@@ -270,7 +270,7 @@ module Program =
                     (mean (fun r -> r.Metrics.Corners))
 
     /// Wall time per system over one match on one thread: where a slow balance loop actually spends its time.
-    let private profileCmd (cfg: BalanceConfig) (seed: uint64) =
+    let private profileCmd (cfg: BalanceConfig) (seed: uint64) (budgetPath: string option) : int =
         let timers = System.Collections.Generic.Dictionary<string, int64>()
         let calls = System.Collections.Generic.Dictionary<string, int>()
         let bytes = System.Collections.Generic.Dictionary<string, int64>()
@@ -312,6 +312,40 @@ module Program =
         for KeyValue(name, t) in timers |> Seq.sortByDescending (fun kv -> kv.Value) do
             printfn "  %-24s %8.0f ms %5.1f %%  %7d calls %8.0f MB" name (ms t) (100.0 * ms t / total.Elapsed.TotalMilliseconds) calls[name] (float bytes[name] / 1e6)
 
+        match budgetPath with
+        | None -> 0
+        | Some path ->
+            // Allocation is the same on every machine for one seed and one build, so it is gated per system;
+            // wall time depends on the machine and its load, so only the whole match is held to a budget.
+            let budget =
+                System.IO.File.ReadAllLines path
+                |> Array.map (fun line -> line.Trim())
+                |> Array.filter (fun line -> line <> "" && not (line.StartsWith "#"))
+                |> Array.map (fun line ->
+                    let parts = line.Split(' ', System.StringSplitOptions.RemoveEmptyEntries)
+                    parts[0], float parts[1])
+
+            let violations =
+                [ for name, limit in budget do
+                      if name = "wall-ms" then
+                          if total.Elapsed.TotalMilliseconds > limit then
+                              yield sprintf "wall %.0f ms > %.0f ms" total.Elapsed.TotalMilliseconds limit
+                      else
+                          match bytes.TryGetValue name with
+                          | true, allocated when float allocated / 1e6 > limit ->
+                              yield sprintf "%s allocates %.1f MB > %.1f MB" name (float allocated / 1e6) limit
+                          | true, _ -> ()
+                          | false, _ -> yield sprintf "%s is in the budget but not in the schedule" name ]
+
+            for violation in violations do
+                printfn "OVER BUDGET: %s" violation
+
+            if violations.IsEmpty then
+                printfn "within budget (%s)" path
+                0
+            else
+                1
+
     /// One FNV-1a hash over every applied event of each seed's match: an optimisation must leave it unchanged.
     let private hashCmd (cfg: BalanceConfig) (seeds: uint64[]) =
         let digest seed =
@@ -342,6 +376,7 @@ module Program =
         printfn "  validate [n=8]                       banded metrics with 95%% intervals and causal funnels"
         printfn "  sweep <Path.Field> <v1,v2,...> [n=8]  one metric row per value"
         printfn "  hash [n=4]                           event hash per seed; optimisations must keep it"
+        printfn "  profile [--gate budget.txt]          time and allocation per system; --gate fails over budget"
         printfn "  diagnose [n=4] | tune [sweeps] [n] | dump <path> [n]"
         1
 
@@ -367,7 +402,8 @@ module Program =
                 0
             | [ "sweep"; path; values ] -> sweepCmd cfg path (values.Split(',') |> List.ofArray) (seedsFor heldOut 8); 0
             | [ "sweep"; path; values; n ] -> sweepCmd cfg path (values.Split(',') |> List.ofArray) (seedsFor heldOut (int n)); 0
-            | [ "profile" ] -> profileCmd cfg 42UL; 0
+            | [ "profile" ] -> profileCmd cfg 42UL None
+            | [ "profile"; "--gate"; path ] -> profileCmd cfg 42UL (Some path)
             | "tune" :: rest ->
                 let parts = defaultArgs rest [ "6"; "2" ]
                 let sweeps = parts.[0] |> int

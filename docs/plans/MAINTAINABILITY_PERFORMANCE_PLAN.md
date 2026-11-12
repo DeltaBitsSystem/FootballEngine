@@ -32,6 +32,8 @@ con la misma semilla) salvo donde un cambio se justifique y recalibre.
 3. PlayerDecision: candidatos y evaluaciones por jugador cacheados mientras su percepción no cambia.
 4. Gate de rendimiento: `Training profile` con presupuesto por sistema y BenchmarkDotNet para micro-casos; una
    regresión > 10 % se ve en el PR.
+   Hecho: `scripts/dev.fsx perf` con `perf/budget.txt`. El rediseño para bajar de ~5,4 s está en
+   `F1_ENGINE_REDESIGN.md`.
 
 Aceptación: hash de eventos idéntico en el corpus de semillas; perfil antes/después en el commit.
 
