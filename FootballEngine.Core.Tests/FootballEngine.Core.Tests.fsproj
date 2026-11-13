@@ -47,6 +47,7 @@
     <Compile Include="Systems\Players\DuelContactTests.fs"/>
     <Compile Include="Systems\Players\TackleFoulTests.fs"/>
     <Compile Include="Systems\Players\ReactionCoherenceTests.fs"/>
+    <Compile Include="Systems\Players\DeliberationTests.fs"/>
     <Compile Include="Systems\Players\Actions\PassTests.fs"/>
     <Compile Include="Systems\Players\Actions\ShootoutTests.fs"/>
     <Compile Include="Systems\Team\FormationTests.fs"/>

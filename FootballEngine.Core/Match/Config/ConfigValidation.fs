@@ -9,7 +9,9 @@ module ConfigValidation =
         [ if p.MaxChainLength < 1 || p.MaxChainLength > 16 then
               yield "Planner.MaxChainLength must be in [1, 16]"
           if p.MaxEvaluateLimit < 1 || p.MaxEvaluateLimit > 4096 then
-              yield "Planner.MaxEvaluateLimit must be in [1, 4096]" ]
+              yield "Planner.MaxEvaluateLimit must be in [1, 4096]"
+          if p.DeliberationTime < 0<subtick> || p.DeliberationTime > 40<subtick> then
+              yield "Planner.DeliberationTime must be in [0, 40] subticks" ]
 
     let validateScout (c: ScoutConfig) : string list =
         [ if c.MemoryHalfLifeDays <= 0.0 then

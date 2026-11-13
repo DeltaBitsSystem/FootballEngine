@@ -659,6 +659,7 @@ module MatchSession =
         if session.World.Cognition.Runner.IsNone then
             session.World.Cognition.Runner <- ValueSome(new CognitionThread(cognitionSpin) :> ICognitionRunner)
             session.World.Cognition.Lanes <- ValueSome(new CognitionThread(cognitionSpin) :> ICognitionRunner)
+            session.World.Cognition.Planner <- ValueSome(new CognitionThread(cognitionSpin) :> ICognitionRunner)
 
     /// Ends the cognition thread, if any. A finished match does this itself; an abandoned one must.
     let releaseCognition (session: MatchSession) =
@@ -672,6 +673,17 @@ module MatchSession =
         | ValueSome lanes ->
             session.World.Cognition.Lanes <- ValueNone
             lanes.Dispose()
+        | ValueNone -> ()
+
+        match session.World.Cognition.Planner with
+        | ValueSome planner ->
+            // A search still in flight must end before its thread does.
+            if session.World.Cognition.Plan.IsSome then
+                session.World.Cognition.Plan <- ValueNone
+                planner.Join()
+
+            session.World.Cognition.Planner <- ValueNone
+            planner.Dispose()
         | ValueNone -> ()
 
     let rec finish session : Result<MatchOutcome, MatchContractError> =

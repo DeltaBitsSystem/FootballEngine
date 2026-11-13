@@ -6,7 +6,12 @@ open FootballEngine.Core.Tests.Infrastructure
 
 module ReactionCoherenceTests =
     let private ctx = TestBuilders.formationCtx ()
-    let private system = { Ctx = ctx; Clock = SimulationClock.defaultClock }
+
+    // The stepped cases prove what a decision sees when it is made; how long the carrier then deliberates is its
+    // own contract (DeliberationTests), so here the choice is taken on the tick the decision begins.
+    let private system =
+        { Ctx = { ctx with Config = { ctx.Config with Planner = { ctx.Config.Planner with DeliberationTime = 0<subtick> } } }
+          Clock = SimulationClock.defaultClock }
     let private buffer () = { Events = ResizeArray(); Applied = ResizeArray(); Flags = { Bits = 0UL } }
     let private proposal = { Choice = ContestDuel; DecidedAt = -1<subtick>; ExpiresAt = 100<subtick> }
     let private names = set [ "PlayerPerception"; "PlayerIntent"; "PlayerSteering"; "PlayerDecision"; "Actions" ]

@@ -241,3 +241,16 @@ and CognitionSide() =
     /// A second thread for the away team's half of a team-by-team cognition system: such a system writes only
     /// its own team's state and reads the other team's bodies, so the two halves run at once.
     member val Lanes: ICognitionRunner voption = ValueNone with get, set
+    /// The carrier's plan still being searched, and the thread it is searched on when the match has one.
+    member val Plan: PendingPlan voption = ValueNone with get, set
+    member val Planner: ICognitionRunner voption = ValueNone with get, set
+
+/// A carrier's decision while its search runs. The search is a pure function of a snapshot taken when the
+/// decision began, so it may run on any thread across ticks; the choice is made when it is due, on either path.
+and PendingPlan =
+    { PlanDue: int<subtick>
+      PlanSide: ClubSide
+      PlanSlot: int
+      PlanActor: PlayerId
+      PlanSearch: unit -> unit
+      PlanFinish: World -> int<subtick> -> Rng -> Rng }

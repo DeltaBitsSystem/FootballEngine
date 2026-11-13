@@ -126,6 +126,7 @@ let main argv =
           FootballEngine.Core.Tests.Systems.Players.DuelContactTests.tests
           FootballEngine.Core.Tests.Systems.Players.TackleFoulTests.tests
           FootballEngine.Core.Tests.Systems.Players.ReactionCoherenceTests.tests
+          FootballEngine.Core.Tests.Systems.Players.DeliberationTests.tests
           passTests
           shootoutTests
           formationTests
