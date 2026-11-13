@@ -234,7 +234,7 @@ module WorldRunner =
                         dayFixtures
                         |> Array.ofList
                         |> parallelMapLimited (fun (id, fixture) ->
-                            match MatchPhase.simulateFixtureExecutionWithBalance balance id fixture gsReady with
+                            match MatchPhase.simulateFixtureForWorldWithBalance balance id fixture gsReady with
                             | Some(o, input) -> Some(o, input)
                             | None -> None)
                         |> Array.fold

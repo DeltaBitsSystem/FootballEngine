@@ -654,17 +654,13 @@ module MatchPhase =
 
             Some(outcome, input)
 
-    /// Competitions the user's club plays in get the engine for every fixture, so its rivals' results have the
-    /// same causes as its own; the rest of the world is played by the background model.
-    let private watchedCompetitions (gs: GameState) : Set<CompetitionId> =
+    /// Only the user's own fixtures get the engine: the user asked for every other match, rivals in the same
+    /// league included, to be fast. The background model is fitted to the engine (`Training quick-fit`), so a
+    /// rival's result still answers to the same strengths.
+    let private playsOnEngine (gs: GameState) : MatchFixture -> bool =
         match GameState.managedClub gs with
-        | None -> Set.empty
-        | Some club ->
-            gs.Competitions
-            |> Map.toSeq
-            |> Seq.filter (fun (_, comp) -> comp.Fixtures |> Map.exists (fun _ f -> MatchFixture.involves club f))
-            |> Seq.map fst
-            |> Set.ofSeq
+        | None -> fun _ -> false
+        | Some club -> MatchFixture.involves club
 
     let simulateFixtureWithBalance balance fixtureId fixture gs : FixtureOutcome option =
         simulateFixtureExecutionWithBalance balance fixtureId fixture gs |> Option.map fst
@@ -683,20 +679,21 @@ module MatchPhase =
         let balance = WeightMergeSettings.mergeWithOverridesSave saveOpt
         simulateFixtureWithBalance balance fixtureId fixture gs
 
+    /// The engine for the user's own fixtures, the background model for every other one.
+    let simulateFixtureForWorldWithBalance (balance: BalanceConfig) (fixtureId: MatchId) (fixture: MatchFixture) (gs: GameState) =
+        if playsOnEngine gs fixture then
+            simulateFixtureExecutionWithBalance balance fixtureId fixture gs
+        else
+            simulateFixtureQuickWithBalance balance fixtureId fixture gs
+
     let runFixtureExecutionsWithBalance (balance: BalanceConfig) (fixtures: (MatchId * MatchFixture) list) (state: GameState) =
         let config = balance
         let gsReady = LineupOps.ensureForFixtures fixtures state
 
-        let watched = watchedCompetitions gsReady
-
         let executions =
             fixtures
             |> Array.ofList
-            |> parallelMapLimited (fun (id, fixture) ->
-                if Set.contains fixture.CompetitionId watched then
-                    simulateFixtureExecutionWithBalance balance id fixture gsReady
-                else
-                    simulateFixtureQuickWithBalance balance id fixture gsReady)
+            |> parallelMapLimited (fun (id, fixture) -> simulateFixtureForWorldWithBalance balance id fixture gsReady)
             |> Array.choose id
 
         // A background result carries no passes or patterns: pressing coordination and scouting learn nothing from it.
