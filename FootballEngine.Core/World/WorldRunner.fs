@@ -356,11 +356,7 @@ module WorldRunner =
             | _, None -> Error "Match simulation failed: missing lineup"
             | Ok effective, Some context ->
                 let input =
-                    { MatchId = uint64 fixtureId
-                      Context = context
-                      Seed = MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId
-                      EffectiveConfig = effective
-                      EngineVersion = "football-engine-core-01" }
+                    MatchInput.create (uint64 fixtureId) (MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId) effective context
 
                 Ok(MatchJob.create fixtureId fixture.ScheduledDate clock.Revision input)
 
@@ -436,11 +432,7 @@ module WorldRunner =
                 | _, None -> Error "Match result cannot be committed because the lineup is unavailable"
                 | Ok effective, Some ctx ->
                     let input =
-                        { MatchId = uint64 fixtureId
-                          Context = ctx
-                          Seed = MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId
-                          EffectiveConfig = effective
-                          EngineVersion = "football-engine-core-01" }
+                        MatchInput.create (uint64 fixtureId) (MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId) effective ctx
 
                     let job =
                         MatchJob.create fixtureId fixture.ScheduledDate result.SourceRevision input

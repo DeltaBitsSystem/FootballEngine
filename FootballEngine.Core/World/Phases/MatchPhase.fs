@@ -589,11 +589,7 @@ module MatchPhase =
         | _, None -> None
         | Ok effective, Some ctx ->
             let input =
-                { MatchId = uint64 fixtureId
-                  Context = ctx
-                  Seed = MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId
-                  EffectiveConfig = effective
-                  EngineVersion = "football-engine-core-01" }
+                MatchInput.create (uint64 fixtureId) (MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId) effective ctx
 
             match MatchAdapter.runOutcome Scheduler.systems input [] with
             | Error _ -> None

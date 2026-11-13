@@ -59,6 +59,12 @@ ContactDynamics (1,6 s, trabajo repartido: `findEarliest` 0,54 s, cotas 0,26 s, 
 TeamPosition (0,87 s, 15 µs por llamada). La meta de 1,5 s pide bajar la frecuencia de contacto o paralelizar
 por partido; ambas cosas necesitan validación held-out.
 
+Después de F3.2 (2026-11-13): 7,2 s por partido. PlayerDecision 2,1 s / 1,45 GB, ContactDynamics 1,8 s,
+TeamPosition 0,9 s. Contado: 54 932 decisiones de portador por partido (re-decide cada ~8 ticks: cadencia 4 +
+deliberación 4) y 66 evaluaciones del planner por decisión; la búsqueda cuesta 1,6 s (29 µs por decisión). Espaciar
+las re-decisiones ahorraría como mucho ~0,8 s y es un cambio deportivo; la meta pide además el contacto
+(segmentos por tick) y construir estados del planner solo para las ramas que sobreviven al haz.
+
 Partidos de fondo (2026-11-12): las ligas que el usuario no sigue se juegan con `QuickMatch` (sin ticks:
 Poisson de goles por fuerza media del once, goleadores/asistentes por rol y atributo, tarjetas, faltas,
 lesiones y cambios), del orden de microsegundos por partido. Los partidos de competiciones donde juega el club
@@ -125,7 +131,16 @@ Estado (2026-11-12): 1 hecho (0 warnings en todos los proyectos y Tools, `TreatW
 (`--fast`: 863 casos en ~30 s de ejecución); 4 hecho (`scripts/dev.fsx`). 3 pendiente de F1: la suite completa
 tarda 1:45.
 
+Medición (2026-11-13): Core 2:13 de pared en 12 núcleos, ~1 500 s de CPU sumada; los casos más largos (72 s) son
+temporadas y partidos completos en serie. La pared ya está limitada por CPU, así que < 1 min solo llega bajando el
+costo del partido (F1); agrupar o paralelizar tests no alcanza y reducir cargas está prohibido.
+
 ### F3 — Simple y entendible
+
+Estado (2026-11-13): 2 hecho (ver F3.2 arriba). 4 hecho: todo partido completo arranca en `Simulator.start`
+(valida la config, sella el `MatchInput` con `MatchInput.create`/`engineVersion` y abre la `MatchSession`); carrera,
+Training, benchmarks y el adaptador de comandos juegan esa sesión. `Stepper.step`/`stepInto` quedan solo para
+escenarios armados a mano (tests y sondas), que corren el mismo tick sin sesión.
 
 Estado (2026-11-12): 1 hecho (AGENTS.md según el árbol real; scripts muertos y visor 2D Skia eliminados). 3 hecho
 fuera del motor: ModSystem en siete módulos por etapa, Settings en cuatro, PlayerView y Display fuera de UI.
@@ -143,9 +158,15 @@ pendientes; 4 también depende de ese rediseño.
 
 ### F4 — Poder: profundidad que FM no tiene
 
-Con el motor rápido, simular **todas** las ligas cargadas con el motor completo (sin un modo "rápido" con otra
-física), y usar el sobrante para inteligencia: lectura táctica del rival en vivo, aprendizaje de jugadores
-entre partidos. Se detalla al cerrar F1–F3, con mediciones reales de throughput de temporada.
+Decisión del usuario (2026-11-12): el fondo debe ser rápido; lo que el usuario sigue puede ser lento. Por eso las
+ligas de fondo usan `QuickMatch` (~35 µs por partido, ajustado al motor con `quick-fit`/`quick-validate`) y el
+motor completo queda para las competiciones del club del usuario. F4 ya no busca correr todo con el motor
+completo, sino:
+1. Mantener `QuickMatch` fiel al motor: reajustar con `quick-fit` cada vez que cambie la respuesta del motor a la
+   calidad, y vigilar que `quick-validate` siga dentro del error por brecha de fuerza.
+2. Usar el motor completo, en las competiciones seguidas, para la inteligencia que el modelo rápido no tiene:
+   lectura táctica del rival en vivo y aprendizaje de jugadores entre partidos, con su evento visible.
+3. La meta de F1 (≤ 1,5 s) sigue valiendo para el partido del usuario, los tests y la calibración.
 
 ## 3. Reglas
 

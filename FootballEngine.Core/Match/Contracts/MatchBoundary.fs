@@ -21,6 +21,16 @@ type MatchInput =
       EngineVersion: string }
 
 module MatchInput =
+    /// Stamped on every input so a recorded job replayed under another engine is detected by its hash.
+    let engineVersion = "football-engine-core-01"
+
+    let create (matchId: uint64) (seed: uint64) (effective: EffectiveConfig) (context: MatchContext) : MatchInput =
+        { MatchId = matchId
+          Context = context
+          Seed = seed
+          EffectiveConfig = effective
+          EngineVersion = engineVersion }
+
     let validate (input: MatchInput) =
         let errors = ResizeArray<string>()
 

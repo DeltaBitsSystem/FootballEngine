@@ -7,24 +7,10 @@ open FootballEngine.Core.Tests.Infrastructure
 /// controls the whole match, so the same config always yields the same metrics.
 module SimulatorRunner =
 
-    /// The same session the game and `Simulator.runMatch` play, so calibration measures exactly the match a career
-    /// plays, input and config validation included. A tool may stop on an invalid config.
+    /// Calibration measures exactly the match a career plays, config validation included; a tool may stop on an
+    /// invalid config.
     let private sessionOf (systems: SystemSpec list) (ctx: MatchContext) (seed: uint64) =
-        let cfg = ctx.Config
-
-        let effective =
-            match EffectiveConfig.fromBalance cfg with
-            | Ok effective -> effective
-            | Error error -> failwithf "invalid balance config: %A" error
-
-        let input =
-            { MatchId = seed
-              Context = ctx
-              Seed = seed
-              EffectiveConfig = effective
-              EngineVersion = "football-engine-core-01" }
-
-        match MatchSession.create systems input MatchRunMode.Fast with
+        match Simulator.start systems ctx seed MatchRunMode.Fast with
         | Ok session -> session
         | Error error -> failwithf "match session rejected: %A" error
 
