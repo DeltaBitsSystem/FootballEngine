@@ -121,6 +121,8 @@ module PlayerSteering =
             let speedMult =
                 let transition = team.Latched.InTransition
                 match frame.SteerIntent.Kind.[slot] with
+                // The man on the ball must keep pace with the carrier or the carrier simply runs past his path.
+                | IntentCode.Contain -> 1.0
                 | IntentCode.Cover when transition -> ctx.Config.DefensiveTransition.CoverEffort
                 | IntentCode.Mark when transition -> ctx.Config.DefensiveTransition.ScreenEffort
                 | IntentCode.Regroup when transition -> ctx.Config.DefensiveTransition.RecoveryEffort

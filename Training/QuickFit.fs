@@ -545,3 +545,59 @@ module QuickFit =
         let n = float fixtures.Length
         for i, label in [ 0, "home (+)"; 1, "away (-)" ] do
             printfn "%s %s: wins ball own/mid/final %.1f/%.1f/%.1f, shots %.1f, of which within 10 s of a win %.1f" name label (acc[i, 0] / n) (acc[i, 1] / n) (acc[i, 2] / n) (acc[i, 3] / n) (acc[i, 4] / n)
+
+    /// How possessions end: each change of side counted by the losing side's last action since it won the ball,
+    /// split by whether play was live (a tackle or interception) or stopped (out of play, a foul, a goal).
+    let losses (cfg: BalanceConfig) (matches: int) =
+        let fixtures = contexts cfg ((matches + 11) / 12) 4242UL |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f)) |> Array.truncate matches
+        let counts = System.Collections.Concurrent.ConcurrentDictionary<string, float>()
+        let add key = counts.AddOrUpdate(key, 1.0, fun _ v -> v + 1.0) |> ignore
+
+        fixtures
+        |> Array.Parallel.iter (fun ((ctx, _), seed) ->
+            let mutable holder: ClubSide option = None
+            let mutable last = "carry"
+            let mutable inBox = false
+            let mutable lastCarrier = None
+
+            SimulatorRunner.runContextObserved ctx seed (fun world events ->
+                match world.State.Ball.Control, holder with
+                | BallControl.Controlled(side, carrier), Some h when side = h && world.State.Flow = MatchFlow.Live ->
+                    let b = world.State.Ball.Position
+                    let box = abs (float (MatchMath.goalX side) - float b.X) < 16.5 && abs (float b.Y) < 20.16
+
+                    if box && not inBox then
+                        add (if lastCarrier = Some carrier then "box entries carried" else "box entries received")
+
+                    inBox <- box
+                    lastCarrier <- Some carrier
+                | _ -> inBox <- false
+
+                for e in events do
+                    match e.Data with
+                    | EventData.Possession(side, _) when holder <> Some side ->
+                        if holder.IsSome then
+                            add $"""{if world.State.Flow = MatchFlow.Live then "live" else "stopped"} after {last}"""
+
+                        holder <- Some side
+                        last <- "carry"
+                    | EventData.Possession _ -> last <- "carry"
+                    | EventData.Foul(fouler, _, severity, _, (fx, _)) ->
+                        match MatchWorld.teamOfPlayer ctx fouler with
+                        | Some fs ->
+                            let f = (MatchWorld.team world fs).Frame
+                            let slot = MatchWorld.slotOf ctx fs fouler |> Option.defaultValue 0
+                            let third =
+                                let depth = float fx * MatchMath.goalDirection fs
+                                if depth < -17.5 then "own" elif depth < 17.5 then "mid" else "final"
+                            add $"foul {severity} by {f.DefensiveRoles[slot]}/intent {f.SteerIntent.Kind[slot]} in {third}"
+                        | None -> ()
+                    | EventData.Pass _ -> last <- "pass"
+                    | EventData.Shot _ -> last <- "shot"
+                    | EventData.CrossAttempt _ -> last <- "cross"
+                    | _ -> ())
+            |> ignore)
+
+        for KeyValue(key, value) in counts |> Seq.sortByDescending (fun kv -> kv.Value) do
+            printfn "%-24s %6.1f per match" key (value / float fixtures.Length)
+

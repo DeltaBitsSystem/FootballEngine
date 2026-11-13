@@ -20,6 +20,9 @@ type SlotRole =
 type DefensiveRole =
     | Unassigned
     | FirstDefender
+    /// A retreating side's man on the ball: he stands in the carrier's path and takes it only when it comes to his
+    /// boot, where a pressing first defender would dive in.
+    | Contain
     | Cover
     | Marker
     | Screen
@@ -68,11 +71,17 @@ module IntentCode =
     [<Literal>]
     let Regroup = 10uy
 
+    // The man on the ball for a retreating side: in the carrier's path at full effort, but only playing a ball
+    // that has left the carrier's boot. Its own code so the body reads it from the latched intent.
+    [<Literal>]
+    let Contain = 11uy
+
     let inline isContinuous kind =
         kind = BallCarry
         || kind = Support
         || kind = Press
         || kind = Mark
+        || kind = Contain
         || kind = Recover
         || kind = Cover
         || kind = HoldPosition

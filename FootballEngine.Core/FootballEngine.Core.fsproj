@@ -129,6 +129,7 @@
      <Compile Include="Match\Systems\Players\Perception.fs"/>
     <Compile Include="Match\Systems\Team\InterceptTable.fs"/>
     <Compile Include="Match\Systems\Players\Intent.fs"/>
+    <Compile Include="Match\Systems\Players\DecisionValue.fs"/>
     <Compile Include="Match\Systems\Players\PassIntercept.fs"/>
     <Compile Include="Match\Systems\Players\Planner.fs"/>
     <Compile Include="Match\Systems\Players\Decision.fs"/>

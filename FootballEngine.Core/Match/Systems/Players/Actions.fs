@@ -191,8 +191,21 @@ module Actions =
                                     along > 0.0 && along < 1.0 && sqrt (ox * ox + oy * oy) < float config.TackleBodyClearance
                                 | _ -> false
 
+                            // Only a player sent to engage goes in while the ball is at the carrier's boot; a containing or
+                            // retreating one waits for the touch that leaves it nearer him, since diving in is a trip.
+                            let exposed =
+                                engaging
+                                || match ownerSlot with
+                                   | Some carrier ->
+                                       let cx = float ball.X - float ownerFrame.PosX[carrier]
+                                       let cy = float ball.Y - float ownerFrame.PosY[carrier]
+                                       distanceSquared < cx * cx + cy * cy
+                                   | None -> true
+
                             let kind =
-                                if distanceSquared <= reach * reach && not (shielded preparation) then
+                                if not exposed then
+                                    None
+                                elif distanceSquared <= reach * reach && not (shielded preparation) then
                                     Some ContactActionKind.ContactStandingTackle
                                 elif
                                     intent = IntentCode.Recover

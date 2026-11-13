@@ -6,13 +6,7 @@ open FootballEngine.Core.Match
 
 module PlannerEvaluatorTests =
 
-    let private weights: WeightSectionsPlanner =
-        { ProgressionWeight = 0.6
-          ShootValueWeight = 0.35
-          ShootFinishingAssumption = 75.0
-          DangerBase = [| 20.0; 10.0; 5.0; 3.0; 2.0; 1.0; 0.0 |]
-          DangerZoneWeights = [| 1.0; 0.5; 0.25 |]
-          PossessionSecurityWeight = 0.8 }
+    let private weights = BalanceConfig.defaultConfig.ExpectedValue
 
     let private state (bx: float) (ours: (int * float * float) list) (opps: (int * float * float) list) : ChainState =
         { BallX = bx * 1.0<meter>
@@ -64,7 +58,7 @@ module PlannerEvaluatorTests =
                   let vNear = Planner.value weights (state 15.0 [ 5, 15.0, 0.0 ] nearOpps)
                   Expect.isGreaterThan vFar vNear "far opponents yield higher value")
 
-              testCase "shoot bonus raises value for a state within shooting range" (fun _ ->
+              testCase "a ball held in shooting range is worth more than one at the halfway line" (fun _ ->
                   let vShoot = Planner.value weights (state 30.0 [ 5, 30.0, 0.0 ] farOpps)
                   let vNoShot = Planner.value weights (state 10.0 [ 5, 10.0, 0.0 ] farOpps)
                   Expect.isGreaterThan vShoot vNoShot "shooting position has higher value")
@@ -89,12 +83,12 @@ module PlannerEvaluatorTests =
                   Expect.floatClose Accuracy.high (Planner.value weights home) (Planner.value weights away) "advantage is team-local, not a pitch-direction bonus")
 
               testCase "an isolated carrier cannot count himself as supporting cover" (fun _ ->
-                  let isolated = state 20.0 [ 5, 20.0, 0.0 ] farOpps
-                  let supported = state 20.0 [ 5, 20.0, 0.0; 7, 18.0, 3.0 ] farOpps
-                  Expect.floatClose Accuracy.high
-                      weights.PossessionSecurityWeight
-                      (Planner.value weights supported - Planner.value weights isolated)
-                      "security comes from another player who can help")
+                  let marker = [ 1, 22.0, 0.0 ]
+                  let alone = state 20.0 [] marker
+                  let isolated = state 20.0 [ 5, 20.0, 0.0 ] marker
+                  let supported = state 20.0 [ 5, 20.0, 0.0; 7, 18.0, 3.0 ] marker
+                  Expect.floatClose Accuracy.high (Planner.value weights isolated) (Planner.value weights alone) "the carrier is no cover for himself"
+                  Expect.isGreaterThan (Planner.value weights supported) (Planner.value weights isolated) "a teammate in support makes the ball safer")
 
               testCase "value is finite for on-pitch states" (fun _ ->
                   let states =

@@ -6,13 +6,7 @@ open FootballEngine.Core.Tests.Infrastructure
 
 module PlannerTests =
 
-    let private weights: WeightSectionsPlanner =
-        { ProgressionWeight = 0.6
-          ShootValueWeight = 0.35
-          ShootFinishingAssumption = 75.0
-          DangerBase = [| 20.0; 10.0; 5.0; 3.0; 2.0; 1.0; 0.0 |]
-          DangerZoneWeights = [| 1.0; 0.5; 0.25 |]
-          PossessionSecurityWeight = 0.8 }
+    let private weights = BalanceConfig.defaultConfig.ExpectedValue
 
     let private cfg: PlannerConfig =
         { BalanceConfig.defaultPlanner with MaxChainLength = 4; MaxEvaluateLimit = 500 }

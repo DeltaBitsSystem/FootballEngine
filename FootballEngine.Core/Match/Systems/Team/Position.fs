@@ -393,6 +393,24 @@ module TeamPosition =
                         screens <- screens + 1
                     | _ -> ()
 
+        let nearGoal =
+            MatchMath.dist ball.X ball.Y (MatchMath.ownGoalX side) 0.0<meter> < float cfg.EngageGoalDistance
+
+        if mode <> Counterpress && nearGoal then
+            let previous =
+                MatchWorld.activeSlots frame
+                |> Array.tryFind (fun slot -> previousTasks[slot] |> Option.exists (fun task -> task.Role = DefensiveRole.Contain))
+
+            let target = TransitionGeometry.pressPoint ctx world side
+
+            // Only a defender still goal-side can stand in the carrier's way; one he has passed would only chase
+            // him from behind into a foul.
+            let goalSide slot = float frame.PosX[slot] * dir <= float ball.X * dir + float cfg.BeatenMargin
+
+            match TransitionGeometry.choose ctx frame target (fun slot -> not (available slot && goalSide slot)) previous cfg.HandoffAdvantage with
+            | Some slot, _ -> assign slot DefensiveRole.Contain target None
+            | None, _ -> ()
+
         for slot in MatchWorld.activeSlots frame do
             if TransitionGeometry.outfielder frame slot && frame.DefensiveRoles[slot] = DefensiveRole.Unassigned then
                 let x = min (float team.Shape.TargetsX[slot] * dir) (float ball.X * dir - float cfg.RetreatBallGap)

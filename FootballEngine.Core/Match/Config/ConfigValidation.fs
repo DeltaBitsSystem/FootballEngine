@@ -13,6 +13,37 @@ module ConfigValidation =
           if p.DeliberationTime < 0<subtick> || p.DeliberationTime > 40<subtick> then
               yield "Planner.DeliberationTime must be in [0, 40] subticks" ]
 
+    let validateExpectedValue (e: ExpectedValueConfig) : string list =
+        [ for name, value, low, high in
+              [ "ThreatPeak", e.ThreatPeak, 0.0, 1.0
+                "ThreatDecay", float e.ThreatDecay, 1.0, 100.0
+                "ThreatFloor", e.ThreatFloor, 0.0, 0.1
+                "PassMarginScale", e.PassMarginScale, 0.5, 40.0
+                "PassSkillSteps", e.PassSkillSteps, 0.0, 40.0
+                "CarryAdvance", float e.CarryAdvance, 0.5, 20.0
+                "CarryKeepBase", e.CarryKeepBase, 0.0, 1.0
+                "CarrySkillWeight", e.CarrySkillWeight, 0.0, 0.05
+                "CarryPressurePenalty", e.CarryPressurePenalty, 0.0, 1.0
+                "PressureRadius", float e.PressureRadius, 0.5, 15.0
+                "ShotBlockShare", e.ShotBlockShare, 0.0, 1.0
+                "CarryBlockPenalty", e.CarryBlockPenalty, 0.0, 1.0
+                "CarryBlockRange", float e.CarryBlockRange, 1.0, 40.0
+                "CrossBaseSuccess", e.CrossBaseSuccess, 0.0, 1.0
+                "HeaderConversion", e.HeaderConversion, 0.0, 1.0
+                "ClearConcession", e.ClearConcession, 0.0, 1.0
+                "LossNear", e.LossNear, 0.0, 1.0
+                "LossRange", float e.LossRange, 0.5, 30.0
+                "SupportRelief", e.SupportRelief, 0.0, 1.0
+                "SupportDistance", float e.SupportDistance, 0.0, 40.0
+                "StyleValue", e.StyleValue, 0.0, 1.0
+                "Temperature", e.Temperature, 0.0001, 1.0
+                "ChainFinishing", e.ChainFinishing, 0.0, 100.0
+                "OffsideReadMargin", float e.OffsideReadMargin, 0.0, 5.0 ] do
+              if not (System.Double.IsFinite value) || value < low || value > high then
+                  yield $"ExpectedValue.{name} must be in [{low}, {high}]"
+          if e.PassMinimumMargin < -40 || e.PassMinimumMargin > 0 then
+              yield "ExpectedValue.PassMinimumMargin must be in [-40, 0]" ]
+
     let validateQuickMatch (q: QuickMatchConfig) : string list =
         let roles (name: string) (w: QuickRoleWeights) =
             let all = [ w.Keeper; w.CentreBack; w.Fullback; w.Holding; w.Central; w.Playmaker; w.Wide; w.Forward ]
@@ -999,6 +1030,7 @@ module ConfigValidation =
                     "BeatenMargin", float transition.BeatenMargin, 10.0
                     "EscapeProgress", float transition.EscapeProgress, 30.0
                     "ThreatGoalDistance", float transition.ThreatGoalDistance, 60.0
+                    "EngageGoalDistance", float transition.EngageGoalDistance, float Pitch.HalfLength
                     "CentralHalfWidth", float transition.CentralHalfWidth, float Pitch.HalfWidth
                     "DepthSafety", float transition.DepthSafety, 10.0
                     "RetreatBallGap", float transition.RetreatBallGap, 25.0
@@ -1050,6 +1082,7 @@ module ConfigValidation =
             @ validateMatch config.Match
             @ validatePlanner config.Planner
             @ validateQuickMatch config.QuickMatch
+            @ validateExpectedValue config.ExpectedValue
             @ validateScout config.Scout
             @ validateCounter config.Counter
             @ validateTransfer config.Transfer

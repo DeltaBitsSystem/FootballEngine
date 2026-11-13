@@ -379,6 +379,9 @@ type DefensiveTransitionConfig =
       BeatenMargin: float<meter>
       EscapeProgress: float<meter>
       ThreatGoalDistance: float<meter>
+      /// Within this distance of its own goal a retreating side still sends its quickest defender to the ball:
+      /// a block that leaves the carrier free lets him walk into the box.
+      EngageGoalDistance: float<meter>
       CentralHalfWidth: float<meter>
       DepthSafety: float<meter>
       ScreenFraction: float
@@ -450,6 +453,62 @@ type MatchConfig =
       FullTimeReviewDuration: float<second>
       ExtraTimePeriodDuration: float<second>
       ShootoutRounds: int }
+
+/// The carrier's choice in goal probability: every option is worth what it is expected to add to his side's
+/// chance of scoring minus what it gives the opponent, so a shot, a pass and a carry compare on one scale and a
+/// player's skill changes how likely each is to work, not how much he likes it.
+type ExpectedValueConfig =
+    { /// Extra chance, over the floor, that a possession at the goal mouth ends in a goal.
+      ThreatPeak: float
+      /// Distance over which that chance falls by e.
+      ThreatDecay: float<meter>
+      /// Chance a possession anywhere still ends in a goal.
+      ThreatFloor: float
+      /// Race margin, in intercept steps, that turns a coin-flip pass into a near-certain one.
+      PassMarginScale: float
+      /// Margin steps an excellent passer (Passing 100) gains over an average one (60): weight and accuracy.
+      PassSkillSteps: float
+      /// Lowest race margin a carrier still considers; below it the pass is not on at all.
+      PassMinimumMargin: int
+      /// Metres a carry gains before the next decision.
+      CarryAdvance: float<meter>
+      /// Chance an average dribbler keeps the ball against an average tackler with nobody else near.
+      CarryKeepBase: float
+      /// Change in that chance per point of Dribbling over the nearest opponent's Tackling (0..100 scale).
+      CarrySkillWeight: float
+      /// Lost keep chance per opponent within reach.
+      CarryPressurePenalty: float
+      /// Distance at which an opponent closes a carry or an idle ball.
+      PressureRadius: float<meter>
+      /// Share of a shot's chance each outfield opponent inside the ball-to-posts triangle takes away.
+      ShotBlockShare: float
+      /// Lost keep chance per opponent standing in the carrier's path to goal.
+      CarryBlockPenalty: float
+      /// How far ahead, inside a cone toward goal, an opponent blocks a carry.
+      CarryBlockRange: float<meter>
+      /// Chance a cross by an average crosser (60) finds a teammate's head.
+      CrossBaseSuccess: float
+      /// Chance a met cross becomes a goal.
+      HeaderConversion: float
+      /// Share of the opponent's threat at the spot a clearance concedes.
+      ClearConcession: float
+      /// Chance a ball idle beside a nearby opponent is lost before the next action.
+      LossNear: float
+      /// Distance over which that chance fades.
+      LossRange: float<meter>
+      /// Share of that loss a teammate within support distance prevents.
+      SupportRelief: float
+      SupportDistance: float<meter>
+      /// Goal probability per unit of the style terms (tactics, memory, personality, collective intent), which
+      /// still nudge choices between options of similar value.
+      StyleValue: float
+      /// Softmax temperature in goal probability: options closer than this are chosen almost evenly.
+      Temperature: float
+      /// How far beyond the offside line a receiver must be before the passer sees it: nobody reads the line to
+      /// the centimetre, and the runs inside that margin are where real offsides come from.
+      OffsideReadMargin: float<meter>
+      /// Finishing assumed for a shot later in a planned chain, whose shooter is not settled yet.
+      ChainFinishing: float }
 
 /// Bounds individual continuation search independently of collective commitments.
 type PlannerConfig =
@@ -696,6 +755,7 @@ type BalanceConfig =
       Environment: EnvironmentConfig
       Match: MatchConfig
       Planner: PlannerConfig
+      ExpectedValue: ExpectedValueConfig
       CollectiveAttack: CollectiveAttackConfig
       Scout: ScoutConfig
       Counter: CounterConfig
@@ -732,6 +792,8 @@ module BalanceConfig =
           MinimumPressIntensity = 0.3; MinimumPressCondition = 0.55; MinimumLocalPlayers = 3; LocalSurplus = 1
           ApproachOffset = 0.75<meter>; CarrierPrediction = 0.15<second>; CoverDepth = 6.0<meter>
           BeatenMargin = 2.5<meter>; EscapeProgress = 10.0<meter>; ThreatGoalDistance = 28.0<meter>
+          // The edge of the defensive third: where a low block's line of engagement sits.
+          EngageGoalDistance = 35.0<meter>
           CentralHalfWidth = 18.0<meter>; DepthSafety = 3.0<meter>; ScreenFraction = 0.45
           RetreatBallGap = 8.0<meter>; RetreatWidthScale = 0.6; SettledTolerance = 3.0<meter>
           MaximumScreens = 2; CoverEffort = 0.85; ScreenEffort = 0.85; RecoveryEffort = 1.0 }
@@ -848,9 +910,9 @@ module BalanceConfig =
           IntentFloor = 0.2
           IntentHysteresis = 0.05
           CommittedRunDuration = 240<subtick>
-          // Close control caps a carrier near 6.4 m/s: tracking data puts dribbling well below a free sprint, and
-          // a touch every stride cannot be kept up at full speed.
-          CarryEffort = 0.4 }
+          // Close control caps a carrier near 5.5 m/s: tracking data puts dribbling well below a free sprint, a
+          // touch every stride cannot be kept up at full speed, and a defender at full effort can stay in his path.
+          CarryEffort = 0.15 }
 
     let defaultContact: ContactConfig =
         { BodyRadiusFallback = 0.31<meter>
@@ -1153,6 +1215,45 @@ module BalanceConfig =
           ExtraTimePeriodDuration = 900.0<second>
           ShootoutRounds = 5 }
 
+    let defaultExpectedValue: ExpectedValueConfig =
+        { // Above the believed xG (MatchMath.xGFrom) beyond ~13 m and twice it at 30 m: a possession there can
+          // still become a better chance, so a shot from range is taken only when keeping the ball is unlikely.
+          ThreatPeak = 1.0
+          ThreatDecay = 20.0<meter>
+          // About 1.4 goals from ~100 possessions a team: a ball anywhere is worth something.
+          ThreatFloor = 0.012
+          // A 0.25 s margin is still only ~73 % safe: the race assumes the receiver's touch and the interceptor's
+          // read, and real passes into contested space fail about one time in five.
+          PassMarginScale = 10.0
+          PassSkillSteps = 6.0
+          PassMinimumMargin = -6
+          CarryAdvance = 5.0<meter>
+          CarryKeepBase = 0.95
+          // Zero: the duel itself already reads Dribbling against Tackling. Adding it to the belief made a skilled
+          // side hold the ball on longer than the duel pays and turned +20 in either attribute into a losing side.
+          CarrySkillWeight = 0.0
+          CarryPressurePenalty = 0.12
+          PressureRadius = 4.0<meter>
+          // Two bodies in the lane leave a shot about a third of its open chance; the engine blocks that often.
+          ShotBlockShare = 0.4
+          // A settled block of four or five in front leaves a carry little chance; space ahead is what a carry needs.
+          CarryBlockPenalty = 0.08
+          CarryBlockRange = 15.0<meter>
+          // Roughly one cross in four is met; a met cross scores about one time in eight.
+          CrossBaseSuccess = 0.25
+          HeaderConversion = 0.12
+          ClearConcession = 0.3
+          LossNear = 1.0
+          LossRange = 4.0<meter>
+          SupportRelief = 0.3
+          SupportDistance = 10.0<meter>
+          // The old utilities spanned ~1 for options a few hundredths of a goal apart.
+          StyleValue = 0.02
+          Temperature = 0.0005
+          // About a stride: assistant referees flag runners a stride off that the passer played as level.
+          OffsideReadMargin = 1.0<meter>
+          ChainFinishing = 60.0 }
+
     let defaultPlanner: PlannerConfig =
         { Enabled = true
           MaxChainLength = 4
@@ -1304,6 +1405,7 @@ module BalanceConfig =
           Environment = defaultEnvironment
           Match = defaultMatch
           Planner = defaultPlanner
+          ExpectedValue = defaultExpectedValue
           CollectiveAttack = defaultCollectiveAttack
           Scout = defaultScout
           Counter = defaultCounter

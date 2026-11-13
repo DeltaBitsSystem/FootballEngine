@@ -18,26 +18,7 @@ module Cross =
         let y = MatchWorld.posY frame slot
         let dir = MatchMath.goalDirection side
 
-        let goalX = MatchMath.goalX side
-        let targetX = goalX - 6.0<meter> * dir
-
-        let mutable bestSlot = -1
-        let mutable bestScore = 0.0
-
-        for s2 in MatchWorld.activeSlots frame do
-            if s2 <> slot && s2 <> 0 then
-                let rx = MatchWorld.posX frame s2
-                let ry = MatchWorld.posY frame s2
-                let dToSpot = MatchMath.dist targetX 0.0<meter> rx ry
-                let dToGoal = MatchMath.distanceToGoal side rx ry
-
-                if dToSpot < float cfg.Actions.CrossTargetRadius + 5.0 && dToGoal < 22.0 then
-                    let score = (22.0 - dToGoal) * 0.5 - dToSpot * 0.2
-                    let attrs = float (MatchWorld.profileOf ctx.Ctx side s2).Finishing / 50.0
-
-                    if score + attrs > bestScore then
-                        bestScore <- score + attrs
-                        bestSlot <- s2
+        let bestSlot = DecisionValue.crossTarget ctx.Ctx world side slot
 
         if bestSlot >= 0 then
             let d =

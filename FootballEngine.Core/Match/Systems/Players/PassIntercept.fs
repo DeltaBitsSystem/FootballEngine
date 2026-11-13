@@ -81,11 +81,10 @@ module PassIntercept =
         let diagonal = abs (float ball.Vy) > abs (float ball.Vx) * 0.5
         cfg.BaseRisk + (if offside && diagonal then cfg.OffsideCrossRisk else 0)
 
-    /// Feasibility = the receiver wins the race with margin:
-    /// `interceptorStep + risk > passArrivalStep`. The margin is what turns a
+    /// Steps by which the receiver wins the race, `interceptorStep + risk - passArrivalStep`. The margin is what turns a
     /// coin-flip pass into a safe one. `offsideLine` is precomputed by the
     /// caller (constant within the pass scan).
-    let feasible
+    let margin
         (cfg: PassInterceptConfig)
         (p: InterceptTable.InterceptParams)
         (world: World)
@@ -93,7 +92,7 @@ module PassIntercept =
         (receiverSlot: int)
         (ball: Spatial)
         (offsideLine: float<meter>)
-        : bool =
+        : int =
         // One roll raced by receiver and interceptors alike; the same verdict as interceptorStep/passArrivalStep.
         let rolled = InterceptTable.RolledBalls.Rent(p, ball)
         let opponents = (MatchWorld.team world (MatchWorld.oppOf side)).Frame
@@ -109,4 +108,7 @@ module PassIntercept =
         let own = (MatchWorld.team world side).Frame
         let arrival = rolled.StepsFor(MatchWorld.posX own receiverSlot, MatchWorld.posY own receiverSlot)
         InterceptTable.RolledBalls.Return rolled
-        interceptor + riskFor cfg world side receiverSlot ball offsideLine > arrival
+        interceptor + riskFor cfg world side receiverSlot ball offsideLine - arrival
+
+    /// The receiver wins the race: a positive margin.
+    let feasible cfg p world side receiverSlot ball offsideLine = margin cfg p world side receiverSlot ball offsideLine > 0

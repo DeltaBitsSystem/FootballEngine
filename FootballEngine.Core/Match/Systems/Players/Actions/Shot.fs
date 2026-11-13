@@ -22,10 +22,10 @@ module Shot =
         let x = MatchWorld.posX frame slot
         let y = MatchWorld.posY frame slot
 
-        let d = MatchMath.distanceToGoal side x y
-        let near = MatchWorld.opponentsNear ctx.Ctx world side x y 6.0
-        let openness = 1.0 - 0.3 * MatchMath.clamp01 (float near / 4.0)
-        let xg = MatchMath.xGFrom d (float p.Finishing) openness
+        let xg = PlayerDecision.xGValue ctx.Ctx world side slot
+        // Bodies in the lane block the ball, not the strike: only pressure on the shooter widens his error.
+        let openness =
+            1.0 - 0.3 * MatchMath.clamp01 (float (MatchWorld.opponentsNear ctx.Ctx world side x y 6.0) / 4.0)
 
         let radius = float cfg.Ball.Radius
         let goalLineX = float (MatchMath.goalX side)

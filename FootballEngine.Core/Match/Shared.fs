@@ -83,8 +83,10 @@ module MatchMath =
     /// One xG formula for the whole engine: the carrier's belief (Decision),
     /// the shot's strike value (Shot), and the planner's expectation must
     /// agree, or decisions would chase a number physics never delivers.
+    /// Open central chances of top-flight models for an average finisher: ~0.24 at 11 m, ~0.08 at 20 m,
+    /// ~0.025 at 30 m.
     let xGFrom (d: float) (finishing: float) (openness: float) : float =
-        exp (-0.07 * d - 0.9) * (0.6 + finishing / 150.0) * openness
+        exp (-0.12 * d - 0.1) * (0.6 + finishing / 150.0) * openness
 
 /// Every system reads positions/teams through here so derived concepts
 /// (nearest opponent, offside line, ball carrier) are computed identically everywhere.

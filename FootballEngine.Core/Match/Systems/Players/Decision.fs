@@ -20,7 +20,11 @@ module PlayerDecision =
 
         let d = MatchMath.distanceToGoal side x y
         let near = MatchWorld.opponentsNear ctx world side x y 6.0
-        let openness = 1.0 - 0.3 * MatchMath.clamp01 (float near / 4.0)
+        let blocked = DecisionValue.shotBlockers world side x y
+        let openness =
+            (1.0 - 0.3 * MatchMath.clamp01 (float near / 4.0))
+            * pown (1.0 - ctx.Config.ExpectedValue.ShotBlockShare) blocked
+
         MatchMath.xGFrom d (float p.Finishing) openness
 
     let private offsideRiskFromLine (line: float<meter>) (side: ClubSide) (rx: float<meter>) : bool =
@@ -77,21 +81,34 @@ module PlayerDecision =
         )
         / 16.0
 
-    // R5 — effective decision temperature (hotter when cognitively tired).
+    /// A cognitively tired carrier settles for the obvious choice: a colder softmax.
     let effectiveTemperature (cfg: BalanceConfig) (cognitive: float) : float =
-        let baseT = cfg.Weights.Decision.DecisionTemperature
-        max 0.05 (baseT * (0.4 + 0.6 * cognitive))
+        cfg.ExpectedValue.Temperature * (0.4 + 0.6 * cognitive)
 
-    /// The pass option set, filtered by feasibility so the softmax can never
-    /// pick a delivery the interceptor model would reject. Shared by `choose`
-    /// and the test suite so pass selection is verifiable in isolation.
+    /// Tackling of the nearest opponent: he is the one who contests a carry.
+    let private nearestTackler (ctx: MatchContext) (world: World) (side: ClubSide) (x: float<meter>) (y: float<meter>) =
+        let opp = MatchWorld.team world (MatchWorld.oppOf side)
+        let mutable best = System.Double.PositiveInfinity
+        let mutable tackling = 50.0
+
+        for s in MatchWorld.activeSlots opp.Frame do
+            let d = MatchMath.dist x y (MatchWorld.posX opp.Frame s) (MatchWorld.posY opp.Frame s)
+
+            if d < best then
+                best <- d
+                tackling <- float (MatchWorld.profileOf ctx (MatchWorld.oppOf side) s).Tackling
+
+        tackling
+
+    /// The pass option set: every receiver the lane and the offside line allow, worth the expected value of the
+    /// pass (DecisionValue.pass) at the completion the intercept race and the passer's Passing give, plus a small
+    /// style term. Shared by `prepare` and the test suite so pass selection is verifiable in isolation.
     let passOptionsFor (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : (float * int * float) list =
         let team = MatchWorld.team world side
         let frame = team.Frame
         let w = ctx.Config.Weights.Decision
-
+        let e = ctx.Config.ExpectedValue
         let tactics = team.Tactics
-
         let tradeoffs = ctx.Config.TacticalTradeoffs
         let p = MatchWorld.profileOf ctx side slot
         let x = MatchWorld.posX frame slot
@@ -99,80 +116,67 @@ module PlayerDecision =
         let cognitive = float frame.Cognitive.[slot]
         let mem = team.Memory.[slot]
         let passMemoryMod = passMemoryPenalty ctx mem
-        let pressure = MatchWorld.opponentsNear ctx world side x y 4.0
         let level = ownLevel p
 
         let attacking =
             team.Blackboard.OurPhase = PhaseKind.Attacking
             || team.Blackboard.OurPhase = PhaseKind.TransitionAttack
 
-        let passing = float p.Passing
-        let vision = float p.Vision
-        // Hoisted out of the per-candidate loop: the pass model and the offside
-        // line do not depend on the receiver, so recomputing them for every
-        // candidate would multiply constant work by the team size.
+        // Hoisted out of the per-candidate loop: the pass model and the offside line do not depend on the receiver.
         let pparams =
             PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball
 
         let offsideLine = MatchWorld.offsideLine ctx world side
-
         let mutable options: (float * int * float) list = []
 
         for s2 in MatchWorld.activeSlots frame do
-            if s2 <> slot && s2 <> 0 then
+            // A receiver who cannot see the carrier, behind a lane a body already cuts or offside is not a target:
+            // the race below prices interceptors but not a deflection off a body in the line or a ball played
+            // behind a man facing away.
+            if
+                s2 <> slot
+                && s2 <> 0
+                && frame.LaneClear.[s2]
+                && frame.FaceCone.[s2]
+                && not (offsideRiskFromLine (offsideLine + e.OffsideReadMargin * MatchMath.goalDirection side) side (MatchWorld.posX frame s2))
+            then
                 let rx = MatchWorld.posX frame s2
                 let ry = MatchWorld.posY frame s2
                 let d = MatchMath.dist x y rx ry
-                let space = spaceAt ctx world side rx ry
                 let longBall = d > float ctx.Config.Actions.PassLongThreshold
+                let dM = max d 0.5 * 1.0<meter>
 
-                let offside = offsideRiskFromLine offsideLine side rx
+                let launchSpeed =
+                    (BallAero.pass ctx.Config.Ball ctx.Config.Actions.PassArrivalSpeed ctx.Config.Actions.PassArrivalSpeedGain d)
+                        .LaunchSpeed
+                    * 1.0<meterPerSecond>
 
-                // R3 — a receiver that can't see the carrier, or a blocked lane,
-                // is not a target.
-                let laneOk = frame.LaneClear.[s2] && frame.FaceCone.[s2]
+                let launched =
+                    { X = world.State.Ball.Position.X
+                      Y = world.State.Ball.Position.Y
+                      Z = 0.0<meter>
+                      Vx = (rx - x) / dM * launchSpeed
+                      Vy = (ry - y) / dM * launchSpeed
+                      Vz = 0.0<meterPerSecond> }
 
-                let uPass =
-                    w.PassBaseUtility
-                    + w.PassPassingWeight * ((passing - level) / 40.0)
-                    + w.PassVisionWeight * ((vision - level) / 40.0)
-                    + w.PassTargetBonus * space
-                    + w.PassAnticipationBonus * ((float p.Anticipation - level) / 50.0)
-                    + w.PassTrajectoryBonus * (if longBall then 0.0 else 0.15)
-                    + (if longBall then
-                           float tactics.Directness * tradeoffs.DirectnessLongBallUtility
-                       else
-                           0.0)
-                    + (if attacking then 0.0 else w.PassAttackPhasePenalty)
-                    - w.PassHighPressPenalty * float pressure * w.PassHighPressFactor
-                    - (if offside then 0.8 else 0.0)
-                    + w.PersonalityTeamworkWeight * ((float p.Teamwork - level) / 100.0)
-                    + w.PassConcentrationMod * (cognitive - 0.5)
-                    - passMemoryMod
-                    - (if laneOk then 0.0 else 0.6)
-                    + w.PersonalityConsistencyMod * (float frame.Cognitive.[s2] - 0.5)
+                let margin = PassIntercept.margin ctx.Config.PassIntercept pparams world side s2 launched offsideLine
 
-                // The interceptor check simulates every defender, so it only runs for receivers the cheap utility
-                // already rates above the bar; the option set is the same either way.
-                if uPass >= w.PassMinThreshold then
-                    // F4 — the launched pass must beat the fastest interceptor.
-                    let dM = max d 0.5 * 1.0<meter>
+                if margin >= e.PassMinimumMargin then
+                    let completion = DecisionValue.passCompletion e (float p.Passing) margin
 
-                    let launchSpeed =
-                        (BallAero.pass ctx.Config.Ball ctx.Config.Actions.PassArrivalSpeed ctx.Config.Actions.PassArrivalSpeedGain d)
-                            .LaunchSpeed
-                        * 1.0<meterPerSecond>
+                    let style =
+                        (if longBall then float tactics.Directness * tradeoffs.DirectnessLongBallUtility else 0.0)
+                        + (if attacking then 0.0 else w.PassAttackPhasePenalty)
+                        + w.PersonalityTeamworkWeight * ((float p.Teamwork - level) / 100.0)
+                        + w.PassConcentrationMod * (cognitive - 0.5)
+                        - passMemoryMod
+                        + w.PersonalityConsistencyMod * (float frame.Cognitive.[s2] - 0.5)
 
-                    let launched =
-                        { X = world.State.Ball.Position.X
-                          Y = world.State.Ball.Position.Y
-                          Z = 0.0<meter>
-                          Vx = (rx - x) / dM * launchSpeed
-                          Vy = (ry - y) / dM * launchSpeed
-                          Vz = 0.0<meterPerSecond> }
+                    let value =
+                        DecisionValue.pass e side completion x y rx ry
+                        + e.StyleValue * style
 
-                    if PassIntercept.feasible ctx.Config.PassIntercept pparams world side s2 launched offsideLine then
-                        options <- (uPass, 1, float s2) :: options
+                    options <- (value, 1, float s2) :: options
 
         options
 
@@ -214,34 +218,18 @@ module PlayerDecision =
         let options = ResizeArray<float * int * float>()
         let mutable shotOption: (float * int * float) option = None
 
+        let e = ctx.Config.ExpectedValue
         let xg = xGValue ctx world side slot
 
+        // Style moves a choice only between options of near-equal value; the value itself decides who shoots.
         if distToGoal < 32.0 then
-            let distNorm = 1.0 - distToGoal / float w.ShootDistNormDivisor
-
-            let distPenalty =
-                if distToGoal > 25.0 then
-                    w.ShootDistPenaltyMax * (distToGoal - 25.0) / float w.ShootDistPenaltyDivisor
-                else
-                    0.0
-
-            let uShot =
-                w.ShotBaseUtility
-                + w.ShootFinishingWeight * ((fin - level) / 40.0)
-                + w.ShootComposureWeight * ((comp - level) / 40.0)
-                + w.ShootDistNormWeight * distNorm
-                + w.ShootXGWeight * xg * w.ShotXGMultiplier
-                + (if attacking then
-                       w.ShotDepthBonusAttacking
-                   else
-                       w.ShotDepthBonusDefending)
-                - distPenalty
-                + w.ShootBraveryMod * (bravery - 0.5)
+            let style =
+                w.ShootBraveryMod * (bravery - 0.5)
                 + w.PersonalityFlairWeight * ((float p.Flair - 60.0) / 100.0)
                 + shotMemoryBias ctx mem
+                + riskShift
 
-            if uShot >= w.ShootMinThreshold - w.ShootDirectnessThresholdMod * 0.5 - riskShift then
-                shotOption <- Some(uShot, 2, -1.0)
+            shotOption <- Some(xg + e.StyleValue * style, 2, -1.0)
 
         let passOpts = passOptionsFor ctx world side slot
 
@@ -250,50 +238,29 @@ module PlayerDecision =
 
         shotOption |> Option.iter options.Add
 
-        if attacking && abs (float y) > 20.0 then
-            // R9 — adaptive channels: wing play bias boosts crosses, center play
-            // boosts through passes.
+        if attacking && abs (float y) > 20.0 && DecisionValue.crossTarget ctx world side slot >= 0 then
+            // R9 — adaptive channels: wing play favours crosses, center play favours through passes.
             let channelBias =
                 ctx.Config.Team.PatternWingBias
                 * (float team.Emergent.ChannelLeft + float team.Emergent.ChannelRight)
                 - ctx.Config.Team.PatternCenterBias * float team.Emergent.ChannelCenter
 
-            let uCross =
-                w.CrossBaseUtility * (1.0 + channelBias)
-                + w.CrossCrossingWeight * (crossing / 100.0) * 0.25
-                + w.CrossLateralTendencyBase
-                + w.CrossZoneBonus * (if abs (float y) > 25.0 then 1.0 else 0.3)
-                + w.CrossWidthBonus * float team.Directive.Params.Width
+            let style = channelBias + w.CrossWidthBonus * float team.Directive.Params.Width
+            options.Insert(0, (DecisionValue.cross e side crossing + e.StyleValue * style, 5, -1.0))
 
-            if uCross >= 0.25 then
-                options.Insert(0, (uCross, 5, -1.0))
+        let keep =
+            DecisionValue.carryKeep e (float p.Dribbling) (nearestTackler ctx world side x y) (MatchWorld.opponentsNear ctx world side x y (float e.PressureRadius)) (DecisionValue.blockers e world side x y)
 
-        let uDribble =
-            w.DribbleBaseUtility
-            + float ctx.Config.Actions.DribbleBaseSuccess * 0.3
-            + (if attacking then
-                   w.DribbleZoneBonusAttacking * w.DribbleZoneAttackingMult
-               else if float x * dir > -5.0 then
-                   w.DribbleZoneBonusMidfield
-               else
-                   0.0)
-            + (if attacking then
-                   w.DribbleAttackPhaseBonus * w.DribblePhaseBonusMult
-               else
-                   0.0)
-            - w.DribblePressurePenalty * float pressure
-            - w.DribbleTempoPenalty
-              * float (0.5 - float team.Directive.Params.LineHeight / 100.0 |> max 0.0)
-            + w.DribbleBraveryMod * (bravery - 0.5)
-            + w.DribbleDribblingWeight * ((float p.Dribbling - level) / 40.0)
+        let carryStyle =
+            w.DribbleBraveryMod * (bravery - 0.5)
             - duelMemoryBias ctx mem * 0.5
+            - w.DribbleTempoPenalty * float (0.5 - float team.Directive.Params.LineHeight / 100.0 |> max 0.0)
+            + riskShift
 
         if inOwnThird && pressure > 0 then
-            let uClear = 0.55 + 0.45 * MatchMath.clamp01 (float pressure / 3.0)
-            options.Insert(0, (uClear, 4, -1.0))
+            options.Insert(0, (DecisionValue.clear e side x y, 4, -1.0))
 
-        if uDribble >= w.DribbleMinThreshold - riskShift && pressure <= 1 then
-            options.Insert(0, (uDribble, 3, -1.0))
+        options.Insert(0, (DecisionValue.carry e side keep x y + e.StyleValue * carryStyle, 3, -1.0))
 
         let options = options.ToArray()
 
@@ -318,7 +285,7 @@ module PlayerDecision =
                         if code = 1 && int receiver = target.Slot then
                             if world.Observation.WantsDetail(tick, p.Id) then
                                 world.Observation.Record(tick, ValueSome(EventCause(MatchEvent.id { Tick = episode.StartedAt; Data = EventData.CollectiveAttack(side, episode.Id, Started episode.Pattern) })), AttackCooperation(p.Id, episode.Id, target.Slot, bias)) |> ignore
-                            utility + bias, code, receiver
+                            utility + ctx.Config.ExpectedValue.StyleValue * bias, code, receiver
                         else utility, code, receiver)
             | _ -> options
 
@@ -331,7 +298,7 @@ module PlayerDecision =
         let found = ref [||]
 
         let search () =
-            found.Value <- Planner.search ctx.Config.Planner ctx.Config.Weights.Planner pparams chainState plannerOpts
+            found.Value <- Planner.search ctx.Config.Planner ctx.Config.ExpectedValue pparams chainState plannerOpts
 
         // Chooses from the search when it is due: the world and tick are those of that moment, everything else
         // was settled when the decision began.

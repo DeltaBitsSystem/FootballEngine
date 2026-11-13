@@ -51,51 +51,22 @@ module Planner =
           Value: float
           CandidateEvaluations: int }
 
-    /// Value a chain state: progression + shoot bonus + danger penalty +
-    /// possession security, all on a 0–1-ish scale matching single-step
-    /// utilities. The shooting belief reuses the engine-wide xG formula with a
-    /// neutral finishing assumption — the plan evaluates where the ball should
-    /// go; the option utility already carries the shooter's actual ability.
-    let value (w: WeightSectionsPlanner) (s: ChainState) : float =
-        let pitchHalf = float Pitch.HalfLength
-
-        let progression =
-            w.ProgressionWeight * (float s.BallX * s.Dir + pitchHalf) / (2.0 * pitchHalf)
-
-        let shootBonus =
-            let d = MatchMath.distanceToGoal s.Side s.BallX s.BallY
-
-            if d < 32.0 then
-                w.ShootValueWeight * MatchMath.xGFrom d w.ShootFinishingAssumption 1.0
-            else
-                0.0
-
-        let mutable dangerPenalty = 0.0
+    /// A chain state in goal probability: the ball held where it ends, at risk from the nearest opponent and
+    /// safer with a teammate in support (DecisionValue.held), the same scale the carrier's options are valued on.
+    let value (e: ExpectedValueConfig) (s: ChainState) : float =
+        let mutable nearest = System.Double.PositiveInfinity
 
         for struct (_, ox, oy) in s.OppPos do
-            let distRival = MatchMath.dist s.BallX s.BallY ox oy
+            let d = MatchMath.dist s.BallX s.BallY ox oy
+            if d < nearest then nearest <- d
 
-            if distRival < 30.0 then
-                let idx = min (int (distRival / 5.0)) (w.DangerBase.Length - 1) |> max 0
-
-                let zone =
-                    if float s.BallX * s.Dir < -20.0 then 0
-                    elif float s.BallX * s.Dir < 20.0 then 1
-                    else 2
-
-                let zoneIdx = min zone (w.DangerZoneWeights.Length - 1) |> max 0
-                dangerPenalty <- dangerPenalty - w.DangerBase.[idx] * w.DangerZoneWeights.[zoneIdx]
-
-        let mutable hasTeammateNear = false
+        let mutable supported = false
 
         for struct (slot, tx, ty) in s.OurPos do
-            if slot <> s.CarrierSlot && not hasTeammateNear && MatchMath.dist s.BallX s.BallY tx ty < 10.0 then
-                hasTeammateNear <- true
+            if slot <> s.CarrierSlot && not supported && MatchMath.dist s.BallX s.BallY tx ty < float e.SupportDistance then
+                supported <- true
 
-        let possessionSecurity =
-            w.PossessionSecurityWeight * (if hasTeammateNear then 1.0 else 0.0)
-
-        progression + shootBonus + dangerPenalty + possessionSecurity
+        DecisionValue.held e s.Side s.BallX s.BallY nearest supported
 
     let private moved
         (motions: struct (int * float<meterPerSecond> * float<meterPerSecond>)[])
@@ -297,12 +268,11 @@ module Planner =
     /// ranks options without discarding why the carrier wanted them.
     let search
         (cfg: PlannerConfig)
-        (w: WeightSectionsPlanner)
+        (e: ExpectedValueConfig)
         (pparams: InterceptTable.InterceptParams)
         (s: ChainState)
         (options: (int * int * float)[])
         : ChainEvaluation[] =
-        let baseline = value w s
         let rolled = InterceptTable.RolledBalls.Rent(pparams, { X = s.BallX; Y = s.BallY; Z = 0.0<meter>; Vx = 0.0<meterPerSecond>; Vy = 0.0<meterPerSecond>; Vz = 0.0<meterPerSecond> })
         let mutable used = 0
         let mutable frontierLimit = cfg.MaxEvaluateLimit
@@ -337,6 +307,9 @@ module Planner =
         let chains = Array.init count (fun _ -> [||])
         let states = Array.create count None
         let scores = options |> Array.map (fun (_, _, utility) -> utility)
+        // Each option already carries its own expected value; a continuation adds only what it is worth beyond
+        // where that first action leaves the ball.
+        let rootValues = Array.zeroCreate<float> options.Length
         let work = Array.zeroCreate<int> count
         // First actions are considered for every root before any continuation; later input options cannot be starved by an early tree.
         for index in 0 .. count - 1 do
@@ -355,7 +328,7 @@ module Planner =
                         | _ -> None
                 result |> Option.iter (fun (state, action) ->
                     chains[index] <- [|action|]
-                    scores[index] <- utility + s.Confidence * (value w state - baseline)
+                    rootValues[index] <- value e state
                     if code = 1 || code = 3 then states[index] <- Some [|(state, [|action|], SlotMask.add s.CarrierSlot 0UL |> SlotMask.add state.CarrierSlot)|])
             work[index] <- used - before
         for _ in 2 .. cfg.MaxChainLength do
@@ -371,15 +344,15 @@ module Planner =
                         if MatchMath.distanceToGoal state.Side state.BallX state.BallY < float cfg.ShootingRange then
                             if spend () then
                                 let _, _, utility = options[index]
-                                let score = utility + s.Confidence * (value w state - baseline + w.ShootValueWeight * MatchMath.xGFrom (MatchMath.distanceToGoal state.Side state.BallX state.BallY) w.ShootFinishingAssumption 1.0)
+                                let score = utility + s.Confidence * (MatchMath.xGFrom (MatchMath.distanceToGoal state.Side state.BallX state.BallY) e.ChainFinishing 1.0 - rootValues[index])
                                 if score > scores[index] then chains[index] <- Array.append path [|Shoot|]; scores[index] <- score
                         for struct(slot, _, _) in state.OurPos do
                             if not (SlotMask.contains slot visited) && not (SlotMask.contains slot state.OurGoalkeeperSlots) then
                                 (if spend () then pass state slot else None) |> Option.iter (fun (next, action) ->
-                                    let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value w next - baseline)
+                                    let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value e next - rootValues[index])
                                     branches.Add(next, Array.append path [|action|], SlotMask.add slot visited, score))
                         (if spend () then carry state else None) |> Option.iter (fun (next, action) ->
-                            let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value w next - baseline)
+                            let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value e next - rootValues[index])
                             branches.Add(next, Array.append path [|action|], visited, score))
                     let best = branches |> Seq.sortByDescending (fun (_, _, _, score) -> score) |> Seq.truncate cfg.BeamWidth |> Seq.toArray
                     for _, path, _, score in best do

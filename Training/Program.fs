@@ -446,6 +446,9 @@ module Program =
             | "technical-counts" :: d :: rest ->
                 QuickFit.technicalCounts cfg (float32 d) (defaultArgs rest [ "36" ] |> List.head |> int)
                 0
+            | "losses" :: rest ->
+                QuickFit.losses cfg (defaultArgs rest [ "12" ] |> List.head |> int)
+                0
             | "side-counts" :: rest ->
                 QuickFit.sideCounts cfg (defaultArgs rest [ "12" ] |> List.head |> int)
                 0

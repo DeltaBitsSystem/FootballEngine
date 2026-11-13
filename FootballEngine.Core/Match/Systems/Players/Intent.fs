@@ -241,6 +241,7 @@ module PlayerIntent =
             let kind =
                 match task.Role with
                 | DefensiveRole.FirstDefender -> IntentCode.Press
+                | DefensiveRole.Contain -> IntentCode.Contain
                 | DefensiveRole.Cover -> IntentCode.Cover
                 | DefensiveRole.Screen -> IntentCode.Mark
                 | DefensiveRole.ProtectDepth
@@ -288,6 +289,7 @@ module PlayerIntent =
             | _ when p.Role = SlotRole.Goalkeeper ->
                 setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
             | DefensiveRole.FirstDefender -> setRoleIntent frame slot IntentCode.Press (float32 bx) (float32 by) tick
+            | DefensiveRole.Contain -> setRoleIntent frame slot IntentCode.Contain (float32 bx) (float32 by) tick
             | DefensiveRole.Cover ->
                 let coverX = bx - dir * float ctx.Config.Team.LooseBallCoverDistance
                 setRoleIntent frame slot IntentCode.Cover (float32 coverX) (float32 shapeY) tick

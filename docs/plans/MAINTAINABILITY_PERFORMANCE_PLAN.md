@@ -95,6 +95,23 @@ inmediato con su xG en el planner, peligro del planner en escala 0–1, velocida
 del pasador. La causa de fondo es la decisión por suma de utilidades: es F3.2, el próximo paso, con la aceptación
 "+10 en todo gana por ≥ 0,6 goles en 144 partidos". `QuickMatch` se ajusta después.
 
+F3.2 (2026-11-13): la decisión es por valor esperado en probabilidad de gol (`DecisionValue`, `ExpectedValueConfig`):
+pase = completitud por la carrera de intercepción × amenaza del receptor − pérdida × amenaza concedida; tiro = xG
+creído (ahora con los rivales dentro del triángulo pelota-postes); conducción, centro y despeje en la misma escala, y
+el planner valora el final de la cadena igual. Al quitar la barra de tiro apareció lo que tapaba: la base ya entraba
+al área 44 veces por equipo, porque en repliegue nadie salía a la pelota y el portador (6,4 m/s) le sacaba ventaja
+a cualquier defensor. Ahora un repliegue a menos de 35 m de su arco manda al defensor que llega primero a contener
+(`Contain`: a pleno esfuerzo, entra solo cuando el toque deja la pelota más cerca suyo que del portador), la
+conducción va a 5,5 m/s, y quien no fue enviado a presionar tampoco mete el pie con la pelota pegada al portador.
+El centro solo se elige si hay rematador (antes se reintentaba en bucle). Held-out 48: 7/8 en banda, error 4,8
+(antes 7,0); fuera solo offsides 0,5, porque casi no hay desmarques a la espalda. Embudo de tiro real: 31 % al
+arco, 11 % de conversión, 65–70 % atajadas. Aceptación: +10 en todo gana por 0,64 de local y 0,46 de visitante en
+144 partidos (promedio 0,55; error estándar ~0,14): en el borde. Atributos ±20: Finishing, Dribbling, Composure y
+Pace correctos; Passing neutro; Anticipation levemente al revés, dentro del ruido. `CarrySkillWeight` es 0 a
+propósito: sumar la habilidad a la creencia hacía que los equipos hábiles retuvieran la pelota de más e invertía
+Dribbling y Tackling. Pendiente de F3.2: borrar `WeightSections.generated` (los pesos de estilo que quedan pasan a
+`ExpectedValueConfig`) y desmarques a la espalda para los offsides.
+
 ### F2 — Feedback rápido y limpio (DX)
 
 1. Warnings a cero y `TreatWarningsAsErrors` en todos los proyectos.
