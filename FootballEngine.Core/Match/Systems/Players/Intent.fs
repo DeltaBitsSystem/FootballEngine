@@ -475,7 +475,6 @@ module PlayerIntent =
                                 slot
                                 tick
 
-            processTeam ClubSide.Home
-            processTeam ClubSide.Away
+            MatchWorld.bothTeams world processTeam
 
             rng

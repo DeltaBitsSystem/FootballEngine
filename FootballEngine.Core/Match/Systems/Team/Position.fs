@@ -495,7 +495,6 @@ module TeamPosition =
                     | _ -> assignRoles ctx.Ctx world side
                 team.LastRoleAssignmentTick <- tick
 
-            position ClubSide.Home
-            position ClubSide.Away
+            MatchWorld.bothTeams world position
 
             rng

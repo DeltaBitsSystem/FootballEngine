@@ -188,7 +188,6 @@ module PlayerPerception =
     let step: SystemStep =
         fun ctx rng world _ ->
             let tick = world.State.Tick
-            perceiveTeam ctx.Ctx world ClubSide.Home tick
-            perceiveTeam ctx.Ctx world ClubSide.Away tick
+            MatchWorld.bothTeams world (fun side -> perceiveTeam ctx.Ctx world side tick)
             decayMemoryBatch ctx.Ctx world tick 12000<subtick>
             rng

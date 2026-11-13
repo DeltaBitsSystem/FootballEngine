@@ -238,3 +238,6 @@ and CognitionSide() =
     /// The world with its own copies of every body, used while cognition runs beside the body.
     member val View: World voption = ValueNone with get, set
     member val Runner: ICognitionRunner voption = ValueNone with get, set
+    /// A second thread for the away team's half of a team-by-team cognition system: such a system writes only
+    /// its own team's state and reads the other team's bodies, so the two halves run at once.
+    member val Lanes: ICognitionRunner voption = ValueNone with get, set

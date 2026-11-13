@@ -98,6 +98,22 @@ module MatchWorld =
     let team (world: World) (side: ClubSide) : TeamWorld =
         if side = ClubSide.Home then world.Home else world.Away
 
+    /// Runs a team-by-team cognition pass for both teams, the away half on the match's lane thread when it has
+    /// one. Only for passes that write their own team alone: swapping the order leaves such a match unchanged,
+    /// which is what makes running them at once safe.
+    let bothTeams (world: World) (pass: ClubSide -> unit) =
+        match world.Cognition.Lanes with
+        | ValueSome lanes ->
+            lanes.Start(fun () -> pass ClubSide.Away)
+
+            try
+                pass ClubSide.Home
+            finally
+                lanes.Join()
+        | ValueNone ->
+            pass ClubSide.Home
+            pass ClubSide.Away
+
     let oppOf (side: ClubSide) : ClubSide =
         if side = ClubSide.Home then
             ClubSide.Away
