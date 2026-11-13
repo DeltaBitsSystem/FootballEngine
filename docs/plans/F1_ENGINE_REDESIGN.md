@@ -283,6 +283,9 @@ ráfagas vienen de eventos, no de cadencias alineadas.
 Held-out 48 tras poner la cognición antes que el cuerpo: error total 12,66 (11,05 antes), 7/8 en banda, córners
 31,5 fuera. Goles 3,9, faltas 31,3 (banda hasta 32).
 
-Siguiente paso: ventana cognitiva de K ticks (la cognición decide sobre la foto del tick `w` y su resultado se
-fija en `w+K`). Requiere que `EventApply` deje de escribir estado de la cognición (`Stats`, `Memory`, `Cards`,
-`Substitution`, `Proposals`) mientras ella corre.
+¿Ventana cognitiva de K ticks (decidir sobre la foto de `w`, fijar en `w+K`)? Medido tick a tick sobre el
+partido real, el reloj ideal sin costo de relevo es 4,32 s con K=1, 3,91 con K=2 y 3,50 con K=4, y con K mayor
+apenas baja. A eso se suman ~0,85 s seriales fuera de las dos mitades (barrera, `EventApply`, diario). Ganaría
+~20 % a cambio de rehacer la frontera de `EventApply`, que hoy escribe estado de la cognición (`Stats`, `Memory`,
+`Cards`, `Substitution`, `Proposals`, intenciones y roles al liberar un puesto). Queda descartado por ahora: el
+camino crítico es el cuerpo (2,8 s, ContactDynamics 1,7 s) más la parte serial, y eso es lo próximo.
