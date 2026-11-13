@@ -37,7 +37,7 @@ Detalle técnico completo: `docs/ADAPTIVE_AI_PLAN.md`
 
 | # | Trabajo | Estado actual |
 |---|---|---|
-| C1 | Ventanas estadísticas reales en CI (goles/partido, xG, posesión) sobre 1.000 partidos | Parcial (proyecto `Training/` + `weights.json` existe) |
+| C1 | Ventanas estadísticas reales en CI (goles/partido, xG, posesión) sobre 1.000 partidos | Parcial (proyecto `Training/`: `validate`, `sweep`, `quick-fit`) |
 | C2 | Balance de dificultad como test: "ascenso improbable" (presupuesto mínimo vs AI adaptativa, 100 temporadas) | No existe |
 | C3 | Ventanas de contrarresto (ver plan: nunca < 20% de victoria) | No existe |
 
@@ -84,4 +84,4 @@ Detalle técnico completo: `docs/ADAPTIVE_AI_PLAN.md`
 
 - Cada fila de este roadmap se cierra con un test en `FootballEngine.Core.Tests` (nunca "a ojo").
 - Los saves largos (10-15 temporadas) son tests de CI, no anécdotas: el motor es determinista y rápido.
-- `Training/` recalibra pesos contra ventanas reales; cada calibración es un PR versionado en `weights.json`.
+- `Training/` recalibra pesos contra ventanas reales; cada calibración cambia defaults con nombre en `BalanceConfig`.

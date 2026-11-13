@@ -38,6 +38,15 @@ module ConfigValidation =
                 "StyleValue", e.StyleValue, 0.0, 1.0
                 "Temperature", e.Temperature, 0.0001, 1.0
                 "ChainFinishing", e.ChainFinishing, 0.0, 100.0
+                "StylePhasePenalty", e.StylePhasePenalty, -5.0, 5.0
+                "StyleTeamwork", e.StyleTeamwork, -5.0, 5.0
+                "StyleConcentration", e.StyleConcentration, -5.0, 5.0
+                "StyleConsistency", e.StyleConsistency, -5.0, 5.0
+                "StyleShotBravery", e.StyleShotBravery, -5.0, 5.0
+                "StyleFlair", e.StyleFlair, -5.0, 5.0
+                "StyleCrossWidth", e.StyleCrossWidth, -5.0, 5.0
+                "StyleCarryBravery", e.StyleCarryBravery, -5.0, 5.0
+                "StyleCarryTempo", e.StyleCarryTempo, -5.0, 5.0
                 "OffsideReadMargin", float e.OffsideReadMargin, 0.0, 5.0 ] do
               if not (System.Double.IsFinite value) || value < low || value > high then
                   yield $"ExpectedValue.{name} must be in [{low}, {high}]"
@@ -1083,6 +1092,17 @@ module ConfigValidation =
             @ validatePlanner config.Planner
             @ validateQuickMatch config.QuickMatch
             @ validateExpectedValue config.ExpectedValue
+            @ [ let m = config.Manager
+                for name, value in
+                    [ "Winning", m.ConditionThresholdWinning
+                      "Drawing", m.ConditionThresholdDrawing
+                      "Losing", m.ConditionThresholdLosing ] do
+                    if not (System.Double.IsFinite value) || value < 0.0 || value > 1.0 then
+                        yield $"Manager.ConditionThreshold{name} must be in [0, 1]"
+                if config.Match.EventWindowCapacity < 1 || config.Match.EventWindowCapacity > 100000 then
+                    yield "Match.EventWindowCapacity must be in [1, 100000]"
+                if config.Actions.PerceptionRadius <= 0.0<meter> || config.Actions.PerceptionRadius > 105.0<meter> then
+                    yield "Actions.PerceptionRadius must be in (0, 105] m" ]
             @ validateScout config.Scout
             @ validateCounter config.Counter
             @ validateTransfer config.Transfer

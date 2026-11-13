@@ -11,7 +11,6 @@
     <Compile Include="Metrics.fs"/>
     <Compile Include="ErrorCalculator.fs"/>
     <Compile Include="SimulatorRunner.fs"/>
-    <Compile Include="AutoTuner.fs"/>
     <Compile Include="Validator.fs"/>
     <Compile Include="Overrides.fs"/>
     <Compile Include="Report.fs"/>

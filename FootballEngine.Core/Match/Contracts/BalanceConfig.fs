@@ -234,7 +234,9 @@ type ContactActionConfig =
 /// CrossConfig, DribbleConfig, GKConfig, DecisionConfig + IndividualWeights)
 [<Struct>]
 type ActionsConfig =
-    { /// An idle carrier with an opponent this close decides at once instead of at the decision cadence.
+    { /// How far a player sees teammates and opponents when he perceives the pitch.
+      PerceptionRadius: float<meter>
+      /// An idle carrier with an opponent this close decides at once instead of at the decision cadence.
       ReflexDecisionRadius: float<meter>
       PassBaseQuality: float
       PassDistancePenaltyPerMeter: float
@@ -425,7 +427,12 @@ type ManagerConfig =
       InjurySubCondition: float
       RedCardCompact: bool
       DrawAttackingMinute: int<matchMin>
-      WinningDefensiveMinute: int<matchMin> }
+      WinningDefensiveMinute: int<matchMin>
+      /// Condition (0..1) under which a player is replaced, by the score: a side that is losing changes tired
+      /// legs sooner, one that is winning keeps its shape longer.
+      ConditionThresholdWinning: float
+      ConditionThresholdDrawing: float
+      ConditionThresholdLosing: float }
 
 /// Home advantage, crowd, weather hooks. (was HomeAdvantageConfig)
 [<Struct>]
@@ -452,7 +459,9 @@ type MatchConfig =
       InjuryPauseDuration: float<second>
       FullTimeReviewDuration: float<second>
       ExtraTimePeriodDuration: float<second>
-      ShootoutRounds: int }
+      ShootoutRounds: int
+      /// Events each team remembers for its emergent read of the match (channels, momentum).
+      EventWindowCapacity: int }
 
 /// The carrier's choice in goal probability: every option is worth what it is expected to add to his side's
 /// chance of scoring minus what it gives the opponent, so a shot, a pass and a carry compare on one scale and a
@@ -507,6 +516,18 @@ type ExpectedValueConfig =
       /// How far beyond the offside line a receiver must be before the passer sees it: nobody reads the line to
       /// the centimetre, and the runs inside that margin are where real offsides come from.
       OffsideReadMargin: float<meter>
+      /// Style terms, in their own units and scaled by StyleValue: a defending phase's reluctance to pass, how
+      /// teamwork, concentration and the receiver's consistency favour a pass, bravery and flair a shot, the
+      /// side's width a cross, bravery a carry, and a deep line's reluctance to carry.
+      StylePhasePenalty: float
+      StyleTeamwork: float
+      StyleConcentration: float
+      StyleConsistency: float
+      StyleShotBravery: float
+      StyleFlair: float
+      StyleCrossWidth: float
+      StyleCarryBravery: float
+      StyleCarryTempo: float
       /// Finishing assumed for a shot later in a planned chain, whose shooter is not settled yet.
       ChainFinishing: float }
 
@@ -763,8 +784,7 @@ type BalanceConfig =
       World: FootballEngine.Domain.WorldConfig
       TacticalTradeoffs: TacticalTradeoffConfig
       Training: TrainingConfig
-      QuickMatch: QuickMatchConfig
-      Weights: WeightSections }
+      QuickMatch: QuickMatchConfig }
 
 module BalanceConfig =
 
@@ -1019,7 +1039,9 @@ module BalanceConfig =
           DangerousBallFirstSpeed = 5.1<meterPerSecond> }
 
     let defaultActions: ActionsConfig =
-        { // About two strides: a defender this close takes the ball before the next scheduled decision.
+        { // A twenty-five metre picture: what a player takes in with a scan before receiving.
+          PerceptionRadius = 25.0<meter>
+          // About two strides: a defender this close takes the ball before the next scheduled decision.
           ReflexDecisionRadius = 2.5<meter>
           PassBaseQuality = 0.7
           PassDistancePenaltyPerMeter = 0.004
@@ -1191,7 +1213,10 @@ module BalanceConfig =
           InjurySubCondition = 0.5
           RedCardCompact = true
           DrawAttackingMinute = 70<matchMin>
-          WinningDefensiveMinute = 80<matchMin> }
+          WinningDefensiveMinute = 80<matchMin>
+          ConditionThresholdWinning = 0.55
+          ConditionThresholdDrawing = 0.65
+          ConditionThresholdLosing = 0.75 }
 
     let defaultEnvironment: EnvironmentConfig =
         { HomeAdvantageStrength = 0.1
@@ -1213,7 +1238,9 @@ module BalanceConfig =
           InjuryPauseDuration = 60.0<second>
           FullTimeReviewDuration = 5.0<second>
           ExtraTimePeriodDuration = 900.0<second>
-          ShootoutRounds = 5 }
+          ShootoutRounds = 5
+          // About 45 s of play at the usual event rate: long enough for a pattern, short enough to change.
+          EventWindowCapacity = 1800 }
 
     let defaultExpectedValue: ExpectedValueConfig =
         { // Above the believed xG (MatchMath.xGFrom) beyond ~13 m and twice it at 30 m: a possession there can
@@ -1250,6 +1277,15 @@ module BalanceConfig =
           // The old utilities spanned ~1 for options a few hundredths of a goal apart.
           StyleValue = 0.02
           Temperature = 0.0005
+          StylePhasePenalty = -0.03
+          StyleTeamwork = 0.45
+          StyleConcentration = 0.08
+          StyleConsistency = 0.3
+          StyleShotBravery = 0.12
+          StyleFlair = 0.6
+          StyleCrossWidth = 0.25
+          StyleCarryBravery = 0.15
+          StyleCarryTempo = 0.2
           // About a stride: assistant referees flag runners a stride off that the passer played as level.
           OffsideReadMargin = 1.0<meter>
           ChainFinishing = 60.0 }
@@ -1417,5 +1453,4 @@ module BalanceConfig =
           World = FootballEngine.Domain.WorldConfig.defaults
           TacticalTradeoffs = defaultTacticalTradeoffs
           Training = defaultTraining
-          QuickMatch = defaultQuickMatch
-          Weights = WeightSections.defaultWeights }
+          QuickMatch = defaultQuickMatch }

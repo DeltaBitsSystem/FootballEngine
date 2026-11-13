@@ -62,14 +62,11 @@ module ConfigTests =
             [ test "defaultConfig is structurally sane: no NaN, no negative floats" {
                   let leaves = collectLeaves (box BalanceConfig.defaultConfig)
 
-                  // Legitimately negative by design (mirrors weights.json).
+                  // Legitimately negative by design.
                   let allowNegative =
                       Set.ofList
-                          [ "Weights.SetPiece.KickOffPartnerOffsetX"
-                            "Weights.Physics.Gravity"
-                            "Weights.Physics.ArrivalConvergenceThreshold"
-                            "Weights.Manager.MomentumThreshold"
-                            "Weights.Decision.PassAttackPhasePenalty"
+                          [ "ExpectedValue.StylePhasePenalty"
+                            "ExpectedValue.PassMinimumMargin"
                             "TacticalTradeoffs.PressHighPpdaDelta" ]
 
                   for KeyValue(path, value) in leaves do
@@ -118,7 +115,7 @@ module ConfigTests =
                         "Environment"
                         "Match"
                         "Planner"
-                        "Weights"
+                        "ExpectedValue"
                         "Scout"
                         "Counter"
                         "Transfer"
@@ -222,21 +219,6 @@ module ConfigTests =
                           (leafPaths (box BalanceConfig.defaultConfig))
                           "defaults returned"
                   | Error err -> failtestf "missing file must not error: %s" err
-              }
-
-              test "weights.json merges over defaults" {
-                  // weights.json is the legacy flat section file — the new engine's
-                  // config nests it under "Weights". Defaults mirror it 1:1 (P1),
-                  // so the assertion is structure: every field is known and typed.
-                  let json = sprintf """{ "Weights": %s }""" (File.ReadAllText "weights.json")
-
-                  match WeightMerge.mergeWithDefaults json BalanceConfig.defaultConfig with
-                  | Error err -> failtestf "weights.json must merge: %s" err
-                  | Ok cfg ->
-                      let a = leafPaths (box BalanceConfig.defaultConfig)
-                      let b = leafPaths (box cfg)
-                      Expect.equal b a "weights.json merge must keep the full leaf structure"
-                      Expect.isNonEmpty b "merged config must have leaves"
               }
 
               test "weights_trained.json is a valid training artifact" {

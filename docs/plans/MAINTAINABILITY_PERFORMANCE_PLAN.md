@@ -109,8 +109,9 @@ arco, 11 % de conversión, 65–70 % atajadas. Aceptación: +10 en todo gana por
 144 partidos (promedio 0,55; error estándar ~0,14): en el borde. Atributos ±20: Finishing, Dribbling, Composure y
 Pace correctos; Passing neutro; Anticipation levemente al revés, dentro del ruido. `CarrySkillWeight` es 0 a
 propósito: sumar la habilidad a la creencia hacía que los equipos hábiles retuvieran la pelota de más e invertía
-Dribbling y Tackling. Pendiente de F3.2: borrar `WeightSections.generated` (los pesos de estilo que quedan pasan a
-`ExpectedValueConfig`) y desmarques a la espalda para los offsides.
+Dribbling y Tackling. `WeightSections.generated`, `weights.json` y el AutoTuner están borrados: los pesos de estilo
+viven en `ExpectedValueConfig` y el resto en su sección (Manager, Match, Actions); hash de eventos sin cambio
+(6b23c022b8d5a2c8). Queda abierto: desmarques a la espalda para los offsides.
 
 ### F2 — Feedback rápido y limpio (DX)
 

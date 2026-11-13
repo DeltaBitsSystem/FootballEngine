@@ -106,7 +106,6 @@ module PlayerDecision =
     let passOptionsFor (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : (float * int * float) list =
         let team = MatchWorld.team world side
         let frame = team.Frame
-        let w = ctx.Config.Weights.Decision
         let e = ctx.Config.ExpectedValue
         let tactics = team.Tactics
         let tradeoffs = ctx.Config.TacticalTradeoffs
@@ -166,11 +165,11 @@ module PlayerDecision =
 
                     let style =
                         (if longBall then float tactics.Directness * tradeoffs.DirectnessLongBallUtility else 0.0)
-                        + (if attacking then 0.0 else w.PassAttackPhasePenalty)
-                        + w.PersonalityTeamworkWeight * ((float p.Teamwork - level) / 100.0)
-                        + w.PassConcentrationMod * (cognitive - 0.5)
+                        + (if attacking then 0.0 else e.StylePhasePenalty)
+                        + e.StyleTeamwork * ((float p.Teamwork - level) / 100.0)
+                        + e.StyleConcentration * (cognitive - 0.5)
                         - passMemoryMod
-                        + w.PersonalityConsistencyMod * (float frame.Cognitive.[s2] - 0.5)
+                        + e.StyleConsistency * (float frame.Cognitive.[s2] - 0.5)
 
                     let value =
                         DecisionValue.pass e side completion x y rx ry
@@ -183,7 +182,6 @@ module PlayerDecision =
     let prepare (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) (tick: int<subtick>) : PendingPlan =
         let team = MatchWorld.team world side
         let frame = team.Frame
-        let w = ctx.Config.Weights.Decision
         // Attacking mentality lowers the bar for shots and take-ons; defensive
         // mentality only takes the sure thing.
         let riskShift =
@@ -224,8 +222,8 @@ module PlayerDecision =
         // Style moves a choice only between options of near-equal value; the value itself decides who shoots.
         if distToGoal < 32.0 then
             let style =
-                w.ShootBraveryMod * (bravery - 0.5)
-                + w.PersonalityFlairWeight * ((float p.Flair - 60.0) / 100.0)
+                e.StyleShotBravery * (bravery - 0.5)
+                + e.StyleFlair * ((float p.Flair - 60.0) / 100.0)
                 + shotMemoryBias ctx mem
                 + riskShift
 
@@ -245,16 +243,16 @@ module PlayerDecision =
                 * (float team.Emergent.ChannelLeft + float team.Emergent.ChannelRight)
                 - ctx.Config.Team.PatternCenterBias * float team.Emergent.ChannelCenter
 
-            let style = channelBias + w.CrossWidthBonus * float team.Directive.Params.Width
+            let style = channelBias + e.StyleCrossWidth * float team.Directive.Params.Width
             options.Insert(0, (DecisionValue.cross e side crossing + e.StyleValue * style, 5, -1.0))
 
         let keep =
             DecisionValue.carryKeep e (float p.Dribbling) (nearestTackler ctx world side x y) (MatchWorld.opponentsNear ctx world side x y (float e.PressureRadius)) (DecisionValue.blockers e world side x y)
 
         let carryStyle =
-            w.DribbleBraveryMod * (bravery - 0.5)
+            e.StyleCarryBravery * (bravery - 0.5)
             - duelMemoryBias ctx mem * 0.5
-            - w.DribbleTempoPenalty * float (0.5 - float team.Directive.Params.LineHeight / 100.0 |> max 0.0)
+            - e.StyleCarryTempo * float (0.5 - float team.Directive.Params.LineHeight / 100.0 |> max 0.0)
             + riskShift
 
         if inOwnThird && pressure > 0 then

@@ -70,9 +70,8 @@ module PlayerPerception =
     let private perceiveTeam (ctx: MatchContext) (world: World) (side: ClubSide) (tick: int<subtick>) : unit =
         let team = MatchWorld.team world side
         let frame = team.Frame
-        let cfg = ctx.Config.Weights.Perception
         let aCfg = ctx.Config.Actions
-        let radius = float (cfg.VisionRadiusBase + cfg.AnticipationBonusRadius)
+        let radius = float aCfg.PerceptionRadius
 
         let carrier =
             match MatchWorld.ballCarrier ctx world with

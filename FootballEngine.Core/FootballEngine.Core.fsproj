@@ -78,7 +78,6 @@
      <Compile Include="Match\Contracts\MotionEvidence.fs"/>
      <Compile Include="Match\Contracts\World.fs"/>
     <Compile Include="Match\Contracts\PlayerProfile.fs"/>
-    <Compile Include="Match\Contracts\WeightSections.generated.fs"/>
     <Compile Include="Match\Contracts\BalanceConfig.fs"/>
     <Compile Include="Match\Contracts\MatchContext.fs"/>
     <Compile Include="Match\Config\ConfigValidation.fs"/>

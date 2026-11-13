@@ -94,12 +94,9 @@ module ManagerSystem =
         let diff = world.State.HomeScore - world.State.AwayScore
         let myDiff = if side = ClubSide.Home then diff else -diff
         let cfg = ctx.Ctx.Config.Manager
-        let w = ctx.Ctx.Config.Weights.Manager
-
-        // R10 — score-based substitution thresholds (condition is 0..1).
-        let winT = float32 (float w.ConditionThresholdWinning / 100.0)
-        let drawT = float32 (float w.ConditionThresholdDrawing / 100.0)
-        let loseT = float32 (float w.ConditionThresholdLosing / 100.0)
+        let winT = float32 cfg.ConditionThresholdWinning
+        let drawT = float32 cfg.ConditionThresholdDrawing
+        let loseT = float32 cfg.ConditionThresholdLosing
 
         let threshold =
             if myDiff < 0 then loseT
