@@ -84,6 +84,17 @@ recicla en su tercio; hace falta que la factibilidad y la velocidad del pase lea
 de `validate` usa `TestBuilders.defaultCtx`, cuyas posiciones base están amontonadas en un cuadrante: la
 calibración debería medirse sobre plantillas generadas.
 
+Seguimiento (2026-11-13): el corpus de `validate`/`sweep`/`hash` ya es un mundo generado
+(`SimulatorRunner.corpusContext`); held-out 6/8 en banda (fuera: % de pase 91 y córners). Por atributo
+(`contrast-attributes`), Tackling no se usaba en ningún partido y Dribbling no pesaba; ahora cada acción de contacto
+usa su habilidad y la conducción tiene término de Dribbling. Passing y Vision estaban invertidos porque subían la
+utilidad de cada pase y dejaban los tiros bajo el umbral: el que pasa mal tiraba 22,6 veces contra 5,3. Sin esos
+términos de preferencia, +20/−20 en todo da 1,28–1,01 (antes 0,88–1,24): el signo es correcto, el efecto sigue
+chico. Probado sin efecto y revertido: elegir primero el tipo de acción y después el destino, valorar el tiro
+inmediato con su xG en el planner, peligro del planner en escala 0–1, velocidad de pase por Passing, mal juicio
+del pasador. La causa de fondo es la decisión por suma de utilidades: es F3.2, el próximo paso, con la aceptación
+"+10 en todo gana por ≥ 0,6 goles en 144 partidos". `QuickMatch` se ajusta después.
+
 ### F2 — Feedback rápido y limpio (DX)
 
 1. Warnings a cero y `TreatWarningsAsErrors` en todos los proyectos.
