@@ -1366,17 +1366,21 @@ module BalanceConfig =
     /// from stronger lineups and the away side outscoring the home side, so a fit would carry both into every
     /// background league. Refit once the engine rewards quality.
     let defaultQuickMatch: QuickMatchConfig =
-        { // Top European leagues: ~2.7 goals a match, home sides scoring ~1.3 times as often as away sides.
-          GoalsPerTeam = 1.2
+        { // The engine's ~3 goals a match (`quick-fit 6`, 2026-11-13), split so the home advantage below moves
+          // goals between the sides instead of adding them: 3 / (1 + e^0.25).
+          GoalsPerTeam = 1.31
+          // The real ~1.3x home scoring rate. The engine fits ~0 because it has no home advantage yet; keeping the
+          // real value here is deliberate until the engine has one, so background tables keep the real pattern.
           HomeAdvantage = 0.25
-          // A starting eleven 12 attribute points better scores ~1.4 times as often.
-          StrengthSensitivity = 0.03
+          // Fitted: a starting eleven 16 attribute points better scores ~1.3 times as often.
+          StrengthSensitivity = 0.016
           AssistedShare = 0.7
-          ScorerByRole = { Keeper = 0.0; CentreBack = 0.1; Fullback = 0.1; Holding = 0.15; Central = 0.25; Playmaker = 0.5; Wide = 0.6; Forward = 1.0 }
+          ScorerByRole = { Keeper = 0.0; CentreBack = 0.08; Fullback = 0.08; Holding = 0.16; Central = 0.33; Playmaker = 0.49; Wide = 0.2; Forward = 1.0 }
           AssistByRole = { Keeper = 0.02; CentreBack = 0.1; Fullback = 0.3; Holding = 0.3; Central = 0.5; Playmaker = 0.8; Wide = 0.7; Forward = 0.5 }
-          YellowsPerTeam = 2.0
+          // Fitted to the engine; reds keep the real prior, the fit's corpus over-counts them against `validate`.
+          YellowsPerTeam = 3.35
           RedsPerTeam = 0.06
-          FoulsPerTeam = 11.5
+          FoulsPerTeam = 13.6
           InjuriesPerTeam = 0.15
           SubstitutionsPerTeam = 4.0
           FirstSubstitutionMinute = 55
