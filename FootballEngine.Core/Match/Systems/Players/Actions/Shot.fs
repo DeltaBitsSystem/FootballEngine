@@ -7,6 +7,11 @@ namespace FootballEngine.Core.Match
 /// so the viewer sees the shot when it resolves.
 module Shot =
 
+    /// Sign of the vertical spin that bends a shot from `y` toward `aimY`. Vertical spin curls the ball to the
+    /// left of its travel, so the same bend needs the opposite spin when the attack runs the other way.
+    let curlSense (side: ClubSide) (y: float) (aimY: float) : float =
+        float (sign (aimY - y)) * MatchMath.goalDirection side
+
     let launch (ctx: SystemContext) (rng: Rng) (world: World) (buffer: EventBuffer) (side: ClubSide) (slot: int) : Rng =
         let tick = world.State.Tick
         let cfg = ctx.Ctx.Config
@@ -64,7 +69,7 @@ module Shot =
 
         // Placed finishes curl the ball back toward the aim point; the solver keeps the target, only the path bends.
         let curl, rng' = Rng.uniform 0.0 1.0 rng4
-        let curlSpin = float cfg.Actions.ShotCurlSpin * curl * float p.Finishing / 100.0 * float (sign (aimY - float y))
+        let curlSpin = float cfg.Actions.ShotCurlSpin * curl * float p.Finishing / 100.0 * curlSense side (float y) aimY
 
         let angularVelocity =
             { Top = 0.0<radianPerSecond>

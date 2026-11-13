@@ -13,6 +13,34 @@ module ConfigValidation =
           if p.DeliberationTime < 0<subtick> || p.DeliberationTime > 40<subtick> then
               yield "Planner.DeliberationTime must be in [0, 40] subticks" ]
 
+    let validateQuickMatch (q: QuickMatchConfig) : string list =
+        let roles (name: string) (w: QuickRoleWeights) =
+            let all = [ w.Keeper; w.CentreBack; w.Fullback; w.Holding; w.Central; w.Playmaker; w.Wide; w.Forward ]
+
+            [ if all |> List.exists (fun v -> not (System.Double.IsFinite v) || v < 0.0) then
+                  yield $"QuickMatch.{name} weights must be finite and non-negative"
+              if List.sum all <= 0.0 then
+                  yield $"QuickMatch.{name} needs a positive weight" ]
+
+        [ if not (q.GoalsPerTeam > 0.0 && q.GoalsPerTeam < 10.0) then
+              yield "QuickMatch.GoalsPerTeam must be in (0, 10)"
+          if not (abs q.HomeAdvantage <= 1.0) then
+              yield "QuickMatch.HomeAdvantage must be in [-1, 1]"
+          if not (q.StrengthSensitivity >= 0.0 && q.StrengthSensitivity <= 0.5) then
+              yield "QuickMatch.StrengthSensitivity must be in [0, 0.5]"
+          if not (q.AssistedShare >= 0.0 && q.AssistedShare <= 1.0) then
+              yield "QuickMatch.AssistedShare must be in [0, 1]"
+          for name, rate in
+              [ "YellowsPerTeam", q.YellowsPerTeam; "RedsPerTeam", q.RedsPerTeam; "FoulsPerTeam", q.FoulsPerTeam
+                "InjuriesPerTeam", q.InjuriesPerTeam; "SubstitutionsPerTeam", q.SubstitutionsPerTeam
+                "CalmFoulShare", q.CalmFoulShare; "RobustInjuryShare", q.RobustInjuryShare ] do
+              if not (rate >= 0.0 && rate < 100.0) then
+                  yield $"QuickMatch.{name} must be in [0, 100)"
+          if q.FirstSubstitutionMinute < 1 || q.FirstSubstitutionMinute > 89 then
+              yield "QuickMatch.FirstSubstitutionMinute must be in [1, 89]"
+          yield! roles "ScorerByRole" q.ScorerByRole
+          yield! roles "AssistByRole" q.AssistByRole ]
+
     let validateScout (c: ScoutConfig) : string list =
         [ if c.MemoryHalfLifeDays <= 0.0 then
               yield "Scout.MemoryHalfLifeDays must be > 0"
@@ -1021,6 +1049,7 @@ module ConfigValidation =
             @ validateEnvironment config.Environment
             @ validateMatch config.Match
             @ validatePlanner config.Planner
+            @ validateQuickMatch config.QuickMatch
             @ validateScout config.Scout
             @ validateCounter config.Counter
             @ validateTransfer config.Transfer

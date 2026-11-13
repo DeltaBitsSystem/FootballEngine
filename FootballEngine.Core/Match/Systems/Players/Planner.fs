@@ -147,26 +147,15 @@ module Planner =
             if s.OppMotion.Length = 0 then
                 s.OffsideLine
             else
-                let mutable count = 0
-                let mutable first = 0.0<meter>
-                let mutable second = 0.0<meter>
+                // The referee's line (MatchWorld.offsideLine) projected forward: the deepest outfield defender, never
+                // inside the attacker's own half, so the plan and the flag agree on who is onside.
+                let mutable deepest = 0.0<meter>
 
                 for struct (slot, x, _) in opponents do
                     if not (SlotMask.contains slot s.GoalkeeperSlots) then
-                        let position = x * s.Dir
+                        deepest <- max deepest (x * s.Dir)
 
-                        if count = 0 || compare position first > 0 then
-                            second <- first
-                            first <- position
-                        elif count = 1 || compare position second > 0 then
-                            second <- position
-
-                        count <- count + 1
-
-                if count >= 2 then
-                    second * s.Dir
-                else
-                    MatchMath.goalX s.Side
+                deepest * s.Dir
 
         let struct (ballX, ballY, carrier) = ballOf ours
 

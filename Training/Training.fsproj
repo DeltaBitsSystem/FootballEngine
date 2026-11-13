@@ -15,6 +15,7 @@
     <Compile Include="Validator.fs"/>
     <Compile Include="Overrides.fs"/>
     <Compile Include="Report.fs"/>
+    <Compile Include="QuickFit.fs"/>
     <Compile Include="Program.fs"/>
   </ItemGroup>
   <ItemGroup>

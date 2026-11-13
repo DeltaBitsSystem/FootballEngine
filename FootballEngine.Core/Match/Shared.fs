@@ -297,7 +297,9 @@ module MatchWorld =
     let offsideLine (ctx: MatchContext) (world: World) (attackSide: ClubSide) : float<meter> =
         let frame = (team world (oppOf attackSide)).Frame
         let dir = MatchMath.goalDirection attackSide
-        let mutable line = -Pitch.HalfLength
+        // Nobody is offside in his own half, so the fold starts at halfway; starting at either goal line left one
+        // side's attack with a line it could never pass.
+        let mutable line = 0.0<meter>
 
         for slot in activeSlots frame do
             if slot <> 0 then

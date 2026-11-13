@@ -418,6 +418,29 @@ module Program =
                 let n = if parts.Length > 1 then parts.[1] |> int else 1
                 tuneCmd sweeps n |> ignore
                 0
+            | "quick-fit" :: rest ->
+                let perPair = defaultArgs rest [ "6" ] |> List.head |> int
+                printfn "%A" (QuickFit.fit cfg perPair)
+                0
+            | "contrast-groups" :: d :: rest ->
+                QuickFit.contrastGroups cfg (float32 d) (defaultArgs rest [ "12" ] |> List.head |> int)
+                0
+            | "contrast" :: d :: rest ->
+                QuickFit.contrast cfg (float32 d) (defaultArgs rest [ "12" ] |> List.head |> int)
+                0
+            | "side-flow" :: rest ->
+                QuickFit.sideFlow cfg (defaultArgs rest [ "12" ] |> List.head |> int)
+                0
+            | "side-counts" :: rest ->
+                QuickFit.sideCounts cfg (defaultArgs rest [ "12" ] |> List.head |> int)
+                0
+            | "quick-goals" :: rest ->
+                QuickFit.traceGoals cfg (defaultArgs rest [ "3" ] |> List.head |> int)
+                0
+            | "quick-validate" :: rest ->
+                let perPair = defaultArgs rest [ "4" ] |> List.head |> int
+                QuickFit.validate cfg perPair
+                0
             | "diagnose" :: rest ->
                 let n = defaultArgs rest [ "4" ] |> List.head |> int
                 diagnoseCmd n cfg

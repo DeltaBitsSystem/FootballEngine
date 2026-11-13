@@ -66,6 +66,17 @@ module PlayerDecision =
         cfg.Config.Actions.MemoryPassFailWeight
         * (if mem.ShotSuccessMod < 0.0 then mem.ShotSuccessMod else 0.0)
 
+    /// The player's own mean skill. Option preferences read each skill against it: a player better at everything
+    /// is better at executing every option, not keener on the options with more skill terms, which made stronger
+    /// sides pass instead of shooting and weaker sides shoot more.
+    let ownLevel (p: PlayerProfile) : float =
+        float (
+            p.Pace + p.Strength + p.Stamina + p.Agility + p.Vision + p.Passing + p.Finishing + p.Crossing
+            + p.Dribbling + p.Tackling + p.Marking + p.Positioning + p.Anticipation + p.Composure + p.Teamwork
+            + p.DecisionMaking
+        )
+        / 16.0
+
     // R5 — effective decision temperature (hotter when cognitively tired).
     let effectiveTemperature (cfg: BalanceConfig) (cognitive: float) : float =
         let baseT = cfg.Weights.Decision.DecisionTemperature
@@ -89,6 +100,7 @@ module PlayerDecision =
         let mem = team.Memory.[slot]
         let passMemoryMod = passMemoryPenalty ctx mem
         let pressure = MatchWorld.opponentsNear ctx world side x y 4.0
+        let level = ownLevel p
 
         let attacking =
             team.Blackboard.OurPhase = PhaseKind.Attacking
@@ -122,10 +134,10 @@ module PlayerDecision =
 
                 let uPass =
                     w.PassBaseUtility
-                    + w.PassPassingWeight * ((passing - 60.0) / 40.0)
-                    + w.PassVisionWeight * ((vision - 60.0) / 40.0)
+                    + w.PassPassingWeight * ((passing - level) / 40.0)
+                    + w.PassVisionWeight * ((vision - level) / 40.0)
                     + w.PassTargetBonus * space
-                    + w.PassAnticipationBonus * ((float p.Anticipation - 60.0) / 50.0)
+                    + w.PassAnticipationBonus * ((float p.Anticipation - level) / 50.0)
                     + w.PassTrajectoryBonus * (if longBall then 0.0 else 0.15)
                     + (if longBall then
                            float tactics.Directness * tradeoffs.DirectnessLongBallUtility
@@ -134,7 +146,7 @@ module PlayerDecision =
                     + (if attacking then 0.0 else w.PassAttackPhasePenalty)
                     - w.PassHighPressPenalty * float pressure * w.PassHighPressFactor
                     - (if offside then 0.8 else 0.0)
-                    + w.PersonalityTeamworkWeight * ((float p.Teamwork - 60.0) / 100.0)
+                    + w.PersonalityTeamworkWeight * ((float p.Teamwork - level) / 100.0)
                     + w.PassConcentrationMod * (cognitive - 0.5)
                     - passMemoryMod
                     - (if laneOk then 0.0 else 0.6)
@@ -197,6 +209,7 @@ module PlayerDecision =
         let vision = float p.Vision
         let crossing = float p.Crossing
         let bravery = (float p.Aggression * 0.5 + float p.Composure * 0.5) / 100.0
+        let level = ownLevel p
 
         let options = ResizeArray<float * int * float>()
         let mutable shotOption: (float * int * float) option = None
@@ -214,8 +227,8 @@ module PlayerDecision =
 
             let uShot =
                 w.ShotBaseUtility
-                + w.ShootFinishingWeight * ((fin - 60.0) / 40.0)
-                + w.ShootComposureWeight * ((comp - 60.0) / 40.0)
+                + w.ShootFinishingWeight * ((fin - level) / 40.0)
+                + w.ShootComposureWeight * ((comp - level) / 40.0)
                 + w.ShootDistNormWeight * distNorm
                 + w.ShootXGWeight * xg * w.ShotXGMultiplier
                 + (if attacking then

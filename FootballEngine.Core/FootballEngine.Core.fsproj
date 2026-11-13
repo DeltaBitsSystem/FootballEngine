@@ -172,6 +172,7 @@
     <Compile Include="World\Supervisors\YouthSupervisor.fs"/>
     <Compile Include="World\Supervisors\FinanceSupervisor.fs"/>
     <Compile Include="World\Phases\MatchContextBuilder.fs"/>
+    <Compile Include="World\Phases\QuickMatch.fs"/>
     <Compile Include="World\Phases\MatchPhase.fs"/>
     <Compile Include="World\Phases\TransferPhase.fs"/>
     <Compile Include="World\Pulse\PulseRandom.fs"/>

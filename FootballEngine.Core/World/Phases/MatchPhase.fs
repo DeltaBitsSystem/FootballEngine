@@ -621,6 +621,55 @@ module MatchPhase =
 
                 Some(outcome, input)
 
+    /// A fixture played by the background model: the same lineups and seed the engine would get, no ticks.
+    let simulateFixtureQuickWithBalance
+        (balance: BalanceConfig)
+        (fixtureId: MatchId)
+        (fixture: MatchFixture)
+        (gs: GameState)
+        : (FixtureOutcome * MatchInput) option =
+        match EffectiveConfig.fromBalance balance, MatchContextBuilder.build gs fixture balance with
+        | Error _, _
+        | _, None -> None
+        | Ok effective, Some ctx ->
+            let seed = MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId
+            let played = QuickMatch.simulate ctx seed
+
+            let input =
+                { MatchId = uint64 fixtureId
+                  Context = ctx
+                  Seed = seed
+                  EffectiveConfig = effective
+                  EngineVersion = "football-engine-quick-01" }
+
+            let outcome =
+                { FixtureId = fixtureId
+                  Fixture =
+                    { fixture with
+                        Played = true
+                        HomeScore = Some played.HomeScore
+                        AwayScore = Some played.AwayScore
+                        Events = played.Events }
+                  HomeScore = played.HomeScore
+                  AwayScore = played.AwayScore
+                  InjuredPlayers = played.Injured
+                  HomePlayerStats = played.HomeStats
+                  AwayPlayerStats = played.AwayStats }
+
+            Some(outcome, input)
+
+    /// Competitions the user's club plays in get the engine for every fixture, so its rivals' results have the
+    /// same causes as its own; the rest of the world is played by the background model.
+    let private watchedCompetitions (gs: GameState) : Set<CompetitionId> =
+        match GameState.managedClub gs with
+        | None -> Set.empty
+        | Some club ->
+            gs.Competitions
+            |> Map.toSeq
+            |> Seq.filter (fun (_, comp) -> comp.Fixtures |> Map.exists (fun _ f -> MatchFixture.involves club f))
+            |> Seq.map fst
+            |> Set.ofSeq
+
     let simulateFixtureWithBalance balance fixtureId fixture gs : FixtureOutcome option =
         simulateFixtureExecutionWithBalance balance fixtureId fixture gs |> Option.map fst
 
@@ -642,11 +691,21 @@ module MatchPhase =
         let config = balance
         let gsReady = LineupOps.ensureForFixtures fixtures state
 
+        let watched = watchedCompetitions gsReady
+
         let executions =
             fixtures
             |> Array.ofList
-            |> parallelMapLimited (fun (id, fixture) -> simulateFixtureExecutionWithBalance balance id fixture gsReady)
+            |> parallelMapLimited (fun (id, fixture) ->
+                if Set.contains fixture.CompetitionId watched then
+                    simulateFixtureExecutionWithBalance balance id fixture gsReady
+                else
+                    simulateFixtureQuickWithBalance balance id fixture gsReady)
             |> Array.choose id
+
+        // A background result carries no passes or patterns: pressing coordination and scouting learn nothing from it.
+        let hasEvidence (o: FixtureOutcome) =
+            o.Fixture.Events |> List.exists (fun e -> match e.Data with EventData.Pass _ -> true | _ -> false)
 
         let outcomes = freshOutcomes (fixtureToCompMap gsReady) (executions |> Array.map fst) gsReady
 
@@ -668,14 +727,17 @@ module MatchPhase =
                 |> Array.tryFind (fun o -> o.Fixture.HomeClubId = clubId || o.Fixture.AwayClubId = clubId)
 
             match outcome with
-            | None -> gs
             | Some o ->
                 let isHome = o.Fixture.HomeClubId = clubId
 
                 let m =
                     MatchMetrics.extract o.Fixture.Events o.Fixture.HomeClubId o.Fixture.AwayClubId clubOfPlayer
 
-                let passRate = if isHome then m.PassAccuracyHome else m.PassAccuracyAway
+                // Without passes the neutral rate leaves pressing coordination where it was.
+                let passRate =
+                    if not (hasEvidence o) then 0.5
+                    elif isHome then m.PassAccuracyHome
+                    else m.PassAccuracyAway
 
                 let club = gs.Clubs[clubId]
 
@@ -715,6 +777,7 @@ module MatchPhase =
                             clubId
                             { club with
                                 CoordinationMemory = withFamiliarity } }
+            | _ -> gs
 
         let updateScouting (clubId: ClubId) (gs: GameState) : GameState =
             let outcome =
@@ -722,8 +785,7 @@ module MatchPhase =
                 |> Array.tryFind (fun o -> o.Fixture.HomeClubId = clubId || o.Fixture.AwayClubId = clubId)
 
             match outcome with
-            | None -> gs
-            | Some o ->
+            | Some o when hasEvidence o ->
                 let isHome = o.Fixture.HomeClubId = clubId
 
                 let rivalId =
@@ -767,6 +829,7 @@ module MatchPhase =
                             clubId
                             { club with
                                 ScoutingMemory = updatedMem } }
+            | _ -> gs
 
         let affectedClubs =
             outcomes

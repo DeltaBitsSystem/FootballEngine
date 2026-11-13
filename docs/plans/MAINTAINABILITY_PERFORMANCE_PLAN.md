@@ -59,6 +59,31 @@ ContactDynamics (1,6 s, trabajo repartido: `findEarliest` 0,54 s, cotas 0,26 s, 
 TeamPosition (0,87 s, 15 µs por llamada). La meta de 1,5 s pide bajar la frecuencia de contacto o paralelizar
 por partido; ambas cosas necesitan validación held-out.
 
+Partidos de fondo (2026-11-12): las ligas que el usuario no sigue se juegan con `QuickMatch` (sin ticks:
+Poisson de goles por fuerza media del once, goleadores/asistentes por rol y atributo, tarjetas, faltas,
+lesiones y cambios), del orden de microsegundos por partido. Los partidos de competiciones donde juega el club
+del usuario siguen en el motor completo. `Training quick-fit` ajusta `QuickMatch` contra el motor y
+`quick-validate` compara ambos por brecha de fuerza; mientras el motor no premie la calidad, `defaultQuickMatch`
+usa valores de ligas reales.
+
+Validez deportiva (2026-11-12): ajustar `QuickMatch` reveló que el motor no respondía a la calidad. Medido con
+plantillas reales de un mundo generado (`Training side-counts`, `side-flow`, `contrast`, `contrast-groups`):
+- `MatchWorld.offsideLine` arrancaba el pliegue en `-HalfLength` para los dos lados: el visitante nunca quedaba
+  en offside, el local pasaba el 60 % de su posesión en su tercio y el visitante marcaba el doble. Ahora arranca
+  en mitad de cancha (nadie está en offside en su campo). El planner proyectaba la línea con el *segundo*
+  defensor de campo; ahora usa la misma regla que el árbitro.
+- El efecto del tiro era en coordenadas del mundo: el visitante curvaba hacia afuera del arco.
+- Las utilidades de decisión sumaban atributos como preferencia: un jugador mejor en todo prefería pasar (cuatro
+  términos de habilidad) a tirar (dos) o encarar (ninguno), y el equipo débil tiraba más. Ahora cada habilidad se
+  lee contra la media propia del jugador (`Decision.ownLevel`); el nivel absoluto actúa en la ejecución.
+- La ejecución casi no dependía de la técnica: error de tiro 0,26 + 0,25·(1−definición) pasa a 0,14 + 0,5·(1−def.)
+  (mismo promedio), y la dispersión de pase se duplica con `TechniqueShare` 0,9.
+Resultado: +20/−20 en todos los atributos pasa de 0,67–2,33 (invertido) a 2,08–1,08. Pendiente: el pase sigue
+sin depender del pasador en completitud ni intercepción (91 % vs 89 % con ±20 técnico), y el equipo técnico
+recicla en su tercio; hace falta que la factibilidad y la velocidad del pase lean el Passing/Vision. El corpus
+de `validate` usa `TestBuilders.defaultCtx`, cuyas posiciones base están amontonadas en un cuadrante: la
+calibración debería medirse sobre plantillas generadas.
+
 ### F2 — Feedback rápido y limpio (DX)
 
 1. Warnings a cero y `TreatWarningsAsErrors` en todos los proyectos.

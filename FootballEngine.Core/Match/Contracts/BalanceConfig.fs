@@ -642,6 +642,39 @@ type TacticalTradeoffConfig =
 
 /// The single tuning surface: every behavior-affecting number in the engine
 /// lives here, nowhere else.
+/// A share per lineup role, in SlotRole order.
+type QuickRoleWeights =
+    { Keeper: float
+      CentreBack: float
+      Fullback: float
+      Holding: float
+      Central: float
+      Playmaker: float
+      Wide: float
+      Forward: float }
+
+/// The background match: a Poisson model of the engine's results, for fixtures outside the competitions the
+/// user's club plays in. Every rate is fitted against full-engine matches (Training quick-fit), so a league
+/// played this way has the engine's distributions without its ticks.
+type QuickMatchConfig =
+    { GoalsPerTeam: float
+      HomeAdvantage: float
+      /// Log change of a team's scoring rate per point of mean starter attribute (0..100) over its opponent.
+      StrengthSensitivity: float
+      AssistedShare: float
+      ScorerByRole: QuickRoleWeights
+      AssistByRole: QuickRoleWeights
+      YellowsPerTeam: float
+      RedsPerTeam: float
+      FoulsPerTeam: float
+      InjuriesPerTeam: float
+      SubstitutionsPerTeam: float
+      FirstSubstitutionMinute: int
+      /// Foul and card share of a player with no aggression at all, so calm players are rarely but still booked.
+      CalmFoulShare: float
+      /// Injury share of a player with no proneness, so robust players can still be hurt.
+      RobustInjuryShare: float }
+
 type BalanceConfig =
     { Ball: BallConfig
       Movement: MovementConfig
@@ -670,6 +703,7 @@ type BalanceConfig =
       World: FootballEngine.Domain.WorldConfig
       TacticalTradeoffs: TacticalTradeoffConfig
       Training: TrainingConfig
+      QuickMatch: QuickMatchConfig
       Weights: WeightSections }
 
 module BalanceConfig =
@@ -754,17 +788,18 @@ module BalanceConfig =
           InterceptionIntentBoost = 1.25 }
 
     let defaultStrikeTechnique: StrikeTechniqueConfig =
-        // A side-foot pass by an average passer (0.6) strays ~0.8 degrees, ~0.3 m over 20 m. The instep trades
-        // precision for pace, and the outside of the boot is the least precise but curls away from the body.
-        { Inside = { Spread = 0.025; SideSpinPerSpeed = 0.1 }
-          Instep = { Spread = 0.05; SideSpinPerSpeed = 0.0 }
-          Outside = { Spread = 0.06; SideSpinPerSpeed = 0.3 }
+        // A side-foot pass by an average passer (0.6) strays ~1.3 degrees, ~0.45 m over 20 m, a poor one (0.3) twice
+        // that: technique has to separate passers, not only the boot. The instep trades precision for pace, and
+        // the outside of the boot is the least precise but curls away from the body.
+        { Inside = { Spread = 0.05; SideSpinPerSpeed = 0.1 }
+          Instep = { Spread = 0.08; SideSpinPerSpeed = 0.0 }
+          Outside = { Spread = 0.10; SideSpinPerSpeed = 0.3 }
           // A side-foot pass beyond ~35 degrees toward the kicking foot's outer side needs the hips turned; a
           // player in stride flicks it with the outside instead.
           OutsideAngle = 0.6
           // Side-foot passes rarely exceed ~20 m/s; driven balls and clearances are struck with the laces.
           InstepSpeed = 20.0<meterPerSecond>
-          TechniqueShare = 0.8
+          TechniqueShare = 0.9
           // A challenger within ~2.5 m forces a hurried strike.
           PressureRadius = 2.5<meter>
           PressureSpreadPerOpponent = 0.4
@@ -937,10 +972,10 @@ module BalanceConfig =
           PassArrivalSpeedGain = 0.12
           MaxPassExecutionDistance = 65.0<meter>
           ShotQualityGate = 0.5
-          // Recalibrated once restarts stopped freezing a third of the match: with that much more open play, 0.26
-          // keeps ~36 % of shots on target (top flight ~33 %) and conversion near 12 %.
-          ShotErrorBase = 0.26
-          ShotErrorSkill = 0.25
+          // An average finisher (0.6) keeps the 0.36 error that held ~36 % of shots on target; the skill share is
+          // large so a poor finisher (0.3) sprays twice as wide as a good one (0.9), as conversion rates differ.
+          ShotErrorBase = 0.14
+          ShotErrorSkill = 0.5
           ShotVerticalErrorRatio = 0.6
           ShotPostMargin = 1.2<meter>
           ShotDistanceToGoalMultiplier = 0.02
@@ -1225,6 +1260,28 @@ module BalanceConfig =
           YouthCoachBonus = 0.5
           PhysioInjuryReduction = 0.0015 }
 
+    /// Real-league priors until `Training quick-fit` can be trusted: on 2026-11-12 the engine showed no gain
+    /// from stronger lineups and the away side outscoring the home side, so a fit would carry both into every
+    /// background league. Refit once the engine rewards quality.
+    let defaultQuickMatch: QuickMatchConfig =
+        { // Top European leagues: ~2.7 goals a match, home sides scoring ~1.3 times as often as away sides.
+          GoalsPerTeam = 1.2
+          HomeAdvantage = 0.25
+          // A starting eleven 12 attribute points better scores ~1.4 times as often.
+          StrengthSensitivity = 0.03
+          AssistedShare = 0.7
+          ScorerByRole = { Keeper = 0.0; CentreBack = 0.1; Fullback = 0.1; Holding = 0.15; Central = 0.25; Playmaker = 0.5; Wide = 0.6; Forward = 1.0 }
+          AssistByRole = { Keeper = 0.02; CentreBack = 0.1; Fullback = 0.3; Holding = 0.3; Central = 0.5; Playmaker = 0.8; Wide = 0.7; Forward = 0.5 }
+          YellowsPerTeam = 2.0
+          RedsPerTeam = 0.06
+          FoulsPerTeam = 11.5
+          InjuriesPerTeam = 0.15
+          SubstitutionsPerTeam = 4.0
+          FirstSubstitutionMinute = 55
+          // A calm player commits about a sixth of the fouls of the most aggressive one.
+          CalmFoulShare = 0.2
+          RobustInjuryShare = 0.2 }
+
     let defaultConfig: BalanceConfig =
         { Ball = defaultBall
           Movement = defaultMovement
@@ -1253,4 +1310,5 @@ module BalanceConfig =
           World = FootballEngine.Domain.WorldConfig.defaults
           TacticalTradeoffs = defaultTacticalTradeoffs
           Training = defaultTraining
+          QuickMatch = defaultQuickMatch
           Weights = WeightSections.defaultWeights }

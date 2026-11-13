@@ -94,7 +94,8 @@ let main argv =
           FootballEngine.Core.Tests.World.Pulse.SeasonCeremonyTests.tests ]
 
     let everyRun =
-        [ rngTests
+        [ FootballEngine.Core.Tests.World.QuickMatchTests.tests
+          rngTests
           FootballEngine.Core.Tests.Contracts.ClockTests.clockTests
           eventFlagTests
           configTests

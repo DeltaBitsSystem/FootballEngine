@@ -111,4 +111,17 @@ module StrikeTechniqueTests =
                   let c, world = kicker 60.0f
                   let shot = impulse 26.0 2.0 StrikeKind.Shot
                   let struct (shaped, _) = StrikeTechnique.shape c world ClubSide.Home 5 ContactFoot.Right StrikeSurface.Instep shot (Rng.ofSeed 3UL)
-                  Expect.equal shaped shot "the surface does not count the shot's miss twice") ]
+                  Expect.equal shaped shot "the surface does not count the shot's miss twice")
+
+              testCase "a curled shot bends toward its aim whichever goal it attacks" (fun _ ->
+                  // Real aerodynamics, not the sign helper alone: the spin it asks for must push the ball toward the
+                  // aim side for a shot travelling +X and for one travelling -X.
+                  let bend side vx aimY =
+                      let spin = 10.0 * Shot.curlSense side 0.0 aimY
+                      let struct (_, ay, _) = BallAero.flightAcceleration ctx.Config.Ball (1.0 / 40.0) vx 0.0 1.0 0.0 0.0 spin
+                      ay
+
+                  Expect.isGreaterThan (bend ClubSide.Home 25.0 3.0) 0.0 "home shot aimed left of the striker bends left"
+                  Expect.isLessThan (bend ClubSide.Home 25.0 -3.0) 0.0 "home shot aimed right bends right"
+                  Expect.isGreaterThan (bend ClubSide.Away -25.0 3.0) 0.0 "away shot aimed at +Y bends toward +Y"
+                  Expect.isLessThan (bend ClubSide.Away -25.0 -3.0) 0.0 "away shot aimed at -Y bends toward -Y") ]

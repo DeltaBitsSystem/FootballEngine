@@ -9,8 +9,8 @@ module SimulatorRunner =
 
     /// The same session the game and `Simulator.runMatch` play, so calibration measures exactly the match a career
     /// plays, input and config validation included. A tool may stop on an invalid config.
-    let private session (systems: SystemSpec list) (cfg: BalanceConfig) (seed: uint64) =
-        let ctx = { TestBuilders.defaultCtx () with Config = cfg }
+    let private sessionOf (systems: SystemSpec list) (ctx: MatchContext) (seed: uint64) =
+        let cfg = ctx.Config
 
         let effective =
             match EffectiveConfig.fromBalance cfg with
@@ -27,6 +27,15 @@ module SimulatorRunner =
         match MatchSession.create systems input MatchRunMode.Fast with
         | Ok session -> session
         | Error error -> failwithf "match session rejected: %A" error
+
+    let private session (systems: SystemSpec list) (cfg: BalanceConfig) (seed: uint64) =
+        sessionOf systems { TestBuilders.defaultCtx () with Config = cfg } seed
+
+    /// A whole match between the context's lineups, with every event it recorded.
+    let runContext (ctx: MatchContext) (seed: uint64) : MatchOutcome =
+        match MatchSession.finish (sessionOf Scheduler.systems ctx seed) with
+        | Ok outcome -> outcome
+        | Error error -> failwithf "match did not finish: %A" error
 
     let private finish (session: MatchSession) =
         match MatchSession.finish session with
@@ -50,6 +59,17 @@ module SimulatorRunner =
 
         if ownThread then
             MatchSession.runCognitionOnOwnThread session
+
+        while session.World.State.Flow <> MatchFlow.MatchEnded do
+            match MatchSession.advanceTo (session.World.State.Tick + 1<subtick>) session with
+            | Ok advance -> observe session.World advance.Events
+            | Error error -> failwithf "match did not advance: %A" error
+
+        finish session
+
+    /// A whole match between the context's lineups, handing every tick's applied events to `observe`.
+    let runContextObserved (ctx: MatchContext) (seed: uint64) (observe: World -> MatchEvent seq -> unit) : World =
+        let session = sessionOf Scheduler.systems ctx seed
 
         while session.World.State.Flow <> MatchFlow.MatchEnded do
             match MatchSession.advanceTo (session.World.State.Tick + 1<subtick>) session with
