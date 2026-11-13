@@ -1270,7 +1270,19 @@ module ContactDynamics =
                     frame.ContactActions[slot] <- None
                 | Some action when action.Phase = ContactActionPhase.ContactActionPreparing && tick >= action.CommitAt ->
                     let profile = MatchWorld.profileOf ctx.Ctx side slot
-                    let technique = MatchMath.clamp01 ((float profile.Dribbling + float profile.Composure) / 200.0)
+                    // Each action is placed by the skill it is: a tackle by the defender's tackling, a first touch
+                    // by the feel and weight of the boot, a shield by close control. One shared dribbling term made a
+                    // good tackler with heavy feet miss the ball, and left Tackling with no effect on any match.
+                    let skill =
+                        match action.Kind with
+                        | ContactActionKind.ContactStandingTackle
+                        | ContactActionKind.ContactSlidingTackle
+                        | ContactActionKind.ContactShoulderChallenge -> float profile.Tackling
+                        | ContactActionKind.ContactContain -> float profile.Marking
+                        | ContactActionKind.ContactTrap -> (float profile.Dribbling + float profile.Passing) / 2.0
+                        | _ -> float profile.Dribbling
+
+                    let technique = MatchMath.clamp01 ((skill + float profile.Composure) / 200.0)
                     // Fatigue degrades placement, rather than making every ordinary pass physically untrappable.
                     let scale = float cfg.ExecutionErrorScale * (1.0 - technique * float frame.Condition[slot])
                     let errorX, nextRng = Rng.uniform (-scale) scale currentRng

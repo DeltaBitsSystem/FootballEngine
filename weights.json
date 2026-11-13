@@ -449,6 +449,7 @@
     "PassDecisionsWeight": 0.12,
     "PassConcentrationMod": 0.08,
     "DribbleBraveryMod": 0.15,
+    "DribbleDribblingWeight": 0.6,
     "ShootXGWeight": 0.2,
     "PassHighPressPenalty": 0.07,
     "DribbleAggressivePenalty": 0.08,

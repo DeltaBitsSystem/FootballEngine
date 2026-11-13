@@ -431,6 +431,21 @@ module Program =
             | "side-flow" :: rest ->
                 QuickFit.sideFlow cfg (defaultArgs rest [ "12" ] |> List.head |> int)
                 0
+            | "contrast-attributes" :: d :: n :: names ->
+                QuickFit.contrastAttributes cfg (float32 d) (int n) names
+                0
+            | [ "turnovers"; d; n; name ] ->
+                QuickFit.turnovers cfg (float32 d) (int n) name
+                0
+            | "contrast-flow" :: d :: rest ->
+                QuickFit.contrastFlow cfg (float32 d) (defaultArgs rest [ "36" ] |> List.head |> int)
+                0
+            | "technical-flow" :: d :: rest ->
+                QuickFit.technicalFlow cfg (float32 d) (defaultArgs rest [ "36" ] |> List.head |> int)
+                0
+            | "technical-counts" :: d :: rest ->
+                QuickFit.technicalCounts cfg (float32 d) (defaultArgs rest [ "36" ] |> List.head |> int)
+                0
             | "side-counts" :: rest ->
                 QuickFit.sideCounts cfg (defaultArgs rest [ "12" ] |> List.head |> int)
                 0

@@ -285,6 +285,7 @@ module PlayerDecision =
             - w.DribbleTempoPenalty
               * float (0.5 - float team.Directive.Params.LineHeight / 100.0 |> max 0.0)
             + w.DribbleBraveryMod * (bravery - 0.5)
+            + w.DribbleDribblingWeight * ((float p.Dribbling - level) / 40.0)
             - duelMemoryBias ctx mem * 0.5
 
         if inOwnThird && pressure > 0 then

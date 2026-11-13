@@ -490,6 +490,7 @@ type WeightSectionsDecision =
       PassDecisionsWeight: float
       PassConcentrationMod: float
       DribbleBraveryMod: float
+      DribbleDribblingWeight: float
       ShootXGWeight: float
       PassHighPressPenalty: float
       DribbleAggressivePenalty: float
@@ -973,8 +974,10 @@ module WeightSections =
           ShootDistPenaltyDivisor = 50
           ShootDistPenaltyMax = 0.5
           ShootDirectnessBonus = 0.15
-          PassPassingWeight = 0.4
-          PassVisionWeight = 0.3
+          // Skill does not make a pass more attractive, it makes it work: rating every pass higher pushed a good
+          // passer's shots under the bar and he recycled the ball (Training contrast-attributes, 2026-11-13).
+          PassPassingWeight = 0.0
+          PassVisionWeight = 0.0
           PassTargetBonus = 0.1
           PassAttackPhasePenalty = -0.03
           DribbleZoneBonusAttacking = 0.1
@@ -1016,6 +1019,9 @@ module WeightSections =
           PassDecisionsWeight = 0.12
           PassConcentrationMod = 0.08
           DribbleBraveryMod = 0.15
+          // Carrying needs its own skill term: without it, a side whose passing sits below its level saw carries
+          // gain for free, so poor technicians ran the ball and outplayed good ones.
+          DribbleDribblingWeight = 0.6
           ShootXGWeight = 0.2
           PassHighPressPenalty = 0.07
           DribbleAggressivePenalty = 0.08
