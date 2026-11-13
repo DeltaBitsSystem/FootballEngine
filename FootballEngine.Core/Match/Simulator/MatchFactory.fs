@@ -144,7 +144,7 @@ module MatchFactory =
           Participation = participation
           Proposals = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
           PendingActions = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
-          Latched = { OurPhase = PhaseKind.Defending; InTransition = false }
+          Latched = { OurPhase = PhaseKind.Defending; InTransition = false; PendingSlots = 0UL }
           Attack = CollectiveAttackState.create (if side = ClubSide.Home then ctx.HomeClub.AttackPrior else ctx.AwayClub.AttackPrior)
           LastCarrierSlot = -1
           LastRoleAssignmentTick = -1<subtick>
@@ -227,6 +227,7 @@ module MatchFactory =
           Home = home
           Away = away
           AppliedEventIds = System.Collections.Generic.HashSet<EventId>()
+          Cognition = CognitionSide()
           Observation = ObservationBuffer(4096)
           Reviews = RefereeReviewBook()
           Motion = MotionEvidenceJournal(256)

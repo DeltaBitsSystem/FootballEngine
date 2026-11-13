@@ -4,11 +4,6 @@ type SystemContext =
     { Ctx: MatchContext
       Clock: SimulationClock }
 
-type EventBuffer =
-    { mutable Events: ResizeArray<MatchEvent>
-      mutable Flags: EventFlags
-      mutable Applied: ResizeArray<MatchEvent> }
-
 /// All systems share this signature. No system mutates anything outside World/EventBuffer.
 /// No system reads global state. No system calls another system.
 type SystemStep = SystemContext -> Rng -> World -> EventBuffer -> Rng
@@ -25,8 +20,16 @@ type Trigger =
     /// Goal pauses and VAR reviews: play is stopped but a scored ball still travels into the net.
     | WhenBallDead of Trigger
 
+/// Which half of the tick a system belongs to. Cognition reads the world as the tick began and writes only
+/// what it owns; the body reads only what the latch handed it. The two halves can therefore run at once.
+[<RequireQualifiedAccess>]
+type SystemSide =
+    | Cognition
+    | Body
+
 type SystemSpec =
     { Name: string
+      Side: SystemSide
       Triggers: Trigger list
       Step: SystemStep }
 
@@ -45,6 +48,7 @@ type CompiledTrigger =
 
 type CompiledSystem =
     { Name: string
+      Side: SystemSide
       /// Keys the system's own random stream; derived from the name so adding or reordering systems does not
       /// reassign another system's numbers.
       StreamKey: uint64
@@ -52,7 +56,10 @@ type CompiledSystem =
       Step: SystemStep }
 
 [<Struct>]
-type CompiledSchedule = { Systems: CompiledSystem[] }
+type CompiledSchedule =
+    { Systems: CompiledSystem[]
+      Cognition: CompiledSystem[]
+      Body: CompiledSystem[] }
 
 module ScheduleCompiler =
     let rec private compileTrigger trigger : CompiledTrigger =
@@ -70,11 +77,16 @@ module ScheduleCompiler =
     /// Compilation is cold; the tick loop receives only arrays and precomputed
     /// trigger values.
     let compile (systems: SystemSpec list) : CompiledSchedule =
-        { Systems =
+        let compiled =
             systems
             |> List.map (fun system ->
                 { Name = system.Name
+                  Side = system.Side
                   StreamKey = Rng.keyOf system.Name
                   Triggers = system.Triggers |> List.map compileTrigger |> Array.ofList
                   Step = system.Step })
-            |> Array.ofList }
+            |> Array.ofList
+
+        { Systems = compiled
+          Cognition = compiled |> Array.filter (fun system -> system.Side = SystemSide.Cognition)
+          Body = compiled |> Array.filter (fun system -> system.Side = SystemSide.Body) }

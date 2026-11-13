@@ -269,35 +269,42 @@ module Program =
                     (mean (fun r -> r.Metrics.Yellows))
                     (mean (fun r -> r.Metrics.Corners))
 
-    /// Wall time per system over one match on one thread: where a slow balance loop actually spends its time.
-    let private profileCmd (cfg: BalanceConfig) (seed: uint64) (budgetPath: string option) : int =
-        let timers = System.Collections.Generic.Dictionary<string, int64>()
-        let calls = System.Collections.Generic.Dictionary<string, int>()
-        let bytes = System.Collections.Generic.Dictionary<string, int64>()
+    /// Wall time per system over one match: where a slow balance loop actually spends its time. With cognition
+    /// on its own thread the per-system times overlap, so only the wall time says what the match costs.
+    let private profileCmd (ownThread: bool) (cfg: BalanceConfig) (seed: uint64) (budgetPath: string option) : int =
+        let names = Scheduler.systems |> List.map _.Name |> Array.ofList
+        // One slot per system: cognition's systems are timed on its own thread, so no slot is shared.
+        let timeOf = Array.zeroCreate<int64> names.Length
+        let callsOf = Array.zeroCreate<int> names.Length
+        let bytesOf = Array.zeroCreate<int64> names.Length
 
         let timed =
             Scheduler.systems
-            |> List.map (fun spec ->
-                timers[spec.Name] <- 0L
-                calls[spec.Name] <- 0
-                bytes[spec.Name] <- 0L
-
+            |> List.mapi (fun index spec ->
                 { spec with
                     Step =
                         fun ctx rng world buffer ->
                             let allocated = System.GC.GetAllocatedBytesForCurrentThread()
                             let start = System.Diagnostics.Stopwatch.GetTimestamp()
                             let result = spec.Step ctx rng world buffer
-                            bytes[spec.Name] <- bytes[spec.Name] + System.GC.GetAllocatedBytesForCurrentThread() - allocated
-                            timers[spec.Name] <- timers[spec.Name] + System.Diagnostics.Stopwatch.GetTimestamp() - start
-                            calls[spec.Name] <- calls[spec.Name] + 1
+                            bytesOf[index] <- bytesOf[index] + System.GC.GetAllocatedBytesForCurrentThread() - allocated
+                            timeOf[index] <- timeOf[index] + System.Diagnostics.Stopwatch.GetTimestamp() - start
+                            callsOf[index] <- callsOf[index] + 1
                             result })
 
         let pauseBefore = System.GC.GetTotalPauseDuration()
         let gen0, gen1, gen2 = System.GC.CollectionCount 0, System.GC.CollectionCount 1, System.GC.CollectionCount 2
         let total = System.Diagnostics.Stopwatch.StartNew()
-        let ticks = SimulatorRunner.runWith timed cfg seed
+        let ticks = SimulatorRunner.runWith ownThread timed cfg seed
         total.Stop()
+        let timers = System.Collections.Generic.Dictionary<string, int64>()
+        let calls = System.Collections.Generic.Dictionary<string, int>()
+        let bytes = System.Collections.Generic.Dictionary<string, int64>()
+
+        for index, name in Array.indexed names do
+            timers[name] <- timeOf[index]
+            calls[name] <- callsOf[index]
+            bytes[name] <- bytesOf[index]
 
         printfn
             "gc: %.0f ms paused, collections gen0 %d gen1 %d gen2 %d"
@@ -347,13 +354,13 @@ module Program =
                 1
 
     /// One FNV-1a hash over every applied event of each seed's match: an optimisation must leave it unchanged.
-    let private hashCmd (cfg: BalanceConfig) (seeds: uint64[]) =
+    let private hashCmd (ownThread: bool) (cfg: BalanceConfig) (seeds: uint64[]) =
         let digest seed =
             let mutable hash = 14695981039346656037UL
             let mutable count = 0
 
             let world =
-                SimulatorRunner.runObserved cfg seed (fun _ events ->
+                SimulatorRunner.runObservedOn ownThread cfg seed (fun _ events ->
                     for event in events do
                         count <- count + 1
 
@@ -388,13 +395,14 @@ module Program =
             2
         | Ok(cfg, applied, args) ->
             let heldOut = List.contains "--heldout" args
-            let args = args |> List.filter ((<>) "--heldout")
+            let ownThread = List.contains "--own-thread" args
+            let args = args |> List.filter (fun arg -> arg <> "--heldout" && arg <> "--own-thread")
             let label = if applied.IsEmpty then "default config" else String.concat " " applied
             let label = if heldOut then $"{label}, held-out seeds" else label
 
             match args with
             | "hash" :: rest ->
-                hashCmd cfg (seedsFor heldOut (defaultArgs rest [ "4" ] |> List.head |> int))
+                hashCmd ownThread cfg (seedsFor heldOut (defaultArgs rest [ "4" ] |> List.head |> int))
                 0
             | "validate" :: rest ->
                 let n = defaultArgs rest [ "8" ] |> List.head |> int
@@ -402,8 +410,8 @@ module Program =
                 0
             | [ "sweep"; path; values ] -> sweepCmd cfg path (values.Split(',') |> List.ofArray) (seedsFor heldOut 8); 0
             | [ "sweep"; path; values; n ] -> sweepCmd cfg path (values.Split(',') |> List.ofArray) (seedsFor heldOut (int n)); 0
-            | [ "profile" ] -> profileCmd cfg 42UL None
-            | [ "profile"; "--gate"; path ] -> profileCmd cfg 42UL (Some path)
+            | [ "profile" ] -> profileCmd ownThread cfg 42UL None
+            | [ "profile"; "--gate"; path ] -> profileCmd ownThread cfg 42UL (Some path)
             | "tune" :: rest ->
                 let parts = defaultArgs rest [ "6"; "2" ]
                 let sweeps = parts.[0] |> int

@@ -204,6 +204,7 @@ module Gate0Tests =
 
                   let cardSystem: SystemSpec =
                       { Name = "Gate0.RefereeCards"
+                        Side = SystemSide.Body
                         Triggers = [ Trigger.OnEvent(EventFlags.ofKind EventKind.Card) ]
                         Step = RefereeCards.step }
 

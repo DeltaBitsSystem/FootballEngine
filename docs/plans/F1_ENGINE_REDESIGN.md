@@ -260,3 +260,29 @@ Hash `84dd920156d15efd`. Perfil: un partido en 5,49 s.
 
 El test de cliente "4x playback…" fallaba por muestreo: medía de la primera a la última publicación del HUD,
 que a 4x llegan cada 40 ticks. Ahora mide ticks por segundo entre publicaciones.
+
+## 14. Cognición en su propio hilo: hecha, equivalente, todavía sin ganancia (2026-11-12)
+
+El tick se parte en dos mitades declaradas en el `SystemsTable` (`Side = Cognition | Body`). `CognitionLatch`
+es la barrera al inicio del tick; la cognición corre sobre `CognitionView` (copias propias de los arreglos que
+el cuerpo escribe, el resto compartido) con su `EventBuffer` y un diario de observación diferido, que se unen al
+registro antes que los del cuerpo. Las listas de dueños de `CognitionView` están cubiertas por tests de
+reflexión: un campo nuevo de `TeamFrame` o `TeamWorld` sin dueño rompe el build de tests.
+
+El cuerpo ya no decide: Actions llamaba a `PlayerDecision.choose` sobre el blackboard vivo, y era la única
+lectura cruzada. Ahora `PlayerReflex` (cognición) decide para el portador sin acción pendiente con un rival a
+menos de `Actions.ReflexDecisionRadius` (2,5 m). Con eso un hilo y dos hilos dan el mismo partido tick a tick
+(test `CognitionThread`) y el mismo hash, `339ec5ced81756fd`.
+
+Medido (perfil, semilla 42): un hilo 5,44 s; dos hilos 5,29 s con spin 20000 (5,71 s con 200). La cognición y el
+cuerpo cuestan casi lo mismo (2,6 s cada uno), pero la cognición llega en ráfagas: en 198k de 264k ticks no hace
+nada (el relevo cuesta 17 ms en total) y en los 66k restantes trabaja ~40 µs contra ~11 µs del cuerpo. Con
+barrera de un tick el `Join` espera 1,8 s. Desfasar la cadencia de `PlayerDecision` no cambia nada: las
+ráfagas vienen de eventos, no de cadencias alineadas.
+
+Held-out 48 tras poner la cognición antes que el cuerpo: error total 12,66 (11,05 antes), 7/8 en banda, córners
+31,5 fuera. Goles 3,9, faltas 31,3 (banda hasta 32).
+
+Siguiente paso: ventana cognitiva de K ticks (la cognición decide sobre la foto del tick `w` y su resultado se
+fija en `w+K`). Requiere que `EventApply` deje de escribir estado de la cognición (`Stats`, `Memory`, `Cards`,
+`Substitution`, `Proposals`) mientras ella corre.

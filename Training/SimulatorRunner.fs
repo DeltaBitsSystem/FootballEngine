@@ -34,14 +34,22 @@ module SimulatorRunner =
         | Error error -> failwithf "match did not finish: %A" error
 
     /// Ticks played, for per-tick timings.
-    let runWith (systems: SystemSpec list) (cfg: BalanceConfig) (seed: uint64) : int =
-        int (finish (session systems cfg seed)).State.Tick
+    let runWith (ownThread: bool) (systems: SystemSpec list) (cfg: BalanceConfig) (seed: uint64) : int =
+        let session = session systems cfg seed
+
+        if ownThread then
+            MatchSession.runCognitionOnOwnThread session
+
+        int (finish session).State.Tick
 
     let runOne (cfg: BalanceConfig) (seed: uint64) : World = finish (session Scheduler.systems cfg seed)
 
     /// Same match as `runOne`, handing every tick's applied events to `observe`.
-    let runObserved (cfg: BalanceConfig) (seed: uint64) (observe: World -> MatchEvent seq -> unit) : World =
+    let runObservedOn (ownThread: bool) (cfg: BalanceConfig) (seed: uint64) (observe: World -> MatchEvent seq -> unit) : World =
         let session = session Scheduler.systems cfg seed
+
+        if ownThread then
+            MatchSession.runCognitionOnOwnThread session
 
         while session.World.State.Flow <> MatchFlow.MatchEnded do
             match MatchSession.advanceTo (session.World.State.Tick + 1<subtick>) session with
@@ -49,6 +57,8 @@ module SimulatorRunner =
             | Error error -> failwithf "match did not advance: %A" error
 
         finish session
+
+    let runObserved cfg seed observe = runObservedOn false cfg seed observe
 
     /// Runs `n` matches with different seeds and returns their metrics.
     /// Matches are independent (own world/buffer/rng), so they run in parallel.

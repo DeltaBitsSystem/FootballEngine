@@ -19,6 +19,7 @@ module SchedulerTests =
 
     let private markerSystem: SystemSpec =
         { Name = "Marker"
+          Side = SystemSide.Body
           Triggers = []
           Step =
             fun _ rng world buffer ->

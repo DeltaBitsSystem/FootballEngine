@@ -83,6 +83,7 @@ let main argv =
           FootballEngine.Core.Tests.Systems.Team.CollectiveAttackTests.tests
           positioningTests
           restartContractTests
+          FootballEngine.Core.Tests.Stepper.CognitionThreadTests.matchTests
           FootballEngine.Core.Tests.Contracts.MatchSessionTests.tests
           FootballEngine.Core.Tests.Contracts.LivePresentationTests.tests
           worldGenerationTests
@@ -106,6 +107,7 @@ let main argv =
           FootballEngine.Core.Tests.Systems.Ball.StrikeTechniqueTests.strikeTechniqueTests
           FootballEngine.Core.Tests.Systems.Players.KeeperSaveTests.keeperSaveTests
           schedulerTests
+          FootballEngine.Core.Tests.Stepper.CognitionThreadTests.ownershipTests
           flowTests
           matchClockTests
           stepperTests

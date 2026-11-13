@@ -285,16 +285,68 @@ module Stepper =
 
             rng <- rng'
 
-        // Systems run strictly in scheduler order: each may read what earlier systems
-        // wrote this same tick — order is part of determinism.
         // The match stream advances by exactly one draw per tick whatever the systems consume; each system gets
         // its own stream from that draw (see Rng.stream).
         let stepKey, advanced = Rng.nextU64 rng
         rng <- advanced
+        let cadence = ctx.Ctx.Config.DefensiveTransition.ReevaluateTicks
 
-        for spec in schedule.Systems do
-            if fire ctx.Ctx.Config.DefensiveTransition.ReevaluateTicks simTick playClock world.State.Flow flags spec.Triggers then
-                spec.Step ctx (Rng.stream stepKey spec.StreamKey) world buffer |> ignore
+        // The barrier: the body's verdicts go to cognition and cognition's decisions to the body. The slot cache
+        // is filled here because neither half may rebuild a structure the other is reading.
+        CognitionLatch.latchAll world
+        MatchWorld.activeSlots world.Home.Frame |> ignore
+        MatchWorld.activeSlots world.Away.Frame |> ignore
+
+        let side = world.Cognition
+
+        let cognitionBuffer =
+            match side.Buffer with
+            | ValueSome cognition -> cognition
+            | ValueNone ->
+                let cognition =
+                    { Events = side.Events
+                      Flags = flags
+                      Applied = buffer.Applied }
+
+                side.Buffer <- ValueSome cognition
+                cognition
+
+        cognitionBuffer.Flags <- flags
+        cognitionBuffer.Applied <- buffer.Applied
+        let firstBodyEvent = buffer.Events.Count
+
+        // Each half runs its systems in table order; within a half a system may read what an earlier one wrote.
+        let runCognition (seen: World) () =
+            for spec in schedule.Cognition do
+                if fire cadence simTick playClock seen.State.Flow flags spec.Triggers then
+                    spec.Step ctx (Rng.stream stepKey spec.StreamKey) seen cognitionBuffer |> ignore
+
+        let runBody () =
+            for spec in schedule.Body do
+                if fire cadence simTick playClock world.State.Flow flags spec.Triggers then
+                    spec.Step ctx (Rng.stream stepKey spec.StreamKey) world buffer |> ignore
+
+        let seen =
+            match side.Runner with
+            | ValueNone ->
+                // On one thread cognition runs first, on the live teams: what it reads is then exactly the copy
+                // the parallel path takes, so both paths produce the same match.
+                let direct = CognitionView.direct world
+                runCognition direct ()
+                runBody ()
+                direct
+            | ValueSome runner ->
+                let view = CognitionView.refresh world
+                runner.Start(runCognition view)
+                runBody ()
+                runner.Join()
+                CognitionView.commit view world
+                view
+
+        // Cognition's events and evidence enter the record ahead of the body's, in one order on either path.
+        buffer.Events.InsertRange(firstBodyEvent, side.Events)
+        side.Events.Clear()
+        seen.Observation.Flush()
 
         // Stoppage must be computed before boundary checks: the half ends at
         // 90 + added, so added time has to exist before the whistle fires.

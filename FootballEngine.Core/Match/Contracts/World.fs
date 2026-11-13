@@ -86,7 +86,9 @@ type KeeperDive =
 [<Struct>]
 type LatchedTeam =
     { OurPhase: PhaseKind
-      InTransition: bool }
+      InTransition: bool
+      /// Slots holding an action the body may still execute, bit per slot.
+      PendingSlots: uint64 }
 
 type TeamWorld =
     { mutable Frame: TeamFrame
@@ -199,6 +201,17 @@ type ContactScratch(capacity: int) =
     /// Whether the body held a boot challenge when the tick began: within a tick a challenge can end, never start.
     member _.MayBoot = mayBoot
 
+type EventBuffer =
+    { mutable Events: ResizeArray<MatchEvent>
+      mutable Flags: EventFlags
+      mutable Applied: ResizeArray<MatchEvent> }
+
+/// Runs a tick's cognition while the caller runs the body, and waits for it at the barrier.
+type ICognitionRunner =
+    inherit System.IDisposable
+    abstract Start: work: (unit -> unit) -> unit
+    abstract Join: unit -> unit
+
 /// The single object systems see. All arrays/books owned by this match.
 type World =
     { mutable State: MatchState
@@ -211,4 +224,17 @@ type World =
       Reviews: RefereeReviewBook
       Contact: ContactScratch
       mutable NextRestartId: uint64
-      mutable NextContactId: uint64 }
+      mutable NextContactId: uint64
+      Cognition: CognitionSide }
+
+/// What cognition writes through during a tick: its own events, an observation journal and, when it runs on
+/// another thread, a view of the world whose bodies are copied at the barrier. Kept per match so the hot path
+/// allocates nothing.
+and CognitionSide() =
+    member val Events = ResizeArray<MatchEvent>()
+    member val Buffer: EventBuffer voption = ValueNone with get, set
+    /// The world as cognition sees it: the live teams with the observation journal in place of the record.
+    member val Direct: World voption = ValueNone with get, set
+    /// The world with its own copies of every body, used while cognition runs beside the body.
+    member val View: World voption = ValueNone with get, set
+    member val Runner: ICognitionRunner voption = ValueNone with get, set

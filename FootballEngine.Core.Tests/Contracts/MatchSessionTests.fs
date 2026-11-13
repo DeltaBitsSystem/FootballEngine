@@ -46,6 +46,7 @@ module MatchSessionTests =
 
     let private terminalSystems: SystemSpec list =
         [ { Name = "TerminalTest"
+            Side = SystemSide.Body
             Triggers = [ Trigger.EveryTick ]
             Step =
               fun _ rng world _ ->

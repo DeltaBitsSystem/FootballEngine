@@ -620,7 +620,9 @@ module ConfigValidation =
               yield "Actions.MemoryDuelWeight must be in [0, 1]"
           // Decay >1 would amplify memory, <0 would invert
           if a.MemoryMentalDecay < 0.0 || a.MemoryMentalDecay > 1.0 then
-              yield "Actions.MemoryMentalDecay must be in [0, 1]" ]
+              yield "Actions.MemoryMentalDecay must be in [0, 1]"
+          if a.ReflexDecisionRadius <= 0.0<meter> then
+              yield "Actions.ReflexDecisionRadius must be positive" ]
 
     let validateSetPiece (s: SetPieceConfig) : string list =
         [ if s.KickoffDelay < 0.0<second> || s.KickoffDelay > 10.0<second> then

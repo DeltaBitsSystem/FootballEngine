@@ -647,11 +647,32 @@ module MatchSession =
 
     let advanceTo target session = advanceToCore true target session
 
+    // Each side spins this many times for the other before blocking. Between two ticks the cognition thread
+    // waits as long as a whole body tick; 200 spins blocked on most ticks (5,7 s a match) where 20000, still
+    // milliseconds, keep the handoff off the kernel (5,3 s) and let a paused match sleep.
+    let private cognitionSpin = 20000
+
+    /// Gives this match's cognition a thread of its own, beside the body. Worth it for a match someone is
+    /// waiting on; a season already fills every core with one match each, where it only adds handoffs. The
+    /// match is the same either way.
+    let runCognitionOnOwnThread (session: MatchSession) =
+        if session.World.Cognition.Runner.IsNone then
+            session.World.Cognition.Runner <- ValueSome(new CognitionThread(cognitionSpin) :> ICognitionRunner)
+
+    /// Ends the cognition thread, if any. A finished match does this itself; an abandoned one must.
+    let releaseCognition (session: MatchSession) =
+        match session.World.Cognition.Runner with
+        | ValueSome runner ->
+            session.World.Cognition.Runner <- ValueNone
+            runner.Dispose()
+        | ValueNone -> ()
+
     let rec finish session : Result<MatchOutcome, MatchContractError> =
         match session.Finished with
         | Some outcome -> Ok outcome
         | None ->
             if session.World.State.Flow = MatchFlow.MatchEnded then
+                releaseCognition session
                 let events = List.ofSeq session.Events
 
                 let outcome: MatchOutcome =
@@ -672,8 +693,12 @@ module MatchSession =
                 Ok outcome
             else
                 match advanceToCore false maxTicks session with
-                | Error error -> Error error
-                | Ok _ when session.World.State.Flow <> MatchFlow.MatchEnded -> Error(TickLimitExceeded maxTicks)
+                | Error error ->
+                    releaseCognition session
+                    Error error
+                | Ok _ when session.World.State.Flow <> MatchFlow.MatchEnded ->
+                    releaseCognition session
+                    Error(TickLimitExceeded maxTicks)
                 | Ok _ -> finish session
 
     let restore systems (input: MatchInput) (checkpoint: MatchCheckpoint) : Result<MatchSession, MatchContractError> =

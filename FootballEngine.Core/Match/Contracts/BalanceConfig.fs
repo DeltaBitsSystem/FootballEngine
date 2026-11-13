@@ -234,7 +234,9 @@ type ContactActionConfig =
 /// CrossConfig, DribbleConfig, GKConfig, DecisionConfig + IndividualWeights)
 [<Struct>]
 type ActionsConfig =
-    { PassBaseQuality: float
+    { /// An idle carrier with an opponent this close decides at once instead of at the decision cadence.
+      ReflexDecisionRadius: float<meter>
+      PassBaseQuality: float
       PassDistancePenaltyPerMeter: float
       PassLongThreshold: float<meter>
       PassVisionWeight: float
@@ -919,7 +921,9 @@ module BalanceConfig =
           DangerousBallFirstSpeed = 5.1<meterPerSecond> }
 
     let defaultActions: ActionsConfig =
-        { PassBaseQuality = 0.7
+        { // About two strides: a defender this close takes the ball before the next scheduled decision.
+          ReflexDecisionRadius = 2.5<meter>
+          PassBaseQuality = 0.7
           PassDistancePenaltyPerMeter = 0.004
           PassLongThreshold = 25.0<meter>
           PassVisionWeight = 0.3

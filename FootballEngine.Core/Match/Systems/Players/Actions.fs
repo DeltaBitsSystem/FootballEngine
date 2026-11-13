@@ -286,18 +286,7 @@ module Actions =
                             world.Observation.EndAction()
 
                         team.PendingActions.Remove slot |> ignore
-                    | _ ->
-                        match
-                            MatchWorld.nearestOpponent
-                                ctx.Ctx
-                                world
-                                side
-                                (MatchWorld.posX frame slot)
-                                (MatchWorld.posY frame slot)
-                                2.5
-                        with
-                        | Some _ -> r <- PlayerDecision.choose ctx.Ctx world side slot tick r
-                        | None -> ()
+                    | _ -> ()
 
             | _ -> ()
 

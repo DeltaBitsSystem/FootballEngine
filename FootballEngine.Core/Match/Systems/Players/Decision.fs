@@ -454,3 +454,32 @@ module PlayerDecision =
                 else
                     rng
             | _ -> rng
+
+    /// A carrier the body has no action for, closed down within reach, decides at once instead of waiting for
+    /// the decision cadence. It reads the body's pending actions as the latch left them, never live.
+    let reflex: SystemStep =
+        fun ctx rng world _ ->
+            let tick = world.State.Tick
+
+            match world.State.Ball.PendingStrike, MatchWorld.ballCarrier ctx.Ctx world with
+            | None, Some(side, slot, _) when slot <> 0 ->
+                let team = MatchWorld.team world side
+                let frame = team.Frame
+                let idle = team.Latched.PendingSlots &&& (1UL <<< slot) = 0UL && not (team.Proposals.ContainsKey slot)
+
+                let pressed =
+                    MatchWorld.nearestOpponent
+                        ctx.Ctx
+                        world
+                        side
+                        (MatchWorld.posX frame slot)
+                        (MatchWorld.posY frame slot)
+                        (float ctx.Ctx.Config.Actions.ReflexDecisionRadius)
+                    |> Option.isSome
+
+                if idle && pressed
+                then
+                    choose ctx.Ctx world side slot tick rng
+                else
+                    rng
+            | _ -> rng

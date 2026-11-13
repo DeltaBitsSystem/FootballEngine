@@ -24,7 +24,7 @@ module CognitionLatch =
                     intent.Phase.[slot] <- IntentPhase.Completed
                     intent.ExitTrigger.[slot] <- exit
 
-    let private latch (team: TeamWorld) =
+    let private latch (tick: int<subtick>) (team: TeamWorld) =
         let frame = team.Frame
         returnExits frame
         let source, copy = frame.Intent, frame.SteerIntent
@@ -37,10 +37,6 @@ module CognitionLatch =
         System.Array.Copy(team.Shape.TargetsY, frame.SteerShapeY, frame.SteerShapeY.Length)
         System.Array.Copy(frame.Cognitive, frame.SteerCognitive, frame.SteerCognitive.Length)
 
-        team.Latched <-
-            { OurPhase = team.Blackboard.OurPhase
-              InTransition = team.Defense.Episode |> Option.exists (fun episode -> episode.EndedAt.IsNone) }
-
         // A newer proposal replaces the one the body had not executed yet, as a fresh decision always has.
         if team.Proposals.Count > 0 then
             for KeyValue(slot, action) in team.Proposals do
@@ -48,8 +44,23 @@ module CognitionLatch =
 
             team.Proposals.Clear()
 
+        let mutable pending = 0UL
+
+        for KeyValue(slot, action) in team.PendingActions do
+            if action.ExpiresAt >= tick && slot < 64 then
+                pending <- pending ||| (1UL <<< slot)
+
+        team.Latched <-
+            { OurPhase = team.Blackboard.OurPhase
+              InTransition = team.Defense.Episode |> Option.exists (fun episode -> episode.EndedAt.IsNone)
+              PendingSlots = pending }
+
+    let latchAll (world: World) =
+        latch world.State.Tick world.Home
+        latch world.State.Tick world.Away
+
+    /// The barrier as a step, for tests that drive systems one at a time.
     let step: SystemStep =
         fun _ rng world _ ->
-            latch world.Home
-            latch world.Away
+            latchAll world
             rng

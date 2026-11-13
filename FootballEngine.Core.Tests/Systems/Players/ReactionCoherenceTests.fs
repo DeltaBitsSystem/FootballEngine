@@ -62,7 +62,7 @@ module ReactionCoherenceTests =
                       let buf = buffer ()
                       buf.Events.Add(event phase (EventData.Possession(ClubSide.Home, carrier)))
                       Stepper.step systems system (Rng.ofSeed 2UL) world buf |> ignore
-                      Expect.sequenceEqual trace [ "PlayerPerception"; "PlayerIntent"; "PlayerSteering"; "PlayerDecision"; "Actions" ] "each system executes once in original order"
+                      Expect.sequenceEqual trace [ "PlayerPerception"; "PlayerIntent"; "PlayerDecision"; "PlayerSteering"; "Actions" ] "each system executes once in original order"
                       Expect.isTrue proposalAtActions "scheduled decision produced a proposal before Actions"
                       Expect.equal pressureAtActions 2 "perception sees the two nearby opponents"
                       Expect.isGreaterThan cognitiveAtActions 0.0f "cognition refreshed before the decision"
@@ -93,7 +93,7 @@ module ReactionCoherenceTests =
                       let buf = buffer ()
                       buf.Events.Add(event phase (EventData.Possession(ClubSide.Home, actor)))
                       Stepper.step systems system (Rng.ofSeed 2UL) world buf |> ignore
-                      Expect.sequenceEqual trace [ "PlayerPerception"; "PlayerIntent"; "PlayerSteering"; "PlayerDecision"; "Actions" ] "full scheduler preserves order and executes once"
+                      Expect.sequenceEqual trace [ "PlayerPerception"; "PlayerIntent"; "PlayerDecision"; "PlayerSteering"; "Actions" ] "full scheduler preserves order and executes once"
                       match atActions with
                       | Some(control, cognitive, intent, proposed) ->
                           Expect.equal control (BallControl.Controlled(ClubSide.Home, actor)) "fixture remains a reachable carrier through earlier systems"
@@ -137,8 +137,11 @@ module ReactionCoherenceTests =
                               spec.Step ctx rng world buffer })
                   let buf = buffer ()
                   buf.Events.Add(event 4 (EventData.Possession(ClubSide.Home, actor)))
-                  Stepper.step systems system (Rng.ofSeed 1UL) world buf |> ignore
+                  let rng, _, _ = Stepper.step systems system (Rng.ofSeed 1UL) world buf
                   Expect.equal world.State.Flow MatchFlow.Live "restart controller enters Live"
+                  // Cognition reads the tick as it began, so the first Live decision comes one tick after the controller.
+                  buf.Events.Add(event 5 (EventData.Possession(ClubSide.Home, actor)))
+                  Stepper.step systems system rng world buf |> ignore
                   Expect.isTrue perceived "perception executes during movement-allowed restart"
                   Expect.isTrue (cognitiveAtDecision |> Option.exists (fun cognitive -> cognitive > 0.0f)) "decision sees refreshed cognitive state"
                   Expect.equal pressureAtDecision (Some 2) "decision sees current pressure"
@@ -188,11 +191,14 @@ module ReactionCoherenceTests =
                       Expect.isTrue (buf.Events |> Seq.exists (fun ev -> ev.Data = EventData.RestartCompleted plan.Id)) "controller queued completion"
                       world.Home.Frame.Cognitive[5] <- -1.0f
                       buf.Events.Add(event completedTick (EventData.Possession(ClubSide.Home, actor)))
-                      let _, _, completed = Stepper.step systems system rng world buf
+                      let rng, _, completed = Stepper.step systems system rng world buf
                       Expect.isTrue (completed |> Seq.exists (fun ev -> ev.Data = EventData.RestartCompleted plan.Id)) "completion was drained next step"
                       Expect.equal world.State.Flow MatchFlow.Live "controller advances to Live after perception"
                       Expect.equal (perceptionTicks |> List.filter ((=) completedTick) |> List.length) 1 "completion and cadence fire perception once"
-                      Expect.equal (decisionTicks |> List.filter ((=) completedTick) |> List.length) 1 "decision runs after Live begins"
+                      Expect.isFalse (decisionTicks |> List.contains completedTick) "decision read the tick while it was still a restart"
+                      buf.Events.Add(event (completedTick + 1) (EventData.Possession(ClubSide.Home, actor)))
+                      Stepper.step systems system rng world buf |> ignore
+                      Expect.equal (decisionTicks |> List.filter ((=) (completedTick + 1)) |> List.length) 1 "decision runs on the first tick that begins Live"
                       Expect.isGreaterThan world.Home.Frame.Cognitive[5] 0.0f "carrier cognition refreshed"
                       Expect.isTrue preserved "perception does not overwrite restart, motion or intent")
               testCase "restart completion alone wakes perception without possession" (fun _ ->
@@ -276,6 +282,7 @@ module ReactionCoherenceTests =
                                       spec.Step ctx rng world buffer })
                   let producer: SystemSpec =
                       { Name = "FixtureProducer"
+                        Side = SystemSide.Body
                         Triggers = [ Trigger.EveryTick ]
                         Step = fun _ rng world buffer ->
                             if world.State.Tick = 1<subtick> then

@@ -131,9 +131,24 @@ type ObservationAudit =
       FutureCauses: (ObservationId * ObservationId)[]
       Uncaused: ObservationId[] }
 
-/// Only the simulation owner writes; immutable snapshots cross the worker boundary.
-type ObservationBuffer(capacity: int) =
+/// What cognition records while it runs beside the body, replayed into the match record at the tick barrier.
+type private DeferredObservation =
+    | DeferredRecord of tick: int<subtick> * cause: ObservationCause voption * data: ObservationData * provisional: uint64
+    | DeferredDecision of tick: int<subtick> * decision: DecisionEvidence
+    | DeferredAlternatives of tick: int<subtick> * actor: PlayerId * options: ObservationOption[]
+    | DeferredAssociate of event: MatchEvent * cause: ObservationCause
+    | DeferredAssociateDefault of event: MatchEvent * cause: ObservationCause
+
+/// Only the simulation owner writes; immutable snapshots cross the worker boundary. A buffer created with
+/// `Deferred` is cognition's journal: it records nothing itself and replays into its target on `Flush`, so the
+/// match record has one order whichever thread cognition ran on.
+type ObservationBuffer private (capacity: int, target: ObservationBuffer option) =
+    // Ids a journal hands out before replay; the high bit keeps them apart from any real id.
+    static let provisionalBit = 0x8000000000000000UL
     let capacity = max 1 capacity
+    let deferred = ResizeArray<DeferredObservation>()
+    let assigned = System.Collections.Generic.Dictionary<uint64, ObservationId>()
+    let mutable provisional = 0UL
     let entries: ObservationEntry voption[] = Array.create capacity ValueNone
     let pendingDecisions = Dictionary<PlayerId, ObservationId>()
     let eventCauses = Dictionary<EventId, ObservationCause>()
@@ -146,8 +161,16 @@ type ObservationBuffer(capacity: int) =
     let mutable currentEvent = ValueNone
     let mutable selection: ObservationSelection option = None
 
+    new(capacity: int) = ObservationBuffer(capacity, None)
+
+    /// A journal for `target`: it reads the target's switches but never writes it before `Flush`.
+    static member Deferred(target: ObservationBuffer) = ObservationBuffer(1, Some target)
+
     member _.Enabled
-        with get () = enabled
+        with get () =
+            match target with
+            | Some owner -> owner.Enabled
+            | None -> enabled
         and set value =
             enabled <- value
             pendingDecisions.Clear()
@@ -169,13 +192,19 @@ type ObservationBuffer(capacity: int) =
             Ok()
 
     member _.WantsDetail(tick, actor) =
-        enabled
-        && match selection with
-           | Some item -> item.Actor = actor && tick >= item.FromTick && tick <= item.UntilTick
-           | None -> false
+        match target with
+        | Some owner -> owner.WantsDetail(tick, actor)
+        | None ->
+            enabled
+            && match selection with
+               | Some item -> item.Actor = actor && tick >= item.FromTick && tick <= item.UntilTick
+               | None -> false
 
     member this.Alternatives(tick, actor, options: ObservationOption[]) =
-        if this.WantsDetail(tick, actor) then
+        if target.IsSome then
+            if this.WantsDetail(tick, actor) then
+                deferred.Add(DeferredAlternatives(tick, actor, options))
+        elif this.WantsDetail(tick, actor) then
             let cause =
                 match pendingDecisions.TryGetValue actor with
                 | true, id -> ValueSome(DecisionCause id)
@@ -184,8 +213,15 @@ type ObservationBuffer(capacity: int) =
             this.Record(tick, cause, DecisionAlternatives(actor, Array.toList options))
             |> ignore
 
-    member _.Record(tick, cause, data) =
-        if enabled then
+    member this.Record(tick, cause, data) =
+        if target.IsSome then
+            if this.Enabled then
+                provisional <- provisional + 1UL
+                deferred.Add(DeferredRecord(tick, cause, data, provisional))
+                ValueSome(ObservationId(provisionalBit ||| provisional))
+            else
+                ValueNone
+        elif enabled then
             total <- total + 1UL
             let id = ObservationId total
 
@@ -202,7 +238,10 @@ type ObservationBuffer(capacity: int) =
             ValueNone
 
     member this.Decision(tick, decision: DecisionEvidence) =
-        if enabled then
+        if target.IsSome then
+            if this.Enabled then
+                deferred.Add(DeferredDecision(tick, decision))
+        elif enabled then
             match this.Record(tick, ValueNone, DecisionChosen decision) with
             | ValueSome id ->
                 // Observation state cannot grow with duration or arbitrary external player IDs.
@@ -238,8 +277,11 @@ type ObservationBuffer(capacity: int) =
     member _.EndEvent() = currentEvent <- ValueNone
     member _.CurrentEvent = currentEvent
 
-    member _.Associate(event: MatchEvent, cause: ObservationCause) =
-        if enabled then
+    member this.Associate(event: MatchEvent, cause: ObservationCause) =
+        if target.IsSome then
+            if this.Enabled then
+                deferred.Add(DeferredAssociate(event, cause))
+        elif enabled then
             let id = MatchEvent.id event
 
             if eventCauses.Count >= capacity && not (eventCauses.ContainsKey id) then
@@ -249,8 +291,49 @@ type ObservationBuffer(capacity: int) =
             eventCauses[id] <- cause
 
     member this.AssociateDefault(event: MatchEvent, cause: ObservationCause) =
-        if enabled && not (eventCauses.ContainsKey(MatchEvent.id event)) then
+        if target.IsSome then
+            if this.Enabled then
+                deferred.Add(DeferredAssociateDefault(event, cause))
+        elif enabled && not (eventCauses.ContainsKey(MatchEvent.id event)) then
             this.Associate(event, cause)
+
+    /// Replays a journal into its target in recording order, giving provisional ids their real ones.
+    member _.Flush() =
+        match target with
+        | None -> ()
+        | Some owner ->
+            if deferred.Count > 0 then
+                let remapId (ObservationId value as id) =
+                    if value &&& provisionalBit = 0UL then
+                        ValueSome id
+                    else
+                        match assigned.TryGetValue(value &&& ~~~provisionalBit) with
+                        | true, id -> ValueSome id
+                        | _ -> ValueNone
+
+                // A cause pointing at a journal entry the owner refused to record has nothing left to point at.
+                let remap cause =
+                    match cause with
+                    | DecisionCause id -> remapId id |> ValueOption.map DecisionCause
+                    | ResolutionCause id -> remapId id |> ValueOption.map ResolutionCause
+                    | other -> ValueSome other
+
+                for entry in deferred do
+                    match entry with
+                    | DeferredRecord(tick, cause, data, key) ->
+                        match owner.Record(tick, cause |> ValueOption.bind remap, data) with
+                        | ValueSome id -> assigned[key] <- id
+                        | ValueNone -> ()
+                    | DeferredDecision(tick, decision) -> owner.Decision(tick, decision)
+                    | DeferredAlternatives(tick, actor, options) -> owner.Alternatives(tick, actor, options)
+                    | DeferredAssociate(event, cause) -> remap cause |> ValueOption.iter (fun c -> owner.Associate(event, c))
+                    | DeferredAssociateDefault(event, cause) ->
+                        remap cause |> ValueOption.iter (fun c -> owner.AssociateDefault(event, c))
+
+                deferred.Clear()
+                assigned.Clear()
+
+            provisional <- 0UL
 
     member _.ConsumeCause(event: MatchEvent) =
         match eventCauses.TryGetValue(MatchEvent.id event) with

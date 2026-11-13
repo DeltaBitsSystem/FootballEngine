@@ -368,7 +368,7 @@ module TestBuilders =
           Participation = ParticipationBook.create ()
           Proposals = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
           PendingActions = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
-          Latched = { OurPhase = PhaseKind.Attacking; InTransition = false }
+          Latched = { OurPhase = PhaseKind.Attacking; InTransition = false; PendingSlots = 0UL }
           Attack = CollectiveAttackState.create Map.empty
           LastCarrierSlot = -1
           LastRoleAssignmentTick = -1<subtick>
@@ -423,6 +423,7 @@ module TestBuilders =
             { makeTeamWorld ctx.AwayLineup with
                 Tactics = ctx.AwayClub.BaseTactics }
           AppliedEventIds = System.Collections.Generic.HashSet<EventId>()
+          Cognition = CognitionSide()
           Observation = ObservationBuffer(4096)
           Reviews = RefereeReviewBook()
           Motion = MotionEvidenceJournal(256)

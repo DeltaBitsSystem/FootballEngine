@@ -9,7 +9,14 @@ module Simulator =
 
     let eventsHash = MatchOutcomeHash.eventsHash
 
-    let runMatch
+    /// Where a match's cognition runs; the match is the same either way, only its wall time differs.
+    [<RequireQualifiedAccess>]
+    type CognitionPlacement =
+        | WithBody
+        | OwnThread
+
+    let runMatchPlaced
+        (placement: CognitionPlacement)
         (systems: SystemSpec list)
         (ctx: MatchContext)
         (matchSeed: uint64)
@@ -33,4 +40,11 @@ module Simulator =
 
             match MatchSession.create systems input mode with
             | Error error -> Error error
-            | Ok session -> MatchSession.finish session
+            | Ok session ->
+                if placement = CognitionPlacement.OwnThread then
+                    MatchSession.runCognitionOnOwnThread session
+
+                MatchSession.finish session
+
+    let runMatch systems ctx matchSeed mode =
+        runMatchPlaced CognitionPlacement.WithBody systems ctx matchSeed mode
