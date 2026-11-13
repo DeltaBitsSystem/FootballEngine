@@ -75,6 +75,18 @@ Probado y descartado (2026-11-13):
 Ojo al medir: el número de ticks varía mucho entre partidos (263k–363k con la misma semilla tras cualquier cambio
 deportivo); comparar µs por tick o el tiempo total de `validate 48`, nunca un partido suelto.
 
+Más mediciones (2026-11-13), por tick sobre el mismo binario:
+- Física a 20 Hz (reloj a 20, todas las duraciones y cadencias en ticks a la mitad): 7,2 → 5,5 s. La física baja
+  a la mitad pero la cognición va por eventos y no baja; pediría recalibrar todo por ~25 %.
+- Cognición en su propio hilo (`--own-thread`, ya equivalente por test): 7,2 → 5,8 s. Combinado con 20 Hz, ~4,1 s.
+- Cadenas del planner de 2 pasos en vez de 4: PlayerDecision 5,8 → 4,0 µs por tick, ~9 % del partido.
+- Ruteo (hecho, `7722445`): solo los partidos del club del usuario van al motor; los rivales de su liga y la
+  temporada completa del cliente (que jugaba todo el mundo con el motor) usan `QuickMatch`. Suite Core 2:07 → 1:58:
+  lo que queda son tests de partidos completos, que dependen del costo del motor.
+Conclusión: 1,5 s por partido no sale de ajustes; las palancas medidas suman ~4 s y la de 20 Hz exige recalibrar
+todo. Desde el giro a `QuickMatch` el motor completo solo juega los partidos del usuario, así que la meta de F1
+pesa sobre tests y calibración, no sobre la carrera.
+
 Partidos de fondo (2026-11-12): las ligas que el usuario no sigue se juegan con `QuickMatch` (sin ticks:
 Poisson de goles por fuerza media del once, goleadores/asistentes por rol y atributo, tarjetas, faltas,
 lesiones y cambios), del orden de microsegundos por partido. Los partidos de competiciones donde juega el club
