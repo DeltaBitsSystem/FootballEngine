@@ -66,7 +66,7 @@ module Program =
             let mutable shotTick = 0
             let mutable shotZone = ""
             let guards = System.Collections.Generic.HashSet<string>()
-            let sctx = { Ctx = { FootballEngine.Core.Tests.Infrastructure.TestBuilders.defaultCtx () with Config = cfg }; Clock = SimulationClock.defaultClock }
+            let sctx = { Ctx = SimulatorRunner.corpusContext cfg seed; Clock = SimulationClock.defaultClock }
 
             SimulatorRunner.runObserved cfg seed (fun world events ->
                 // The keeper's first decision once he has reacted to each shot, so a goal without a dive names

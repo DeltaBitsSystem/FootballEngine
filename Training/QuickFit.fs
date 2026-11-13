@@ -371,7 +371,7 @@ module QuickFit =
     /// One lineup lifted and the other lowered by `delta` on every attribute, then the reverse: a quality-blind
     /// engine shows the same score both ways.
     let contrast (cfg: BalanceConfig) (delta: float32) (matches: int) =
-        let fixtures = contexts cfg 1 4242UL |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f)) |> Array.truncate matches
+        let fixtures = contexts cfg ((matches + 11) / 12) 4242UL |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f)) |> Array.truncate matches
 
         let play h a =
             fixtures
@@ -388,7 +388,7 @@ module QuickFit =
 
     /// The contrast with only one attribute group moved, to find the group whose effect has the wrong sign.
     let contrastGroups (cfg: BalanceConfig) (delta: float32) (matches: int) =
-        let fixtures = contexts cfg 1 4242UL |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f)) |> Array.truncate matches
+        let fixtures = contexts cfg ((matches + 11) / 12) 4242UL |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f)) |> Array.truncate matches
         let s d v = max 5.0f (min 100.0f (v + d))
 
         let groups: (string * (float32 -> PlayerProfile -> PlayerProfile)) list =

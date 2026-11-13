@@ -28,8 +28,35 @@ module SimulatorRunner =
         | Ok session -> session
         | Error error -> failwithf "match session rejected: %A" error
 
+    /// The calibration corpus: every fixture of a generated world, with squads, formations and quality gaps
+    /// built the way a career builds them. The test lineup crowds every base position into one quadrant, so
+    /// numbers measured on it describe a match no career plays.
+    let private world =
+        lazy
+            (let gs = FootballEngine.Core.Tests.World.WorldGenerationTests.generate 0xC02UL []
+
+             let fixtures =
+                 gs.Competitions
+                 |> Map.toSeq
+                 |> Seq.collect (fun (_, c) -> c.Fixtures |> Map.toSeq |> Seq.map snd)
+                 |> Seq.filter (fun fixture ->
+                     FootballEngine.World.Phases.MatchContextBuilder.build gs fixture FootballEngine.Core.Match.BalanceConfig.defaultConfig
+                     |> Option.isSome)
+                 |> Array.ofSeq
+
+             gs, fixtures)
+
+    /// The corpus fixture a seed plays, under `cfg`.
+    let corpusContext (cfg: BalanceConfig) (seed: uint64) : MatchContext =
+        let gs, fixtures = world.Value
+        let fixture = fixtures[int (seed % uint64 fixtures.Length)]
+
+        match FootballEngine.World.Phases.MatchContextBuilder.build gs fixture cfg with
+        | Some ctx -> ctx
+        | None -> failwithf "corpus fixture %A has no context" fixture.Id
+
     let private session (systems: SystemSpec list) (cfg: BalanceConfig) (seed: uint64) =
-        sessionOf systems { TestBuilders.defaultCtx () with Config = cfg } seed
+        sessionOf systems (corpusContext cfg seed) seed
 
     /// A whole match between the context's lineups, with every event it recorded.
     let runContext (ctx: MatchContext) (seed: uint64) : MatchOutcome =

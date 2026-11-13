@@ -998,7 +998,8 @@ module WeightSections =
           CreativityWeight = 0.1
           DirectnessWeight = 0.06
           DecisionTemperature = 0.15
-          ShootMinThreshold = 0.50
+          // Measured on generated squads (2026-11-13): 0.50 let ~46 shots a match through, 0.65 keeps ~26.
+          ShootMinThreshold = 0.65
           ShootDirectnessThresholdMod = 0.1
           PassMinThreshold = 0.25
           PassDirectnessThresholdMod = 0.08

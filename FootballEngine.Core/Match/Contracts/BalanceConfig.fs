@@ -1103,7 +1103,8 @@ module BalanceConfig =
     let defaultReferee: RefereeConfig =
         // Top-flight referees book roughly one foul in six; nearly all of those are careless fouls stopping attacks.
         { FoulMinorChance = 0.0
-          FoulTacticalChance = 0.1
+          // Generated squads commit ~27 tactical fouls a match; 0.05 books ~1.4 of them, cards ~8 with the rest.
+          FoulTacticalChance = 0.05
           FoulYellowWorthyChance = 0.85
           FoulRedWorthyChance = 0.7
           SecondYellowSuspension = true
