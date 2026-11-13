@@ -289,3 +289,15 @@ apenas baja. A eso se suman ~0,85 s seriales fuera de las dos mitades (barrera, 
 ~20 % a cambio de rehacer la frontera de `EventApply`, que hoy escribe estado de la cognición (`Stats`, `Memory`,
 `Cards`, `Substitution`, `Proposals`, intenciones y roles al liberar un puesto). Queda descartado por ahora: el
 camino crítico es el cuerpo (2,8 s, ContactDynamics 1,7 s) más la parte serial, y eso es lo próximo.
+
+## 15. Dónde cuesta el cuerpo (2026-11-12)
+
+ContactDynamics, por fase en un partido (ms): acciones 35, equilibrio 66, inicialización 146, alcance y marcas
+de candidatos 279, `findEarliest` 526, avance sin impacto 256, escritura y marcha 210, resolución de impactos
+~200. Son ~300 ns por jugador y tick repartidos en ~10 pasadas; no hay un punto caliente. Leer los arreglos sin
+copiar el `TeamFrame` (struct de ~45 campos) no cambia nada: el JIT ya evita la copia.
+
+Casi nunca hay un tick sin pares candidatos (306 de 225k), pero en promedio solo ~6 de 22 jugadores pueden tocar
+algo. Física a 20 Hz para los jugadores lejanos ahorraría ~0,4 s (≈7 % del partido), a cambio de posiciones que
+avanzan cada 50 ms en el visor y cotas de candidatos con un tick de desfase. El único cambio que baja el partido a
+la mitad es el tick global a 20 Hz (todas las duraciones y cadencias en subticks, recalibración completa).
