@@ -65,6 +65,16 @@ deliberación 4) y 66 evaluaciones del planner por decisión; la búsqueda cuest
 las re-decisiones ahorraría como mucho ~0,8 s y es un cambio deportivo; la meta pide además el contacto
 (segmentos por tick) y construir estados del planner solo para las ramas que sobreviven al haz.
 
+Probado y descartado (2026-11-13):
+- Estados del planner solo para el haz (hash idéntico): 1,45 → 1,17 GB, sin ganancia de tiempo; el costo es el
+  cálculo de factibilidad, no la asignación.
+- Re-decidir cada 0,5 s (`RedecisionInterval` 20 subticks, guardado en estado de cognición): 48 held-out 46 → 39 s
+  con métricas en banda, pero +10 en todo pasa a ganar por 0,35 sobre una base de +0,30 (antes 0,65 sobre −0,16):
+  decidir menos le quita ventaja a la calidad. Falla la aceptación de F3.2.
+- Un solo segmento de contacto cuando la pelota no tiene efecto: casi toda pelota lleva efecto, sin cambio.
+Ojo al medir: el número de ticks varía mucho entre partidos (263k–363k con la misma semilla tras cualquier cambio
+deportivo); comparar µs por tick o el tiempo total de `validate 48`, nunca un partido suelto.
+
 Partidos de fondo (2026-11-12): las ligas que el usuario no sigue se juegan con `QuickMatch` (sin ticks:
 Poisson de goles por fuerza media del once, goleadores/asistentes por rol y atributo, tarjetas, faltas,
 lesiones y cambios), del orden de microsegundos por partido. Los partidos de competiciones donde juega el club
