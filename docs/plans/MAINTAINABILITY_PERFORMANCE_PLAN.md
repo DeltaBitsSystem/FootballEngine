@@ -190,6 +190,15 @@ completo, sino:
    lectura táctica del rival en vivo y aprendizaje de jugadores entre partidos, con su evento visible.
 3. La meta de F1 (≤ 1,5 s) sigue valiendo para el partido del usuario, los tests y la calibración.
 
+## Cierre (2026-11-13)
+
+Decisión del usuario: el plan queda cerrado en el estado actual y el trabajo pasa a otro frente. F1 y F2.3 no
+llegaron a sus metas (≤ 1,5 s por partido; suite < 1 min) y quedan pausadas, no pendientes: hoy un partido del
+motor cuesta ~7,2 s (~5,8 s con la cognición en su propio hilo) y la suite completa ~2 min. Con `QuickMatch` el
+motor completo solo juega los partidos del club del usuario, así que ese costo pesa sobre tests y calibración, no
+sobre la carrera. Si se retoma, las palancas medidas están arriba (20 Hz con recalibración, cognición en hilo
+propio, presupuesto del planner) y el rediseño en `F1_ENGINE_REDESIGN.md`.
+
 ## 3. Reglas
 
 - Cada paso: medir antes, cambiar, medir después, tests afectados; suite completa al cerrar cada fase.
