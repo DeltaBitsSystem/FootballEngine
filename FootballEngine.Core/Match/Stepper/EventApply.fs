@@ -566,6 +566,7 @@ module EventApply =
             | EventData.DefensiveTransition _ -> ()
             | EventData.CollectiveAttack _ -> ()
             | EventData.TeamInstruction _ -> ()
+            | EventData.ManagerShift _ -> ()
             | EventData.PhysicalContact contact -> applyPhysicalContact ctx world contact
             | EventData.BallLoose(x, y) ->
                 world.Home.Proposals.Clear()

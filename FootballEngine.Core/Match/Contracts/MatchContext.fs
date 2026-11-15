@@ -5,6 +5,27 @@ type HomeAdvantageConfig =
     { CrowdSupport: float32
       Familiarity: float32 }
 
+/// What the match needs to know about the coach on the bench. `Autonomous` is true for every side the user does
+/// not command: only those get the in-match brain, so the user's side keeps behaving exactly as it always did.
+/// The four traits run 0..1.
+[<Struct>]
+type ManagerProfile =
+    { Autonomous: bool
+      Reading: float32
+      Boldness: float32
+      Temperament: float32
+      Adaptability: float32 }
+
+module ManagerProfile =
+
+    /// A side commanded by a person: no brain, and neutral traits nothing reads.
+    let human: ManagerProfile =
+        { Autonomous = false
+          Reading = 0.5f
+          Boldness = 0.5f
+          Temperament = 0.5f
+          Adaptability = 0.5f }
+
 [<Struct>]
 type ClubRef =
     { Id: uint64
@@ -13,7 +34,8 @@ type ClubRef =
       Chemistry: float
       AttackPrior: Map<int, FootballEngine.Domain.AttackEstimate>
       Familiarity: float32
-      HomeAdvantage: HomeAdvantageConfig }
+      HomeAdvantage: HomeAdvantageConfig
+      Manager: ManagerProfile }
 
 /// Slot-indexed: the engine addresses players by fixed slot, so frame arrays
 /// align 1:1 with the lineup.

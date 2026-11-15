@@ -31,6 +31,11 @@ module Scheduler =
         [ EventKind.PassLaunched; EventKind.ShotLaunched ]
         |> List.fold (fun flags kind -> EventFlags.union flags (EventFlags.ofKind kind)) decisionFlags
 
+    // A goal, a red card or the break schedules a rival manager's review: a minute cadence alone would see them late.
+    let private managerFlags =
+        [ EventKind.Goal; EventKind.RedCard; EventKind.HalfTime ]
+        |> List.fold (fun flags kind -> EventFlags.union flags (EventFlags.ofKind kind)) { Bits = 0UL }
+
     let systems: SystemSpec list =
         [ { Name = "TeamPerceive"
             Side = SystemSide.Cognition
@@ -131,5 +136,5 @@ module Scheduler =
             Step = RefereeCards.step }
           { Name = "ManagerSystem"
             Side = SystemSide.Cognition
-            Triggers = [ Trigger.EveryMinute(1<matchMin>, 0<matchMin>) ]
+            Triggers = [ Trigger.EveryMinute(1<matchMin>, 0<matchMin>); Trigger.OnEvent managerFlags ]
             Step = ManagerSystem.step } ]

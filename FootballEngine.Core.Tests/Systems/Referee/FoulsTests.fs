@@ -27,6 +27,30 @@ module FoulsTests =
         RefereeFouls.step sctx (Rng.ofSeed 42UL) world buf |> ignore
         buf
 
+    /// Share of `trials` fouls of `severity` at midfield that draw a yellow for the fouler, given his prior yellows.
+    let private bookingRate (severity: FoulSeverity) (priorYellows: int) (trials: int) : float =
+        let fouler = ctx.HomeLineup.Profiles.[5].Id
+        let fouled = ctx.AwayLineup.Profiles.[6].Id
+
+        let booked =
+            [ 1..trials ]
+            |> List.filter (fun seed ->
+                let world = TestBuilders.minimalWorld ()
+                world.Home.Memory.[5].Yellows <- priorYellows
+                let buf = buffer ()
+
+                buf.Applied.Add
+                    { Tick = 0<subtick>
+                      Data = EventData.Foul(fouler, fouled, severity, CardDecision.NoCard, (30.0<meter>, 10.0<meter>)) }
+
+                RefereeFouls.step sctx (Rng.ofSeed (uint64 seed)) world buf |> ignore
+
+                buf.Events
+                |> Seq.exists (fun ev -> ev.Data = EventData.Card(fouler, CardColor.Yellow)))
+            |> List.length
+
+        float booked / float trials
+
     let foulsTests =
         testList
             "FootballEngine.Core.Systems.Referee.FoulsTests"
@@ -84,4 +108,20 @@ module FoulsTests =
                            match ev.Data with
                            | EventData.SetPiece _ -> true
                            | _ -> false))
-                      "advantage means no set piece") ]
+                      "advantage means no set piece")
+
+              // Regression: second cautions sent off ~2.2 players a match because a booked player was booked again as
+              // readily as a clean one.
+              testCase "a booked player gets the benefit of the doubt a clean one does not" (fun _ ->
+                  let referee = ctx.Config.Referee
+                  let clean = bookingRate FoulSeverity.YellowWorthy 0 600
+                  let booked = bookingRate FoulSeverity.YellowWorthy 1 600
+
+                  Expect.isGreaterThan clean 0.75 "a reckless foul by a clean player is a caution"
+
+                  Expect.isLessThan
+                      booked
+                      (clean * referee.BookedRecklessLeniency + 0.06)
+                      "the same foul by a booked player is let go most of the time"
+
+                  Expect.isGreaterThan booked 0.0 "a booked player can still be sent off for a reckless foul") ]

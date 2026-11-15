@@ -25,6 +25,7 @@
     <Compile Include="Domain\TrainingPlans.fs"/>
     <Compile Include="Domain\PlayerExperience.fs"/>
     <Compile Include="Domain\Lineup.fs"/>
+    <Compile Include="Match\Contracts\RivalManagerConfig.fs"/>
     <Compile Include="Domain\TacticalSuitability.fs"/>
     <Compile Include="Domain\CoordinationMemory.fs"/>
     <Compile Include="Match\Contracts\Pitch.fs"/>
@@ -34,6 +35,7 @@
     <Compile Include="Domain\Finance.fs"/>
     <Compile Include="Domain\Club.fs"/>
     <Compile Include="Domain\Staff.fs"/>
+    <Compile Include="Domain\ManagerMind.fs"/>
     <Compile Include="Domain\Match.fs"/>
     <Compile Include="Domain\MatchMetrics.fs"/>
     <Compile Include="Domain\Competition.fs"/>
@@ -153,6 +155,7 @@
     <Compile Include="Match\Systems\Team\TacticalStaffAnalysis.fs"/>
     <Compile Include="Match\Systems\Referee\Fouls.fs"/>
     <Compile Include="Match\Systems\Referee\Cards.fs"/>
+    <Compile Include="Match\Systems\Manager\ManagerBrain.fs"/>
     <Compile Include="Match\Systems\Manager\Manager.fs"/>
     <Compile Include="Match\Stepper\SystemsTable.fs"/>
     <Compile Include="WorldGeneration\PlayerGen.fs"/>
@@ -167,6 +170,7 @@
     <Compile Include="World\Core\ConflictTypes.fs"/>
     <Compile Include="World\Agents\PlayerAgent.fs"/>
     <Compile Include="World\Agents\ManagerAgent.fs"/>
+    <Compile Include="World\Agents\GamePlanner.fs"/>
     <Compile Include="World\Agents\ClubAgent.fs"/>
     <Compile Include="World\Supervisors\TransferSupervisor.fs"/>
     <Compile Include="World\Supervisors\YouthSupervisor.fs"/>

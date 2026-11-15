@@ -227,6 +227,101 @@ module CareerJourney =
               ) ]
         :> IView
 
+    /// The rival head coach before the match: who he is, how well he reads the game, what happened between the two
+    /// coaches and how he will set up against the user.
+    let private coachCard (es: bool) (vm: RivalCoachPresenter.RivalCoachVM) : IView =
+        let label value =
+            TextBlock.create
+                [ TextBlock.text value
+                  TextBlock.fontSize 11.0
+                  TextBlock.fontWeight FontWeight.SemiBold
+                  TextBlock.foreground Theme.TextMuted ]
+            :> IView
+
+        let stars =
+            StackPanel.create
+                [ StackPanel.orientation Orientation.Horizontal
+                  StackPanel.spacing 2.0
+                  StackPanel.children
+                      [ for index in 1..5 ->
+                            Icons.icon
+                                Material.Icons.MaterialIconKind.Star
+                                14.0
+                                (if index <= vm.Stars then
+                                     Theme.Warning
+                                 else
+                                     Theme.withAlpha "55" Theme.TextDim) ] ]
+            :> IView
+
+        let record =
+            match vm.RecordVs with
+            | RivalCoachPresenter.FirstMeeting -> if es then "Primer cruce" else "First meeting"
+            | RivalCoachPresenter.Meetings(played, won, drawn, lost) ->
+                if es then
+                    $"PJ {played} · G {won} · E {drawn} · P {lost}"
+                else
+                    $"P {played} · W {won} · D {drawn} · L {lost}"
+
+        let column (title: string) (body: IView) =
+            StackPanel.create
+                [ StackPanel.spacing 4.0
+                  StackPanel.margin (0.0, 0.0, 28.0, 0.0)
+                  StackPanel.children [ label (title.ToUpperInvariant()); body ] ]
+            :> IView
+
+        Border.create
+            [ Border.background (Theme.withAlpha "8C" Theme.BgMain)
+              Border.borderBrush (Theme.withAlpha "55" Theme.Accent)
+              Border.borderThickness 1.0
+              Border.cornerRadius Theme.RadiusLg
+              Border.padding (20.0, 16.0)
+              Border.child (
+                  StackPanel.create
+                      [ StackPanel.spacing 10.0
+                        StackPanel.children
+                            [ WrapPanel.create
+                                  [ WrapPanel.children
+                                        [ Icons.icon Material.Icons.MaterialIconKind.Whistle 20.0 Theme.Accent
+                                          Border.create
+                                              [ Border.margin (10.0, 0.0, 12.0, 0.0)
+                                                Border.child (
+                                                    TextBlock.create
+                                                        [ TextBlock.text vm.CoachName
+                                                          TextBlock.fontSize 16.0
+                                                          TextBlock.fontWeight FontWeight.Bold
+                                                          TextBlock.foreground Theme.TextMain
+                                                          TextBlock.verticalAlignment VerticalAlignment.Center ]
+                                                ) ]
+                                          chip vm.Archetype Theme.Accent (Theme.withAlpha "24" Theme.Accent) ] ]
+                              text 13.0 Theme.TextSub vm.Behaviour
+                              WrapPanel.create
+                                  [ WrapPanel.children
+                                        [ column (if es then "Lectura de juego" else "Game reading") stars
+                                          column (if es then "Historial contra vos" else "Record against you") (text 13.0 Theme.TextMain record) ] ]
+                              column
+                                  (if es then "Cómo te va a jugar" else "How he'll play you")
+                                  (text 13.0 "#FFB27A" $"{vm.Formation} · {vm.PlanReason}") ] ]
+              ) ]
+        :> IView
+
+    /// The plan preview scores every formation for the rival's squad, which is too much to repeat on each render of
+    /// the home page; the inputs are immutable values, so one entry keyed by reference is enough.
+    let mutable private coachCache: (obj * obj * bool * RivalCoachPresenter.RivalCoachVM option) option = None
+
+    let private coachFor (es: bool) (settings: FootballEngine.Settings.SaveSettings) (gs: GameState) =
+        match coachCache with
+        | Some(cachedGs, cachedSettings, cachedEs, vm) when
+            obj.ReferenceEquals(cachedGs, gs) && obj.ReferenceEquals(cachedSettings, settings) && cachedEs = es
+            ->
+            vm
+        | _ ->
+            let cfg =
+                (FootballEngine.Core.Match.WeightMergeSettings.mergeWithOverridesSave (Some settings)).RivalManager
+
+            let vm = RivalCoachPresenter.project es cfg gs
+            coachCache <- Some(box gs, box settings, es, vm)
+            vm
+
     let private teamName (gs: GameState) (clubId: ClubId) =
         gs.Clubs |> Map.tryFind clubId |> Option.map _.Name |> Option.defaultValue "—"
 
@@ -286,11 +381,16 @@ module CareerJourney =
                         TranslationKey.AdvanceNextEventHint
                 )
 
+            let coach = coachFor (Localization.active () = Locale.Es) state.SaveSettings gs
+
             let left =
                 StackPanel.create
                     [ StackPanel.spacing 14.0
                       StackPanel.children
                           [ yield! headline
+                            match coach with
+                            | Some vm -> coachCard (Localization.active () = Locale.Es) vm
+                            | None -> ()
                             yield! lineupDetails gs
                             actions
                                 [ button (tr TranslationKey.ReviewLineup) false (not state.IsProcessing) (fun () ->

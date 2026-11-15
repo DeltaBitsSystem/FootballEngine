@@ -52,6 +52,35 @@ module JsonConverters =
         | "Halves" -> Halves
         | _ -> Plain
 
+    let private footFromName (name: string) =
+        match name with
+        | "Left" -> Some Left
+        | "Right" -> Some Right
+        | "Both" -> Some Both
+        | _ -> None
+
+    let private playerEntryToDto (pe: PlayerEntry) : PlayerEntryDto =
+        { Name = pe.Name
+          Position = string pe.Position
+          Age = pe.Age
+          Rating = pe.Rating
+          Potential = pe.Potential
+          PreferredFoot = pe.PreferredFoot |> Option.map string
+          Nationality = pe.Nationality }
+
+    // Resolved content has already rejected unknown positions, so a DTO that still fails to map is dropped rather than crashing.
+    let private playerEntryFromDto (d: PlayerEntryDto) : PlayerEntry option =
+        [ GK; DR; DC; DL; WBR; WBL; DM; MR; MC; ML; AMR; AMC; AML; ST ]
+        |> List.tryFind (fun position -> string position = d.Position)
+        |> Option.map (fun position ->
+            { Name = d.Name
+              Position = position
+              Age = d.Age
+              Rating = d.Rating
+              Potential = d.Potential
+              PreferredFoot = d.PreferredFoot |> Option.bind footFromName
+              Nationality = d.Nationality })
+
     let clubEntryToDto (ce: ClubEntry) : ClubEntryDto =
         { Name = ce.Name
           LeagueLevel = ce.LeagueLevel
@@ -61,7 +90,8 @@ module JsonConverters =
             |> Option.map (fun kit ->
                 { Primary = kit.Primary
                   Secondary = kit.Secondary
-                  Pattern = kitPatternName kit.Pattern }) }
+                  Pattern = kitPatternName kit.Pattern })
+          Players = ce.Players |> List.map playerEntryToDto }
 
     let clubEntryFromDto (d: ClubEntryDto) : ClubEntry =
         { Name = d.Name
@@ -73,7 +103,12 @@ module JsonConverters =
             |> Option.map (fun kit ->
                 { Primary = kit.Primary
                   Secondary = kit.Secondary
-                  Pattern = kitPatternOf kit.Pattern }) }
+                  Pattern = kitPatternOf kit.Pattern })
+          Players =
+            if isNull (box d.Players) then
+                []
+            else
+                d.Players |> List.choose playerEntryFromDto }
 
     // ─── CupEntry ───
 

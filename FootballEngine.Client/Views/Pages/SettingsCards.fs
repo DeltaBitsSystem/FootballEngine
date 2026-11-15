@@ -196,27 +196,43 @@ module internal SettingsCards =
                       ))
 
               yield (label2, desc2, "⚡", ctl2, "AutoPlay")
-              let label3 = "Filtro de highlights"
-              let desc3 = "All / GoalsOnly / KeyMoments — reduce ruido en la timeline"
+              let es = Localization.active () = Locale.Es
+              let label3 = if es then "Ritmo del partido" else "Match pacing"
+
+              let desc3 =
+                  if es then
+                      "El partido avanza rápido y se detiene en jugadas y señales para el DT"
+                  else
+                      "The match fast-forwards and stops at chances and manager signals"
+
+              let filterLabel filter =
+                  match filter with
+                  | HighlightFilter.KeyMoments -> if es then "Momentos clave (recomendado)" else "Key moments (recommended)"
+                  | HighlightFilter.GoalsOnly -> if es then "Solo goles" else "Goals only"
+                  | HighlightFilter.All -> if es then "Partido completo" else "Full match"
+
+              let filters = [ HighlightFilter.KeyMoments; HighlightFilter.GoalsOnly; HighlightFilter.All ]
 
               let ctl3 =
                   ComboBox.create
-                      [ ComboBox.dataItems
-                            [ HighlightFilter.All; HighlightFilter.GoalsOnly; HighlightFilter.KeyMoments ]
-                        ComboBox.selectedItem m.HighlightFilter
+                      [ ComboBox.dataItems (filters |> List.map filterLabel)
+                        ComboBox.selectedItem (filterLabel m.HighlightFilter)
                         ComboBox.onSelectedItemChanged (fun obj ->
-                            if obj <> null then
-                                let v = obj :?> HighlightFilter
-
-                                dispatch (
-                                    SettingsMsg(
-                                        UpdateGlobal(fun gs ->
-                                            { gs with
-                                                MatchView =
-                                                    { gs.MatchView with
-                                                        HighlightFilter = v } })
+                            match obj with
+                            | :? string as picked ->
+                                match filters |> List.tryFind (fun f -> filterLabel f = picked) with
+                                | Some v ->
+                                    dispatch (
+                                        SettingsMsg(
+                                            UpdateGlobal(fun gs ->
+                                                { gs with
+                                                    MatchView =
+                                                        { gs.MatchView with
+                                                            HighlightFilter = v } })
+                                        )
                                     )
-                                )) ]
+                                | None -> ()
+                            | _ -> ()) ]
                   :> IView
 
               yield (label3, desc3, "🎯", ctl3, "HighlightFilter")
@@ -680,7 +696,10 @@ module internal SettingsCards =
         let modRows: IView list =
             filteredIds
             |> List.mapi (fun idx modId ->
-                let isOn = List.contains modId active
+                // An empty profile loads every installed package, so it must read as all-on and toggling one mod
+                // must start from that full set; otherwise enabling a mod silently unloads the built-in world.
+                let effectiveActive = if active.IsEmpty then resolvedIds else active
+                let isOn = List.contains modId effectiveActive
                 let isFirst = idx = 0
                 let isLast = idx = filteredIds.Length - 1
 
@@ -696,7 +715,8 @@ module internal SettingsCards =
                                               let d = gs.Data
 
                                               if checkBox.IsChecked = System.Nullable true then
-                                                  let nextActive = (modId :: d.ActiveMods) |> List.distinct
+                                                  let current = if d.ActiveMods.IsEmpty then resolvedIds else d.ActiveMods
+                                                  let nextActive = (modId :: current) |> List.distinct
 
                                                   let nextOrder =
                                                       if List.contains modId d.ModOrder then
@@ -710,7 +730,8 @@ module internal SettingsCards =
                                                               ActiveMods = nextActive
                                                               ModOrder = nextOrder } }
                                               else
-                                                  let nextActive = d.ActiveMods |> List.filter ((<>) modId)
+                                                  let current = if d.ActiveMods.IsEmpty then resolvedIds else d.ActiveMods
+                                                  let nextActive = current |> List.filter ((<>) modId)
 
                                                   { gs with
                                                       Data = { d with ActiveMods = nextActive } })

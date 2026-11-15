@@ -119,7 +119,8 @@ module TransferMarketTests =
           PulseProcessed = Set.empty
           PulseQueues = PulseQueues.empty
           JobOffers = []
-          NextJobOfferId = 1 }
+          NextJobOfferId = 1
+          UserStudy = [] }
 
     let tests =
         testList

@@ -92,6 +92,23 @@ module RefereeFouls =
             // Stopping the last line of defence near goal denies a scoring chance, which the contact cannot show.
             let pYellow = MatchMath.clamp01 (pYellow + if lastMan then referee.LastManFactor else 0.0)
 
+            let alreadyBooked =
+                match side with
+                | Some s ->
+                    match MatchWorld.slotOf ctx.Ctx s fouler with
+                    | Some slot -> (MatchWorld.team world s).Memory.[slot].Yellows >= 1
+                    | None -> false
+                | None -> false
+
+            // Referees are reluctant to send a player off for a second caution: careless fouls by a booked player are
+            // let go almost always, and a reckless one only gets the benefit of the doubt when it is borderline.
+            let pYellow =
+                match severity with
+                | FoulSeverity.Minor
+                | FoulSeverity.Tactical when alreadyBooked -> pYellow * referee.BookedLeniency
+                | FoulSeverity.YellowWorthy when alreadyBooked -> pYellow * referee.BookedRecklessLeniency
+                | _ -> pYellow
+
             let roll, rng' = Rng.double rng
 
             let card =

@@ -182,7 +182,8 @@ module TrainingTests =
                   ExpiryYear = 2030 }
           Status = Active
           TrophiesWon = 0
-          SeasonsManaged = 0 }
+          SeasonsManaged = 0
+          Mind = ManagerMind.neutral }
 
     let private makeClub (id: ClubId) (playerIds: PlayerId list) : Club =
         { Id = id
@@ -254,7 +255,8 @@ module TrainingTests =
           PulseProcessed = Set.empty
           PulseQueues = PulseQueues.empty
           JobOffers = []
-          NextJobOfferId = 1 }
+          NextJobOfferId = 1
+          UserStudy = [] }
 
     let private makeOutcome (homeId: ClubId) (awayId: ClubId) : MatchOutcome.FixtureOutcome =
         let fixture: MatchFixture =

@@ -397,13 +397,19 @@ module MatchOutcome =
                                                 { club.CoordinationMemory with AttackLearning = AttackLearning.applyEvents attackConfig side club.CoordinationMemory.AttackLearning outcome.Fixture.Events } })) }
                 updated |> merge outcome.Fixture.HomeClubId ClubSide.Home |> merge outcome.Fixture.AwayClubId ClubSide.Away) withUpdatedMorale
 
+        // Every fixture is a meeting between two coaches, engine or background alike; each remembers it from his side.
+        let withRivalries =
+            (withUpdatedExperiences, outcomes)
+            ||> Array.fold (fun acc o ->
+                FootballEngine.World.Agents.GamePlanner.recordMeeting o.Fixture o.HomeScore o.AwayScore acc)
+
         let injuredPlayers =
             outcomes
             |> Array.collect (fun o -> o.InjuredPlayers |> Set.toArray)
             |> Set.ofSeq
 
         if injuredPlayers.IsEmpty then
-            withUpdatedExperiences
+            withRivalries
         else
             let currentDate = gs.CurrentDate
 
@@ -440,9 +446,9 @@ module MatchOutcome =
 
                         outcome.InjuredPlayers
                         |> Seq.fold (fun acc pid -> applyInjury acc severityByPlayer pid) players)
-                    withUpdatedExperiences.Players
+                    withRivalries.Players
 
-            { withUpdatedExperiences with
+            { withRivalries with
                 Players = players }
 
     let private freshLoadOutcomes (outcomes: FixtureOutcome[]) (gs: GameState) : FixtureOutcome[] =
@@ -541,18 +547,16 @@ module MatchPhase =
     /// side facing the opponent, and its own events are dropped before
     /// extraction because PatternExtractor reads the pattern's owner from the
     /// first action event — and the first kick is almost always the watcher's.
-    let recordPattern
+    let patternOf
         (cfg: ScoutConfig)
-        (now: System.DateTime)
         (homeId: ClubId)
         (awayId: ClubId)
-        (opponent: ClubId)
+        (subject: ClubId)
         (signature: string * TacticalInstructions)
         (clubOfPlayer: FootballEngine.Core.Match.PlayerId -> ClubId option)
         (events: MatchEvent list)
-        (mem: Map<ClubId, OpponentMemory>)
-        : Map<ClubId, OpponentMemory> =
-        let watcher = if opponent = homeId then awayId else homeId
+        : PatternVector =
+        let watcher = if subject = homeId then awayId else homeId
 
         let clubOfSide side =
             match side with
@@ -570,11 +574,60 @@ module MatchPhase =
                 | EventData.Possession(side, _) -> clubOfSide side <> watcher
                 | _ -> false)
 
-        let vector =
-            PatternExtractor.extract cfg homeId awayId clubOfPlayer rivalEvents
-            |> PatternVector.withSignature (fst signature) (snd signature)
+        PatternExtractor.extract cfg homeId awayId clubOfPlayer rivalEvents
+        |> PatternVector.withSignature (fst signature) (snd signature)
 
-        ScoutingMemory.update cfg now opponent vector mem
+    let recordPattern
+        (cfg: ScoutConfig)
+        (now: System.DateTime)
+        (homeId: ClubId)
+        (awayId: ClubId)
+        (opponent: ClubId)
+        (signature: string * TacticalInstructions)
+        (clubOfPlayer: FootballEngine.Core.Match.PlayerId -> ClubId option)
+        (events: MatchEvent list)
+        (mem: Map<ClubId, OpponentMemory>)
+        : Map<ClubId, OpponentMemory> =
+        ScoutingMemory.update cfg now opponent (patternOf cfg homeId awayId opponent signature clubOfPlayer events) mem
+
+    /// The user's match as a rival can read it: the shape and instructions he took in, the pattern he played and
+    /// the result. None when the user's lineup is not on record.
+    let userMatchRecord
+        (cfg: ScoutConfig)
+        (gs: GameState)
+        (fixture: MatchFixture)
+        (homeGoals: int)
+        (awayGoals: int)
+        (events: MatchEvent list)
+        : UserMatchRecord option =
+        match GameState.managedClub gs with
+        | Some userClub when MatchFixture.involves userClub fixture ->
+            GameState.getLineup userClub gs
+            |> Option.map (fun lineup ->
+                let instructions =
+                    lineup.Instructions |> Option.defaultValue TacticalInstructions.defaultInstructions
+
+                let clubOfEnginePlayer (FootballEngine.Core.Match.PlayerId n) =
+                    gs.Players |> Map.tryFind n |> Option.bind Player.clubOf
+
+                let isHome = fixture.HomeClubId = userClub
+
+                { Date = fixture.ScheduledDate
+                  OpponentClubId = if isHome then fixture.AwayClubId else fixture.HomeClubId
+                  Formation = lineup.Formation
+                  Instructions = instructions
+                  Pattern =
+                    patternOf
+                        cfg
+                        fixture.HomeClubId
+                        fixture.AwayClubId
+                        userClub
+                        (string lineup.Formation, instructions)
+                        clubOfEnginePlayer
+                        events
+                  GoalsFor = if isHome then homeGoals else awayGoals
+                  GoalsAgainst = if isHome then awayGoals else homeGoals })
+        | _ -> None
 
     /// Simulates a fixture with the Core engine. Returns the outcome or None
     /// when the fixture cannot be lined up (missing coach/lineup).
@@ -688,7 +741,10 @@ module MatchPhase =
 
     let runFixtureExecutionsWithBalance (balance: BalanceConfig) (fixtures: (MatchId * MatchFixture) list) (state: GameState) =
         let config = balance
-        let gsReady = LineupOps.ensureForFixtures fixtures state
+        let gsReady =
+            state
+            |> FootballEngine.World.Agents.GamePlanner.prepareForFixtures balance.RivalManager fixtures
+            |> LineupOps.ensureForFixtures fixtures
 
         let executions =
             fixtures
@@ -829,9 +885,20 @@ module MatchPhase =
             |> Array.collect (fun o -> [| o.Fixture.HomeClubId; o.Fixture.AwayClubId |])
             |> Set.ofArray
 
-        let nextState =
+        let withScouting =
             affectedClubs
             |> Seq.fold (fun gs clubId -> gs |> updateClubCoord clubId |> updateScouting clubId) afterOutcomes
+
+        // What rivals may study is what reached the screen: the user's engine matches only.
+        let nextState =
+            (withScouting, outcomes)
+            ||> Array.fold (fun gs o ->
+                if hasEvidence o then
+                    match userMatchRecord config.Scout gsReady o.Fixture o.HomeScore o.AwayScore o.Fixture.Events with
+                    | Some record -> FootballEngine.World.Agents.GamePlanner.recordUserMatch config.RivalManager record gs
+                    | None -> gs
+                else
+                    gs)
 
         let acceptedIds = outcomes |> Array.map _.FixtureId |> Set.ofArray
         let acceptedInputs =

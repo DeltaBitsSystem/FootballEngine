@@ -12,6 +12,17 @@ type JobOffer =
       Salary: decimal
       ContractYears: int }
 
+/// One of the user's own engine matches as a rival can study it: the plan he took in and how it ended. Only matches
+/// the user plays (and that reach TV) are here; rivals read nothing else.
+type UserMatchRecord =
+    { Date: DateTime
+      OpponentClubId: ClubId
+      Formation: Formation
+      Instructions: TacticalInstructions
+      Pattern: PatternVector
+      GoalsFor: int
+      GoalsAgainst: int }
+
 type GameState =
     { ExecutionSeed: uint64
       MatchSeeds: Map<MatchId, uint64>
@@ -43,7 +54,9 @@ type GameState =
       PulseProcessed: Set<MatchId>
       PulseQueues: PulseQueues
       JobOffers: JobOffer list
-      NextJobOfferId: int }
+      NextJobOfferId: int
+      /// The user's last engine matches, newest first, capped at the configured study window.
+      UserStudy: UserMatchRecord list }
 
 module GameState =
 

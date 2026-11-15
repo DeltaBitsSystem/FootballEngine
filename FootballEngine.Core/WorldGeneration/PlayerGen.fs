@@ -217,6 +217,54 @@ module PlayerGen =
           TransferListed = false
           SeasonStartSkill = currentSkill }
 
+    /// Mod authors rate players 1..100 while the engine scale is 0..200, so ability is doubled.
+    let createAuthored
+        (id: PlayerId)
+        (entry: PlayerEntry)
+        (clubId: ClubId)
+        (countryData: CountryData)
+        (year: int)
+        : Player =
+        let currentSkill = entry.Rating * 2
+        let height, weight = heightWeightFor entry.Position
+
+        { Id = id
+          Name = entry.Name
+          Birthday = DateTime(year - entry.Age, normalInt 6.0 3.0 1 12, normalInt 15.0 8.0 1 28)
+          Nationality = entry.Nationality |> Option.defaultValue countryData.Country.Code
+          Position = entry.Position
+          PreferredFoot =
+            entry.PreferredFoot
+            |> Option.defaultWith (fun () -> preferredFootFor entry.Position)
+          Height = height
+          Weight = weight
+          Physical = buildPhysical (attributeBiasFor entry.Position currentSkill)
+          Technical = buildTechnical (attributeBiasFor entry.Position currentSkill)
+          Mental = buildMental currentSkill
+          Goalkeeping = buildGoalkeeping entry.Position currentSkill
+          Condition = normalInt 95.0 5.0 75 100
+          Fatigue = 0
+          MatchFitness = normalInt 90.0 8.0 60 100
+          RecentLoad = 0
+          Morale = normalInt 65.0 10.0 40 90
+          Status = Available
+          CurrentSkill = currentSkill
+          PotentialSkill = entry.Potential * 2
+          Reputation = currentSkill * 5
+          Affiliation =
+            Contracted(
+                clubId,
+                { Salary = Player.playerSalary currentSkill
+                  ExpiryYear = contractExpiryFor year entry.Age }
+            )
+          TrainingPlan = TrainingPlans.defaultPlanFor entry.Position entry.Age
+          ExperienceModifiers = ExperienceModifiers.defaultModifiers
+          Unrest = None
+          BenchWeeks = 0
+          UnrestWeeks = 0
+          TransferListed = false
+          SeasonStartSkill = currentSkill }
+
     let createYouthProspect
         (id: PlayerId)
         (position: Position)

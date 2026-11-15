@@ -228,7 +228,10 @@ module WorldRunner =
             for date in sortedDates do
                 if errors.IsEmpty then
                     let dayFixtures = fixturesByDate[date]
-                    let gsReady = LineupOps.ensureForFixtures dayFixtures currentGs
+                    let gsReady =
+                        currentGs
+                        |> FootballEngine.World.Agents.GamePlanner.prepareForFixtures balance.RivalManager dayFixtures
+                        |> LineupOps.ensureForFixtures dayFixtures
 
                     let outcomes, errs =
                         dayFixtures
@@ -348,6 +351,7 @@ module WorldRunner =
         | Some(fixtureId, fixture) ->
             let gsReady =
                 gs
+                |> FootballEngine.World.Agents.GamePlanner.prepareForFixtures balance.RivalManager [ fixtureId, fixture ]
                 |> LineupOps.ensureForClub fixture.HomeClubId
                 |> LineupOps.ensureForClub fixture.AwayClubId
 
@@ -422,8 +426,11 @@ module WorldRunner =
             | None -> Error "Match result references an unknown fixture"
             | Some(fixtureId, fixture) when MatchFixture.isPlayed fixture -> Error "Match result was already committed"
             | Some(fixtureId, fixture) ->
+                // The plan is a pure function of the state and the fixture, so it comes out the same as when the job was
+                // prepared and the input hash still matches.
                 let gsReady =
                     gs
+                    |> FootballEngine.World.Agents.GamePlanner.prepareForFixtures balance.RivalManager [ fixtureId, fixture ]
                     |> LineupOps.ensureForClub fixture.HomeClubId
                     |> LineupOps.ensureForClub fixture.AwayClubId
 
@@ -543,12 +550,27 @@ module WorldRunner =
                                         { club with
                                             ScoutingMemory = updatedMemory } }
 
+                        let withStudy (state: GameState) : GameState =
+                            match
+                                MatchPhase.userMatchRecord
+                                    ctx.Config.Scout
+                                    gsReady
+                                    fixture
+                                    result.HomeScore
+                                    result.AwayScore
+                                    result.Events
+                            with
+                            | Some record ->
+                                FootballEngine.World.Agents.GamePlanner.recordUserMatch ctx.Config.RivalManager record state
+                            | None -> state
+
                         let committedGs =
                             finalGs
                             |> updateCoord fixture.HomeClubId true
                             |> updateCoord fixture.AwayClubId false
                             |> updateScouting fixture.HomeClubId true
                             |> updateScouting fixture.AwayClubId false
+                            |> withStudy
 
                         let clock1 =
                             { WorldClockOps.advance clock with

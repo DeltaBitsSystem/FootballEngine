@@ -1023,5 +1023,69 @@ module Shots =
                         printfn $"[shots] %A{page} -> {file}"
                         idx <- idx + 1
 
+                        // The editor's start page alone hides almost all of it; walk the authoring journey
+                        // (copy a base country, edit a club and its squad, publish) so every screen is reviewable.
+                        if page = Route.ModEditor then
+                            ModEditorPackage.draftsEnabled <- false
+
+                            let editor msg =
+                                Dispatcher.UIThread.Invoke(fun () -> dispatch (ModEditorMsg msg))
+
+                            let shot (name: string) =
+                                async {
+                                    do! Async.Sleep ctx.Opts.SettleMs
+                                    let stepFile = Path.Combine(ctx.Opts.Dir, $"%02d{idx}_ModEditor_{name}.png")
+                                    Dispatcher.UIThread.Invoke(fun () -> captureTo window stepFile false)
+                                    printfn $"[shots] ModEditor {name} -> {stepFile}"
+                                    idx <- idx + 1
+                                }
+
+                            let argentina =
+                                Path.Combine(ModPaths.builtinsDir, "builtin.argentina-1.0.0.femod")
+
+                            editor (ModEditorMsg.OpenPackage(argentina, true))
+                            editor (ModEditorMsg.SetSubTab ModEditorTypes.Clubs)
+                            editor (ModEditorMsg.SelectEditorClub(Some 0))
+
+                            editor (
+                                ModEditorMsg.UpdateCountry(
+                                    "ARG",
+                                    fun country ->
+                                        { country with
+                                            Clubs =
+                                                country.Clubs
+                                                |> List.mapi (fun index club ->
+                                                    if index = 0 then
+                                                        { club with
+                                                            Players =
+                                                                [ { Name = "Demo Keeper"
+                                                                    Position = "GK"
+                                                                    Age = 31
+                                                                    Rating = 78
+                                                                    Potential = 80
+                                                                    PreferredFoot = Some "Right"
+                                                                    Nationality = None }
+                                                                  { Name = "Demo Striker"
+                                                                    Position = "ST"
+                                                                    Age = 20
+                                                                    Rating = 66
+                                                                    Potential = 88
+                                                                    PreferredFoot = Some "Left"
+                                                                    Nationality = Some "URU" } ] }
+                                                    else
+                                                        club) }
+                                )
+                            )
+
+                            do! shot "club"
+                            editor (ModEditorMsg.SetSubTab ModEditorTypes.Leagues)
+                            do! shot "leagues"
+                            editor (ModEditorMsg.SetTab ModEditorTypes.Details)
+                            do! shot "details"
+                            editor (ModEditorMsg.SetTab ModEditorTypes.Publish)
+                            do! shot "publish"
+                            editor ModEditorMsg.CloseDocument
+                            do! shot "library"
+
             Dispatcher.UIThread.Invoke(fun () -> window.Close())
         }

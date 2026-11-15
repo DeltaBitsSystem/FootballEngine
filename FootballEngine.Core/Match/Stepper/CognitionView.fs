@@ -28,7 +28,7 @@ module CognitionView =
 
     /// Team fields that are the same object in the view and the live team for the whole match.
     let fixedTeamFields =
-        [ "RosterIds"; "Defense"; "Participation"; "Proposals"; "PendingActions"; "Attack" ]
+        [ "RosterIds"; "Defense"; "Participation"; "Proposals"; "PendingActions"; "Attack"; "Brain" ]
 
     /// Team fields copied into the view at the barrier and back to the live team after cognition.
     let cognitionTeamFields =

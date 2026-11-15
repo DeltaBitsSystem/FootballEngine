@@ -15,18 +15,60 @@ open FootballEngine.Client.Match3D
 open FootballEngine.Client.Views.Components
 open FootballEngine.Client.Views.MatchPitch
 open FootballEngine.Icons
+open FootballEngine.Core.Match
 open FootballEngine.LiveMatch
 
 module MatchViewer =
     let private fieldWidth = 1000.0
     let private fieldHeight = 560.0
 
+    /// The banner says why the match stopped; the Resume control is the dock's existing one.
+    let private keyMomentText reason =
+        let es = Localization.active () = Locale.Es
+
+        match reason with
+        | GoalScored true -> if es then "Momento clave: ¡Gol de tu equipo!" else "Key moment: your team scored!"
+        | GoalScored false -> if es then "Momento clave: gol del rival" else "Key moment: the rival scored"
+        | RedCardShown(name, true) ->
+            if es then $"Momento clave: {name} expulsado" else $"Key moment: {name} sent off"
+        | RedCardShown(name, false) ->
+            if es then $"Momento clave: {name} (rival) expulsado" else $"Key moment: {name} (rival) sent off"
+        | PlayerTiring(name, condition) ->
+            if es then
+                $"Momento clave: {name} está agotado ({condition}%%)"
+            else
+                $"Key moment: {name} is exhausted ({condition}%%)"
+        | RivalChange "" ->
+            if es then "Momento clave: el rival cambió su planteamiento" else "Key moment: the rival changed approach"
+        | RivalChange change ->
+            if es then $"Momento clave: cambio del rival ({change})" else $"Key moment: rival substitution ({change})"
+        | RivalShift shift ->
+            let spanish, english =
+                match shift with
+                | ManagerShift.ChaseGame -> "El rival sale a buscarlo", "The rival is going for it"
+                | ManagerShift.AllOut -> "El rival va con todo", "The rival is going all out"
+                | ManagerShift.ProtectLead ->
+                    "El rival se cierra para cuidar el resultado", "The rival is shutting up shop to protect the lead"
+                | ManagerShift.WeatherStorm ->
+                    "El rival se atrinchera para aguantar", "The rival is digging in to ride out the pressure"
+                | ManagerShift.TakeInitiative -> "El rival adelanta líneas", "The rival is pushing his lines up"
+                | ManagerShift.BackToPlan -> "El rival vuelve a su plan", "The rival is back to his plan"
+                | ManagerShift.RedCardReshape ->
+                    "El rival se reacomoda con uno menos", "The rival is reshaping with ten men"
+
+            if es then
+                "Momento clave: " + spanish
+            else
+                "Key moment: " + english
+
     let private statusText status =
         match status with
         | Connecting -> "CONNECTING"
         | Preparing -> "PREPARING"
         | Live _ -> "LIVE"
+        | Cruising -> if Localization.active () = Locale.Es then "⏩ AVANZANDO" else "⏩ FAST-FORWARD"
         | Paused -> "PAUSED"
+        | KeyMomentStop reason -> keyMomentText reason
         | AwaitingDecision _ -> "DECISION REQUIRED"
         | HalfTime -> "HALF-TIME"
         | Finished -> "FULL-TIME"
@@ -510,6 +552,7 @@ module MatchViewer =
         let isPaused =
             match live.Status with
             | Paused
+            | KeyMomentStop _
             | HalfTime -> true
             | _ -> false
 

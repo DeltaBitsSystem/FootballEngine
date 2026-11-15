@@ -17,11 +17,23 @@ type LiveSpeed =
     | Fast
     | VeryFast
 
+/// Why the pacing stopped the match for the manager; the strings are already-resolved names, never ids.
+type KeyMomentReason =
+    | GoalScored of scorerTeamIsUser: bool
+    | RedCardShown of playerName: string * userTeam: bool
+    | PlayerTiring of playerName: string * condition: int
+    | RivalChange of description: string
+    /// An autonomous rival coach changed the plan; the shift says what he did so the banner can say it too.
+    | RivalShift of ManagerShift
+
 type LiveMatchStatus =
     | Connecting
     | Preparing
     | Live of speed: LiveSpeed
+    /// Fast-forwarding through quiet play; status rather than a presentation-only flag so the HUD needs no new channel.
+    | Cruising
     | Paused
+    | KeyMomentStop of KeyMomentReason
     | AwaitingDecision of DecisionPrompt
     | HalfTime
     | Finished
@@ -539,6 +551,8 @@ module LiveMatchUpdate =
                     Status =
                         match current.Status with
                         | Paused -> Paused
+                        | KeyMomentStop reason -> KeyMomentStop reason
+                        | Cruising -> Cruising
                         | HalfTime -> HalfTime
                         | Finished -> Finished
                         | _ -> Live current.Speed

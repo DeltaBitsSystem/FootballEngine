@@ -66,6 +66,7 @@ open FootballEngine.Core.Tests.World.TransferMarketTests
 open FootballEngine.Core.Tests.World.CompetitionTests
 open FootballEngine.Core.Tests.World.C07LongRunTests
 open FootballEngine.Core.Tests.World.WorldGenerationTests
+open FootballEngine.Core.Tests.World.AuthoredPlayersTests
 
 [<EntryPoint>]
 let main argv =
@@ -87,6 +88,9 @@ let main argv =
           FootballEngine.Core.Tests.Contracts.MatchSessionTests.tests
           FootballEngine.Core.Tests.Contracts.LivePresentationTests.tests
           worldGenerationTests
+          authoredPlayersTests
+          FootballEngine.Core.Tests.World.RivalManagersTests.integration
+          FootballEngine.Core.Tests.Systems.Manager.ManagerBrainTests.matchTests
           FootballEngine.Core.Tests.World.Pulse.MatchStoriesTests.tests
           FootballEngine.Core.Tests.World.Pulse.PressureTests.tests
           FootballEngine.Core.Tests.World.Pulse.JobMarketTests.tests
@@ -143,6 +147,10 @@ let main argv =
           offsideLineTests
           FootballEngine.Core.Tests.Systems.Team.TacticalStaffAnalysisTests.tests
           managerTests
+          FootballEngine.Core.Tests.Systems.Manager.ManagerBrainTests.brainTests
+          FootballEngine.Core.Tests.Systems.Manager.ManagerBrainTests.systemTests
+          FootballEngine.Core.Tests.World.RivalManagersTests.tests
+          FootballEngine.Core.Tests.World.RivalManagersTests.quickMatchTests
           eventApplyTests
           statsTests
           scoutingTests

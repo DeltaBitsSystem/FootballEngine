@@ -87,6 +87,55 @@ type StaffContract =
       Salary: decimal
       ExpiryYear: int }
 
+/// The football a coach believes in: it picks his base plan and the formation he prefers. Qualified access keeps
+/// `Pressing` and `Counter` from shadowing the TeamTactics cases of the same name.
+[<RequireQualifiedAccess>]
+type CoachPhilosophy =
+    | Possession
+    | Pressing
+    | Counter
+    | Direct
+    | Fortress
+
+/// What one coach remembers of his meetings with another coach. Keyed by coach, not club, so a grudge outlives
+/// the contract that started it.
+type RivalRecord =
+    { Played: int
+      Won: int
+      Drawn: int
+      Lost: int
+      GoalsFor: int
+      GoalsAgainst: int
+      /// Goal margin of the last meeting from this coach's side; negative is a defeat.
+      LastMargin: int
+      LastMet: DateTime }
+
+/// Why a coach picked the plan he took into a match; the preview shows it to the user.
+type ManagerApproach =
+    | OwnIdentity
+    | CounterRecipe of recipe: Formation
+    | CopyRecipe of Formation
+    | Revenge
+    | Underdog
+
+type GamePlanNote =
+    { OpponentClubId: ClubId
+      Date: DateTime
+      Formation: Formation
+      Approach: ManagerApproach
+      /// How dangerous the coach judged the user's recipe, 0..1.
+      Threat: float }
+
+/// The personality of a coach. Traits run 1..20 like every other staff attribute.
+type ManagerMind =
+    { Philosophy: CoachPhilosophy
+      Boldness: int
+      Temperament: int
+      Pride: int
+      Imitation: int
+      Rivals: Map<StaffId, RivalRecord>
+      LastPlan: GamePlanNote option }
+
 type Staff =
     { Id: StaffId
       Name: string
@@ -103,7 +152,8 @@ type Staff =
       Contract: StaffContract option
       Status: StaffStatus
       TrophiesWon: int
-      SeasonsManaged: int }
+      SeasonsManaged: int
+      Mind: ManagerMind }
 
 module Staff =
 

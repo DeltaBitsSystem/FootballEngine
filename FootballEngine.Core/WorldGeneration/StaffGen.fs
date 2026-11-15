@@ -401,6 +401,52 @@ module StaffGen =
               PeopleManagement = high
               Motivating = mid }
 
+    /// The personality draws come from a stream of their own, keyed by what the staff member already is, so adding
+    /// a trait never moves a number the rest of world generation draws: players, clubs and fixtures stay as they were.
+    let private personalityStream (staffId: StaffId) (year: int) (age: int) (reputation: int) (currentSkill: int) =
+        FootballEngine.Core.Match.Rng.ofSeed (
+            FootballEngine.Core.Match.MatchSeed.ofMatch
+                (uint64 staffId)
+                (uint64 (year * 1000 + age))
+                (uint64 (reputation * 1000 + currentSkill))
+        )
+
+    let private drawInt (mean: float) (std: float) (lo: int) (hi: int) (rng: FootballEngine.Core.Match.Rng) =
+        let value, next = FootballEngine.Core.Match.Rng.normal mean std rng
+        max lo (min hi (int (round value))), next
+
+    /// Adaptability decides whether a coach answers the user's recipe, so a head coach spans the whole scale instead
+    /// of clustering at the middle: dogmatists and chameleons both exist. Also returns the personality.
+    let traitsFor (seed: FootballEngine.Core.Match.Rng) : int * ManagerMind =
+        let adaptability, rng = drawInt 10.0 3.5 1 20 seed
+        let philosophyRoll, rng = FootballEngine.Core.Match.Rng.intIn 0 4 rng
+        let boldness, rng = drawInt 10.0 4.0 1 20 rng
+        let temperament, rng = drawInt 9.0 4.0 1 20 rng
+        let pride, rng = drawInt 10.0 4.0 1 20 rng
+        // Imitation is rare and heavily skewed: about one coach in seven copies what beat him, the rest barely ever.
+        let copies, rng = FootballEngine.Core.Match.Rng.bernoulli 0.15 rng
+
+        let imitation, _ =
+            if copies then
+                drawInt 17.0 2.0 15 20 rng
+            else
+                drawInt 7.0 3.0 1 14 rng
+
+        adaptability,
+        { Philosophy =
+            match philosophyRoll with
+            | 0 -> CoachPhilosophy.Possession
+            | 1 -> CoachPhilosophy.Pressing
+            | 2 -> CoachPhilosophy.Counter
+            | 3 -> CoachPhilosophy.Direct
+            | _ -> CoachPhilosophy.Fortress
+          Boldness = boldness
+          Temperament = temperament
+          Pride = pride
+          Imitation = imitation
+          Rivals = Map.empty
+          LastPlan = None }
+
     let private badgeForRole (role: StaffRole) (reputation: int) =
         match role with
         | HeadCoach
@@ -460,6 +506,9 @@ module StaffGen =
         let reputation = reputationFor leagueLevel role
         let age = normalInt 40.0 7.0 28 65
         let currentSkill = currentSkillForLevel leagueLevel
+        // Every draw below keeps the order it always had: the personality has a stream of its own.
+        let adaptability, mind =
+            traitsFor (personalityStream staffId year age reputation currentSkill)
 
         { Id = staffId
           Name =
@@ -475,7 +524,15 @@ module StaffGen =
               Medical = medicalFor role
               Analysis = analysisFor role }
           Knowledge = knowledgeFor role
-          Mental = mentalFor role
+          Mental =
+            (let mental = mentalFor role
+
+             match role with
+             | HeadCoach
+             | AssistantManager ->
+                 { mental with
+                     Adaptability = adaptability }
+             | _ -> mental)
           CurrentSkill = currentSkill
           PotentialSkill = potentialSkillFor currentSkill age
           Badge = badgeForRole role reputation
@@ -487,7 +544,8 @@ module StaffGen =
                   ExpiryYear = year + normalInt 2.0 1.0 1 4 }
           Status = Active
           TrophiesWon = 0
-          SeasonsManaged = normalInt 5.0 4.0 0 20 }
+          SeasonsManaged = normalInt 5.0 4.0 0 20
+          Mind = mind }
 
     let rolesForClub =
         [ HeadCoach

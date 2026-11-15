@@ -184,6 +184,16 @@ module SeasonPhase =
 
     // ── Pipeline de fin de temporada ───────────────────────────────────────
 
+    /// A season of experience for every coach, and the rivalries nobody renewed fade.
+    let private developCoaches (balance: FootballEngine.Core.Match.BalanceConfig) (state: GameState) : GameState =
+        { state with
+            Staff =
+                state.Staff
+                |> Map.map (fun _ staff ->
+                    staff
+                    |> ManagerMind.developSeason balance.RivalManager state.CurrentDate
+                    |> ManagerMind.prune balance.RivalManager state.CurrentDate) }
+
     let runEndOfSeason (balance: FootballEngine.Core.Match.BalanceConfig) (state: GameState) : GameState =
         let totalWeeks = seasonWeeks state
 
@@ -199,6 +209,7 @@ module SeasonPhase =
         |> applyLeagueConsequences
         |> resetConditions
         |> refreshAiLineups
+        |> developCoaches balance
         |> fun s ->
             { s with Clubs = s.Clubs |> Map.map (fun _ club ->
                     { club with CoordinationMemory =

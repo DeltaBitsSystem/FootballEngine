@@ -125,6 +125,104 @@ module ConfigValidation =
           if c.SignatureChangePenalty <= 0.0 || c.SignatureChangePenalty > 1.0 then
               yield "Counter.SignatureChangePenalty must be in (0, 1]" ]
 
+    let validateRivalManager (c: RivalManagerConfig) : string list =
+        let ranged (name: string) (value: float) (low: float) (high: float) =
+            if not (System.Double.IsFinite value) || value < low || value > high then
+                [ $"RivalManager.{name} must be in [{low}, {high}]" ]
+            else
+                []
+
+        let ranged' (name: string) (value: int) (low: int) (high: int) =
+            ranged name (float value) (float low) (float high)
+
+        let formation (name: string) (value: string) =
+            if FootballEngine.Domain.FormationLineups.all |> List.exists (fun f -> string f = value) then
+                []
+            else
+                [ $"RivalManager.{name}.PreferredFormation '{value}' is not a known formation" ]
+
+        let values (name: string) (low: int) (high: int) (v: FootballEngine.Domain.TacticalInstructions) =
+            [ for field, value in
+                  [ "Mentality", v.Mentality
+                    "DefensiveLine", v.DefensiveLine
+                    "PressingIntensity", v.PressingIntensity
+                    "Width", v.Width
+                    "Tempo", v.Tempo
+                    "Directness", v.Directness
+                    "PressTriggerZone", v.PressTriggerZone
+                    "DefensiveShape", v.DefensiveShape ] do
+                  yield! ranged' $"{name}.{field}" value low high ]
+
+        let preset (name: string) (p: PhilosophyPreset) =
+            formation name p.PreferredFormation @ values name 0 4 p.Values
+
+        List.concat
+            [ ranged' "StudyWindow" c.StudyWindow 1 100
+              ranged "StudyRate" c.StudyRate 0.01 5.0
+              ranged "ThreatPpgFloor" c.ThreatPpgFloor 0.0 2.9
+              ranged "StrengthNoise" c.StrengthNoise 0.0 100.0
+              ranged "UnderdogGap" c.UnderdogGap 0.0 200.0
+              ranged "CounterThreatMin" c.CounterThreatMin 0.0 1.0
+              ranged' "CopyImitationMin" c.CopyImitationMin 1 20
+              ranged "CopySuitabilityMin" c.CopySuitabilityMin 0.0 1.0
+              ranged' "RevengePrideMin" c.RevengePrideMin 1 20
+              ranged' "HumiliationMargin" c.HumiliationMargin 1 20
+              ranged "FormationSuitabilityMin" c.FormationSuitabilityMin 0.0 1.0
+              ranged "CounterMaxSteps" c.CounterMaxSteps 0.0 4.0
+              ranged "CounterFormationIntensity" c.CounterFormationIntensity 0.0 1.0
+              ranged "CentreHeavyShare" c.CentreHeavyShare 0.0 1.0
+              ranged "WideHeavyShare" c.WideHeavyShare 0.0 1.0
+              ranged "DirectLongPassShare" c.DirectLongPassShare 0.0 1.0
+              ranged "PossessionShortPassShare" c.PossessionShortPassShare 0.0 1.0
+              ranged' "PressAnswerBoldness" c.PressAnswerBoldness 1 20
+              values "RevengeShift" -4 4 c.RevengeShift
+              values "UnderdogCautiousShift" -4 4 c.UnderdogCautiousShift
+              values "UnderdogBoldShift" -4 4 c.UnderdogBoldShift
+              ranged' "UnderdogBoldnessPivot" c.UnderdogBoldnessPivot 1 20
+              ranged "RotationWeight" c.RotationWeight 0.0 2.0
+              preset "PossessionPreset" c.PossessionPreset
+              preset "PressingPreset" c.PressingPreset
+              preset "CounterPreset" c.CounterPreset
+              preset "DirectPreset" c.DirectPreset
+              preset "FortressPreset" c.FortressPreset
+              ranged' "ReviewIntervalMin" c.ReviewIntervalMin 1 30
+              ranged "MaxReactionDelayMin" c.MaxReactionDelayMin 0.0 30.0
+              ranged "TemperamentHaste" c.TemperamentHaste 0.0 1.0
+              ranged' "MinMinutesBetweenMoves" c.MinMinutesBetweenMoves 0 45
+              ranged' "HotheadMinutesBetweenMoves" c.HotheadMinutesBetweenMoves 0 c.MinMinutesBetweenMoves
+              ranged "ReadNoise" c.ReadNoise 0.0 5.0
+              ranged "MomentumEpsilon" c.MomentumEpsilon 0.001 5.0
+              ranged "MomentumHalfLifeMin" c.MomentumHalfLifeMin 1.0 90.0
+              ranged' "ReadSettleMinute" c.ReadSettleMinute 0 90
+              ranged "StormMomentum" c.StormMomentum 0.0 1.0
+              ranged "InitiativeMomentum" c.InitiativeMomentum 0.0 1.0
+              ranged' "ChaseMinuteBold" c.ChaseMinuteBold 1 120
+              ranged' "ChaseMinuteCautious" c.ChaseMinuteCautious c.ChaseMinuteBold 120
+              ranged' "AllOutMinute" c.AllOutMinute 1 120
+              ranged "AllOutBoldness" c.AllOutBoldness 0.0 1.0
+              ranged' "ProtectMinuteCautious" c.ProtectMinuteCautious 1 c.ProtectMinuteBold
+              ranged' "ProtectMinuteBold" c.ProtectMinuteBold 1 120
+              ranged "ParkBusBoldness" c.ParkBusBoldness 0.0 1.0
+              ranged "InitiativeBoldness" c.InitiativeBoldness 0.0 1.0
+              ranged "SmartChangeReadingMin" c.SmartChangeReadingMin 0.0 1.0
+              ranged' "CardRiskMinute" c.CardRiskMinute 1 120
+              ranged "HotheadTemperament" c.HotheadTemperament 0.0 1.0
+              ranged' "HotheadHalfTimeChanges" c.HotheadHalfTimeChanges 0 5
+              ranged "ChaseMentalityShift" c.ChaseMentalityShift 0.0 1.0
+              ranged "AllOutMentalityShift" c.AllOutMentalityShift 0.0 1.0
+              ranged "ProtectMentalityDrop" c.ProtectMentalityDrop 0.0 1.0
+              ranged "StormMentalityDrop" c.StormMentalityDrop 0.0 1.0
+              ranged "InitiativeMentalityShift" c.InitiativeMentalityShift 0.0 1.0
+              ranged "RedCardMentalityDrop" c.RedCardMentalityDrop 0.0 1.0
+              ranged "AttackLineShift" c.AttackLineShift 0.0 20.0
+              ranged "DefendLineShift" c.DefendLineShift 0.0 20.0
+              ranged "CoachStrengthPoints" c.CoachStrengthPoints 0.0 20.0
+              ranged' "CoachPeakEndAge" c.CoachPeakEndAge 30 80
+              ranged "CoachGrowthRate" c.CoachGrowthRate 0.0 1.0
+              ranged' "CoachDeclinePerYear" c.CoachDeclinePerYear 0 20
+              ranged' "CoachSkillFloor" c.CoachSkillFloor 1 200
+              ranged' "RivalMemoryYears" c.RivalMemoryYears 1 50 ]
+
     let validateTransfer (c: TransferConfig) : string list =
         [ if c.BenchWarmerAgeMin < 0 then
               yield "Transfer.BenchWarmerAgeMin must be >= 0"
@@ -894,6 +992,10 @@ module ConfigValidation =
               yield "Referee.HomeCardBonus must be in [0, 1]"
           if r.CardAccumulationThreshold < 1 || r.CardAccumulationThreshold > 10 then
               yield "Referee.CardAccumulationThreshold must be in [1, 10]"
+          if r.BookedLeniency < 0.0 || r.BookedLeniency > 1.0 then
+              yield "Referee.BookedLeniency must be in [0, 1]"
+          if r.BookedRecklessLeniency < 0.0 || r.BookedRecklessLeniency > 1.0 then
+              yield "Referee.BookedRecklessLeniency must be in [0, 1]"
           if r.LastManFactor < 0.0 || r.LastManFactor > 1.0 then
               yield "Referee.LastManFactor must be in [0, 1]"
           if r.PromisingAttackFactor < 0.0 || r.PromisingAttackFactor > 1.0 then
@@ -1105,6 +1207,7 @@ module ConfigValidation =
                     yield "Actions.PerceptionRadius must be in (0, 105] m" ]
             @ validateScout config.Scout
             @ validateCounter config.Counter
+            @ validateRivalManager config.RivalManager
             @ validateTransfer config.Transfer
             @ FootballEngine.Domain.WorldConfig.validate config.World
             @ validateTactics config.TacticalTradeoffs

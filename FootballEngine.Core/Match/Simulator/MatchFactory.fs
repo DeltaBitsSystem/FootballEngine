@@ -129,6 +129,7 @@ module MatchFactory =
               Dribbles = 0
               Crosses = 0
               XgSum = 0.0 }
+          Brain = ManagerBrainState()
           CFrame =
             { LastPerceivedTick = 0<subtick>
               LastDecidedTick = 0<subtick>

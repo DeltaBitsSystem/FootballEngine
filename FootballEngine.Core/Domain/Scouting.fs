@@ -506,6 +506,20 @@ module CounterPlan =
               TempoShift = cfg.MaxTempoShift * s
               DirectnessShift = cfg.MaxDirectnessShift * s }
 
+    /// A counter is only as sharp as the coach who draws it: adaptability decides how far he is willing to bend his
+    /// own plan and reading decides how accurately he aims it.
+    let scale (factor: float) (plan: CounterPlan) : CounterPlan =
+        if not plan.Active then
+            plan
+        else
+            { plan with
+                SideBias = plan.SideBias * factor
+                PressBoost = plan.PressBoost * factor
+                LineDrop = plan.LineDrop * factor
+                WidthTighten = plan.WidthTighten * factor
+                TempoShift = plan.TempoShift * factor
+                DirectnessShift = plan.DirectnessShift * factor }
+
     /// Deltas are added onto the club's own slider tactics, never replacing
     /// its identity: a deep block stays a deep block, just slightly deeper.
     /// CounterConfig is authored in slider units; TacticsConfig runs engine

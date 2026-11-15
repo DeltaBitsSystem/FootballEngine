@@ -215,8 +215,9 @@ module WorldPulseConfig =
           // A league averages 1.35 points per club per match (3 split between winner/loser, 2 on a draw).
           ExpectedPointsBase = 1.35
           // tanh saturates, so even a 9999 vs 500 gap adds at most this much: a giant is expected to win, not to
-          // collect 3 points every week.
-          ExpectedPointsSpread = 0.8
+          // collect 3 points every week. At 0.8 a giant owed ~2.3 points a match, more than title winners collect,
+          // so a top-four side on course was sacked by October; 0.5 asks ~2.0 at home.
+          ExpectedPointsSpread = 0.5
           ExpectedPointsMin = 0.2
           ExpectedPointsMax = 2.6
           // ClubGen reputation spans 500..9999; a 2500 gap (a quarter of the range) already gives ~76% of the
@@ -228,12 +229,13 @@ module WorldPulseConfig =
           ConfidenceGain = 5.0
           FansMoodGain = 6.0
           // Slow pull to the initial value so a past run does not define a club forever.
-          MeanReversionRate = 0.03
+          MeanReversionRate = 0.06
           BoardWarningThreshold = 40
           UltimatumThreshold = 25
           SackThreshold = 20
-          // A league has 30+ rounds; a coach is not judged on a bad start of a few matches.
-          MinMatchesBeforeSack = 8
+          // A league has 30+ rounds; a coach is not judged on a bad start, nor before he had time to answer rivals
+          // who have learned his recipe (they need two to five of his matches to read it).
+          MinMatchesBeforeSack = 12
           // Above the warning line so a fresh coach is not immediately in unrest, below the initial value
           // because the club just failed.
           HoneymoonConfidence = 55

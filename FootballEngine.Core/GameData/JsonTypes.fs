@@ -45,11 +45,22 @@ type ClubKitDto =
       Pattern: string }
 
 [<CLIMutable>]
+type PlayerEntryDto =
+    { Name: string
+      Position: string
+      Age: int
+      Rating: int
+      Potential: int
+      PreferredFoot: string option
+      Nationality: string option }
+
+[<CLIMutable>]
 type ClubEntryDto =
     { Name: string
       LeagueLevel: int
       Reputation: int option
-      Kit: ClubKitDto option }
+      Kit: ClubKitDto option
+      Players: PlayerEntryDto list }
 
 /// Cup format with embedded name (unlike domain CupFormat which has no name).
 [<CLIMutable>]

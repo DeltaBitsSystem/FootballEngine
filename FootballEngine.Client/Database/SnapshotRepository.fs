@@ -71,7 +71,7 @@ type private CareerPayload =
 
 module Db =
     [<Literal>]
-    let CurrentSchema = 10
+    let CurrentSchema = 11
 
     [<Literal>]
     let DefaultSlot = "career-1"

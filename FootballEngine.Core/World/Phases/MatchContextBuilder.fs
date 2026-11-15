@@ -206,7 +206,9 @@ module MatchContextBuilder =
 
     /// The counter-planning injection seam: the club counters only rivals it
     /// has seen before, and a rival it has never met gets the club's own plan.
-    let adjustTactics
+    /// `sharpness` is how well the coach turns what the club learned into a plan (adaptability x reading).
+    let adjustTacticsBy
+        (sharpness: float)
         (counterConfig: CounterConfig)
         (mem: Map<ClubId, OpponentMemory>)
         (opponent: ClubId)
@@ -216,23 +218,44 @@ module MatchContextBuilder =
         match mem |> Map.tryFind opponent with
         | None -> baseTactics
         | Some memory ->
-            CounterPlan.apply counterConfig baseTactics (CounterPlan.ofMemory counterConfig opponentSignature memory)
+            CounterPlan.ofMemory counterConfig opponentSignature memory
+            |> CounterPlan.scale sharpness
+            |> CounterPlan.apply counterConfig baseTactics
+
+    /// A coach with full adaptability and reading counters at the configured strength.
+    let adjustTactics = adjustTacticsBy 1.0
+
+    let private managerOf (gs: GameState) (clubId: ClubId) (coach: Staff) : ManagerProfile =
+        { Autonomous = GameState.managedClub gs <> Some clubId
+          Reading = float32 (ManagerMind.reading coach)
+          Boldness = float32 coach.Mind.Boldness / 20.0f
+          Temperament = float32 coach.Mind.Temperament / 20.0f
+          Adaptability = float32 coach.Mental.Adaptability / 20.0f }
 
     let private clubRef
         (counter: CounterConfig)
         (gs: GameState)
         (clubId: ClubId)
+        (coach: Staff)
         (rivalId: ClubId)
         (rivalSignature: string * TacticalInstructions)
         (lu: Lineup)
         : ClubRef =
         let club = gs.Clubs[clubId]
+        let manager = managerOf gs clubId coach
 
         { Id = uint64 clubId
           Name = club.Name
           // The counter leans on what the club already believes about this
           // specific rival; no memory means the club's own tactics stand.
-          BaseTactics = adjustTactics counter club.ScoutingMemory rivalId rivalSignature (tacticsOf lu)
+          BaseTactics =
+            adjustTacticsBy
+                (float manager.Adaptability * float manager.Reading)
+                counter
+                club.ScoutingMemory
+                rivalId
+                rivalSignature
+                (tacticsOf lu)
           Chemistry = club.CoordinationMemory.PressingCoordination
           AttackPrior = club.CoordinationMemory.AttackLearning
           // Unfamiliar shapes execute the plan sloppily; drilled shapes snap.
@@ -244,7 +267,8 @@ module MatchContextBuilder =
             |> float32
           HomeAdvantage =
             { CrowdSupport = 1.0f
-              Familiarity = 1.0f } }
+              Familiarity = 1.0f }
+          Manager = manager }
 
     let build (gs: GameState) (fixture: MatchFixture) (config: BalanceConfig) : MatchContext option =
         option {
@@ -264,8 +288,8 @@ module MatchContextBuilder =
                   AllowExtraTime = true }
 
             return
-                { HomeClub = clubRef config.Counter gs fixture.HomeClubId fixture.AwayClubId (signatureOf alu) hlu
-                  AwayClub = clubRef config.Counter gs fixture.AwayClubId fixture.HomeClubId (signatureOf hlu) alu
+                { HomeClub = clubRef config.Counter gs fixture.HomeClubId hc fixture.AwayClubId (signatureOf alu) hlu
+                  AwayClub = clubRef config.Counter gs fixture.AwayClubId ac fixture.HomeClubId (signatureOf hlu) alu
                   HomeLineup = hl
                   AwayLineup = al
                   HomeParticipants = hp

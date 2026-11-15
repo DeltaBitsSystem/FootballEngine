@@ -61,7 +61,8 @@ module WorldPulseTests =
           PulseProcessed = Set.empty
           PulseQueues = PulseQueues.empty
           JobOffers = []
-          NextJobOfferId = 1 }
+          NextJobOfferId = 1
+          UserStudy = [] }
 
     let private streak club length : NewsCandidate =
         NewsKind.Streak(club, StreakKind.Wins, length), NewsImportance.Minor, NewsScope.World, [ club ], []

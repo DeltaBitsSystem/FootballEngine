@@ -91,10 +91,26 @@ module ClubGen =
         : Club * Map<PlayerId, Player> * Map<StaffId, Staff> =
         let reputation = reputationFor entry rankPercentile
 
+        let authored =
+            entry.Players
+            |> List.map (fun authoredEntry ->
+                PlayerGen.createAuthored (nextPlayerId ()) authoredEntry clubId countryData year)
+
+        // Each authored player fills one generated slot of their position, so a mod squad never exceeds the usual size by much.
+        let generatedPositions =
+            entry.Players
+            |> List.fold
+                (fun remaining authoredEntry ->
+                    match List.tryFindIndex ((=) authoredEntry.Position) remaining with
+                    | Some index -> List.removeAt index remaining
+                    | None -> remaining)
+                (generateSquadPositions ())
+
         let players =
-            generateSquadPositions ()
-            |> List.map (fun position ->
-                PlayerGen.create (nextPlayerId ()) position clubId countryData entry.LeagueLevel year)
+            authored
+            @ (generatedPositions
+               |> List.map (fun position ->
+                   PlayerGen.create (nextPlayerId ()) position clubId countryData entry.LeagueLevel year))
 
         let staff =
             StaffGen.rolesForClub

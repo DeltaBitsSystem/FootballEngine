@@ -59,6 +59,9 @@ type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPol
     let mutable presentationTick = 0.0
     let mutable paused = false
     let mutable speed = Normal
+    // Fast-forward factor of the key-moment pacing, applied on top of the chosen speed so the viewer clock keeps up
+    // with the sparse poses published while cruising.
+    let mutable pace = 1.0
 
     let speedValue value =
         match value with
@@ -71,7 +74,7 @@ type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPol
     let advanceClock timestamp =
         if clockStarted && not paused then
             let elapsed = float (timestamp - lastClockTimestamp) / float Stopwatch.Frequency
-            let desired = presentationTick + elapsed * ticksPerSecond * speedValue speed
+            let desired = presentationTick + elapsed * ticksPerSecond * speedValue speed * pace
 
             let latestIndex = (writeIndex - 1 + slots.Length) % slots.Length
 
@@ -387,6 +390,12 @@ type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPol
 
                 clockStarted <- true
                 lastClockTimestamp <- nowTimestamp)
+
+    member _.SetPace(multiplier: float, nowTimestamp: int64) =
+        lock gate (fun () ->
+            if not closed then
+                advanceClock nowTimestamp
+                pace <- multiplier)
 
     member _.Close() =
         lock gate (fun () ->

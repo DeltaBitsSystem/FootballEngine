@@ -39,6 +39,7 @@ let private emptyState: GameState =
       PulseQueues = PulseQueues.empty
       JobOffers = []
       NextJobOfferId = 1
+      UserStudy = []
       Market = MarketState.empty }
 
 /// One sample per NewsKind case; the reflection count below fails the suite when a new case lacks a sample.

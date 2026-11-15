@@ -90,6 +90,38 @@ type LatchedTeam =
       /// Slots holding an action the body may still execute, bit per slot.
       PendingSlots: uint64 }
 
+/// Which kind of player a rival manager wants on and off the pitch when a move comes with a change.
+[<RequireQualifiedAccess>]
+type SubstitutionIntent =
+    | Attack
+    | Defend
+    | Keep
+
+/// What a rival manager remembers during one match: when he last looked, what he saw, what he did and what he
+/// still owes his team. ManagerSystem owns it; the object is shared between the live team and cognition's view
+/// of it, so a review made on the cognition thread is never lost at the barrier.
+type ManagerBrainState() =
+    member val LastReviewMinute = 0 with get, set
+    /// Minute a goal, a red card or half-time scheduled a review for; -1 when none is waiting.
+    member val PendingReviewMinute = -1 with get, set
+    member val LastMoveMinute = -1000 with get, set
+    member val LastXgFor = 0.0 with get, set
+    member val LastXgAgainst = 0.0 with get, set
+    /// Decayed xG of each side: the spell the coach remembers when he judges who is on top.
+    member val RecentXgFor = 0.0 with get, set
+    member val RecentXgAgainst = 0.0 with get, set
+    member val Shift: ManagerShift voption = ValueNone with get, set
+    /// A goal or a red card since the last move: such an event lifts the pause between moves.
+    member val EventSinceMove = false with get, set
+    member val OwnRedSinceReview = false with get, set
+    /// Half-time has passed without a review: the next one may ask hotheads for the double change.
+    member val HalfTimeSeen = false with get, set
+    /// The plan the coach started with; a shift is always measured from it, so shifts never stack.
+    member val BasePlan: TacticsConfig voption = ValueNone with get, set
+    /// Changes still to make after the one in flight, because a team holds one substitution at a time.
+    member val QueuedChanges = 0 with get, set
+    member val QueuedIntent = SubstitutionIntent.Keep with get, set
+
 type TeamWorld =
     { mutable Frame: TeamFrame
       mutable Tactics: TacticsConfig
@@ -104,6 +136,8 @@ type TeamWorld =
       mutable Emergent: EmergentState
       mutable Intercept: InterceptState
       mutable Stats: TeamStats
+      /// Only the sides the user does not command use it; see ManagerSystem.
+      Brain: ManagerBrainState
       mutable CFrame: CognitiveFrame
       mutable EventWindow: EventWindow
       mutable Substitution: SubstitutionState

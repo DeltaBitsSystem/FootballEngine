@@ -67,6 +67,7 @@
     <Compile Include="Systems\Team\TacticalStaffAnalysisTests.fs"/>
     <Compile Include="Systems\Team\OffsideLineTests.fs"/>
     <Compile Include="Systems\Manager\ManagerTests.fs"/>
+    <Compile Include="Systems\Manager\ManagerBrainTests.fs"/>
     <Compile Include="Stepper\EventApplyTests.fs"/>
     <Compile Include="Stepper\RestartContractTests.fs"/>
     <Compile Include="Contracts\StatsTests.fs"/>
@@ -90,7 +91,9 @@
      <Compile Include="World\CompetitionTests.fs"/>
      <Compile Include="World\C07LongRunTests.fs"/>
      <Compile Include="World\WorldGenerationTests.fs"/>
+     <Compile Include="World\AuthoredPlayersTests.fs"/>
      <Compile Include="World\QuickMatchTests.fs"/>
+     <Compile Include="World\RivalManagersTests.fs"/>
      <Compile Include="World\Pulse\WorldPulseTests.fs"/>
      <Compile Include="World\Pulse\MatchStoriesTests.fs"/>
      <Compile Include="World\Pulse\PressureTests.fs"/>

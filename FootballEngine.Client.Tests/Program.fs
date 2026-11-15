@@ -22,7 +22,10 @@ let main argv =
               ViewerQualityTests.tests
               tacticsTests
               ModEditorTests.tests
+              ModEditorPackageTests.tests
               LiveMatchTests.tests
+              KeyMomentsTests.tests
+              RivalCoachPresenterTests.tests
               CharacterAnimationTests.tests
               Animation.MotionRuntimeTests.tests
               Animation.MotionTimelineTests.tests

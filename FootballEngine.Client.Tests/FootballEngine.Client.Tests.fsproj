@@ -19,7 +19,10 @@
     <Compile Include="PersistenceTests.fs" />
     <Compile Include="TacticsDraftTests.fs" />
     <Compile Include="ModEditorTests.fs" />
+    <Compile Include="ModEditorPackageTests.fs" />
     <Compile Include="LiveMatchTests.fs" />
+    <Compile Include="KeyMomentsTests.fs" />
+    <Compile Include="RivalCoachPresenterTests.fs" />
     <Compile Include="CharacterAnimationTests.fs" />
     <Compile Include="Animation\MotionRuntimeTests.fs" />
     <Compile Include="Animation\MotionTimelineTests.fs" />

@@ -290,7 +290,8 @@ module WorldGen =
                   ExpiryYear = year + 3 }
           Status = Active
           TrophiesWon = 0
-          SeasonsManaged = 0 }
+          SeasonsManaged = 0
+          Mind = ManagerMind.neutral }
 
     let private generationError code entityId message suggestedAction : ModError =
         { Diagnostics =
@@ -477,5 +478,6 @@ module WorldGen =
                               PulseQueues = PulseQueues.empty
                               JobOffers = []
                               NextJobOfferId = 1
+                              UserStudy = []
                               ExecutionSeed = seed
                               MatchSeeds = Map.empty })

@@ -292,7 +292,8 @@ module AppState =
         | Route.Match _, Route.Match _, _ -> Cmd.none
         | Route.Match _, _, Some live when state.Match.RuntimeId.IsSome ->
             match live.Status with
-            | FootballEngine.LiveMatch.Live _ -> Cmd.ofMsg (LiveMsg LiveMsg.TogglePause)
+            | FootballEngine.LiveMatch.Live _
+            | FootballEngine.LiveMatch.Cruising -> Cmd.ofMsg (LiveMsg LiveMsg.TogglePause)
             | _ -> Cmd.none
         | _ -> Cmd.none
 
@@ -512,9 +513,41 @@ module AppState =
         | ModEditorMsg m ->
             let nextEditorState, cmd = UpdateModEditor.update m state.ModEditor
 
+            // Publishing with "enable" ends in a playable world: the package joins the active profile
+            // and the content is reloaded, so the next career already uses it.
+            let enableCmd =
+                match m, nextEditorState.PublishStatus with
+                | ModEditorMsg.PublishMod true, ModEditorTypes.Published(_, true) ->
+                    let modId = nextEditorState.Document.Manifest.Id
+                    // An empty profile means "everything installed"; listing only the new mod would drop the built-in world.
+                    let installed = nextEditorState.Library |> List.map _.ModId
+
+                    Cmd.batch
+                        [ Cmd.ofMsg (
+                              SettingsMsg(
+                                  UpdateGlobal(fun gs ->
+                                      let data = gs.Data
+
+                                      { gs with
+                                          Data =
+                                              { data with
+                                                  ActiveMods =
+                                                      (if data.ActiveMods.IsEmpty then installed else data.ActiveMods)
+                                                      @ [ modId ]
+                                                      |> List.distinct
+                                                  ModOrder =
+                                                      if List.contains modId data.ModOrder then
+                                                          data.ModOrder
+                                                      else
+                                                          data.ModOrder @ [ modId ] } })
+                              )
+                          )
+                          Cmd.ofMsg ReloadMods ]
+                | _ -> Cmd.none
+
             { state with
                 ModEditor = nextEditorState },
-            Cmd.map ModEditorMsg cmd
+            Cmd.batch [ Cmd.map ModEditorMsg cmd; enableCmd ]
 
         | SimMsg m ->
             let nextState, cmd = UpdateSim.handle m state
@@ -953,7 +986,8 @@ module AppState =
                             let pause =
                                 match nextState.Navigation.Current, status with
                                 | Route.Match _, _ -> Cmd.none
-                                | _, FootballEngine.LiveMatch.Live _ -> Cmd.ofMsg (LiveMsg LiveMsg.TogglePause)
+                                | _, FootballEngine.LiveMatch.Live _
+                                | _, FootballEngine.LiveMatch.Cruising -> Cmd.ofMsg (LiveMsg LiveMsg.TogglePause)
                                 | _ -> Cmd.none
 
                             drain (budget - 1) nextState (pause :: commands)
@@ -1061,6 +1095,7 @@ module AppState =
                 let payload =
                     match live.Status with
                     | FootballEngine.LiveMatch.Paused
+                    | FootballEngine.LiveMatch.KeyMomentStop _
                     | FootballEngine.LiveMatch.HalfTime -> FootballEngine.LiveMatch.ResumeMatch
                     | _ -> FootballEngine.LiveMatch.PauseMatch
 
@@ -1264,6 +1299,9 @@ module AppState =
                         Settings =
                             { navigated.Settings with
                                 ValidationErrors = SettingsSlice.validateState navigated.Settings } }
+                | Route.ModEditor ->
+                    { navigated with
+                        ModEditor = UpdateModEditor.refreshLibrary navigated.ModEditor }
                 | _ -> navigated
 
             let cmd =

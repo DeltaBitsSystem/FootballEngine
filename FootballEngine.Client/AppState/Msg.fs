@@ -162,10 +162,13 @@ module AppMsgs =
     type ModEditorMsg =
         | SetTab of ModEditorTypes.ModEditorTab
         | SetSubTab of ModEditorTypes.ModEditorSubTab
-        | UpdateManifest of (ModManifestDto -> ModManifestDto)
+        /// The string names the edited field; consecutive edits of one field form one undo step.
+        | UpdateManifest of string * (ModManifestDto -> ModManifestDto)
         | SelectCountry of string option
+        | SelectEditorClub of int option
         | AddCountry of CountryDataDto
         | UpdateCountry of string * (CountryDataDto -> CountryDataDto)
+        | EditCountry of code: string * field: string * (CountryDataDto -> CountryDataDto)
         | RemoveCountry of string
         | AddCup of string * CupEntryDto
         | UpdateCup of string * int * (CupEntryDto -> CupEntryDto)
@@ -175,9 +178,18 @@ module AppMsgs =
         | RemoveInternationalComp of int
         | UndoMod
         | RedoMod
-        | Export
         | Validate
+        | PublishMod of enable: bool
         | SearchMod of string
+        | SearchPlayers of string
+        | SetSquadPaste of string
+        | ImportSquad of code: string * clubIndex: int
+        | RefreshLibrary
+        | NewMod
+        | ResumeDraft
+        | OpenPackage of path: string * asOverride: bool
+        | ImportCountry of path: string * countryCode: string
+        | CloseDocument
 
     type SettingsMsg =
         | SetSearch of string

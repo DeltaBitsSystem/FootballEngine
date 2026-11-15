@@ -55,6 +55,18 @@ type AdvantageIncident =
       X: float<meter>
       Y: float<meter> }
 
+/// What a rival manager did with his team. Qualified access keeps `ProtectLead` from meeting the tactical
+/// situation of the same name in the Domain namespace.
+[<RequireQualifiedAccess>]
+type ManagerShift =
+    | ChaseGame
+    | AllOut
+    | ProtectLead
+    | WeatherStorm
+    | TakeInitiative
+    | BackToPlan
+    | RedCardReshape
+
 /// Scheduler bits are assigned explicitly in EventFlags, independently of DU declaration order.
 type EventKind =
     | PossessionGained
@@ -104,6 +116,7 @@ type EventKind =
     | PhysicalContact
     | Woodwork
     | KeeperDive
+    | ManagerShift
 
 module EventFlags =
 
@@ -159,6 +172,7 @@ module EventFlags =
             | EventKind.PhysicalContact -> 44
             | EventKind.Woodwork -> 45
             | EventKind.KeeperDive -> 46
+            | EventKind.ManagerShift -> 47
 
         { Bits = 1UL <<< bit }
 
@@ -188,6 +202,8 @@ type EventData =
     | Possession of side: ClubSide * player: PlayerId
     | DefensiveTransition of side: ClubSide * episode: EventId * change: TransitionChange
     | TeamInstruction of ClubSide
+    /// A rival manager changed the plan on his own initiative; always paired with the TeamInstruction it caused.
+    | ManagerShift of side: ClubSide * shift: ManagerShift
     | FootContact of
         player: PlayerId *
         foot: ContactFoot *
@@ -436,6 +452,18 @@ module MatchEvent =
                 let h = hashFloat (fnv (fnv h 2UL) tag) reward
                 match key with None -> fnv h 0UL | Some key -> fnv (fnv h 1UL) (uint64 key)
         | EventData.TeamInstruction side -> hashSide (fnv h 47UL) side
+        | EventData.ManagerShift(side, shift) ->
+            let tag =
+                match shift with
+                | ManagerShift.ChaseGame -> 0UL
+                | ManagerShift.AllOut -> 1UL
+                | ManagerShift.ProtectLead -> 2UL
+                | ManagerShift.WeatherStorm -> 3UL
+                | ManagerShift.TakeInitiative -> 4UL
+                | ManagerShift.BackToPlan -> 5UL
+                | ManagerShift.RedCardReshape -> 6UL
+
+            fnv (hashSide (fnv h 52UL) side) tag
         | EventData.DefensiveTransition(side, episode, change) ->
             let h = fnv (hashSide (fnv h 46UL) side) (EventId.value episode)
             match change with
@@ -600,6 +628,7 @@ module MatchEvent =
         match ev.Data with
         | EventData.CollectiveAttack _ -> EventKind.CollectiveAttack
         | EventData.TeamInstruction _ -> EventKind.TeamInstruction
+        | EventData.ManagerShift _ -> EventKind.ManagerShift
         | EventData.DefensiveTransition _ -> EventKind.DefensiveTransition
         | EventData.Possession _ -> EventKind.PossessionGained
         | EventData.Pass _ -> EventKind.PassLaunched
@@ -688,6 +717,7 @@ module MatchEvent =
         match ev.Data with
         | EventData.CollectiveAttack(side, episode, change) -> sprintf "Collective attack %A #%d: %A" side episode change
         | EventData.TeamInstruction side -> sprintf "Effective team instruction: %A" side
+        | EventData.ManagerShift(side, shift) -> sprintf "Manager shift %A: %A" side shift
         | EventData.DefensiveTransition(side, _, change) -> sprintf "Defensive transition %A: %A" side change
         | EventData.Possession(side, _) -> sprintf "Possession: %A" side
         | EventData.Pass(_, _, distance, _, completed, _, _, _, _) ->

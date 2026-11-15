@@ -14,6 +14,66 @@ module Program =
     let private defaultArgs (args: string list) (def: string list) = if args.IsEmpty then def else args
 
     /// Where fouls, corners and offsides come from: counts per cause, averaged over `n` matches.
+    /// Rival-manager moves per match on the corpus, where every side is autonomous: how often and when coaches act.
+    let shiftsCmd (n: int) (cfg: BalanceConfig) =
+        let causes = System.Collections.Generic.List<string>()
+        let rows =
+            [| for i in 0 .. n - 1 -> 42UL + uint64 i * 1013UL |]
+            |> Array.Parallel.map (fun seed ->
+                let outcome = SimulatorRunner.runContext (SimulatorRunner.corpusContext cfg seed) seed
+
+                let moves =
+                    outcome.Events
+                    |> List.choose (fun ev ->
+                        match ev.Data with
+                        | EventData.ManagerShift(side, shift) ->
+                            Some(side, shift, int ev.Tick / int SimulationClock.minuteSubticks)
+                        | _ -> None)
+
+                let reds =
+                    outcome.Events
+                    |> List.choose (fun ev ->
+                        match ev.Data with
+                        | EventData.RedCardIssued player -> Some player
+                        | _ -> None)
+
+                let reds = reds.Length, (reds |> List.distinct |> List.length)
+
+                // Severity of the foul behind each dismissal: the last foul the dismissed player committed before it.
+                for red in outcome.Events do
+                    match red.Data with
+                    | EventData.RedCardIssued player ->
+                        outcome.Events
+                        |> List.filter (fun ev -> ev.Tick <= red.Tick)
+                        |> List.choose (fun ev ->
+                            match ev.Data with
+                            | EventData.Foul(fouler, _, severity, _, _) when fouler = player -> Some(sprintf "%A" severity)
+                            | _ -> None)
+                        |> List.tryLast
+                        |> Option.iter (fun severity -> lock causes (fun () -> causes.Add severity))
+                    | _ -> ()
+
+                seed, outcome.Final.State.HomeScore, outcome.Final.State.AwayScore, moves, reds)
+
+        for seed, h, a, moves, _ in rows do
+            let text =
+                moves
+                |> List.map (fun (side, shift, minute) -> sprintf "%A:%A@%d" side shift minute)
+                |> String.concat " "
+
+            printfn "seed %d  %d-%d  %s" seed h a text
+
+        let all = rows |> Array.collect (fun (_, _, _, moves, _) -> Array.ofList moves)
+        printfn "moves/match %.2f" (float all.Length / float n)
+        printfn "red cards/match %.2f" (float (rows |> Array.sumBy (fun (_, _, _, _, (reds, _)) -> reds)) / float n)
+        printfn "players sent off/match %.2f" (float (rows |> Array.sumBy (fun (_, _, _, _, (_, players)) -> players)) / float n)
+
+        for severity, count in causes |> Seq.countBy id do
+            printfn "  dismissal after %s foul: %d" severity count
+
+        for shift, count in all |> Array.countBy (fun (_, shift, _) -> shift) do
+            printfn "  %A %d" shift count
+
     let diagnoseCmd (n: int) (cfg: BalanceConfig) =
         let counts = System.Collections.Concurrent.ConcurrentDictionary<string, int>()
         let add key = counts.AddOrUpdate(key, 1, fun _ v -> v + 1) |> ignore
@@ -412,6 +472,9 @@ module Program =
             | "quick-validate" :: rest ->
                 let perPair = defaultArgs rest [ "4" ] |> List.head |> int
                 QuickFit.validate cfg perPair
+                0
+            | "shifts" :: rest ->
+                shiftsCmd (defaultArgs rest [ "16" ] |> List.head |> int) cfg
                 0
             | "diagnose" :: rest ->
                 let n = defaultArgs rest [ "4" ] |> List.head |> int

@@ -411,6 +411,12 @@ type RefereeConfig =
       HomeCardBonus: float
       CardAccumulationThreshold: int
       LastManFactor: float
+      /// Multiplies the discretionary booking chance (careless fouls and the last-man bonus) of an already booked
+      /// player: referees caution a booked player again for a reckless foul, rarely for a careless one.
+      BookedLeniency: float
+      /// Same for a challenge judged reckless: severity reads the offender's speed only, a proxy referees resolve in
+      /// a booked player's favour when it is borderline.
+      BookedRecklessLeniency: float
       PromisingAttackFactor: float
       ZoneFactor: float }
 
@@ -780,6 +786,7 @@ type BalanceConfig =
       CollectiveAttack: CollectiveAttackConfig
       Scout: ScoutConfig
       Counter: CounterConfig
+      RivalManager: RivalManagerConfig
       Transfer: TransferConfig
       World: FootballEngine.Domain.WorldConfig
       TacticalTradeoffs: TacticalTradeoffConfig
@@ -1200,6 +1207,12 @@ module BalanceConfig =
           // Added to the booking chance when the foul stops the last defender's man near goal. The test is a
           // proximity heuristic that also catches harmless fouls, so at 0.45 it booked ~3 per match on its own.
           LastManFactor = 0.25
+          // Without it second yellows ran at ~2.2 dismissals a match (real top flight ~0.15): fouls concentrate on
+          // the same deepest defenders, and every careless one risked the second caution.
+          BookedLeniency = 0.1
+          // Measured on the corpus: 14 of 23 remaining dismissals followed a speed-judged reckless foul by a booked player;
+          // 0.2 brings dismissals to ~0.38 a match, about 0.15 of them straight reds.
+          BookedRecklessLeniency = 0.2
           PromisingAttackFactor = 0.2
           ZoneFactor = 0.2 }
 
@@ -1326,6 +1339,154 @@ module BalanceConfig =
           MaxDirectnessShift = 0.5
           SignatureChangePenalty = 0.6 }
 
+    let private noShift: FootballEngine.Domain.TacticalInstructions =
+        { Mentality = 0
+          DefensiveLine = 0
+          PressingIntensity = 0
+          Width = 0
+          Tempo = 0
+          Directness = 0
+          PressTriggerZone = 0
+          DefensiveShape = 0 }
+
+    let defaultRivalManager: RivalManagerConfig =
+        { StudyWindow = 10
+          // A coach with PA 180 reacts to a winning recipe after about two matches, one with PA 80 after five.
+          StudyRate = 0.3
+          // A recipe that earns one point a game or less is not worth answering.
+          ThreatPpgFloor = 1.0
+          // Squads differ by tens of CA points; a coach who reads poorly can be a fifth of a gap off.
+          StrengthNoise = 12.0
+          UnderdogGap = 25.0
+          CounterThreatMin = 0.3
+          CopyImitationMin = 12
+          CopySuitabilityMin = 0.9
+          RevengePrideMin = 13
+          // A three-goal defeat is the line between a bad day and an insult.
+          HumiliationMargin = 3
+          FormationSuitabilityMin = 0.92
+          CounterMaxSteps = 2.5
+          CounterFormationIntensity = 0.5
+          // A third per corridor is a balanced side; 0.42 in the middle is a clear lean.
+          CentreHeavyShare = 0.42
+          WideHeavyShare = 0.62
+          DirectLongPassShare = 0.22
+          PossessionShortPassShare = 0.55
+          PressAnswerBoldness = 11
+          RevengeShift = { noShift with Mentality = 1; PressingIntensity = 1 }
+          UnderdogCautiousShift =
+            { noShift with
+                Mentality = -1
+                DefensiveLine = -1
+                Tempo = 1
+                Directness = 1
+                PressTriggerZone = -1 }
+          UnderdogBoldShift =
+            { noShift with
+                DefensiveLine = 1
+                PressingIntensity = 2
+                PressTriggerZone = 1 }
+          UnderdogBoldnessPivot = 12
+          // A starter at 55% condition loses about a third of his score to a coach who reads perfectly.
+          RotationWeight = 0.8
+          PossessionPreset =
+            { PreferredFormation = "F433"
+              Values =
+                { Mentality = 3
+                  DefensiveLine = 3
+                  PressingIntensity = 2
+                  Width = 2
+                  Tempo = 1
+                  Directness = 0
+                  PressTriggerZone = 1
+                  DefensiveShape = 2 } }
+          PressingPreset =
+            { PreferredFormation = "F4231"
+              Values =
+                { Mentality = 3
+                  DefensiveLine = 3
+                  PressingIntensity = 4
+                  Width = 2
+                  Tempo = 3
+                  Directness = 2
+                  PressTriggerZone = 3
+                  DefensiveShape = 2 } }
+          CounterPreset =
+            { PreferredFormation = "F4141"
+              Values =
+                { Mentality = 1
+                  DefensiveLine = 1
+                  PressingIntensity = 1
+                  Width = 2
+                  Tempo = 3
+                  Directness = 3
+                  PressTriggerZone = 0
+                  DefensiveShape = 2 } }
+          DirectPreset =
+            { PreferredFormation = "F442"
+              Values =
+                { Mentality = 2
+                  DefensiveLine = 2
+                  PressingIntensity = 2
+                  Width = 3
+                  Tempo = 3
+                  Directness = 4
+                  PressTriggerZone = 1
+                  DefensiveShape = 2 } }
+          FortressPreset =
+            { PreferredFormation = "F541"
+              Values =
+                { Mentality = 0
+                  DefensiveLine = 0
+                  PressingIntensity = 1
+                  Width = 1
+                  Tempo = 1
+                  Directness = 3
+                  PressTriggerZone = 0
+                  DefensiveShape = 1 } }
+          ReviewIntervalMin = 5
+          MaxReactionDelayMin = 6.0
+          TemperamentHaste = 0.6
+          MinMinutesBetweenMoves = 8
+          HotheadMinutesBetweenMoves = 3
+          ReadNoise = 0.5
+          // About a quarter-hour of chances at the league rate: one shot in a quiet spell stays under the storm line.
+          MomentumEpsilon = 0.35
+          // A spell of pressure, not the last chance: half the memory fades in twelve minutes.
+          MomentumHalfLifeMin = 12.0
+          ReadSettleMinute = 15
+          // Measured on the corpus: at 0.3 over five-minute windows coaches flipped storm/back-to-plan six times a match.
+          StormMomentum = 0.45
+          InitiativeMomentum = 0.45
+          ChaseMinuteBold = 55
+          ChaseMinuteCautious = 78
+          AllOutMinute = 82
+          AllOutBoldness = 0.7
+          ProtectMinuteCautious = 65
+          ProtectMinuteBold = 80
+          ParkBusBoldness = 0.25
+          InitiativeBoldness = 0.6
+          SmartChangeReadingMin = 0.6
+          CardRiskMinute = 60
+          // Temperament 15 of 20 is also where the archetype turns Hothead.
+          HotheadTemperament = 0.75
+          HotheadHalfTimeChanges = 2
+          ChaseMentalityShift = 0.25
+          AllOutMentalityShift = 0.5
+          ProtectMentalityDrop = 0.25
+          StormMentalityDrop = 0.2
+          InitiativeMentalityShift = 0.2
+          RedCardMentalityDrop = 0.25
+          AttackLineShift = 6.0
+          DefendLineShift = 6.0
+          // The best coach against the worst (0.75 of reading apart) gains 3 attribute points: a ~5% scoring edge.
+          CoachStrengthPoints = 4.0
+          CoachPeakEndAge = 58
+          CoachGrowthRate = 0.25
+          CoachDeclinePerYear = 2
+          CoachSkillFloor = 50
+          RivalMemoryYears = 5 }
+
     let defaultTransfer: TransferConfig =
         { BenchWarmerAgeMin = 25
           MinMatchesForSquadPlayer = 10
@@ -1449,6 +1610,7 @@ module BalanceConfig =
           CollectiveAttack = defaultCollectiveAttack
           Scout = defaultScout
           Counter = defaultCounter
+          RivalManager = defaultRivalManager
           Transfer = defaultTransfer
           World = FootballEngine.Domain.WorldConfig.defaults
           TacticalTradeoffs = defaultTacticalTradeoffs

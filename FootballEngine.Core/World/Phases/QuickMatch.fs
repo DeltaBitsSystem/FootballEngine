@@ -31,9 +31,14 @@ module QuickMatch =
         else
             players |> Array.averageBy (fun p -> attributes p |> Array.averageBy float)
 
-    /// Expected goals of the home and the away side.
+    /// Expected goals of the home and the away side. A coach who reads the game better is worth a few attribute
+    /// points to his side; two coaches who read it equally cancel out and the rates are the squads' alone.
     let rates (cfg: QuickMatchConfig) (ctx: MatchContext) : float * float =
-        let gap = strength ctx.HomeLineup - strength ctx.AwayLineup
+        let coachEdge =
+            ctx.Config.RivalManager.CoachStrengthPoints
+            * float (ctx.HomeClub.Manager.Reading - ctx.AwayClub.Manager.Reading)
+
+        let gap = strength ctx.HomeLineup - strength ctx.AwayLineup + coachEdge
 
         cfg.GoalsPerTeam * exp (cfg.HomeAdvantage + cfg.StrengthSensitivity * gap),
         cfg.GoalsPerTeam * exp (-cfg.StrengthSensitivity * gap)

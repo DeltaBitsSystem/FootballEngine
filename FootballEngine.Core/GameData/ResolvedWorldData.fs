@@ -44,7 +44,18 @@ module ResolvedWorldData =
     let private leagueRuleKeys =
         set [ "PointsForWin"; "PointsForDraw"; "Tiebreakers"; "Promotion"; "Relegation" ]
 
-    let private clubKeys = set [ "Name"; "LeagueLevel"; "Reputation"; "Kit" ]
+    let private clubKeys = set [ "Name"; "LeagueLevel"; "Reputation"; "Kit"; "Players" ]
+
+    let private playerKeys =
+        set
+            [ "Name"
+              "Position"
+              "Age"
+              "Rating"
+              "Potential"
+              "PreferredFoot"
+              "Nationality" ]
+
     let private kitKeys = set [ "Primary"; "Secondary"; "Pattern" ]
     let private cupKeys = set [ "Name"; "Format" ]
 
@@ -760,6 +771,108 @@ module ResolvedWorldData =
                           Pattern = pattern }
                 | _ -> None
 
+    let private parsePlayerEntry (ctx: Context) (path: string) (element: JsonElement) : PlayerEntry option =
+        match objectProperties ctx path element with
+        | None -> None
+        | Some properties ->
+            rejectUnknownProperties ctx path playerKeys properties
+
+            let fieldError name message hint =
+                addDiagnostic ctx "MOD-CONTENT-FIELD" (childPath path name) message hint
+                None
+
+            let name = requiredNonEmptyString ctx path properties "Name"
+
+            let position =
+                requiredNonEmptyString ctx path properties "Position"
+                |> Option.bind (fun value ->
+                    match value with
+                    | "GK" -> Some GK
+                    | "DC" -> Some DC
+                    | "DL" -> Some DL
+                    | "DR" -> Some DR
+                    | "WBL" -> Some WBL
+                    | "WBR" -> Some WBR
+                    | "DM" -> Some DM
+                    | "MC" -> Some MC
+                    | "ML" -> Some ML
+                    | "MR" -> Some MR
+                    | "AML" -> Some AML
+                    | "AMR" -> Some AMR
+                    | "AMC" -> Some AMC
+                    | "ST" -> Some ST
+                    | _ ->
+                        fieldError
+                            "Position"
+                            "Unknown player position."
+                            "Use GK, DC, DL, DR, WBL, WBR, DM, MC, ML, MR, AML, AMR, AMC or ST.")
+
+            let age =
+                requiredInt ctx path properties "Age"
+                |> Option.bind (fun value ->
+                    if value < 15 || value > 45 then
+                        fieldError "Age" "Player age must be between 15 and 45." "Use an age from 15 to 45."
+                    else
+                        Some value)
+
+            let rating =
+                requiredInt ctx path properties "Rating"
+                |> Option.bind (fun value ->
+                    if value < 1 || value > 100 then
+                        fieldError "Rating" "Player rating must be between 1 and 100." "Use a rating from 1 to 100."
+                    else
+                        Some value)
+
+            let potential =
+                requiredInt ctx path properties "Potential"
+                |> Option.bind (fun value ->
+                    match rating with
+                    | Some r when value < r || value > 100 ->
+                        fieldError
+                            "Potential"
+                            "Player potential must be between the rating and 100."
+                            "Use a potential from the player's rating up to 100."
+                    | _ when value < 1 || value > 100 ->
+                        fieldError
+                            "Potential"
+                            "Player potential must be between 1 and 100."
+                            "Use a potential from 1 to 100."
+                    | _ -> Some value)
+
+            let optionalProperty key =
+                properties
+                |> List.tryFind (fun property -> property.Name = key)
+                |> Option.filter (fun property -> property.Value.ValueKind <> JsonValueKind.Null)
+
+            let foot =
+                match optionalProperty "PreferredFoot" with
+                | None -> Some None
+                | Some property ->
+                    stringValue ctx (childPath path "PreferredFoot") property.Value
+                    |> Option.bind (fun value ->
+                        match value with
+                        | "Left" -> Some(Some Left)
+                        | "Right" -> Some(Some Right)
+                        | "Both" -> Some(Some Both)
+                        | _ -> fieldError "PreferredFoot" "Unknown preferred foot." "Use Left, Right or Both.")
+
+            let nationality =
+                match optionalProperty "Nationality" with
+                | None -> Some None
+                | Some property -> stringValue ctx (childPath path "Nationality") property.Value |> Option.map Some
+
+            match name, position, age, rating, potential, foot, nationality with
+            | Some name, Some position, Some age, Some rating, Some potential, Some foot, Some nationality ->
+                Some
+                    { Name = name
+                      Position = position
+                      Age = age
+                      Rating = rating
+                      Potential = potential
+                      PreferredFoot = foot
+                      Nationality = nationality }
+            | _ -> None
+
     let private parseClubEntry (ctx: Context) (path: string) (element: JsonElement) =
         match objectProperties ctx path element with
         | None -> None
@@ -784,11 +897,18 @@ module ResolvedWorldData =
                             "Club reputation must not be negative."
                             "Use a non-negative reputation or explicit null.")
 
-                Some
+                let players =
+                    match properties |> List.tryFind (fun property -> property.Name = "Players") with
+                    | None -> Some []
+                    | Some property -> parsedArray ctx (childPath path "Players") property.Value (parsePlayerEntry ctx)
+
+                players
+                |> Option.map (fun players ->
                     { Name = name
                       LeagueLevel = level
                       Reputation = reputation
-                      Kit = parseKit ctx path properties }
+                      Kit = parseKit ctx path properties
+                      Players = players })
             | _ -> None
 
     let private parseCupEntry (ctx: Context) (path: string) (element: JsonElement) =

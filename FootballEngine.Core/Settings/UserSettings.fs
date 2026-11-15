@@ -196,7 +196,7 @@ module MatchViewSettings =
     let defaults: MatchViewSettings =
         { PlaybackSpeed = 20
           AutoPlay = false
-          HighlightFilter = All
+          HighlightFilter = KeyMoments
           TickRate = 16
           ShowXG = true
           ShowPossession = true
@@ -922,7 +922,8 @@ module private JsonHelpers =
 
 module GlobalSettings =
 
-    let currentVersion = JsonHelpers.currentVersion
+    /// Version 2 makes key moments the default match pacing.
+    let currentVersion = 2
 
     let defaults: GlobalSettings =
         { Appearance = AppearanceSettings.defaults
@@ -1002,13 +1003,21 @@ module GlobalSettings =
 
                 match appearanceR, matchViewR, careerR, dataR, advancedR with
                 | Ok a, Ok m, Ok c, Ok d, Ok adv ->
+                    // Before version 2 the full match was the only default, so a stored "All" records the old
+                    // default rather than a choice; it moves to key moments once, and a later "All" is kept.
+                    let m =
+                        if version < 2 && m.HighlightFilter = All then
+                            { m with HighlightFilter = KeyMoments }
+                        else
+                            m
+
                     Ok
                         { Appearance = a
                           MatchView = m
                           Career = c
                           Data = d
                           Advanced = adv
-                          Version = version }
+                          Version = max version currentVersion }
                 | _ ->
                     let errs =
                         [ match appearanceR with

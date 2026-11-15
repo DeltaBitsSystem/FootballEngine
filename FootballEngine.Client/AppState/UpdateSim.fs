@@ -354,7 +354,12 @@ module UpdateSim =
                         let gs = ExecutionRandomness.beginAttempt gs
 
                         let runtimeId =
-                            MatchRuntime.createUserMatch matchId gs state.WorldClock (Some state.SaveSettings)
+                            MatchRuntime.createUserMatch
+                                matchId
+                                gs
+                                state.WorldClock
+                                (Some state.SaveSettings)
+                                state.Settings.Global.MatchView.HighlightFilter
 
                         let matchState =
                             { state.Match with

@@ -49,7 +49,7 @@ let private career () =
     | Ok value -> value
     | Error error -> failtestf "Cannot generate career: %A" error
 
-let private scheduledCareer () =
+let scheduledCareer () =
     let gs = career ()
 
     let matchId, fixture =

@@ -113,6 +113,7 @@ let private state date dataLock =
       PulseQueues = PulseQueues.empty
       JobOffers = []
       NextJobOfferId = 1
+      UserStudy = []
       Market = MarketState.empty }
 
 let private saveSettings = SaveSettings.defaults
@@ -1522,39 +1523,45 @@ let damagedStartupTests =
         | Ok loaded -> Expect.equal loaded.State next "corrupt file is archived and replaced"
         | Error error -> failtestf "corrupt save could not be replaced: %A" error
 
+/// A small generated career with real players, clubs, fixtures and staff.
+let private generatedWorld () : GameState =
+    let country =
+        """{"id":"test.save:country/tst","kind":"country","schema":1,"code":"TST","confederation":"UEFA","nameKey":"test.save:country/tst.name","domain":{"Country":{"Code":"TST","Name":"Testland","Confederation":"UEFA"},"Names":{"FirstNames":["Alex","Sam"],"LastNames":["Stone","River"]},"LeagueNames":["Test League"],"LeagueRules":[{"PointsForWin":3,"PointsForDraw":1,"Tiebreakers":["GD","GS"],"Promotion":[],"Relegation":[]}],"Clubs":[{"Name":"North FC","LeagueLevel":0,"Reputation":7000},{"Name":"South FC","LeagueLevel":0,"Reputation":6500},{"Name":"East FC","LeagueLevel":0,"Reputation":6000},{"Name":"West FC","LeagueLevel":0,"Reputation":6000}],"Cups":[]}}"""
+
+    let package: ModPackage =
+        { Manifest =
+            { Id = ModId "test.save"
+              Version = "1.0.0"
+              Dependencies = []
+              Priority = 0
+              Before = []
+              After = [] }
+          PackageSha256 = sha256 "test-save"
+          SportsContent = Map.ofList [ ContentId "test.save:country/tst", country ]
+          Translations = Map.empty
+          Assets = Map.empty
+          Patches = [] }
+
+    let resolved =
+        match
+            ModResolution.resolve
+                [ { RelativePath = "test-save.femod"
+                    Package = package } ]
+        with
+        | Ok value -> value
+        | Error error -> failtestf "could not resolve test country: %A" error
+
+    let gs =
+        match WorldGen.generateNewGame resolved 0xC02UL (DateTime(2026, 7, 1)) "TST" "Test Manager" [] with
+        | Ok value -> value
+        | Error error -> failtestf "could not generate test world: %A" error
+
+    gs
+
 let generatedCareerTests =
     testCase "a generated career with players, fixtures and clubs survives a full round-trip"
     <| fun _ ->
-        let country =
-            """{"id":"test.save:country/tst","kind":"country","schema":1,"code":"TST","confederation":"UEFA","nameKey":"test.save:country/tst.name","domain":{"Country":{"Code":"TST","Name":"Testland","Confederation":"UEFA"},"Names":{"FirstNames":["Alex","Sam"],"LastNames":["Stone","River"]},"LeagueNames":["Test League"],"LeagueRules":[{"PointsForWin":3,"PointsForDraw":1,"Tiebreakers":["GD","GS"],"Promotion":[],"Relegation":[]}],"Clubs":[{"Name":"North FC","LeagueLevel":0,"Reputation":7000},{"Name":"South FC","LeagueLevel":0,"Reputation":6500},{"Name":"East FC","LeagueLevel":0,"Reputation":6000},{"Name":"West FC","LeagueLevel":0,"Reputation":6000}],"Cups":[]}}"""
-
-        let package: ModPackage =
-            { Manifest =
-                { Id = ModId "test.save"
-                  Version = "1.0.0"
-                  Dependencies = []
-                  Priority = 0
-                  Before = []
-                  After = [] }
-              PackageSha256 = sha256 "test-save"
-              SportsContent = Map.ofList [ ContentId "test.save:country/tst", country ]
-              Translations = Map.empty
-              Assets = Map.empty
-              Patches = [] }
-
-        let resolved =
-            match
-                ModResolution.resolve
-                    [ { RelativePath = "test-save.femod"
-                        Package = package } ]
-            with
-            | Ok value -> value
-            | Error error -> failtestf "could not resolve test country: %A" error
-
-        let gs =
-            match WorldGen.generateNewGame resolved 0xC02UL (DateTime(2026, 7, 1)) "TST" "Test Manager" [] with
-            | Ok value -> value
-            | Error error -> failtestf "could not generate test world: %A" error
+        let gs = generatedWorld ()
 
         Expect.isGreaterThan gs.Players.Count 0 "the fixture is a populated world"
         let prior = Map.ofList [ for key in 0 .. 23 -> key, ({ Samples = 48.0; RewardSum = 36.0 }: AttackEstimate) ]
@@ -1785,12 +1792,101 @@ let collectiveSchemaTests =
         let gs = state (DateTime(2026, 8, 1)) (dataLock None)
         save root "before-collective" gs (WorldClockOps.init gs.Season)
         use db = new SQLiteConnection(Path.Combine(root, "career-before-collective.db3"), true)
-        for schema in [8; 9] do
+        for schema in [8; 9; 10] do
             db.Execute("UPDATE CareerSnapshot SET SchemaVersion = ? WHERE Id = 1", schema) |> ignore
             match load root "before-collective" with
-            | Error(Incompatible(_, expected, actual)) -> Expect.equal (expected, actual) (10, schema) "obsolete contract rejected explicitly"
+            | Error(Incompatible(_, expected, actual)) -> Expect.equal (expected, actual) (Db.CurrentSchema, schema) "obsolete contract rejected explicitly"
             | other -> failtestf "obsolete schema was not rejected: %A" other
             Expect.equal (db.ExecuteScalar<int>("SELECT SchemaVersion FROM CareerSnapshot WHERE Id = 1")) schema "read does not migrate or overwrite"
+
+let rivalManagerTests =
+    testCase "coach personalities, rivalries, plans and the user's study round-trip, and a save from before them is refused"
+    <| fun _ ->
+        let gs = generatedWorld ()
+        let coach = (GameState.headCoach (gs.Clubs |> Map.toSeq |> Seq.map fst |> Seq.find (fun id -> id <> gs.UserClubId)) gs).Value
+        let userCoach = (GameState.headCoach gs.UserClubId gs).Value
+
+        let record: RivalRecord =
+            { Played = 3
+              Won = 1
+              Drawn = 1
+              Lost = 1
+              GoalsFor = 4
+              GoalsAgainst = 6
+              LastMargin = -3
+              LastMet = DateTime(2026, 9, 12) }
+
+        let note: GamePlanNote =
+            { OpponentClubId = gs.UserClubId
+              Date = DateTime(2026, 9, 20)
+              Formation = F4231
+              Approach = CounterRecipe F433
+              Threat = 0.42 }
+
+        let styled =
+            { coach with
+                Mind =
+                    { Philosophy = CoachPhilosophy.Fortress
+                      Boldness = 3
+                      Temperament = 17
+                      Pride = 19
+                      Imitation = 15
+                      Rivals = Map.ofList [ userCoach.Id, record ]
+                      LastPlan = Some note } }
+
+        let pattern =
+            { PatternVector.empty with
+                CorridorLeft = 0.2
+                CorridorCenter = 0.55
+                CorridorRight = 0.25
+                PassLong = 0.31
+                Formation = "F433"
+                Instructions = { TacticalInstructions.defaultInstructions with Tempo = 4 } }
+
+        let study: UserMatchRecord list =
+            [ { Date = DateTime(2026, 9, 12)
+                OpponentClubId = coach.Contract.Value.ClubId
+                Formation = F433
+                Instructions = { TacticalInstructions.defaultInstructions with Tempo = 4; Width = 0 }
+                Pattern = pattern
+                GoalsFor = 4
+                GoalsAgainst = 1 }
+              { Date = DateTime(2026, 9, 5)
+                OpponentClubId = coach.Contract.Value.ClubId
+                Formation = F4231
+                Instructions = TacticalInstructions.defaultInstructions
+                Pattern = PatternVector.empty
+                GoalsFor = 0
+                GoalsAgainst = 0 } ]
+
+        let original = { GameState.updateStaff styled gs with UserStudy = study }
+        let root = tempRoot ()
+        save root "rivals" original (WorldClockOps.init original.Season)
+
+        match load root "rivals" with
+        | Error error -> failtestf "the save did not load: %A" error
+        | Ok loaded ->
+            Expect.equal loaded.State.Staff[styled.Id] styled "the coach comes back with his mind, rivalries and last plan"
+            Expect.equal loaded.State.UserStudy study "the user's study comes back as it was, newest first"
+
+            Expect.isTrue
+                (loaded.State.Staff
+                 |> Map.forall (fun _ staff -> staff.Mind = original.Staff[staff.Id].Mind))
+                "every other staff member keeps his mind too"
+
+        // A save written under the previous schema never saw a Mind: it is refused, not filled with defaults.
+        use db = new SQLiteConnection(Path.Combine(root, "career-rivals.db3"), true)
+        db.Execute("UPDATE CareerSnapshot SET SchemaVersion = ? WHERE Id = 1", Db.CurrentSchema - 1) |> ignore
+
+        match load root "rivals" with
+        | Error(Incompatible(_, expected, actual)) ->
+            Expect.equal (expected, actual) (Db.CurrentSchema, Db.CurrentSchema - 1) "the older schema is named in the refusal"
+        | other -> failtestf "the older save was not refused: %A" other
+
+        Expect.equal
+            (db.ExecuteScalar<int>("SELECT SchemaVersion FROM CareerSnapshot WHERE Id = 1"))
+            (Db.CurrentSchema - 1)
+            "and the file is left as it was"
 
 let tests =
     testList
@@ -1832,4 +1928,5 @@ let tests =
           legacyReplacementTests
           unsupportedSnapshotTests
           damagedStartupTests
-          generatedCareerTests ]
+          generatedCareerTests
+          rivalManagerTests ]

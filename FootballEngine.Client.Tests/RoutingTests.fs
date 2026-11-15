@@ -156,6 +156,7 @@ let matchNavigationTests =
                     PulseQueues = PulseQueues.empty
                     JobOffers = []
                     NextJobOfferId = 1
+                    UserStudy = []
                     Market = MarketState.empty }
 
               let initial =

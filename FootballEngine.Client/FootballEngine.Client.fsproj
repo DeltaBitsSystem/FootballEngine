@@ -41,6 +41,7 @@
         <Compile Include="Animation\MotionReplay.fs"/>
         <Compile Include="AppState\MatchPresentation.fs"/>
         <Compile Include="AppState\MatchObservationArchive.fs"/>
+        <Compile Include="AppState\KeyMoments.fs"/>
         <Compile Include="AppState\MatchRuntime.fs"/>
         <Compile Include="AppState\ModEditorPackage.fs"/>
         <Compile Include="Shots\Shots.fs"/>
@@ -51,6 +52,7 @@
         <Compile Include="Views\Shared\Formatters.fs"/>
         <Compile Include="Views\Shared\NewsText.fs"/>
         <Compile Include="AppState\Projections.fs"/>
+        <Compile Include="AppState\RivalCoachPresenter.fs"/>
         <Compile Include="Views\Shared\PlayerPresenter.fs"/>
         <Compile Include="Views\Shared\ColumnDefs.fs"/>
         <Compile Include="Views\Shared\SelectionStyle.fs"/>
