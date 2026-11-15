@@ -81,7 +81,10 @@ module OutcomeTests =
 
                   let consequence =
                       buf.Events
-                      |> Seq.find (fun event -> match event.Data with EventData.Goal _ -> true | _ -> false)
+                      |> Seq.find (fun event ->
+                          match event.Data with
+                          | EventData.Goal _ -> true
+                          | _ -> false)
 
                   let cause = world.Observation.ConsumeCause consequence
 
@@ -119,12 +122,16 @@ module OutcomeTests =
                       buf.Events
                       (fun ev ->
                           match ev.Data with
-                           | EventData.Goal _ -> true
-                           | _ -> false)
+                          | EventData.Goal _ -> true
+                          | _ -> false)
                       "the unobstructed in-frame crossing is a goal"
 
                   Expect.isFalse
-                      (buf.Events |> Seq.exists (fun event -> match event.Data with EventData.Save _ -> true | _ -> false))
+                      (buf.Events
+                       |> Seq.exists (fun event ->
+                           match event.Data with
+                           | EventData.Save _ -> true
+                           | _ -> false))
                       "goalkeeper attributes cannot create a save without physical contact")
 
               testCase "Shot wide of the post is off target" (fun _ ->

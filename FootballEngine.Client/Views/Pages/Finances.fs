@@ -125,7 +125,9 @@ module Finances =
                                                   TranslationKey.FinanceForecastSub ] ]
                                   WrapPanel.create
                                       [ WrapPanel.children
-                                            [ fact TranslationKey.FinanceReservations (string finance.Reservations.Length)
+                                            [ fact
+                                                  TranslationKey.FinanceReservations
+                                                  (string finance.Reservations.Length)
                                               fact TranslationKey.FinanceObligations (string obligations.Length)
                                               fact TranslationKey.FinanceDebt (money finance.Debt) ] ]
                                   UI.panelCard
@@ -141,7 +143,8 @@ module Finances =
                                                  ) ]
                                            :> IView
                                        else
-                                           StackPanel.create [ StackPanel.children (rows |> List.map ledgerRow) ] :> IView) ] ]
+                                           StackPanel.create [ StackPanel.children (rows |> List.map ledgerRow) ]
+                                           :> IView) ] ]
                   ) ]
             :> IView
         | _ -> TextBlock.create [ TextBlock.text (tr TranslationKey.NoCareerLoaded) ] :> IView

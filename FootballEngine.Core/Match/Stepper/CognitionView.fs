@@ -10,32 +10,94 @@ module CognitionView =
 
     /// Per-slot arrays the body writes during a tick: cognition reads its own copy taken at the barrier.
     let bodyFrameFields =
-        [ "PosX"; "PosY"; "VelX"; "VelY"; "PosZ"; "VelZ"; "TargetVelX"; "TargetVelY"; "TargetFacing"
-          "JumpRequested"; "JumpSequence"; "BodyFacing"; "BodyAngularVelocity"; "BodyAngularAcceleration"
-          "BodyTravelDistance"; "GaitPhase"; "ContactGeneration"; "ContactState"; "ContactActions"; "Condition"
+        [ "PosX"
+          "PosY"
+          "VelX"
+          "VelY"
+          "PosZ"
+          "VelZ"
+          "TargetVelX"
+          "TargetVelY"
+          "TargetFacing"
+          "JumpRequested"
+          "JumpSequence"
+          "BodyFacing"
+          "BodyAngularVelocity"
+          "BodyAngularAcceleration"
+          "BodyTravelDistance"
+          "GaitPhase"
+          "ContactGeneration"
+          "ContactState"
+          "ContactActions"
+          "Condition"
           "SteerExit" ]
 
     /// Frame fields cognition and the body share by reference: cognition's own state, or state only the
     /// barrier writes.
     let sharedFrameFields =
-        [ "Mental"; "Intent"; "SteerIntent"; "SteerShapeX"; "SteerShapeY"; "SteerCognitive"; "Occupancy"
-          "SlotRoles"; "DefensiveRoles"; "CollectiveIntents"; "SupportX"; "SupportY"; "VisibilityTm"
-          "VisibilityOpp"; "OppsNear"; "PressCount"; "LaneClear"; "FaceCone"; "Cognitive"; "RoleBias"; "RunLookup"
-          "ActiveCount"; "SlotCount"; "ActiveCache" ]
+        [ "Mental"
+          "Intent"
+          "SteerIntent"
+          "SteerShapeX"
+          "SteerShapeY"
+          "SteerCognitive"
+          "Occupancy"
+          "SlotRoles"
+          "DefensiveRoles"
+          "CollectiveIntents"
+          "SupportX"
+          "SupportY"
+          "VisibilityTm"
+          "VisibilityOpp"
+          "OppsNear"
+          "PressCount"
+          "LaneClear"
+          "FaceCone"
+          "Cognitive"
+          "RoleBias"
+          "RunLookup"
+          "ActiveCount"
+          "SlotCount"
+          "ActiveCache" ]
 
     /// Team fields the body reassigns during a tick: never copied back from cognition's view.
     let bodyTeamFields = [ "Frame"; "Dive" ]
 
     /// Team fields that are the same object in the view and the live team for the whole match.
     let fixedTeamFields =
-        [ "RosterIds"; "Defense"; "Participation"; "Proposals"; "PendingActions"; "Attack"; "Brain" ]
+        [ "RosterIds"
+          "Defense"
+          "Participation"
+          "Proposals"
+          "PendingActions"
+          "Attack"
+          "Brain" ]
 
     /// Team fields copied into the view at the barrier and back to the live team after cognition.
     let cognitionTeamFields =
-        [ "Tactics"; "Memory"; "Cards"; "SubsUsed"; "Shape"; "Directive"; "Blackboard"; "Emergent"; "Intercept"
-          "Stats"; "CFrame"; "EventWindow"; "Substitution"; "LastCarrierSlot"; "LastRoleAssignmentTick"
-          "FormationCache"; "LateralPairs"; "GoalkeeperSlot"; "OwnPositions"; "MirroredPositions"
-          "FormationTargets"; "EvaluatorScratch"; "Latched" ]
+        [ "Tactics"
+          "Memory"
+          "Cards"
+          "SubsUsed"
+          "Shape"
+          "Directive"
+          "Blackboard"
+          "Emergent"
+          "Intercept"
+          "Stats"
+          "CFrame"
+          "EventWindow"
+          "Substitution"
+          "LastCarrierSlot"
+          "LastRoleAssignmentTick"
+          "FormationCache"
+          "LateralPairs"
+          "GoalkeeperSlot"
+          "OwnPositions"
+          "MirroredPositions"
+          "FormationTargets"
+          "EvaluatorScratch"
+          "Latched" ]
 
     let private copyFrame (live: TeamFrame) =
         { live with
@@ -188,7 +250,10 @@ module CognitionView =
             syncWorld world direct
             direct
         | ValueNone ->
-            let direct = { world with Observation = ObservationBuffer.Deferred world.Observation }
+            let direct =
+                { world with
+                    Observation = ObservationBuffer.Deferred world.Observation }
+
             world.Cognition.Direct <- ValueSome direct
             direct
 
@@ -201,7 +266,9 @@ module CognitionView =
             syncTeam world.Away view.Away
             view
         | ValueNone ->
-            let team (live: TeamWorld) = { live with Frame = copyFrame live.Frame }
+            let team (live: TeamWorld) =
+                { live with
+                    Frame = copyFrame live.Frame }
 
             let view =
                 { world with

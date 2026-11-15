@@ -85,10 +85,12 @@ type KeeperDive =
 /// Team-level cognition the body reads, as the previous tick left it.
 [<Struct>]
 type LatchedTeam =
-    { OurPhase: PhaseKind
-      InTransition: bool
-      /// Slots holding an action the body may still execute, bit per slot.
-      PendingSlots: uint64 }
+    {
+        OurPhase: PhaseKind
+        InTransition: bool
+        /// Slots holding an action the body may still execute, bit per slot.
+        PendingSlots: uint64
+    }
 
 /// Which kind of player a rival manager wants on and off the pitch when a move comes with a change.
 [<RequireQualifiedAccess>]
@@ -123,41 +125,43 @@ type ManagerBrainState() =
     member val QueuedIntent = SubstitutionIntent.Keep with get, set
 
 type TeamWorld =
-    { mutable Frame: TeamFrame
-      mutable Tactics: TacticsConfig
-      RosterIds: PlayerId[]
-      mutable Memory: PlayerMemory[]
-      mutable Cards: CardsBook
-      mutable SubsUsed: int
-      mutable Shape: ShapeTargets
-      mutable Directive: TeamDirective
-      mutable Blackboard: Blackboard
-      Defense: DefensiveTransitionState
-      mutable Emergent: EmergentState
-      mutable Intercept: InterceptState
-      mutable Stats: TeamStats
-      /// Only the sides the user does not command use it; see ManagerSystem.
-      Brain: ManagerBrainState
-      mutable CFrame: CognitiveFrame
-      mutable EventWindow: EventWindow
-      mutable Substitution: SubstitutionState
-      Participation: ParticipationBook
-      /// Actions cognition proposed this tick; the latch moves them to PendingActions on the next one.
-      Proposals: System.Collections.Generic.Dictionary<int, PendingPlayerAction>
-      /// Actions the body may execute; owned by the world side.
-      PendingActions: System.Collections.Generic.Dictionary<int, PendingPlayerAction>
-      mutable Latched: LatchedTeam
-      Attack: CollectiveAttackState
-      mutable LastCarrierSlot: int
-      mutable LastRoleAssignmentTick: int<subtick>
-      mutable Dive: KeeperDive voption
-      mutable FormationCache: FormationModel option
-      mutable LateralPairs: (int * int)[] option
-      mutable GoalkeeperSlot: int option
-      mutable OwnPositions: PositionPoint[]
-      mutable MirroredPositions: PositionPoint[]
-      mutable FormationTargets: PositionPoint[]
-      mutable EvaluatorScratch: PositionPoint[] }
+    {
+        mutable Frame: TeamFrame
+        mutable Tactics: TacticsConfig
+        RosterIds: PlayerId[]
+        mutable Memory: PlayerMemory[]
+        mutable Cards: CardsBook
+        mutable SubsUsed: int
+        mutable Shape: ShapeTargets
+        mutable Directive: TeamDirective
+        mutable Blackboard: Blackboard
+        Defense: DefensiveTransitionState
+        mutable Emergent: EmergentState
+        mutable Intercept: InterceptState
+        mutable Stats: TeamStats
+        /// Only the sides the user does not command use it; see ManagerSystem.
+        Brain: ManagerBrainState
+        mutable CFrame: CognitiveFrame
+        mutable EventWindow: EventWindow
+        mutable Substitution: SubstitutionState
+        Participation: ParticipationBook
+        /// Actions cognition proposed this tick; the latch moves them to PendingActions on the next one.
+        Proposals: System.Collections.Generic.Dictionary<int, PendingPlayerAction>
+        /// Actions the body may execute; owned by the world side.
+        PendingActions: System.Collections.Generic.Dictionary<int, PendingPlayerAction>
+        mutable Latched: LatchedTeam
+        Attack: CollectiveAttackState
+        mutable LastCarrierSlot: int
+        mutable LastRoleAssignmentTick: int<subtick>
+        mutable Dive: KeeperDive voption
+        mutable FormationCache: FormationModel option
+        mutable LateralPairs: (int * int)[] option
+        mutable GoalkeeperSlot: int option
+        mutable OwnPositions: PositionPoint[]
+        mutable MirroredPositions: PositionPoint[]
+        mutable FormationTargets: PositionPoint[]
+        mutable EvaluatorScratch: PositionPoint[]
+    }
 
 [<Struct>]
 type RefereeSignal =
@@ -273,7 +277,9 @@ type PlanOptions() =
         this.Target <- target
 
     member this.Add(utility: float, code: int, target: int) =
-        if this.Count = this.Utility.Length then this.Grow()
+        if this.Count = this.Utility.Length then
+            this.Grow()
+
         this.Utility[this.Count] <- utility
         this.Code[this.Count] <- code
         this.Target[this.Count] <- target

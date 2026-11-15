@@ -40,7 +40,11 @@ module PlayerSteering =
             ux, uy
         else
             // Positive lateral means the body is on the left, so the run bends right, and vice versa.
-            let turn = if lateral > 0.0 then -1.0 else if lateral < 0.0 then 1.0 else -1.0
+            let turn =
+                if lateral > 0.0 then -1.0
+                else if lateral < 0.0 then 1.0
+                else -1.0
+
             let px', py' = -uy * turn, ux * turn
             let sx, sy = ux + px', uy + py'
             let n = sqrt (sx * sx + sy * sy)
@@ -90,10 +94,13 @@ module PlayerSteering =
                 float32 (atan2 targetDy targetDx)
             else
                 // Small shape corrections must not turn an otherwise settled player away from play.
-                let ballDx, ballDy = float world.State.Ball.Position.X - px, float world.State.Ball.Position.Y - py
+                let ballDx, ballDy =
+                    float world.State.Ball.Position.X - px, float world.State.Ball.Position.Y - py
+
                 if ballDx * ballDx + ballDy * ballDy > float cfg.FacingIntentDistance ** 2.0 then
                     float32 (atan2 ballDy ballDx)
-                else frame.BodyFacing.[slot]
+                else
+                    frame.BodyFacing.[slot]
 
         let dx = tx - px
         let dy = ty - py
@@ -115,6 +122,7 @@ module PlayerSteering =
 
             let speedMult =
                 let transition = team.Latched.InTransition
+
                 match frame.SteerIntent.Kind.[slot] with
                 // The man on the ball must keep pace with the carrier or the carrier simply runs past his path.
                 | IntentCode.Contain -> 1.0

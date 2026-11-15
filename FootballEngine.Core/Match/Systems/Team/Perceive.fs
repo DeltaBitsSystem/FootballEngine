@@ -29,8 +29,10 @@ module TeamPerceive =
             let changedRecently =
                 team.Defense.ControlChangedAt
                 |> Option.exists (fun since -> tick - since < ctx.Config.Team.TransitionWindow)
+
             let defendingTransition =
                 team.Defense.Episode |> Option.exists (fun episode -> episode.EndedAt.IsNone)
+
             if ours && changedRecently then
                 PhaseKind.TransitionAttack
             elif not ours && defendingTransition then

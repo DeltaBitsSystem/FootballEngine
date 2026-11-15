@@ -266,13 +266,39 @@ module Stepper =
                 // On one thread cognition runs first, on the live teams: what it reads is then exactly the copy
                 // the parallel path takes, so both paths produce the same match.
                 let direct = CognitionView.direct world
-                scratch.Begin(ctx, stepKey, tick, playClock, flags.Bits, int cadence, world, buffer, direct, cognitionBuffer)
+
+                scratch.Begin(
+                    ctx,
+                    stepKey,
+                    tick,
+                    playClock,
+                    flags.Bits,
+                    int cadence,
+                    world,
+                    buffer,
+                    direct,
+                    cognitionBuffer
+                )
+
                 scratch.RunCognition()
                 scratch.RunBody()
                 direct
             | ValueSome runner ->
                 let view = CognitionView.refresh world
-                scratch.Begin(ctx, stepKey, tick, playClock, flags.Bits, int cadence, world, buffer, view, cognitionBuffer)
+
+                scratch.Begin(
+                    ctx,
+                    stepKey,
+                    tick,
+                    playClock,
+                    flags.Bits,
+                    int cadence,
+                    world,
+                    buffer,
+                    view,
+                    cognitionBuffer
+                )
+
                 runner.Start scratch.CognitionAction
                 scratch.RunBody()
                 runner.Join()

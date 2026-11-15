@@ -21,6 +21,7 @@ module PlayerDecision =
         let d = MatchMath.distanceToGoal side x y
         let near = MatchWorld.opponentsNear ctx world side x y 6.0
         let blocked = DecisionValue.shotBlockers world side x y
+
         let openness =
             (1.0 - 0.3 * MatchMath.clamp01 (float near / 4.0))
             * pown (1.0 - ctx.Config.ExpectedValue.ShotBlockShare) blocked
@@ -75,8 +76,21 @@ module PlayerDecision =
     /// sides pass instead of shooting and weaker sides shoot more.
     let ownLevel (p: PlayerProfile) : float =
         float (
-            p.Pace + p.Strength + p.Stamina + p.Agility + p.Vision + p.Passing + p.Finishing + p.Crossing
-            + p.Dribbling + p.Tackling + p.Marking + p.Positioning + p.Anticipation + p.Composure + p.Teamwork
+            p.Pace
+            + p.Strength
+            + p.Stamina
+            + p.Agility
+            + p.Vision
+            + p.Passing
+            + p.Finishing
+            + p.Crossing
+            + p.Dribbling
+            + p.Tackling
+            + p.Marking
+            + p.Positioning
+            + p.Anticipation
+            + p.Composure
+            + p.Teamwork
             + p.DecisionMaking
         )
         / 16.0
@@ -92,7 +106,8 @@ module PlayerDecision =
         let mutable tackling = 50.0
 
         for s in MatchWorld.activeSlots opp.Frame do
-            let d = MatchMath.dist x y (MatchWorld.posX opp.Frame s) (MatchWorld.posY opp.Frame s)
+            let d =
+                MatchMath.dist x y (MatchWorld.posX opp.Frame s) (MatchWorld.posY opp.Frame s)
 
             if d < best then
                 best <- d
@@ -136,7 +151,12 @@ module PlayerDecision =
                 && s2 <> 0
                 && frame.LaneClear.[s2]
                 && frame.FaceCone.[s2]
-                && not (offsideRiskFromLine (offsideLine + e.OffsideReadMargin * MatchMath.goalDirection side) side (MatchWorld.posX frame s2))
+                && not (
+                    offsideRiskFromLine
+                        (offsideLine + e.OffsideReadMargin * MatchMath.goalDirection side)
+                        side
+                        (MatchWorld.posX frame s2)
+                )
             then
                 let rx = MatchWorld.posX frame s2
                 let ry = MatchWorld.posY frame s2
@@ -145,7 +165,11 @@ module PlayerDecision =
                 let dM = max d 0.5 * 1.0<meter>
 
                 let launchSpeed =
-                    (BallAero.pass ctx.Config.Ball ctx.Config.Actions.PassArrivalSpeed ctx.Config.Actions.PassArrivalSpeedGain d)
+                    (BallAero.pass
+                        ctx.Config.Ball
+                        ctx.Config.Actions.PassArrivalSpeed
+                        ctx.Config.Actions.PassArrivalSpeedGain
+                        d)
                         .LaunchSpeed
                     * 1.0<meterPerSecond>
 
@@ -157,22 +181,24 @@ module PlayerDecision =
                       Vy = (ry - y) / dM * launchSpeed
                       Vz = 0.0<meterPerSecond> }
 
-                let margin = PassIntercept.margin ctx.Config.PassIntercept pparams world side s2 launched offsideLine
+                let margin =
+                    PassIntercept.margin ctx.Config.PassIntercept pparams world side s2 launched offsideLine
 
                 if margin >= e.PassMinimumMargin then
                     let completion = DecisionValue.passCompletion e (float p.Passing) margin
 
                     let style =
-                        (if longBall then float tactics.Directness * tradeoffs.DirectnessLongBallUtility else 0.0)
+                        (if longBall then
+                             float tactics.Directness * tradeoffs.DirectnessLongBallUtility
+                         else
+                             0.0)
                         + (if attacking then 0.0 else e.StylePhasePenalty)
                         + e.StyleTeamwork * ((float p.Teamwork - level) / 100.0)
                         + e.StyleConcentration * (cognitive - 0.5)
                         - passMemoryMod
                         + e.StyleConsistency * (float frame.Cognitive.[s2] - 0.5)
 
-                    let value =
-                        DecisionValue.pass e side completion x y rx ry
-                        + e.StyleValue * style
+                    let value = DecisionValue.pass e side completion x y rx ry + e.StyleValue * style
 
                     options.Add(value, 1, s2)
 
@@ -197,7 +223,14 @@ module PlayerDecision =
     /// Writes a decision's inputs into the slot: the options, the snapshot the planner searches and the values the
     /// choice still needs from this moment. Separate from `choose` so the planner can be exercised on exactly the
     /// inputs a real carrier produces.
-    let internal fillPlan (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) (tick: int<subtick>) (plan: PlanSlot) : unit =
+    let internal fillPlan
+        (ctx: MatchContext)
+        (world: World)
+        (side: ClubSide)
+        (slot: int)
+        (tick: int<subtick>)
+        (plan: PlanSlot)
+        : unit =
         let team = MatchWorld.team world side
         let frame = team.Frame
         // Attacking mentality lowers the bar for shots and take-ons; defensive
@@ -256,7 +289,11 @@ module PlayerDecision =
         if hasShot then
             options.Add(shotUtility, 2, -1)
 
-        if attacking && abs (float y) > 20.0 && DecisionValue.crossTarget ctx world side slot >= 0 then
+        if
+            attacking
+            && abs (float y) > 20.0
+            && DecisionValue.crossTarget ctx world side slot >= 0
+        then
             // R9 — adaptive channels: wing play favours crosses, center play favours through passes.
             let channelBias =
                 ctx.Config.Team.PatternWingBias
@@ -267,12 +304,18 @@ module PlayerDecision =
             options.InsertFirst(DecisionValue.cross e side crossing + e.StyleValue * style, 5, -1)
 
         let keep =
-            DecisionValue.carryKeep e (float p.Dribbling) (nearestTackler ctx world side x y) (MatchWorld.opponentsNear ctx world side x y (float e.PressureRadius)) (DecisionValue.blockers e world side x y)
+            DecisionValue.carryKeep
+                e
+                (float p.Dribbling)
+                (nearestTackler ctx world side x y)
+                (MatchWorld.opponentsNear ctx world side x y (float e.PressureRadius))
+                (DecisionValue.blockers e world side x y)
 
         let carryStyle =
             e.StyleCarryBravery * (bravery - 0.5)
             - duelMemoryBias ctx mem * 0.5
-            - e.StyleCarryTempo * float (0.5 - float team.Directive.Params.LineHeight / 100.0 |> max 0.0)
+            - e.StyleCarryTempo
+              * float (0.5 - float team.Directive.Params.LineHeight / 100.0 |> max 0.0)
             + riskShift
 
         if inOwnThird && pressure > 0 then
@@ -291,15 +334,39 @@ module PlayerDecision =
             if episode.Owner = p.Id then
                 let key = CollectiveAttackState.key episode.Context episode.Pattern
                 let estimate = team.Attack.Estimates |> Map.tryFind key
-                let mean = estimate |> Option.map FootballEngine.Domain.AttackEstimate.mean |> Option.defaultValue 0.0
+
+                let mean =
+                    estimate
+                    |> Option.map FootballEngine.Domain.AttackEstimate.mean
+                    |> Option.defaultValue 0.0
+
                 let confidence = MatchMath.clamp01 ((1.0 + mean) / 2.0)
-                let bias = ctx.Config.CollectiveAttack.CooperationWeight * confidence * cognitive * float frame.Condition[slot] * float p.Teamwork / 100.0
+
+                let bias =
+                    ctx.Config.CollectiveAttack.CooperationWeight
+                    * confidence
+                    * cognitive
+                    * float frame.Condition[slot]
+                    * float p.Teamwork
+                    / 100.0
 
                 // Bias only the existing, interceptor-filtered option; collective intent never creates an action.
                 for index in 0 .. options.Count - 1 do
                     if options.Code[index] = 1 && options.Target[index] = target.Slot then
                         if world.Observation.WantsDetail(tick, p.Id) then
-                            world.Observation.Record(tick, ValueSome(EventCause(MatchEvent.id { Tick = episode.StartedAt; Data = EventData.CollectiveAttack(side, episode.Id, Started episode.Pattern) })), AttackCooperation(p.Id, episode.Id, target.Slot, bias)) |> ignore
+                            world.Observation.Record(
+                                tick,
+                                ValueSome(
+                                    EventCause(
+                                        MatchEvent.id
+                                            { Tick = episode.StartedAt
+                                              Data =
+                                                EventData.CollectiveAttack(side, episode.Id, Started episode.Pattern) }
+                                    )
+                                ),
+                                AttackCooperation(p.Id, episode.Id, target.Slot, bias)
+                            )
+                            |> ignore
 
                         options.Utility[index] <- options.Utility[index] + ctx.Config.ExpectedValue.StyleValue * bias
         | _ -> ()
@@ -308,7 +375,13 @@ module PlayerDecision =
         plan.Pressure <- pressure
         Planner.projectInto plan.Root ctx world side slot
 
-    let internal decisionInputs (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) (tick: int<subtick>) : DecisionInputs =
+    let internal decisionInputs
+        (ctx: MatchContext)
+        (world: World)
+        (side: ClubSide)
+        (slot: int)
+        (tick: int<subtick>)
+        : DecisionInputs =
         let plan = PlanSlot()
         fillPlan ctx world side slot tick plan
         let options = plan.Options
@@ -385,7 +458,10 @@ module PlayerDecision =
 
         if world.Observation.Enabled then
             let chosenValue =
-                if chosenEvaluationIndex >= 0 then result.Value[chosenEvaluationIndex] else 0.0
+                if chosenEvaluationIndex >= 0 then
+                    result.Value[chosenEvaluationIndex]
+                else
+                    0.0
 
             world.Observation.Decision(
                 tick,
@@ -414,7 +490,9 @@ module PlayerDecision =
 
     /// The search over a slot, built once per match and handed to the planner's thread each decision.
     let private searchFor (ctx: MatchContext) (plan: PlanSlot) : unit -> unit =
-        let pparams = PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball
+        let pparams =
+            PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball
+
         fun () -> Planner.searchInto ctx.Config pparams plan
 
     let choose (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) (tick: int<subtick>) (rng: Rng) : Rng =
@@ -423,7 +501,12 @@ module PlayerDecision =
         plan.Side <- side
         plan.Slot <- slot
         plan.Actor <- (MatchWorld.profileOf ctx side slot).Id
-        Planner.searchInto ctx.Config (PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball) plan
+
+        Planner.searchInto
+            ctx.Config
+            (PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball)
+            plan
+
         finish ctx plan world tick rng
 
     let step: SystemStep =
@@ -432,7 +515,9 @@ module PlayerDecision =
             let plan = world.Cognition.Plan
 
             match plan.Active, world.State.Ball.PendingStrike, MatchWorld.ballCarrier ctx.Ctx world with
-            | false, None, ValueSome(struct (side, slot, _)) when (MatchWorld.profileOf ctx.Ctx side slot).Role <> SlotRole.Goalkeeper ->
+            | false, None, ValueSome(struct (side, slot, _)) when
+                (MatchWorld.profileOf ctx.Ctx side slot).Role <> SlotRole.Goalkeeper
+                ->
                 if ctx.Ctx.Config.Planner.DeliberationTime = 0<subtick> then
                     choose ctx.Ctx world side slot tick rng
                 else
@@ -488,7 +573,10 @@ module PlayerDecision =
             | None, ValueSome(struct (side, slot, _)) when slot <> 0 && not world.Cognition.Plan.Active ->
                 let team = MatchWorld.team world side
                 let frame = team.Frame
-                let idle = team.Latched.PendingSlots &&& (1UL <<< slot) = 0UL && not (team.Proposals.ContainsKey slot)
+
+                let idle =
+                    team.Latched.PendingSlots &&& (1UL <<< slot) = 0UL
+                    && not (team.Proposals.ContainsKey slot)
 
                 let pressed =
                     MatchWorld.nearestOpponent
@@ -500,8 +588,7 @@ module PlayerDecision =
                         (float ctx.Ctx.Config.Actions.ReflexDecisionRadius)
                     |> Option.isSome
 
-                if idle && pressed
-                then
+                if idle && pressed then
                     choose ctx.Ctx world side slot tick rng
                 else
                     rng

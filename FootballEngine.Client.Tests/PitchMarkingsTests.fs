@@ -105,7 +105,10 @@ let tests =
               let directory =
                   Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "StadiumKit")
 
-              match StadiumKit.load directory |> Result.bind (fun (kit, _) -> StadiumGeometry.build kit StadiumIdentity.neutral) with
+              match
+                  StadiumKit.load directory
+                  |> Result.bind (fun (kit, _) -> StadiumGeometry.build kit StadiumIdentity.neutral)
+              with
               | Error error -> failtest error
               | Ok build ->
                   let turf =
@@ -115,11 +118,33 @@ let tests =
                   Expect.equal turf.Length 4 "one field quad; stripes and paint come from the shader, not meshes"
                   let xs = turf |> Array.map _.Position.X
                   let zs = turf |> Array.map _.Position.Z
-                  Expect.floatClose Accuracy.medium (float (Array.min xs)) (float (-PitchMarkings.length * 0.5f)) "west goal line"
-                  Expect.floatClose Accuracy.medium (float (Array.max xs)) (float (PitchMarkings.length * 0.5f)) "east goal line"
-                  Expect.floatClose Accuracy.medium (float (Array.min zs)) (float (-PitchMarkings.width * 0.5f)) "near touchline"
-                  Expect.floatClose Accuracy.medium (float (Array.max zs)) (float (PitchMarkings.width * 0.5f)) "far touchline"
+
+                  Expect.floatClose
+                      Accuracy.medium
+                      (float (Array.min xs))
+                      (float (-PitchMarkings.length * 0.5f))
+                      "west goal line"
+
+                  Expect.floatClose
+                      Accuracy.medium
+                      (float (Array.max xs))
+                      (float (PitchMarkings.length * 0.5f))
+                      "east goal line"
+
+                  Expect.floatClose
+                      Accuracy.medium
+                      (float (Array.min zs))
+                      (float (-PitchMarkings.width * 0.5f))
+                      "near touchline"
+
+                  Expect.floatClose
+                      Accuracy.medium
+                      (float (Array.max zs))
+                      (float (PitchMarkings.width * 0.5f))
+                      "far touchline"
 
                   Expect.isTrue
-                      (turf |> Array.forall (fun vertex -> vertex.Position.Y = 0.0f && vertex.RootIndex = uint32 SceneRoot.stadium))
+                      (turf
+                       |> Array.forall (fun vertex ->
+                           vertex.Position.Y = 0.0f && vertex.RootIndex = uint32 SceneRoot.stadium))
                       "the field lies on the ground under the identity stadium root") ]

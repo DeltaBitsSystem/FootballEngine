@@ -16,7 +16,10 @@ module Calendar =
 
     let private culture () =
         System.Globalization.CultureInfo.GetCultureInfo(
-            if Localization.active () = Locale.Es then "es-AR" else "en-GB"
+            if Localization.active () = Locale.Es then
+                "es-AR"
+            else
+                "en-GB"
         )
 
     let private fixtureCard (gs: GameState) (competition: string) (fixture: MatchFixture) (isNext: bool) : IView =
@@ -34,7 +37,12 @@ module Calendar =
                         TextBlock.create
                             [ TextBlock.text (name clubId)
                               TextBlock.fontSize 15.0
-                              TextBlock.fontWeight (if clubId = gs.UserClubId then FontWeight.Bold else FontWeight.Medium)
+                              TextBlock.fontWeight (
+                                  if clubId = gs.UserClubId then
+                                      FontWeight.Bold
+                                  else
+                                      FontWeight.Medium
+                              )
                               TextBlock.foreground Theme.TextMain
                               TextBlock.verticalAlignment VerticalAlignment.Center ] ] ]
             :> IView
@@ -88,7 +96,12 @@ module Calendar =
                                                 TextBlock.horizontalAlignment HorizontalAlignment.Right ]
                                           TextBlock.create
                                               [ TextBlock.text (
-                                                    tr (if isHome then TranslationKey.VenueHome else TranslationKey.VenueAway)
+                                                    tr (
+                                                        if isHome then
+                                                            TranslationKey.VenueHome
+                                                        else
+                                                            TranslationKey.VenueAway
+                                                    )
                                                 )
                                                 TextBlock.fontSize 12.0
                                                 TextBlock.foreground (if isHome then Theme.AccentAlt else Theme.Warning)
@@ -117,7 +130,8 @@ module Calendar =
                 |> Option.map (fun (_, fixture) -> fixture.ScheduledDate)
 
             let months =
-                fixtures |> List.groupBy (fun (_, fixture) -> fixture.ScheduledDate.Year, fixture.ScheduledDate.Month)
+                fixtures
+                |> List.groupBy (fun (_, fixture) -> fixture.ScheduledDate.Year, fixture.ScheduledDate.Month)
 
             ScrollViewer.create
                 [ ScrollViewer.horizontalScrollBarVisibility Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled

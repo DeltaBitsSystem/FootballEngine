@@ -32,17 +32,32 @@ module EventApply =
 
     let private finishTransition (world: World) buffer side tick outcome =
         let team = MatchWorld.team world side
+
         match team.Defense.Episode with
         | Some episode when episode.EndedAt.IsNone ->
-            team.Defense.Episode <- Some { episode with EndedAt = Some tick; Outcome = Some outcome }
+            team.Defense.Episode <-
+                Some
+                    { episode with
+                        EndedAt = Some tick
+                        Outcome = Some outcome }
+
             DefensiveTransitionState.clearTasks team.Frame team.Defense
+
             let cause =
                 match world.Observation.CurrentEvent with
                 | ValueSome(EventCause trigger) -> ValueSome(PairedEvents(episode.Id, trigger))
                 | _ -> ValueSome(EventCause episode.Id)
-            let evidence = world.Observation.Record(tick, cause, TransitionEnded(side, episode.Id, outcome, episode.Reason))
-            let ev = { Tick = tick; Data = EventData.DefensiveTransition(side, episode.Id, Finished outcome) }
-            evidence |> ValueOption.iter (fun id -> world.Observation.Associate(ev, ResolutionCause id))
+
+            let evidence =
+                world.Observation.Record(tick, cause, TransitionEnded(side, episode.Id, outcome, episode.Reason))
+
+            let ev =
+                { Tick = tick
+                  Data = EventData.DefensiveTransition(side, episode.Id, Finished outcome) }
+
+            evidence
+            |> ValueOption.iter (fun id -> world.Observation.Associate(ev, ResolutionCause id))
+
             emit buffer ev
         | _ -> DefensiveTransitionState.clearTasks team.Frame team.Defense
 
@@ -52,9 +67,11 @@ module EventApply =
         team.Frame.Intent.Kind[slot] <- IntentCode.None
         team.Frame.Intent.Phase[slot] <- IntentPhase.Completed
         team.Frame.ContactActions[slot] <- None
+
         team.Frame.ContactState[slot] <-
             { BodyContactState.stable with
                 Support = BodySupport.NoBodySupport }
+
         team.Defense.Tasks[slot] <- ValueNone
         team.Frame.RunLookup.Remove slot |> ignore
         team.Proposals.Remove slot |> ignore
@@ -248,29 +265,52 @@ module EventApply =
             | _ -> None
 
         let previous = world.State.Possession.LastGainer
+
         if world.State.Flow = MatchFlow.Live && previous <> Some side then
             finishTransition world buffer side tick TransitionEnd.Recovered
+
             match previous with
             | Some losingSide ->
                 let losingTeam = MatchWorld.team world losingSide
                 let source = world.Observation.CurrentEvent
+
                 let id =
                     match source with
                     | ValueSome(EventCause id) -> id
-                    | _ -> MatchEvent.id { Tick = tick; Data = EventData.Possession(side, pid) }
+                    | _ ->
+                        MatchEvent.id
+                            { Tick = tick
+                              Data = EventData.Possession(side, pid) }
+
                 DefensiveTransitionState.clearTasks losingTeam.Frame losingTeam.Defense
                 losingTeam.Defense.ControlChangedAt <- Some tick
                 (MatchWorld.team world side).Defense.ControlChangedAt <- Some tick
                 losingTeam.Frame.RunLookup.Clear()
+
                 losingTeam.Defense.Episode <-
                     Some
-                        { Id = id; LostAt = tick
-                          Origin = { X = world.State.Ball.Position.X; Y = world.State.Ball.Position.Y }
-                          Mode = Assessing; Reason = AwaitingAssessment; ModeSince = tick; CommitUntil = tick
-                          Primary = None; Cover = None; EvaluatedAt = tick
-                          Tactics = losingTeam.Tactics; ParticipationRevision = losingTeam.Frame.ActiveCache.Revision
-                          StabilizingSince = None; EndedAt = None; Outcome = None }
-                let ev = { Tick = tick; Data = EventData.DefensiveTransition(losingSide, id, Lost) }
+                        { Id = id
+                          LostAt = tick
+                          Origin =
+                            { X = world.State.Ball.Position.X
+                              Y = world.State.Ball.Position.Y }
+                          Mode = Assessing
+                          Reason = AwaitingAssessment
+                          ModeSince = tick
+                          CommitUntil = tick
+                          Primary = None
+                          Cover = None
+                          EvaluatedAt = tick
+                          Tactics = losingTeam.Tactics
+                          ParticipationRevision = losingTeam.Frame.ActiveCache.Revision
+                          StabilizingSince = None
+                          EndedAt = None
+                          Outcome = None }
+
+                let ev =
+                    { Tick = tick
+                      Data = EventData.DefensiveTransition(losingSide, id, Lost) }
+
                 world.Observation.Associate(ev, EventCause id)
                 emit buffer ev
             | None -> ()
@@ -347,9 +387,7 @@ module EventApply =
                     let acquiredSide, acquiredPlayer =
                         match contact.ControlAfter.Kind, contact.ControlAfter.Side, contact.ControlAfter.Player with
                         | ContactControlKind.ReceivingBall, Some ownerSide, Some player when
-                            ownerSide = side
-                            && player = contact.Actor
-                            && world.State.Flow = MatchFlow.Live
+                            ownerSide = side && player = contact.Actor && world.State.Flow = MatchFlow.Live
                             ->
                             Some ownerSide, Some player
                         | _ -> None, None
@@ -558,7 +596,14 @@ module EventApply =
             false
         else
             let tick = ev.Tick
-            let attackBuffer = buffer |> Option.defaultWith (fun () -> { Events = ResizeArray(); Flags = { Bits = 0UL }; Applied = ResizeArray() })
+
+            let attackBuffer =
+                buffer
+                |> Option.defaultWith (fun () ->
+                    { Events = ResizeArray()
+                      Flags = { Bits = 0UL }
+                      Applied = ResizeArray() })
+
             AttackLifecycle.observe ctx world attackBuffer ev
 
             match ev.Data with
@@ -1070,17 +1115,29 @@ module EventApply =
             if world.State.Flow <> MatchFlow.Live then
                 // An interrupted advantage cannot later overwrite halftime, a review, or an already-awarded restart.
                 match world.State.Advantage with
-                | AdvantageState.AdvantagePending _ -> world.State <- {world.State with Advantage = AdvantageState.NoAdvantage}
+                | AdvantageState.AdvantagePending _ ->
+                    world.State <-
+                        { world.State with
+                            Advantage = AdvantageState.NoAdvantage }
                 | _ -> ()
+
                 for side in [ ClubSide.Home; ClubSide.Away ] do
                     let attack = (MatchWorld.team world side).Attack
+
                     match attack.Episode with
-                    | Some _ -> AttackLifecycle.finish ctx world attackBuffer side AttackEnd.Stopped (Some(MatchEvent.id ev))
+                    | Some _ ->
+                        AttackLifecycle.finish ctx world attackBuffer side AttackEnd.Stopped (Some(MatchEvent.id ev))
                     | _ -> ()
+
                 finishTransition world buffer ClubSide.Home tick TransitionEnd.Interrupted
                 finishTransition world buffer ClubSide.Away tick TransitionEnd.Interrupted
                 // The first live control after a restart is acquisition, not an inferred loss of dead-ball possession.
-                world.State <- { world.State with Possession = { world.State.Possession with LastGainer = None } }
+                world.State <-
+                    { world.State with
+                        Possession =
+                            { world.State.Possession with
+                                LastGainer = None } }
+
                 world.Home.Defense.ControlChangedAt <- None
                 world.Away.Defense.ControlChangedAt <- None
 

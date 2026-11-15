@@ -116,7 +116,18 @@ module FootMotionTests =
                                           Vx = 12.0<meterPerSecond> } } }
 
                   // The first touch of a carry absorbs the pass down to 2 m/s; this is the producer Possession uses.
-                  BallFootContact.recordTouch sctx world events ClubSide.Home 5 ContactFoot.Right FootTouchKind.Receive -10.0 0.0 0.0
+                  BallFootContact.recordTouch
+                      sctx
+                      world
+                      events
+                      ClubSide.Home
+                      5
+                      ContactFoot.Right
+                      FootTouchKind.Receive
+                      -10.0
+                      0.0
+                      0.0
+
                   let output = Array.zeroCreate<MotionEvidence> 2
 
                   Expect.equal
@@ -182,11 +193,11 @@ module FootMotionTests =
                       { world.State with
                           Ball =
                               { world.State.Ball with
-                                   Control = BallControl.Free
-                                   Position =
-                                       { world.State.Ball.Position with
-                                           X = footX * 1.0<meter>
-                                           Vx = 12.0<meterPerSecond> } } }
+                                  Control = BallControl.Free
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          X = footX * 1.0<meter>
+                                          Vx = 12.0<meterPerSecond> } } }
 
                   let origin = world.State.Ball.Position
                   ContactDynamics.step sctx (Rng.ofSeed 1UL) world events |> ignore
@@ -208,7 +219,9 @@ module FootMotionTests =
                            match event.Data with
                            | EventData.PhysicalContact contact -> contact.BallTouched
                            | _ -> false))
-                      (sprintf "first touch is visible as physical contact evidence: %A" (events.Events |> Seq.map _.Data |> Seq.toList)))
+                      (sprintf
+                          "first touch is visible as physical contact evidence: %A"
+                          (events.Events |> Seq.map _.Data |> Seq.toList)))
               testCase "a ball above foot reach cannot produce a foot contact" (fun _ ->
                   let world, events = controlled (), buffer ()
 
@@ -351,6 +364,7 @@ module FootMotionTests =
                       (MatchMath.speedOf world.State.Ball.Position.Vx world.State.Ball.Position.Vy)
                       15.0
                       "impulse at contact"
+
                   BallFootContact.step sctx (Rng.ofSeed 1UL) world events |> ignore
 
                   Expect.equal
@@ -376,10 +390,7 @@ module FootMotionTests =
                       world.Away.Frame.PosX[slot] <- 30.0f
                       world.Away.Frame.PosY[slot] <- -20.0f + float32 slot * 3.0f
 
-                  let requestedTarget =
-                      Some
-                          { X = 20.0<meter>
-                            Y = 0.0<meter> }
+                  let requestedTarget = Some { X = 20.0<meter>; Y = 0.0<meter> }
 
                   let impulse =
                       BallPhysics.createImpulse
@@ -412,7 +423,10 @@ module FootMotionTests =
                   world.Home.Frame.PosY[6] <- 4.0f
                   world.Home.Frame.VelX[6] <- 2.0f
                   world.Home.Frame.VelY[6] <- -1.0f
-                  world.State <- { world.State with Tick = SimTick.value pending.Impulse.ContactTick }
+
+                  world.State <-
+                      { world.State with
+                          Tick = SimTick.value pending.Impulse.ContactTick }
 
                   let contactTick = world.State.Tick
                   let origin = world.State.Ball.Position
@@ -429,21 +443,47 @@ module FootMotionTests =
                           cfg.Ball
                           cfg.Actions.PassArrivalSpeed
                           cfg.Actions.PassArrivalSpeedGain
-                          (sqrt ((float target.X - float origin.X) ** 2.0 + (float target.Y - float origin.Y) ** 2.0))
+                          (sqrt (
+                              (float target.X - float origin.X) ** 2.0
+                              + (float target.Y - float origin.Y) ** 2.0
+                          ))
 
                   let flightSeconds = solved.Seconds
-                  Expect.isLessThan (abs (float target.X - (8.0 + 2.0 * flightSeconds))) 0.01 "the target follows the receiver's current position and forward velocity"
-                  Expect.isLessThan (abs (float target.Y - (4.0 - 1.0 * flightSeconds))) 0.01 "the target follows lateral receiver motion during windup"
-                  Expect.isGreaterThan (float target.X) 8.5 "the lead is ahead of the receiver, not at his current position"
-                  Expect.notEqual committed.IntendedTarget requestedTarget "the committed trajectory replaces the stale pre-windup aim"
+
+                  Expect.isLessThan
+                      (abs (float target.X - (8.0 + 2.0 * flightSeconds)))
+                      0.01
+                      "the target follows the receiver's current position and forward velocity"
+
+                  Expect.isLessThan
+                      (abs (float target.Y - (4.0 - 1.0 * flightSeconds)))
+                      0.01
+                      "the target follows lateral receiver motion during windup"
+
+                  Expect.isGreaterThan
+                      (float target.X)
+                      8.5
+                      "the lead is ahead of the receiver, not at his current position"
+
+                  Expect.notEqual
+                      committed.IntendedTarget
+                      requestedTarget
+                      "the committed trajectory replaces the stale pre-windup aim"
 
                   let speed =
-                      sqrt (float committed.LinearVelocity.X ** 2.0 + float committed.LinearVelocity.Y ** 2.0)
+                      sqrt (
+                          float committed.LinearVelocity.X ** 2.0
+                          + float committed.LinearVelocity.Y ** 2.0
+                      )
 
-                  Expect.isLessThan (abs (speed - float solved.LaunchSpeed)) 1e-6 "the committed launch speed is the solved ground-pass speed"
+                  Expect.isLessThan
+                      (abs (speed - float solved.LaunchSpeed))
+                      1e-6
+                      "the committed launch speed is the solved ground-pass speed"
 
                   let travelTicks =
-                      max 1 (int (ceil (flightSeconds * float sctx.Clock.SubTicksPerSecond))) * 1<subtick>
+                      max 1 (int (ceil (flightSeconds * float sctx.Clock.SubTicksPerSecond)))
+                      * 1<subtick>
 
                   Expect.equal
                       world.State.Ball.ArrivalGate

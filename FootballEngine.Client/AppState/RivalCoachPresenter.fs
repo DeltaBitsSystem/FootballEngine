@@ -13,22 +13,28 @@ module RivalCoachPresenter =
         | Meetings of played: int * won: int * drawn: int * lost: int
 
     type RivalCoachVM =
-        { CoachName: string
-          Archetype: string
-          Behaviour: string
-          /// 1..5 stars from the coach's reading of the game.
-          Stars: int
-          RecordVs: RecordVM
-          /// "4-3-3", "4-2-3-1 Wide": the shape he will field.
-          Formation: string
-          /// Why he picked that plan, in one sentence.
-          PlanReason: string }
+        {
+            CoachName: string
+            Archetype: string
+            Behaviour: string
+            /// 1..5 stars from the coach's reading of the game.
+            Stars: int
+            RecordVs: RecordVM
+            /// "4-3-3", "4-2-3-1 Wide": the shape he will field.
+            Formation: string
+            /// Why he picked that plan, in one sentence.
+            PlanReason: string
+        }
 
     /// "F4231" reads as "4-2-3-1": the shape a manager says out loud. Same rule as the Tactics page.
     let formationLabel (formation: Formation) =
         let raw = (sprintf "%A" formation).TrimStart('F')
-        let digits = raw |> Seq.takeWhile System.Char.IsDigit |> Seq.map string |> String.concat "-"
-        let suffix = raw |> Seq.skipWhile System.Char.IsDigit |> Seq.toArray |> System.String
+
+        let digits =
+            raw |> Seq.takeWhile System.Char.IsDigit |> Seq.map string |> String.concat "-"
+
+        let suffix =
+            raw |> Seq.skipWhile System.Char.IsDigit |> Seq.toArray |> System.String
 
         if suffix = "" then digits else $"{digits} {suffix}"
 
@@ -86,13 +92,25 @@ module RivalCoachPresenter =
         match note.Approach with
         | OwnIdentity ->
             let style = philosophyText es coach.Mind.Philosophy
-            if es then $"Juega a lo suyo: {style}" else $"Plays his own game: {style}"
+
+            if es then
+                $"Juega a lo suyo: {style}"
+            else
+                $"Plays his own game: {style}"
         | CounterRecipe formation ->
             let shape = formationLabel formation
-            if es then $"Te estudió: va a neutralizar tu {shape}" else $"He studied you: he will neutralise your {shape}"
+
+            if es then
+                $"Te estudió: va a neutralizar tu {shape}"
+            else
+                $"He studied you: he will neutralise your {shape}"
         | CopyRecipe formation ->
             let shape = formationLabel formation
-            if es then $"Te copia el {shape} con el que le ganaste" else $"He copies the {shape} you beat him with"
+
+            if es then
+                $"Te copia el {shape} con el que le ganaste"
+            else
+                $"He copies the {shape} you beat him with"
         | Revenge ->
             let margin =
                 user
@@ -153,4 +171,9 @@ module RivalCoachPresenter =
                   PlanReason =
                     plan
                     |> Option.map (fun (_, note) -> planReason es cfg coach user note)
-                    |> Option.defaultValue (if es then "Todavía no definió su once" else "He has not picked his XI yet") }))
+                    |> Option.defaultValue (
+                        if es then
+                            "Todavía no definió su once"
+                        else
+                            "He has not picked his XI yet"
+                    ) }))

@@ -30,11 +30,16 @@ module KeeperSaveTests =
         let ctx = { ctx with Config = config }
         let sctx = { sctx with Ctx = ctx }
         let world = MatchFactory.create ctx
-        world.State <- { world.State with Flow = MatchFlow.Live }
+
+        world.State <-
+            { world.State with
+                Flow = MatchFlow.Live }
+
         let away = world.Away
         // In a match the position system resolves the keeper slot on its first run; it does not run here.
         let keeper =
-            ctx.AwayLineup.Profiles |> Array.findIndex (fun p -> p.Role = SlotRole.Goalkeeper)
+            ctx.AwayLineup.Profiles
+            |> Array.findIndex (fun p -> p.Role = SlotRole.Goalkeeper)
 
         away.GoalkeeperSlot <- Some keeper
         let goalX = float (MatchMath.ownGoalX ClubSide.Away)
@@ -74,24 +79,37 @@ module KeeperSaveTests =
         let impulse =
             BallPhysics.createImpulse
                 shooter
-                { X = originX * 1.0<meter>; Y = 0.0<meter>; Z = 0.0<meter> }
+                { X = originX * 1.0<meter>
+                  Y = 0.0<meter>
+                  Z = 0.0<meter> }
                 { X = dx / length * speed * 1.0<meterPerSecond>
                   Y = dy / length * speed * 1.0<meterPerSecond>
                   Z = lift * 1.0<meterPerSecond> }
-                { Top = 0.0<radianPerSecond>; Side = 0.0<radianPerSecond>; Roll = 0.0<radianPerSecond> }
-                (Some { X = goalX * 1.0<meter>; Y = aimY * 1.0<meter> })
+                { Top = 0.0<radianPerSecond>
+                  Side = 0.0<radianPerSecond>
+                  Roll = 0.0<radianPerSecond> }
+                (Some
+                    { X = goalX * 1.0<meter>
+                      Y = aimY * 1.0<meter> })
                 StrikeKind.Shot
                 (SimTick.ofSubTicks world.State.Tick)
                 ExecutionContext.OpenPlay
 
-        BallPhysics.applyImpulse world impulse (TrajectoryIntent.Struck(shooter, speed * 1.0<meterPerSecond>, 0.0, 0.3)) None
+        BallPhysics.applyImpulse
+            world
+            impulse
+            (TrajectoryIntent.Struck(shooter, speed * 1.0<meterPerSecond>, 0.0, 0.3))
+            None
 
         let mutable dived, saved, crossed = false, false, false
         let trace = ResizeArray<string>()
 
         for _ in 1..60 do
             if not saved && not crossed then
-                world.State <- { world.State with Tick = world.State.Tick + 1<subtick> }
+                world.State <-
+                    { world.State with
+                        Tick = world.State.Tick + 1<subtick> }
+
                 let events = buffer ()
                 KeeperSave.step sctx (Rng.ofSeed 1UL) world events |> ignore
                 ContactDynamics.step sctx (Rng.ofSeed 1UL) world events |> ignore
@@ -100,7 +118,9 @@ module KeeperSaveTests =
                 for event in events.Events do
                     match event.Data with
                     | EventData.KeeperDive _ -> dived <- true
-                    | EventData.PhysicalContact record when record.BallTouched && record.SurfaceA = ContactSurface.ContactHand ->
+                    | EventData.PhysicalContact record when
+                        record.BallTouched && record.SurfaceA = ContactSurface.ContactHand
+                        ->
                         saved <- true
                     | _ -> ()
 
@@ -120,7 +140,10 @@ module KeeperSaveTests =
                         away.Dive.IsSome
                 )
 
-        { Dived = dived; Saved = saved; Crossed = crossed; Trace = List.ofSeq trace }
+        { Dived = dived
+          Saved = saved
+          Crossed = crossed
+          Trace = List.ofSeq trace }
 
     let private shoot = shootWith BalanceConfig.defaultConfig
 
@@ -146,7 +169,7 @@ module KeeperSaveTests =
                   // 8 m at 28 m/s leaves under 0.3 s, about a keeper's reaction time, for a ball 3 m to his side.
                   let outcome = shoot 8.0 3.2 28.0 1.5
                   Expect.isFalse outcome.Saved $"no keeper covers 3 m in that time\n{explain outcome}"
-                  Expect.isTrue outcome.Crossed "the ball reaches the line") 
+                  Expect.isTrue outcome.Crossed "the ball reaches the line")
               testCase "a quicker reaction turns a goal into a save" (fun _ ->
                   // 12 m at 24 m/s leaves 0.5 s for a ball 1.9 m wide: the default reaction leaves too little dive,
                   // a keeper who reads the strike 0.2 s sooner covers it.

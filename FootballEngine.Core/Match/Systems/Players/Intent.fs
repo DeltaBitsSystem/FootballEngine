@@ -55,7 +55,12 @@ module PlayerIntent =
         let halfWidth = float Pitch.HalfWidth - inset
         struct (float32 (MatchMath.clamp (-halfLength) halfLength x), float32 (MatchMath.clamp (-halfWidth) halfWidth y))
 
-    let private carryTarget (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : struct (float32 * float32) =
+    let private carryTarget
+        (ctx: MatchContext)
+        (world: World)
+        (side: ClubSide)
+        (slot: int)
+        : struct (float32 * float32) =
         let team = MatchWorld.team world side
         let opponents = MatchWorld.team world (MatchWorld.oppOf side)
         let frame = team.Frame
@@ -179,8 +184,17 @@ module PlayerIntent =
 
                 struct (float32 (float targetX * dir), targetY)
 
-            let struct (frontX, frontY) = if frontSlot < 0 then struct (0.0f, 0.0f) else targetFor frontSlot true
-            let struct (rearX, rearY) = if rearSlot < 0 then struct (0.0f, 0.0f) else targetFor rearSlot false
+            let struct (frontX, frontY) =
+                if frontSlot < 0 then
+                    struct (0.0f, 0.0f)
+                else
+                    targetFor frontSlot true
+
+            let struct (rearX, rearY) =
+                if rearSlot < 0 then
+                    struct (0.0f, 0.0f)
+                else
+                    targetFor rearSlot false
 
             { FrontSlot = frontSlot
               FrontX = frontX
@@ -193,10 +207,14 @@ module PlayerIntent =
     let private dutyOf (state: CollectiveAttackState) (player: PlayerId) : AttackDuty voption =
         match state.Episode with
         | Some episode ->
-            if episode.Link.Player = player then ValueSome episode.Link
-            elif episode.Runner.Player = player then ValueSome episode.Runner
-            elif episode.Security.Player = player then ValueSome episode.Security
-            else ValueNone
+            if episode.Link.Player = player then
+                ValueSome episode.Link
+            elif episode.Runner.Player = player then
+                ValueSome episode.Runner
+            elif episode.Security.Player = player then
+                ValueSome episode.Security
+            else
+                ValueNone
         | None -> ValueNone
 
     let private roleIntent
@@ -233,7 +251,13 @@ module PlayerIntent =
 
         let attackDuty =
             match dutyOf team.Attack p.Id with
-            | ValueSome duty when duty.Slot = slot && slot <> carrierSlot && not opponentControlsBall && (carrierSlot >= 0 || ownFlight) -> ValueSome duty
+            | ValueSome duty when
+                duty.Slot = slot
+                && slot <> carrierSlot
+                && not opponentControlsBall
+                && (carrierSlot >= 0 || ownFlight)
+                ->
+                ValueSome duty
             | _ -> ValueNone
 
         let keeperClaims = looseBall && looseBallChaser = slot
@@ -247,7 +271,8 @@ module PlayerIntent =
                 { InterceptTable.parameters ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball with
                     ControlRadius = ctx.Config.ContactAction.FootReach }
 
-            let steps = InterceptTable.stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+            let steps =
+                InterceptTable.stepsToReach p ball (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
 
             if steps < p.MaxSteps then
                 let meet = InterceptTable.ballInertiaPoint p ball steps
@@ -259,6 +284,7 @@ module PlayerIntent =
             setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
         elif transitionTask.IsSome then
             let task = transitionTask.Value
+
             let kind =
                 match task.Role with
                 | DefensiveRole.FirstDefender -> IntentCode.Press
@@ -270,7 +296,9 @@ module PlayerIntent =
                 | DefensiveRole.Marker -> IntentCode.Mark
                 | DefensiveRole.Unassigned -> IntentCode.HoldPosition
             // An attacking commitment cannot outlive the sporting loss that invalidated its purpose.
-            if not (IntentCode.isContinuous frame.Intent.Kind[slot]) then frame.Intent.Phase[slot] <- IntentPhase.Completed
+            if not (IntentCode.isContinuous frame.Intent.Kind[slot]) then
+                frame.Intent.Phase[slot] <- IntentPhase.Completed
+
             frame.RunLookup.Remove slot |> ignore
             setRoleIntent frame slot kind (float32 task.Target.X) (float32 task.Target.Y) tick
         elif attackDuty.IsSome then
@@ -347,12 +375,16 @@ module PlayerIntent =
             // A ground pass is met where the receiver first reaches the ball's actual rolling path, so he adjusts
             // to a mis-hit instead of running to where it should have gone; an aerial ball is met at its solved
             // target. A straight-line extrapolation ignores deceleration and overruns the ball's line.
-            let rolling = ball.Impulse |> Option.exists (fun impulse -> impulse.StrikeKind = StrikeKind.Pass)
+            let rolling =
+                ball.Impulse
+                |> Option.exists (fun impulse -> impulse.StrikeKind = StrikeKind.Pass)
+
             let p =
                 { InterceptTable.parameters ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball with
                     ControlRadius = ctx.Config.ContactAction.FootReach }
 
-            let steps = InterceptTable.stepsToReach p ball.Position (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+            let steps =
+                InterceptTable.stepsToReach p ball.Position (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
 
             let arrival = InterceptTable.ballInertiaPoint p ball.Position (int (gate - tick))
 
@@ -372,6 +404,7 @@ module PlayerIntent =
                 | Some target -> float target.X, float target.Y
                 | None ->
                     let remaining = float (gate - tick) / 40.0
+
                     float ball.Position.X + float ball.Position.Vx * remaining,
                     float ball.Position.Y + float ball.Position.Vy * remaining
 
@@ -417,7 +450,8 @@ module PlayerIntent =
             let ownFlightOf side =
                 match world.State.Ball.Trajectory with
                 | Some(TrajectoryIntent.Aimed(passer, _, _)) -> MatchWorld.sideOfPlayer ctx.Ctx passer = ValueSome side
-                | Some(TrajectoryIntent.Struck(shooter, _, _, _)) -> MatchWorld.sideOfPlayer ctx.Ctx shooter = ValueSome side
+                | Some(TrajectoryIntent.Struck(shooter, _, _, _)) ->
+                    MatchWorld.sideOfPlayer ctx.Ctx shooter = ValueSome side
                 | _ -> false
 
             let processTeam side =
@@ -436,7 +470,10 @@ module PlayerIntent =
 
                 // Only a pass in flight cancels runs, so the common tick allocates no mask.
                 let cancelledByReplacement =
-                    if incomingPass then Array.zeroCreate<bool> frame.SlotCount else System.Array.Empty<bool>()
+                    if incomingPass then
+                        Array.zeroCreate<bool> frame.SlotCount
+                    else
+                        System.Array.Empty<bool>()
 
                 if team.LastCarrierSlot <> carrierSlot then
                     for activeSlot in MatchWorld.activeSlots frame do
@@ -460,8 +497,10 @@ module PlayerIntent =
                                 cancelledByReplacement.[activeSlot] <- true
 
                 let support =
-                    if team.Attack.Episode.IsSome then noSupport
-                    else supportTargets ctx.Ctx world side carrierSlot
+                    if team.Attack.Episode.IsSome then
+                        noSupport
+                    else
+                        supportTargets ctx.Ctx world side carrierSlot
 
                 let looseBallChaser, looseBall =
                     match world.State.Ball.Control with
@@ -486,7 +525,8 @@ module PlayerIntent =
                         receiveIntent ctx.Ctx world frame receiveSlot tick
 
                     for slot in MatchWorld.activeSlots frame do
-                        let isIncomingReceiver = receiveSlot >= 0 && receiveSide = side && receiveSlot = slot
+                        let isIncomingReceiver =
+                            receiveSlot >= 0 && receiveSide = side && receiveSlot = slot
 
                         if
                             not isIncomingReceiver
@@ -494,9 +534,12 @@ module PlayerIntent =
                                 || team.Defense.Tasks[slot].IsSome)
                         then
                             let supportFor =
-                                if support.FrontSlot = slot then ValueSome(struct (support.FrontX, support.FrontY))
-                                elif support.RearSlot = slot then ValueSome(struct (support.RearX, support.RearY))
-                                else ValueNone
+                                if support.FrontSlot = slot then
+                                    ValueSome(struct (support.FrontX, support.FrontY))
+                                elif support.RearSlot = slot then
+                                    ValueSome(struct (support.RearX, support.RearY))
+                                else
+                                    ValueNone
 
                             roleIntent
                                 ctx.Ctx

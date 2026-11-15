@@ -19,14 +19,16 @@ type DrawLayer =
 
 /// Generic over the mesh so ordering and grouping stay pure and testable without a device.
 type Draw<'Mesh> =
-    { Mesh: 'Mesh
-      FirstIndex: uint32
-      IndexCount: uint32
-      /// Offsets `instance_index`, which the kit shader uses to address its instance transforms.
-      FirstInstance: uint32
-      InstanceCount: uint32
-      Shadow: ShadowCasting
-      Layer: DrawLayer }
+    {
+        Mesh: 'Mesh
+        FirstIndex: uint32
+        IndexCount: uint32
+        /// Offsets `instance_index`, which the kit shader uses to address its instance transforms.
+        FirstInstance: uint32
+        InstanceCount: uint32
+        Shadow: ShadowCasting
+        Layer: DrawLayer
+    }
 
 /// Grouping keeps submission order: with a single opaque pipeline and depth `Less`, reordering equal-depth
 /// fragments would change pixels, so captures stay identical only if systems' order is preserved.

@@ -9,7 +9,8 @@ open FootballEngine.World.Agents
 
 let private cfg = (WeightMergeSettings.mergeWithOverridesSave None).RivalManager
 
-let private world () = LiveMatchTests.scheduledCareer () |> snd
+let private world () =
+    LiveMatchTests.scheduledCareer () |> snd
 
 let private rivalClub (gs: GameState) =
     match GameState.getUserNextFixture gs with
@@ -41,8 +42,7 @@ let tests =
         "RivalCoachPresenter"
         [ testCase "the card names the coach, his archetype and the shape of the plan the planner previews"
           <| fun _ ->
-              let gs, coach =
-                  withCoachMind (world ()) (fun mind -> { mind with Imitation = 17 })
+              let gs, coach = withCoachMind (world ()) (fun mind -> { mind with Imitation = 17 })
 
               let vm = project true gs
               Expect.equal vm.CoachName coach.Name "the rival's head coach"
@@ -52,7 +52,11 @@ let tests =
               let _, previewed =
                   (GamePlanner.preview cfg gs (GameState.getUserNextFixture gs |> Option.get |> snd)).Value
 
-              Expect.equal vm.Formation (RivalCoachPresenter.formationLabel previewed.Formation) "the card shows the previewed plan"
+              Expect.equal
+                  vm.Formation
+                  (RivalCoachPresenter.formationLabel previewed.Formation)
+                  "the card shows the previewed plan"
+
               Expect.isTrue (vm.Stars >= 1 && vm.Stars <= 5) "stars stay within 1..5"
 
           testCase "the same coach reads in English when the locale is English"
@@ -101,25 +105,55 @@ let tests =
                     LastMet = DateTime(2026, 5, 1) }
 
               let gs, _ =
-                  withCoachMind gs0 (fun mind -> { mind with Rivals = Map.ofList [ userCoach.Id, record ] })
+                  withCoachMind gs0 (fun mind ->
+                      { mind with
+                          Rivals = Map.ofList [ userCoach.Id, record ] })
 
               let vm = project true gs
-              Expect.equal vm.RecordVs (RivalCoachPresenter.Meetings(5, 3, 1, 1)) "he lost three of five, so the user won three"
+
+              Expect.equal
+                  vm.RecordVs
+                  (RivalCoachPresenter.Meetings(5, 3, 1, 1))
+                  "he lost three of five, so the user won three"
 
           testCase "each approach gives its own reason in Spanish"
           <| fun _ ->
               let gs = world ()
               let coach = (GameState.headCoach (rivalClub gs) gs).Value
               let user = GameState.headCoach gs.UserClubId gs
-              let coach = { coach with Mind = { coach.Mind with Philosophy = CoachPhilosophy.Pressing; Boldness = 5 } }
-              let reason approach = RivalCoachPresenter.planReason true cfg coach user (note approach)
+
+              let coach =
+                  { coach with
+                      Mind =
+                          { coach.Mind with
+                              Philosophy = CoachPhilosophy.Pressing
+                              Boldness = 5 } }
+
+              let reason approach =
+                  RivalCoachPresenter.planReason true cfg coach user (note approach)
+
               Expect.equal (reason OwnIdentity) "Juega a lo suyo: presión alta" "identity names the philosophy"
-              Expect.equal (reason (CounterRecipe F433)) "Te estudió: va a neutralizar tu 4-3-3" "counter names the recipe"
-              Expect.equal (reason (CopyRecipe F4231)) "Te copia el 4-2-3-1 con el que le ganaste" "copy names the shape"
+
+              Expect.equal
+                  (reason (CounterRecipe F433))
+                  "Te estudió: va a neutralizar tu 4-3-3"
+                  "counter names the recipe"
+
+              Expect.equal
+                  (reason (CopyRecipe F4231))
+                  "Te copia el 4-2-3-1 con el que le ganaste"
+                  "copy names the shape"
+
               Expect.stringContains (reason Underdog) "se cierra" "a cautious underdog sits back"
 
-              let bold = { coach with Mind = { coach.Mind with Boldness = 19 } }
-              Expect.stringContains (RivalCoachPresenter.planReason true cfg bold user (note Underdog)) "presionarte" "a bold underdog presses"
+              let bold =
+                  { coach with
+                      Mind = { coach.Mind with Boldness = 19 } }
+
+              Expect.stringContains
+                  (RivalCoachPresenter.planReason true cfg bold user (note Underdog))
+                  "presionarte"
+                  "a bold underdog presses"
 
           testCase "revenge quotes the margin of the last meeting, and the English text differs"
           <| fun _ ->
@@ -144,8 +178,15 @@ let tests =
                                           LastMargin = -4
                                           LastMet = DateTime(2026, 5, 1) } ] } }
 
-              Expect.equal (RivalCoachPresenter.planReason true cfg coach user (note Revenge)) "Busca revancha: la última vez perdió por 4" "Spanish"
-              Expect.equal (RivalCoachPresenter.planReason false cfg coach user (note Revenge)) "Out for revenge: he lost by 4 last time" "English"
+              Expect.equal
+                  (RivalCoachPresenter.planReason true cfg coach user (note Revenge))
+                  "Busca revancha: la última vez perdió por 4"
+                  "Spanish"
+
+              Expect.equal
+                  (RivalCoachPresenter.planReason false cfg coach user (note Revenge))
+                  "Out for revenge: he lost by 4 last time"
+                  "English"
 
           testCase "the card is hidden without a next fixture"
           <| fun _ ->
@@ -161,7 +202,11 @@ let tests =
               let withoutCoach =
                   GameState.getStaff rival gs
                   |> List.filter (fun s -> s.Role = HeadCoach)
-                  |> List.fold (fun (state: GameState) coach -> { state with Staff = Map.remove coach.Id state.Staff }) gs
+                  |> List.fold
+                      (fun (state: GameState) coach ->
+                          { state with
+                              Staff = Map.remove coach.Id state.Staff })
+                      gs
 
               Expect.isNone (GameState.headCoach rival withoutCoach) "precondition: the coach is gone"
               Expect.isNone (RivalCoachPresenter.project true cfg withoutCoach) "no coach, no card" ]

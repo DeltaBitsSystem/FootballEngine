@@ -8,46 +8,48 @@ open FootballEngine.Core.Match
 /// Presentation of retargeted capture on top of Core roots. Kept apart from AnimationConfig so the support planner's
 /// identity hash, which keys motion checkpoints, does not change when only the mocap layer is retuned.
 type MatchingConfig =
-    { SearchIntervalTicks: int
-      AnchorIntervalTicks: int
-      CrossfadeTicks: int
-      /// Normalised cost a candidate must save over continuing before the pose jumps to it.
-      SwitchMargin: float32
-      InertialHalfLife: float32
-      LockReleaseFrames: float32
-      LockEngageFrames: float32
-      /// Separation between anchor and captured sole at which a stance starts yielding, and is fully released.
-      LockSlipStart: float32
-      LockSlipEnd: float32
-      MinPlaybackRate: float32
-      MaxPlaybackRate: float32
-      TrajectoryWeight: float32
-      FacingWeight: float32
-      FootPositionWeight: float32
-      FootVelocityWeight: float32
-      PelvisVelocityWeight: float32
-      /// Weight of Core's stride phase against the capture's, so the foot Core touches the ball with is the one
-      /// swinging in the pose.
-      PhaseWeight: float32
-      /// Seconds over which playback rate closes the gap between the capture's stride phase and Core's.
-      PhaseLockSeconds: float32
-      /// Root speed below which Core's stride clock holds, so phase says nothing about the legs.
-      CyclingSpeed: float32
-      /// Playback rate change allowed per second; a step change of rate is a step change of every joint's velocity.
-      RateSlewPerSecond: float32
-      /// Root speed from which playback follows Core's cadence instead of its speed.
-      RunningSpeed: float32
-      MinimumJumpFrames: int
-      /// Capture a candidate must still have ahead of it, so continuing never runs out before the next search.
-      HeadroomFrames: int
-      OverlayBlendSeconds: float32
-      /// Distance from full leg extension at which the reach starts easing toward the limit.
-      SoftReach: float32
-      /// The same easing for a planted foot. It never reaches zero: an anchor at the edge of reach would otherwise
-      /// snap the knee straight as the lock engages, yet the most it can cost the anchor is ~37 % of this.
-      LockedSoftReach: float32
-      /// Families the locomotion search may enter; kicks and reaches are action clips, not gait.
-      Families: string[] }
+    {
+        SearchIntervalTicks: int
+        AnchorIntervalTicks: int
+        CrossfadeTicks: int
+        /// Normalised cost a candidate must save over continuing before the pose jumps to it.
+        SwitchMargin: float32
+        InertialHalfLife: float32
+        LockReleaseFrames: float32
+        LockEngageFrames: float32
+        /// Separation between anchor and captured sole at which a stance starts yielding, and is fully released.
+        LockSlipStart: float32
+        LockSlipEnd: float32
+        MinPlaybackRate: float32
+        MaxPlaybackRate: float32
+        TrajectoryWeight: float32
+        FacingWeight: float32
+        FootPositionWeight: float32
+        FootVelocityWeight: float32
+        PelvisVelocityWeight: float32
+        /// Weight of Core's stride phase against the capture's, so the foot Core touches the ball with is the one
+        /// swinging in the pose.
+        PhaseWeight: float32
+        /// Seconds over which playback rate closes the gap between the capture's stride phase and Core's.
+        PhaseLockSeconds: float32
+        /// Root speed below which Core's stride clock holds, so phase says nothing about the legs.
+        CyclingSpeed: float32
+        /// Playback rate change allowed per second; a step change of rate is a step change of every joint's velocity.
+        RateSlewPerSecond: float32
+        /// Root speed from which playback follows Core's cadence instead of its speed.
+        RunningSpeed: float32
+        MinimumJumpFrames: int
+        /// Capture a candidate must still have ahead of it, so continuing never runs out before the next search.
+        HeadroomFrames: int
+        OverlayBlendSeconds: float32
+        /// Distance from full leg extension at which the reach starts easing toward the limit.
+        SoftReach: float32
+        /// The same easing for a planted foot. It never reaches zero: an anchor at the edge of reach would otherwise
+        /// snap the knee straight as the lock engages, yet the most it can cost the anchor is ~37 % of this.
+        LockedSoftReach: float32
+        /// Families the locomotion search may enter; kicks and reaches are action clips, not gait.
+        Families: string[]
+    }
 
 [<Struct>]
 type MatchedPose =
@@ -104,7 +106,8 @@ module MatchingConfig =
           Families = [| "locomotion"; "walking"; "footwork" |] }
 
     let validate (config: MatchingConfig) =
-        let positive values = values |> Array.forall (fun value -> Single.IsFinite value && value > 0.0f)
+        let positive values =
+            values |> Array.forall (fun value -> Single.IsFinite value && value > 0.0f)
 
         if
             config.SearchIntervalTicks < 1
@@ -161,26 +164,28 @@ module MatchingConfig =
 /// exerted at that instant is kept as a local offset that fades, so the foot never chases an anchor it has left.
 [<Struct>]
 type private FootLock =
-    { Active: bool
-      Start: int
-      End: int
-      World: Vector3
-      /// A new stance eases onto its anchor over the engage window: capture labels contact with the sole still
-      /// a little above the grass, and the anchor sits on it. Only an anchor carried across a switch skips this.
-      RampIn: bool
-      EndOffset: Vector3
-      /// Lock weights also soften the leg solve, so each fading offset keeps the weight it had when it was taken:
-      /// a stance cut short before it fully engaged must not release from full strength.
-      EndWeight: float32
-      HasEndOffset: bool
-      /// The stance this lock replaced, still releasing its end offset.
-      ReleaseEnd: int
-      ReleaseOffset: Vector3
-      ReleaseWeight: float32
-      /// Pull carried across a switch; clip frames reset there, so it fades with time instead.
-      SwitchOffset: Vector3
-      SwitchWeight: float32
-      SwitchTick: float32 }
+    {
+        Active: bool
+        Start: int
+        End: int
+        World: Vector3
+        /// A new stance eases onto its anchor over the engage window: capture labels contact with the sole still
+        /// a little above the grass, and the anchor sits on it. Only an anchor carried across a switch skips this.
+        RampIn: bool
+        EndOffset: Vector3
+        /// Lock weights also soften the leg solve, so each fading offset keeps the weight it had when it was taken:
+        /// a stance cut short before it fully engaged must not release from full strength.
+        EndWeight: float32
+        HasEndOffset: bool
+        /// The stance this lock replaced, still releasing its end offset.
+        ReleaseEnd: int
+        ReleaseOffset: Vector3
+        ReleaseWeight: float32
+        /// Pull carried across a switch; clip frames reset there, so it fades with time instead.
+        SwitchOffset: Vector3
+        SwitchWeight: float32
+        SwitchTick: float32
+    }
 
 type private Chain(start: int, joints: int) =
     member val Start = start
@@ -234,22 +239,24 @@ module private Rotation =
 /// Feature rows for every frame plus the subset a search may land on. Values are normalised per feature group and
 /// weighted, so a squared distance is directly the matching cost.
 type MotionFeatures =
-    { Dimensions: int
-      Values: float32[]
-      Mean: float32[]
-      Scale: float32[]
-      Candidates: int[]
-      ChunkMin: float32[]
-      ChunkMax: float32[]
-      /// Bounds over `groupSize` consecutive chunks, so most of the database is rejected a group at a time.
-      GroupMin: float32[]
-      GroupMax: float32[]
-      ClipOf: int[]
-      Speed: float32[]
-      /// Capture stride phase on Core's convention (left strike 0, right strike 0.5), NaN where the clip does not
-      /// stride, and its rate in cycles per capture frame.
-      Phase: float32[]
-      PhaseRate: float32[] }
+    {
+        Dimensions: int
+        Values: float32[]
+        Mean: float32[]
+        Scale: float32[]
+        Candidates: int[]
+        ChunkMin: float32[]
+        ChunkMax: float32[]
+        /// Bounds over `groupSize` consecutive chunks, so most of the database is rejected a group at a time.
+        GroupMin: float32[]
+        GroupMax: float32[]
+        ClipOf: int[]
+        Speed: float32[]
+        /// Capture stride phase on Core's convention (left strike 0, right strike 0.5), NaN where the clip does not
+        /// stride, and its rate in cycles per capture frame.
+        Phase: float32[]
+        PhaseRate: float32[]
+    }
 
 module MotionFeatures =
     let dimensions = 29
@@ -257,10 +264,16 @@ module MotionFeatures =
     let futureFrames = [| 20; 40; 60 |]
     let chunkSize = 16
     let groupSize = 16
-    let trajectoryOnly = Array.init dimensions (fun d -> if d < 12 || d >= 24 then 1.0f else 0.0f)
+
+    let trajectoryOnly =
+        Array.init dimensions (fun d -> if d < 12 || d >= 24 then 1.0f else 0.0f)
+
     let full = Array.create dimensions 1.0f
+
     /// Standing, Core's stride clock holds and must not pull the pose toward any phase.
-    let trajectoryOnlyStill = Array.init dimensions (fun d -> if d < 12 || (d >= 24 && d < 27) then 1.0f else 0.0f)
+    let trajectoryOnlyStill =
+        Array.init dimensions (fun d -> if d < 12 || (d >= 24 && d < 27) then 1.0f else 0.0f)
+
     let fullStill = Array.init dimensions (fun d -> if d < 27 then 1.0f else 0.0f)
 
     /// Phase from the contact labels: a left strike is 0 and a right strike 0.5, linear in between. Gaps longer
@@ -273,8 +286,11 @@ module MotionFeatures =
         for frame = clip.Start + 1 to last do
             let now, before = db.Contacts[frame], db.Contacts[frame - 1]
 
-            if now &&& 1uy <> 0uy && before &&& 1uy = 0uy then strikes.Add(struct (frame, 0.0f))
-            if now &&& 2uy <> 0uy && before &&& 2uy = 0uy then strikes.Add(struct (frame, 0.5f))
+            if now &&& 1uy <> 0uy && before &&& 1uy = 0uy then
+                strikes.Add(struct (frame, 0.0f))
+
+            if now &&& 2uy <> 0uy && before &&& 2uy = 0uy then
+                strikes.Add(struct (frame, 0.5f))
 
         for frame = clip.Start to last do
             phase[frame] <- Single.NaN
@@ -303,11 +319,17 @@ module MotionFeatures =
                     rate[frame] <- perFrame
 
     let internal drivenNodes (db: MotionDatabase) (rig: RigDefinition) =
-        db.DrivenJoints
-        |> Array.map (fun name -> Array.IndexOf(rig.Names, name))
+        db.DrivenJoints |> Array.map (fun name -> Array.IndexOf(rig.Names, name))
 
     /// Joint-local pose of a database frame at the given stature; undriven joints keep their bind.
-    let internal framePose (db: MotionDatabase) (rig: RigDefinition) (nodes: int[]) stature frame (local: RigLocalPose[]) =
+    let internal framePose
+        (db: MotionDatabase)
+        (rig: RigDefinition)
+        (nodes: int[])
+        stature
+        frame
+        (local: RigLocalPose[])
+        =
         for node = 0 to rig.Bind.Length - 1 do
             local[node] <-
                 { rig.Bind[node] with
@@ -330,13 +352,19 @@ module MotionFeatures =
                 Matrix4x4.CreateFromQuaternion(pose.Rotation)
                 * Matrix4x4.CreateTranslation(pose.Translation)
 
-            world[node] <- if rig.Parents[node] < 0 then matrix else matrix * world[rig.Parents[node]]
+            world[node] <-
+                if rig.Parents[node] < 0 then
+                    matrix
+                else
+                    matrix * world[rig.Parents[node]]
 
     let internal sole (world: Matrix4x4[]) (leg: RigLimb) stature =
-        world[leg.End].Translation + Vector3.TransformNormal(leg.Socket * stature, world[leg.End])
+        world[leg.End].Translation
+        + Vector3.TransformNormal(leg.Socket * stature, world[leg.End])
 
     let internal toWorld (groundX: float32) (groundZ: float32) (yaw: float32) (local: Vector3) =
-        Vector3.Transform(local, Matrix4x4.CreateRotationY yaw) + Vector3(groundX, 0.0f, groundZ)
+        Vector3.Transform(local, Matrix4x4.CreateRotationY yaw)
+        + Vector3(groundX, 0.0f, groundZ)
 
     let internal toLocal (yaw: float32) (delta: Vector3) =
         Vector3.Transform(delta, Matrix4x4.CreateRotationY(-yaw))
@@ -356,12 +384,18 @@ module MotionFeatures =
             while ancestor >= 0 do
                 let bind = rig.Bind[ancestor]
 
-                if bind.Translation.LengthSquared() > 1e-8f || abs (abs bind.Rotation.W - 1.0f) > 1e-5f then
+                if
+                    bind.Translation.LengthSquared() > 1e-8f
+                    || abs (abs bind.Rotation.W - 1.0f) > 1e-5f
+                then
                     identity <- false
 
                 ancestor <- rig.Parents[ancestor]
 
-            if identity then Ok nodes else Error "pelvis ancestors are not identity binds"
+            if identity then
+                Ok nodes
+            else
+                Error "pelvis ancestors are not identity binds"
 
     let build (db: MotionDatabase) (rig: RigDefinition) (config: MatchingConfig) =
         validNodes db rig
@@ -423,11 +457,18 @@ module MotionFeatures =
                         raw[row + k * 4 + 3] <- MathF.Cos turn
 
                     // The first frame of a clip has no past; its forward difference stands in.
-                    let previous, next = (if frame > clip.Start then frame - 1, frame else frame, min last (frame + 1))
+                    let previous, next =
+                        (if frame > clip.Start then
+                             frame - 1, frame
+                         else
+                             frame, min last (frame + 1))
 
                     for foot = 0 to 1 do
                         let position = toLocal yaw (soles[frame * 2 + foot] - Vector3(x, 0.0f, z))
-                        let velocity = toLocal yaw ((soles[next * 2 + foot] - soles[previous * 2 + foot]) / dt)
+
+                        let velocity =
+                            toLocal yaw ((soles[next * 2 + foot] - soles[previous * 2 + foot]) / dt)
+
                         raw[row + 12 + foot * 3] <- position.X
                         raw[row + 13 + foot * 3] <- position.Y
                         raw[row + 14 + foot * 3] <- position.Z
@@ -445,6 +486,7 @@ module MotionFeatures =
                         let angle = 2.0f * MathF.PI * phase[frame]
                         raw[row + 27] <- MathF.Sin angle
                         raw[row + 28] <- MathF.Cos angle
+
                     let gx = db.GroundX[next] - db.GroundX[previous]
                     let gz = db.GroundZ[next] - db.GroundZ[previous]
                     speed[frame] <- sqrt (gx * gx + gz * gz) / dt
@@ -545,7 +587,12 @@ module MotionFeatures =
             let q = query[dim]
             let lo = lower[block * d + dim]
             let hi = upper[block * d + dim]
-            let gap = if q < lo then lo - q elif q > hi then q - hi else 0.0f
+
+            let gap =
+                if q < lo then lo - q
+                elif q > hi then q - hi
+                else 0.0f
+
             total <- total + mask[dim] * gap * gap
             dim <- dim + 1
 
@@ -595,7 +642,14 @@ module MotionFeatures =
 /// Motion matching evaluated as a pure function of the Core roots: a search chain restarts at every anchor tick and
 /// advances on a fixed grid, so a cold evaluation (seek, recovered window) reproduces the palette of live playback.
 /// Consecutive chains are crossfaded before the next anchor takes over, which removes the restart pop.
-type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationConfig, config: MatchingConfig, features: MotionFeatures) =
+type MotionMatcher
+    (
+        db: MotionDatabase,
+        rig: RigDefinition,
+        animation: AnimationConfig,
+        config: MatchingConfig,
+        features: MotionFeatures
+    ) =
     let nodes = MotionFeatures.drivenNodes db rig
     let joints = nodes.Length
     let framesPerTick = float32 db.RateHz * animation.TickSeconds
@@ -643,7 +697,11 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
     /// Core's stride phase at a tick; past the frontier the latest plan's phase stands.
     let phaseAt (source: IMotionPlanSource) actor (tick: int) =
         let mutable plan = template
-        if tryPlan source actor tick &plan then plan.Root.GaitPhase else 0.0f
+
+        if tryPlan source actor tick &plan then
+            plan.Root.GaitPhase
+        else
+            0.0f
 
     /// Root at a fractional tick. Past the published frontier the source returns its latest plan, which is carried
     /// forward at its own velocity instead of freezing the trajectory.
@@ -659,7 +717,11 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
             if plan.Tick < tick then
                 let seconds = (time - float32 plan.Tick) * animation.TickSeconds
                 let turn = Math.Clamp(plan.Root.AngularVelocity * seconds, -1.0f, 1.0f)
-                ValueSome { first with Position = first.Position + first.Velocity * seconds; Yaw = first.Yaw + turn }
+
+                ValueSome
+                    { first with
+                        Position = first.Position + first.Velocity * seconds
+                        Yaw = first.Yaw + turn }
             else
                 let fraction = time - float32 tick
                 let mutable next = plan
@@ -672,7 +734,9 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                           Yaw = first.Yaw + Rotation.wrap (second.Yaw - first.Yaw) * fraction
                           Velocity = Vector3.Lerp(first.Velocity, second.Velocity, fraction) }
                 else
-                    ValueSome { first with Position = first.Position + first.Velocity * (fraction * animation.TickSeconds) }
+                    ValueSome
+                        { first with
+                            Position = first.Position + first.Velocity * (fraction * animation.TickSeconds) }
 
     let decay (x0: Vector3) (v0: Vector3) seconds =
         let e = MathF.Exp(-damping * seconds)
@@ -721,6 +785,7 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
         let f0 = max (clipFirst f1) (f1 - 1)
         let f3 = min last (f2 + 1)
         let p1 = toVector (db.Rotation(f1, joint))
+
         let aligned f =
             let p = toVector (db.Rotation(f, joint))
             if Vector4.Dot(p, p1) < 0.0f then -p else p
@@ -760,7 +825,10 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
         let d = slope4 p0 p1 p2 p3 t
         let dq = (d - q * Vector4.Dot(q, d)) / length
         // ω = 2 q̇ q* in the parent frame, matching the left-multiplied inertialization offset.
-        let w = Quaternion(dq.X, dq.Y, dq.Z, dq.W) * Quaternion.Conjugate(Quaternion(q.X, q.Y, q.Z, q.W))
+        let w =
+            Quaternion(dq.X, dq.Y, dq.Z, dq.W)
+            * Quaternion.Conjugate(Quaternion(q.X, q.Y, q.Z, q.W))
+
         Vector3(w.X, w.Y, w.Z) * (2.0f * float32 db.RateHz * rate)
 
     let pelvisVelocity (frame: float32) rate =
@@ -769,7 +837,9 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
         let f2 = min (f1 + 1) last
         let f0 = max (clipFirst f1) (f1 - 1)
         let f3 = min last (f2 + 1)
-        catmullRomSlope db.Pelvis[f0] db.Pelvis[f1] db.Pelvis[f2] db.Pelvis[f3] (frame - float32 f1) * (float32 db.RateHz * rate)
+
+        catmullRomSlope db.Pelvis[f0] db.Pelvis[f1] db.Pelvis[f2] db.Pelvis[f3] (frame - float32 f1)
+        * (float32 db.RateHz * rate)
 
     /// Output pose of a chain: database frame with the decaying inertialization offset layered in parent space.
     let poseInto (chain: Chain) (frame: float32) (time: float32) stature (local: RigLocalPose[]) =
@@ -793,7 +863,8 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
             { local[rig.Pelvis] with
                 Translation = (samplePelvis frame + pelvisOffset) * stature }
 
-    let contact frame foot = db.Contacts[frame] &&& (1uy <<< foot) <> 0uy
+    let contact frame foot =
+        db.Contacts[frame] &&& (1uy <<< foot) <> 0uy
 
     let stanceEnd frame foot =
         let last = clipLast frame
@@ -804,7 +875,8 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
 
         cursor
 
-    let leg foot = if foot = 0 then rig.LeftLeg else rig.RightLeg
+    let leg foot =
+        if foot = 0 then rig.LeftLeg else rig.RightLeg
 
     /// World sole of the chain's output at a stance start, placed on the grass under the root of that instant.
     let localSole (chain: Chain) (frame: float32) (time: float32) foot stature =
@@ -817,7 +889,13 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
         match rootAt source actor time with
         | ValueNone -> ValueNone
         | ValueSome root ->
-            let world = MotionFeatures.toWorld root.Position.X root.Position.Z root.Yaw (localSole chain frame time foot stature)
+            let world =
+                MotionFeatures.toWorld
+                    root.Position.X
+                    root.Position.Z
+                    root.Yaw
+                    (localSole chain frame time foot stature)
+
             ValueSome(Vector3(world.X, 0.0f, world.Z))
 
     let poseQuery (frame: float32) =
@@ -837,8 +915,13 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
 
                 match rootAt source actor (float32 tick + ahead) with
                 | ValueSome future ->
-                    let offset = MotionFeatures.toLocal now.Yaw (Vector3(future.Position.X - now.Position.X, 0.0f, future.Position.Z - now.Position.Z))
+                    let offset =
+                        MotionFeatures.toLocal
+                            now.Yaw
+                            (Vector3(future.Position.X - now.Position.X, 0.0f, future.Position.Z - now.Position.Z))
+
                     let turn = Rotation.wrap (future.Yaw - now.Yaw)
+
                     let put i value =
                         let dim = k * 4 + i
                         query[dim] <- (value - features.Mean[dim]) * features.Scale[dim]
@@ -849,7 +932,9 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                     put 3 (MathF.Cos turn)
                 | ValueNone -> complete <- false
 
-            let velocity = MotionFeatures.toLocal now.Yaw (Vector3(now.Velocity.X, 0.0f, now.Velocity.Z))
+            let velocity =
+                MotionFeatures.toLocal now.Yaw (Vector3(now.Velocity.X, 0.0f, now.Velocity.Z))
+
             query[24] <- (velocity.X - features.Mean[24]) * features.Scale[24]
             query[25] <- (0.0f - features.Mean[25]) * features.Scale[25]
             query[26] <- (velocity.Z - features.Mean[26]) * features.Scale[26]
@@ -870,7 +955,11 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
             let captured = features.Speed[frame]
 
             // Near standstill the ratio is noise; the stance lock absorbs the remaining slip.
-            let speedRate = if core < 0.3f || captured < 0.3f then 1.0f else core / captured
+            let speedRate =
+                if core < 0.3f || captured < 0.3f then
+                    1.0f
+                else
+                    core / captured
 
             // While Core's legs cycle, cadence rules: the capture plays at Core's stride rate plus a correction that
             // closes the phase gap, so the foot reaches the ball on the step Core touched it. Stride length then
@@ -878,7 +967,11 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
             let captureCycles = features.PhaseRate[frame] * float32 db.RateHz
 
             let rate =
-                if core > config.CyclingSpeed && captureCycles > 0.0f && not (Single.IsNaN features.Phase[frame]) then
+                if
+                    core > config.CyclingSpeed
+                    && captureCycles > 0.0f
+                    && not (Single.IsNaN features.Phase[frame])
+                then
                     let now = phaseAt source actor tick
                     let ahead = phaseAt source actor (tick + 1) - now
                     let coreCycles = (ahead - MathF.Floor ahead) / animation.TickSeconds
@@ -888,8 +981,10 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
 
                     // Walking strides are long relative to cadence changes, so speed keeps the soles honest there
                     // and phase only nudges; running stance is short enough that cadence can lead.
-                    if core >= config.RunningSpeed then coreCycles / captureCycles + correction
-                    else speedRate + correction
+                    if core >= config.RunningSpeed then
+                        coreCycles / captureCycles + correction
+                    else
+                        speedRate + correction
                 else
                     speedRate
 
@@ -897,7 +992,11 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
         | ValueNone -> 1.0f
 
     let slew current target =
-        let limit = config.RateSlewPerSecond * animation.TickSeconds * float32 config.SearchIntervalTicks
+        let limit =
+            config.RateSlewPerSecond
+            * animation.TickSeconds
+            * float32 config.SearchIntervalTicks
+
         Math.Clamp(target, current - limit, current + limit)
 
     let release frame finish =
@@ -914,9 +1013,18 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
 
         if lock.Active && frame >= float32 lock.Start && frame < float32 lock.End then
             let anchor = local lock.World
-            let engage = if lock.RampIn then Math.Clamp((frame - float32 lock.Start) / config.LockEngageFrames, 0.0f, 1.0f) else 1.0f
+
+            let engage =
+                if lock.RampIn then
+                    Math.Clamp((frame - float32 lock.Start) / config.LockEngageFrames, 0.0f, 1.0f)
+                else
+                    1.0f
+
             let slip = Vector3.Distance(anchor, sole) / stature
-            let hold = Math.Clamp((config.LockSlipEnd - slip) / (config.LockSlipEnd - config.LockSlipStart), 0.0f, 1.0f)
+
+            let hold =
+                Math.Clamp((config.LockSlipEnd - slip) / (config.LockSlipEnd - config.LockSlipStart), 0.0f, 1.0f)
+
             weight <- engage * hold * hold * (3.0f - 2.0f * hold)
             target <- Vector3.Lerp(sole, anchor, weight)
         elif lock.Active && frame >= float32 lock.End && lock.HasEndOffset then
@@ -930,7 +1038,10 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
 
         let switchWeight = fade lock time
 
-        if switchWeight > 0.0f && (lock.SwitchOffset <> Vector3.Zero || lock.SwitchWeight > 0.0f) then
+        if
+            switchWeight > 0.0f
+            && (lock.SwitchOffset <> Vector3.Zero || lock.SwitchWeight > 0.0f)
+        then
             target <- target + lock.SwitchOffset * switchWeight
             weight <- max weight (lock.SwitchWeight * switchWeight)
 
@@ -962,7 +1073,11 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
             EndOffset = Vector3.Zero
             EndWeight = 0.0f
             HasEndOffset = false
-            ReleaseEnd = (if current.Active && current.HasEndOffset then current.End else Int32.MinValue)
+            ReleaseEnd =
+                (if current.Active && current.HasEndOffset then
+                     current.End
+                 else
+                     Int32.MinValue)
             ReleaseOffset = current.EndOffset
             ReleaseWeight = current.EndWeight }
 
@@ -989,16 +1104,36 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                 // The new chain's output equals the old one at the switch, so its sole is the visible capture sole.
                 let sole = localSole chain frame tick foot stature
                 let struct (target, held) = pull current before tick sole local stature
-                let planted = current.Active && before >= float32 current.Start && before < float32 current.End && not current.RampIn
-                let carried = { idle with SwitchOffset = target - sole; SwitchWeight = held; SwitchTick = tick }
+
+                let planted =
+                    current.Active
+                    && before >= float32 current.Start
+                    && before < float32 current.End
+                    && not current.RampIn
+
+                let carried =
+                    { idle with
+                        SwitchOffset = target - sole
+                        SwitchWeight = held
+                        SwitchTick = tick }
 
                 chain.Locks[foot] <-
                     if contact start foot && planted then
                         // A foot planted on both sides of a switch must not move: keep the old world anchor.
-                        { idle with Active = true; Start = start; End = stanceEnd start foot; World = current.World }
+                        { idle with
+                            Active = true
+                            Start = start
+                            End = stanceEnd start foot
+                            World = current.World }
                     elif contact start foot then
                         match anchorAt source actor chain frame tick foot stature with
-                        | ValueSome world -> { carried with Active = true; Start = start; End = stanceEnd start foot; World = world; RampIn = true }
+                        | ValueSome world ->
+                            { carried with
+                                Active = true
+                                Start = start
+                                End = stanceEnd start foot
+                                World = world
+                                RampIn = true }
                         | ValueNone -> carried
                     else
                         carried
@@ -1017,9 +1152,19 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                     | ValueSome local ->
                         let sole = localSole chain (float32 lock.End) time foot stature
                         // The last instant of the stance, with no switch pull, is exactly what the release starts from.
-                        let stance = { lock with SwitchOffset = Vector3.Zero; ReleaseEnd = Int32.MinValue }
-                        let struct (held, weight) = pull stance (float32 lock.End - 1e-3f) time sole local stature
-                        chain.Locks[foot] <- { lock with EndOffset = held - sole; EndWeight = weight; HasEndOffset = true }
+                        let stance =
+                            { lock with
+                                SwitchOffset = Vector3.Zero
+                                ReleaseEnd = Int32.MinValue }
+
+                        let struct (held, weight) =
+                            pull stance (float32 lock.End - 1e-3f) time sole local stature
+
+                        chain.Locks[foot] <-
+                            { lock with
+                                EndOffset = held - sole
+                                EndWeight = weight
+                                HasEndOffset = true }
                     | ValueNone -> chain.Locks[foot] <- { lock with HasEndOffset = true }
 
             settleEnd ()
@@ -1027,7 +1172,12 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
 
             if not lock.Active || frame >= float32 lock.End then
                 // A stance beginning before the next grid step is anchored now, at its own instant.
-                let mutable cursor = if lock.Active then max (start + 1) lock.End else max (start + 1) (int (ceil frame))
+                let mutable cursor =
+                    if lock.Active then
+                        max (start + 1) lock.End
+                    else
+                        max (start + 1) (int (ceil frame))
+
                 let mutable found = false
 
                 while not found && float32 cursor < horizon && cursor <= last do
@@ -1058,7 +1208,8 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
             chain.OffsetX[joint] <- Rotation.log (Quaternion.Normalize(visible * Quaternion.Conjugate destination))
 
             chain.OffsetV[joint] <-
-                v + angularVelocity source chain.Rate joint - angularVelocity (float32 target) 1.0f joint
+                v + angularVelocity source chain.Rate joint
+                - angularVelocity (float32 target) 1.0f joint
 
         let struct (px, pv) = decay chain.PelvisX chain.PelvisV seconds
         let sourceVelocity = pelvisVelocity source chain.Rate
@@ -1073,7 +1224,13 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
             false
         else
             searches <- searches + 1L
-            let mask = if cycling source actor chain.Tick then MotionFeatures.trajectoryOnly else MotionFeatures.trajectoryOnlyStill
+
+            let mask =
+                if cycling source actor chain.Tick then
+                    MotionFeatures.trajectoryOnly
+                else
+                    MotionFeatures.trajectoryOnlyStill
+
             let struct (best, _) = MotionFeatures.search features query mask Single.MaxValue
 
             if best < 0 then
@@ -1088,10 +1245,16 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
 
     let step source actor (chain: Chain) stature =
         let previous = Array.copy chain.Locks
-        let advanced = chain.Frame + framesPerTick * chain.Rate * float32 config.SearchIntervalTicks
+
+        let advanced =
+            chain.Frame + framesPerTick * chain.Rate * float32 config.SearchIntervalTicks
+
         chain.Tick <- chain.Tick + config.SearchIntervalTicks
         let continuing = min (int (MathF.Round advanced)) (clipLast (int chain.Frame))
-        let horizon = framesPerTick * config.MaxPlaybackRate * float32 config.SearchIntervalTicks
+
+        let horizon =
+            framesPerTick * config.MaxPlaybackRate * float32 config.SearchIntervalTicks
+
         let exhausted = float32 continuing + horizon >= float32 (clipLast (int chain.Frame))
         chain.Frame <- min advanced (float32 (clipLast (int chain.Frame)))
 
@@ -1101,7 +1264,13 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
             if trajectoryQuery source actor chain.Tick then
                 poseQuery chain.Frame
                 searches <- searches + 1L
-                let mask = if cycling source actor chain.Tick then MotionFeatures.full else MotionFeatures.fullStill
+
+                let mask =
+                    if cycling source actor chain.Tick then
+                        MotionFeatures.full
+                    else
+                        MotionFeatures.fullStill
+
                 let candidate = Array.BinarySearch(features.Candidates, continuing) >= 0
 
                 let stay =
@@ -1111,7 +1280,12 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                         MotionFeatures.cost features query mask continuing
 
                 // Only a candidate beating the margin can be taken, so the search may prune against it directly.
-                let limit = if stay = Single.MaxValue then Single.MaxValue else stay - config.SwitchMargin
+                let limit =
+                    if stay = Single.MaxValue then
+                        Single.MaxValue
+                    else
+                        stay - config.SwitchMargin
+
                 let struct (best, bestCost) = MotionFeatures.search features query mask limit
 
                 lastStay <- stay
@@ -1123,7 +1297,10 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                     && features.ClipOf[best] = features.ClipOf[continuing]
                     && abs (best - continuing) < config.MinimumJumpFrames
 
-                if best >= 0 && (exhausted || (not nearby && bestCost < stay - config.SwitchMargin)) then
+                if
+                    best >= 0
+                    && (exhausted || (not nearby && bestCost < stay - config.SwitchMargin))
+                then
                     switchTo chain best
                     true
                 else
@@ -1180,7 +1357,9 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
 
     static member Create(db: MotionDatabase, rig: RigDefinition, animation: AnimationConfig, config: MatchingConfig) =
         MatchingConfig.validate config
-        |> Result.bind (fun config -> MotionFeatures.build db rig config |> Result.map (fun features -> MotionMatcher(db, rig, animation, config, features)))
+        |> Result.bind (fun config ->
+            MotionFeatures.build db rig config
+            |> Result.map (fun features -> MotionMatcher(db, rig, animation, config, features)))
 
     /// Drops every cached chain; the next evaluation rebuilds from its anchor exactly as a cold start would.
     member _.Reset() = caches.Clear()
@@ -1233,13 +1412,18 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
         | ValueSome main ->
             let blend =
                 if main.Start <> anchor && time.Tick >= fadeStart then
-                    let u = Math.Clamp((now - float32 fadeStart) / float32 config.CrossfadeTicks, 0.0f, 1.0f)
+                    let u =
+                        Math.Clamp((now - float32 fadeStart) / float32 config.CrossfadeTicks, 0.0f, 1.0f)
+
                     u * u * (3.0f - 2.0f * u)
                 else
                     0.0f
 
             let next =
-                if blend > 0.0f then chainAt source actor chains anchor grid stature else ValueNone
+                if blend > 0.0f then
+                    chainAt source actor chains anchor grid stature
+                else
+                    ValueNone
 
             let mainFrame = frameAt main now
             poseInto main mainFrame now stature mainLocal
@@ -1252,11 +1436,20 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                     let nextFrame = frameAt next now
                     poseInto next nextFrame now stature nextLocal
                     MotionFeatures.forward rig mainLocal lockWorld
-                    let struct (mainLeft, mainLeftWeight) = footTarget main mainFrame now 0 lockWorld stature rootPosition facing
-                    let struct (mainRight, mainRightWeight) = footTarget main mainFrame now 1 lockWorld stature rootPosition facing
+
+                    let struct (mainLeft, mainLeftWeight) =
+                        footTarget main mainFrame now 0 lockWorld stature rootPosition facing
+
+                    let struct (mainRight, mainRightWeight) =
+                        footTarget main mainFrame now 1 lockWorld stature rootPosition facing
+
                     MotionFeatures.forward rig nextLocal lockWorld
-                    let struct (nextLeft, nextLeftWeight) = footTarget next nextFrame now 0 lockWorld stature rootPosition facing
-                    let struct (nextRight, nextRightWeight) = footTarget next nextFrame now 1 lockWorld stature rootPosition facing
+
+                    let struct (nextLeft, nextLeftWeight) =
+                        footTarget next nextFrame now 0 lockWorld stature rootPosition facing
+
+                    let struct (nextRight, nextRightWeight) =
+                        footTarget next nextFrame now 1 lockWorld stature rootPosition facing
 
                     for node = 0 to rig.Bind.Length - 1 do
                         let a = mainLocal[node]
@@ -1283,8 +1476,12 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                 match blendedTargets with
                 | ValueSome targets -> targets
                 | ValueNone ->
-                    let struct (left, leftWeight) = footTarget main mainFrame now 0 world stature rootPosition facing
-                    let struct (right, rightWeight) = footTarget main mainFrame now 1 world stature rootPosition facing
+                    let struct (left, leftWeight) =
+                        footTarget main mainFrame now 0 world stature rootPosition facing
+
+                    let struct (right, rightWeight) =
+                        footTarget main mainFrame now 1 world stature rootPosition facing
+
                     struct (left, leftWeight, right, rightWeight)
 
             let withTask foot (target: Vector3) weight =
@@ -1294,7 +1491,13 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                 if taskWeight > 0.0f then
                     // Ball tasks own the foot while active; the capture only fills the ramps either side.
                     let support = if foot = 0 then plan.Left else plan.Right
-                    let task = MotionInput.localPoint rootPosition facing (PoseEvaluation.footTaskTarget animation time support overlay)
+
+                    let task =
+                        MotionInput.localPoint
+                            rootPosition
+                            facing
+                            (PoseEvaluation.footTaskTarget animation time support overlay)
+
                     struct (Vector3.Lerp(target, task, taskWeight), weight * (1.0f - taskWeight), taskWeight)
                 else
                     struct (target, weight, 0.0f)
@@ -1304,7 +1507,13 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                 let overlay = if foot = 0 then plan.LeftOverlay else plan.RightOverlay
                 let hip = world[leg.Upper].Translation
                 let reach = target - hip
-                let direction = if reach.LengthSquared() > 1e-8f then Vector3.Normalize reach else -Vector3.UnitY
+
+                let direction =
+                    if reach.LengthSquared() > 1e-8f then
+                        Vector3.Normalize reach
+                    else
+                        -Vector3.UnitY
+
                 let thigh = world[leg.Lower].Translation - hip
                 let bend = thigh - direction * Vector3.Dot(thigh, direction)
                 // The captured knee already points where this stride needs it; IK only corrects the reach. Capture
@@ -1315,7 +1524,10 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                     Pole = Vector3(bend.X, bend.Y, max 0.0f bend.Z) + Vector3.UnitZ * (0.05f * stature) }
 
             let struct (leftTarget, leftLock, leftTask) = withTask 0 leftCapture leftCaptureLock
-            let struct (rightTarget, rightLock, rightTask) = withTask 1 rightCapture rightCaptureLock
+
+            let struct (rightTarget, rightLock, rightTask) =
+                withTask 1 rightCapture rightCaptureLock
+
             let leftLeg = solverLeg 0 leftTarget
             let rightLeg = solverLeg 1 rightTarget
 
@@ -1343,8 +1555,14 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
                 let socket = Vector3.TransformNormal(leg.Socket, world[leg.End])
                 let reach = target - socket - hip
                 let distance = reach.Length()
-                let limit = Vector3.Distance(hip, world[leg.Lower].Translation) + Vector3.Distance(world[leg.Lower].Translation, world[leg.End].Translation)
-                let soft = (config.SoftReach + (config.LockedSoftReach - config.SoftReach) * held) * stature
+
+                let limit =
+                    Vector3.Distance(hip, world[leg.Lower].Translation)
+                    + Vector3.Distance(world[leg.Lower].Translation, world[leg.End].Translation)
+
+                let soft =
+                    (config.SoftReach + (config.LockedSoftReach - config.SoftReach) * held)
+                    * stature
 
                 if distance > limit - soft && distance > 1e-5f then
                     let eased = limit - soft * MathF.Exp(-(distance - (limit - soft)) / soft)
@@ -1363,7 +1581,9 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
             // The limb solve only sees the softened target, which is always reachable; the residual is judged against
             // the real one, beyond the few millimetres the easing gives up by design.
             let residual (leg: RigLimb) effector (target: Vector3) =
-                let reached = world[leg.End].Translation + Vector3.TransformNormal(leg.Socket, world[leg.End])
+                let reached =
+                    world[leg.End].Translation + Vector3.TransformNormal(leg.Socket, world[leg.End])
+
                 let gap = Vector3.Distance(reached, target)
 
                 if gap > config.SoftReach * stature then
@@ -1379,7 +1599,10 @@ type MotionMatcher(db: MotionDatabase, rig: RigDefinition, animation: AnimationC
             ConstraintSolve.correctives rig world
 
             for joint = 0 to rig.JointNodes.Length - 1 do
-                palette[offset + joint] <- rig.InverseBind[joint] * Matrix4x4.CreateScale(stature) * world[rig.JointNodes[joint]]
+                palette[offset + joint] <-
+                    rig.InverseBind[joint]
+                    * Matrix4x4.CreateScale(stature)
+                    * world[rig.JointNodes[joint]]
 
             ValueSome
                 { Clip = features.ClipOf[int mainFrame]

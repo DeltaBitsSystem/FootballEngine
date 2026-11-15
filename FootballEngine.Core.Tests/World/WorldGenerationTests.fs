@@ -80,7 +80,10 @@ module WorldGenerationTests =
                       Sequence = 0UL
                       Revision = job.Input.EffectiveConfig.Revision
                       Manager = job.Input.Context.HomeClub.Id
-                      Action = ChangeTactics { job.Input.Context.HomeClub.BaseTactics with Tempo = 0.8f } }
+                      Action =
+                        ChangeTactics
+                            { job.Input.Context.HomeClub.BaseTactics with
+                                Tempo = 0.8f } }
 
                 MatchSession.receive command session
                 |> function
@@ -100,42 +103,139 @@ module WorldGenerationTests =
               <| fun _ ->
                   let cfg = BalanceConfig.defaultConfig
                   let generated = generate 0xC02UL []
-                  let prior = Map.ofList [ for key in 0 .. 23 -> key, ({ Samples = cfg.CollectiveAttack.EvidenceCap; RewardSum = cfg.CollectiveAttack.EvidenceCap * 0.75 }: AttackEstimate) ]
-                  let populated = { generated with Clubs = generated.Clubs |> Map.map (fun _ club -> { club with CoordinationMemory = { club.CoordinationMemory with AttackLearning = prior } }) }
-                  let fixtures = populated.Competitions |> Map.toSeq |> Seq.collect (fun (_, c) -> c.Fixtures |> Map.toSeq) |> Seq.filter (fun (_, f) -> MatchFixture.isPending f && MatchFixture.involves populated.UserClubId f) |> Seq.sortBy (fun (id, f) -> f.ScheduledDate, id) |> Seq.truncate 6 |> Seq.toArray
+
+                  let prior =
+                      Map.ofList
+                          [ for key in 0..23 ->
+                                key,
+                                ({ Samples = cfg.CollectiveAttack.EvidenceCap
+                                   RewardSum = cfg.CollectiveAttack.EvidenceCap * 0.75 }
+                                : AttackEstimate) ]
+
+                  let populated =
+                      { generated with
+                          Clubs =
+                              generated.Clubs
+                              |> Map.map (fun _ club ->
+                                  { club with
+                                      CoordinationMemory =
+                                          { club.CoordinationMemory with
+                                              AttackLearning = prior } }) }
+
+                  let fixtures =
+                      populated.Competitions
+                      |> Map.toSeq
+                      |> Seq.collect (fun (_, c) -> c.Fixtures |> Map.toSeq)
+                      |> Seq.filter (fun (_, f) ->
+                          MatchFixture.isPending f && MatchFixture.involves populated.UserClubId f)
+                      |> Seq.sortBy (fun (id, f) -> f.ScheduledDate, id)
+                      |> Seq.truncate 6
+                      |> Seq.toArray
+
                   Expect.hasLength fixtures 6 "six consecutive pending fixtures, never selected by their outcomes"
                   let mutable state = populated
                   let mutable clock = WorldClockOps.init state.Season
                   let mutable samples = Map.empty
-                  let unwrap = function Ok value -> value | Error e -> failtestf "%A" e
+
+                  let unwrap =
+                      function
+                      | Ok value -> value
+                      | Error e -> failtestf "%A" e
+
                   for index in 0 .. fixtures.Length - 1 do
                       let fixtureId, fixture = fixtures[index]
-                      state <- {state with CurrentDate = fixture.ScheduledDate.Date}
-                      let job = WorldRunner.prepareUserMatchJobWithBalance cfg clock state fixtureId |> unwrap
-                      let session = MatchSession.create Scheduler.systems job.Input MatchRunMode.Fast |> unwrap
+
+                      state <-
+                          { state with
+                              CurrentDate = fixture.ScheduledDate.Date }
+
+                      let job =
+                          WorldRunner.prepareUserMatchJobWithBalance cfg clock state fixtureId |> unwrap
+
+                      let session =
+                          MatchSession.create Scheduler.systems job.Input MatchRunMode.Fast |> unwrap
+
                       let outcome = MatchSession.finish session |> unwrap
-                      let learnedEvents = outcome.Events |> List.filter (fun e -> match e.Data with EventData.CollectiveAttack(_, _, Ended(_, _, Some _)) -> true | _ -> false)
-                      if index = 0 then Expect.isGreaterThan learnedEvents.Length (int cfg.CollectiveAttack.EvidenceCap) "real execution exceeds the cap, not fabricated sample rewards"
+
+                      let learnedEvents =
+                          outcome.Events
+                          |> List.filter (fun e ->
+                              match e.Data with
+                              | EventData.CollectiveAttack(_, _, Ended(_, _, Some _)) -> true
+                              | _ -> false)
+
+                      if index = 0 then
+                          Expect.isGreaterThan
+                              learnedEvents.Length
+                              (int cfg.CollectiveAttack.EvidenceCap)
+                              "real execution exceeds the cap, not fabricated sample rewards"
+
                       for event in learnedEvents do
                           match event.Data with
                           | EventData.CollectiveAttack(side, _, Ended(_, _, Some key)) ->
-                              let club = if side = ClubSide.Home then job.Input.Context.HomeClub.Id else job.Input.Context.AwayClub.Id
-                              samples <- samples |> Map.change (club, key) (fun count -> Some(1 + Option.defaultValue 0 count))
+                              let club =
+                                  if side = ClubSide.Home then
+                                      job.Input.Context.HomeClub.Id
+                                  else
+                                      job.Input.Context.AwayClub.Id
+
+                              samples <-
+                                  samples
+                                  |> Map.change (club, key) (fun count -> Some(1 + Option.defaultValue 0 count))
                           | _ -> ()
+
                       let result = WorldRunner.matchJobResult job [] outcome
-                      let committed = WorldRunner.commitUserMatchJobWithBalance cfg clock state result |> unwrap
-                      for side, final in [ClubSide.Home, outcome.Final.Home; ClubSide.Away, outcome.Final.Away] do
-                          let club = if side = ClubSide.Home then job.Input.Context.HomeClub else job.Input.Context.AwayClub
-                          let saved = committed.DayResult.GameState.Clubs[int club.Id].CoordinationMemory.AttackLearning
-                          Expect.equal saved final.Attack.Estimates "every accepted policy equals chronological online updates, including saturated cells"
-                      Expect.isError (WorldRunner.commitUserMatchJobWithBalance cfg committed.DayResult.WorldClock committed.DayResult.GameState result) "duplicate result cannot multiply learning"
-                      let nextCtx = MatchContextBuilder.build committed.DayResult.GameState fixture cfg |> Option.get
-                      Expect.equal nextCtx.HomeClub.AttackPrior outcome.Final.Home.Attack.Estimates "next kickoff uses exactly accepted memory"
-                      if index = 0 then Expect.notEqual (MatchJob.inputHash job.Input) (MatchJob.inputHash {job.Input with Context = nextCtx}) "learned kickoff identity differs, while original archive remains immutable"
+
+                      let committed =
+                          WorldRunner.commitUserMatchJobWithBalance cfg clock state result |> unwrap
+
+                      for side, final in [ ClubSide.Home, outcome.Final.Home; ClubSide.Away, outcome.Final.Away ] do
+                          let club =
+                              if side = ClubSide.Home then
+                                  job.Input.Context.HomeClub
+                              else
+                                  job.Input.Context.AwayClub
+
+                          let saved =
+                              committed.DayResult.GameState.Clubs[int club.Id].CoordinationMemory.AttackLearning
+
+                          Expect.equal
+                              saved
+                              final.Attack.Estimates
+                              "every accepted policy equals chronological online updates, including saturated cells"
+
+                      Expect.isError
+                          (WorldRunner.commitUserMatchJobWithBalance
+                              cfg
+                              committed.DayResult.WorldClock
+                              committed.DayResult.GameState
+                              result)
+                          "duplicate result cannot multiply learning"
+
+                      let nextCtx =
+                          MatchContextBuilder.build committed.DayResult.GameState fixture cfg
+                          |> Option.get
+
+                      Expect.equal
+                          nextCtx.HomeClub.AttackPrior
+                          outcome.Final.Home.Attack.Estimates
+                          "next kickoff uses exactly accepted memory"
+
+                      if index = 0 then
+                          Expect.notEqual
+                              (MatchJob.inputHash job.Input)
+                              (MatchJob.inputHash { job.Input with Context = nextCtx })
+                              "learned kickoff identity differs, while original archive remains immutable"
+
                       state <- committed.DayResult.GameState
                       clock <- committed.DayResult.WorldClock
+
                   let largestCell = samples |> Map.values |> Seq.max
-                  Expect.isGreaterThan largestCell (int cfg.CollectiveAttack.EvidenceCap) "the sequence exceeds cap in an actual club/context cell; no football reward is fabricated to reach saturation"
+
+                  Expect.isGreaterThan
+                      largestCell
+                      (int cfg.CollectiveAttack.EvidenceCap)
+                      "the sequence exceeds cap in an actual club/context cell; no football reward is fabricated to reach saturation"
 
               testCase "same resolved snapshot, seed and inputs produce the same state"
               <| fun _ ->
@@ -153,29 +253,52 @@ module WorldGenerationTests =
               testCase "execution seeds split fixtures independently of scheduling order"
               <| fun _ ->
                   let fixtures = [ 3; 14; 7; 100 ]
-                  let seedMap order = order |> List.map (fun id -> id, MatchContextBuilder.seedOf 92UL id) |> Map.ofList
+
+                  let seedMap order =
+                      order
+                      |> List.map (fun id -> id, MatchContextBuilder.seedOf 92UL id)
+                      |> Map.ofList
+
                   Expect.equal (seedMap fixtures) (seedMap (List.rev fixtures)) "parallel order has no sporting effect"
-                  let attempts = [ 1UL .. 10000UL ] |> List.map (fun seed -> MatchContextBuilder.seedOf seed 14)
-                  Expect.equal (Set.ofList attempts |> Set.count) attempts.Length "repeated attempts have independent streams"
+
+                  let attempts =
+                      [ 1UL .. 10000UL ] |> List.map (fun seed -> MatchContextBuilder.seedOf seed 14)
+
+                  Expect.equal
+                      (Set.ofList attempts |> Set.count)
+                      attempts.Length
+                      "repeated attempts have independent streams"
 
               testCase "rerolling a pending fixture changes its accepted input without changing the world"
               <| fun _ ->
                   let generated = generate 0xC02UL []
+
                   let matchId, fixture =
                       generated.Competitions
                       |> Map.toSeq
                       |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
                       |> Seq.find (fun (_, fixture) -> MatchFixture.involves generated.UserClubId fixture)
-                  let state = { generated with CurrentDate = fixture.ScheduledDate.Date }
+
+                  let state =
+                      { generated with
+                          CurrentDate = fixture.ScheduledDate.Date }
+
                   let clock = WorldClockOps.init state.Season
+
                   let prepare state =
                       WorldRunner.prepareUserMatchJobWithBalance BalanceConfig.defaultConfig clock state matchId
                       |> function
                           | Ok job -> job
                           | Error error -> failtest error
+
                   let first = prepare state
                   let repeated = prepare state
-                  let rerolled = prepare { state with ExecutionSeed = state.ExecutionSeed + 1UL }
+
+                  let rerolled =
+                      prepare
+                          { state with
+                              ExecutionSeed = state.ExecutionSeed + 1UL }
+
                   Expect.equal first repeated "worker slices reuse the same execution"
                   Expect.notEqual first.Input.Seed rerolled.Input.Seed "new attempts reroll the stream"
                   Expect.notEqual first.InputHash rerolled.InputHash "old results cannot masquerade as the new attempt"
@@ -254,15 +377,24 @@ module WorldGenerationTests =
                   match MatchContextBuilder.build ready fixture BalanceConfig.defaultConfig with
                   | None -> failtest "generated fixture could not cross the match boundary"
                   | Some context ->
-                      let starters (lineup: Lineup) = lineup.Profiles |> Array.take lineup.StarterCount
-                      let profiles = Array.append (starters context.HomeLineup) (starters context.AwayLineup)
+                      let starters (lineup: Lineup) =
+                          lineup.Profiles |> Array.take lineup.StarterCount
+
+                      let profiles =
+                          Array.append (starters context.HomeLineup) (starters context.AwayLineup)
 
                       let ratings (profile: PlayerProfile) =
-                          [ profile.Passing; profile.Finishing; profile.Dribbling; profile.Vision; profile.Composure ]
+                          [ profile.Passing
+                            profile.Finishing
+                            profile.Dribbling
+                            profile.Vision
+                            profile.Composure ]
 
                       for profile in profiles do
                           for rating in ratings profile do
-                              Expect.isTrue (rating >= 0.0f && rating <= 100.0f) $"rating {rating} stays on the engine scale"
+                              Expect.isTrue
+                                  (rating >= 0.0f && rating <= 100.0f)
+                                  $"rating {rating} stays on the engine scale"
 
                       let meanPassing = profiles |> Array.averageBy (fun p -> float p.Passing)
                       Expect.isGreaterThan meanPassing 25.0 "an average professional is not rated near zero"
@@ -297,9 +429,13 @@ module WorldGenerationTests =
                               Array.init lineup.StarterCount (fun i -> lineup.Profiles[i].Role, lineup.BasePositions[i])
 
                           let keeperX =
-                              starters |> Array.find (fun (role, _) -> role = SlotRole.Goalkeeper) |> snd |> _.X
+                              starters
+                              |> Array.find (fun (role, _) -> role = SlotRole.Goalkeeper)
+                              |> snd
+                              |> _.X
 
-                          let outfield = starters |> Array.filter (fun (role, _) -> role <> SlotRole.Goalkeeper)
+                          let outfield =
+                              starters |> Array.filter (fun (role, _) -> role <> SlotRole.Goalkeeper)
 
                           Expect.isLessThan keeperX -35.0<meter> "the goalkeeper starts in front of his own goal"
 
@@ -324,10 +460,14 @@ module WorldGenerationTests =
                               |> Array.filter (fun (role, _) -> role = SlotRole.Striker)
                               |> Array.averageBy (fun (_, p) -> float p.X)
 
-                          Expect.isGreaterThan (meanAttackerX - meanDefenderX) 25.0 "the back line sits well behind the strikers"
+                          Expect.isGreaterThan
+                              (meanAttackerX - meanDefenderX)
+                              25.0
+                              "the back line sits well behind the strikers"
 
                           Expect.isTrue
-                              (starters |> Array.forall (fun (_, p) -> abs (float p.Y) <= float Pitch.HalfWidth))
+                              (starters
+                               |> Array.forall (fun (_, p) -> abs (float p.Y) <= float Pitch.HalfWidth))
                               "the shape spans the width, inside the touchlines"
 
               // Kits come from data mods; a club without one is drawn with a generated kit in the UI.
@@ -337,7 +477,9 @@ module WorldGenerationTests =
                       let json =
                           countryJson.Replace(
                               "{\"Name\":\"North FC\",\"LeagueLevel\":0,\"Reputation\":7000}",
-                              "{\"Name\":\"North FC\",\"LeagueLevel\":0,\"Reputation\":7000,\"Kit\":" + kitJson + "}"
+                              "{\"Name\":\"North FC\",\"LeagueLevel\":0,\"Reputation\":7000,\"Kit\":"
+                              + kitJson
+                              + "}"
                           )
 
                       Expect.notEqual json countryJson "the fixture club was found in the country document"
@@ -346,7 +488,8 @@ module WorldGenerationTests =
                           [ { RelativePath = "test-world.femod"
                               Package =
                                 { package with
-                                    SportsContent = Map.add (ContentId "test.world:country/tst") json package.SportsContent } } ]
+                                    SportsContent =
+                                        Map.add (ContentId "test.world:country/tst") json package.SportsContent } } ]
 
                   match withKit "{\"Primary\":\"#FFFFFF\",\"Secondary\":\"#E2353B\",\"Pattern\":\"Sash\"}" with
                   | Error error -> failtestf "a valid kit was rejected: %A" error
@@ -354,8 +497,17 @@ module WorldGenerationTests =
                       match WorldGen.generateNewGame dataset 0xC02UL startDate "TST" "Test Manager" [] with
                       | Error error -> failtestf "generation failed: %A" error
                       | Ok state ->
-                          let north = state.Clubs |> Map.toSeq |> Seq.map snd |> Seq.find (fun club -> club.Name = "North FC")
-                          let south = state.Clubs |> Map.toSeq |> Seq.map snd |> Seq.find (fun club -> club.Name = "South FC")
+                          let north =
+                              state.Clubs
+                              |> Map.toSeq
+                              |> Seq.map snd
+                              |> Seq.find (fun club -> club.Name = "North FC")
+
+                          let south =
+                              state.Clubs
+                              |> Map.toSeq
+                              |> Seq.map snd
+                              |> Seq.find (fun club -> club.Name = "South FC")
 
                           Expect.equal
                               north.Kit
@@ -369,7 +521,8 @@ module WorldGenerationTests =
 
                   // Content is validated when the world is materialized from the resolved mods.
                   match withKit "{\"Primary\":\"red\",\"Secondary\":\"#E2353B\",\"Pattern\":\"Zigzag\"}" with
-                  | Error error -> Expect.stringContains (sprintf "%A" error) "MOD-CONTENT-VALUE" "colour and pattern are validated"
+                  | Error error ->
+                      Expect.stringContains (sprintf "%A" error) "MOD-CONTENT-VALUE" "colour and pattern are validated"
                   | Ok dataset ->
                       match WorldGen.generateNewGame dataset 0xC02UL startDate "TST" "Test Manager" [] with
                       | Ok _ -> failtest "a malformed kit must not reach a career"
@@ -402,8 +555,20 @@ module WorldGenerationTests =
                         AwayPlayerStats = [||] }
 
                   let fixtureToComp = MatchOutcome.fixtureToCompMap state
-                  let once = MatchOutcome.applyOutcomes BalanceConfig.defaultConfig.CollectiveAttack fixtureToComp [| outcome |] state
-                  let twice = MatchOutcome.applyOutcomes BalanceConfig.defaultConfig.CollectiveAttack fixtureToComp [| outcome |] once
+
+                  let once =
+                      MatchOutcome.applyOutcomes
+                          BalanceConfig.defaultConfig.CollectiveAttack
+                          fixtureToComp
+                          [| outcome |]
+                          state
+
+                  let twice =
+                      MatchOutcome.applyOutcomes
+                          BalanceConfig.defaultConfig.CollectiveAttack
+                          fixtureToComp
+                          [| outcome |]
+                          once
 
                   Expect.equal twice once "standings, morale and fixture state are not applied twice"
 
@@ -416,10 +581,20 @@ module WorldGenerationTests =
                   | Ok committed ->
                       Expect.hasLength committed.DayResult.PlayedMatches 1 "one fixture is committed"
                       let cfg = BalanceConfig.defaultConfig.CollectiveAttack
-                      for side, club in [ ClubSide.Home, result.Input.Context.HomeClub; ClubSide.Away, result.Input.Context.AwayClub ] do
+
+                      for side, club in
+                          [ ClubSide.Home, result.Input.Context.HomeClub
+                            ClubSide.Away, result.Input.Context.AwayClub ] do
                           let expected = AttackLearning.applyEvents cfg side club.AttackPrior result.Events
-                          Expect.equal committed.DayResult.GameState.Clubs[int club.Id].CoordinationMemory.AttackLearning expected "accepted actual match evidence is merged without multiplying kickoff priors"
-                      Expect.isNonEmpty (AttackLearning.fromEvents cfg ClubSide.Home result.Events) "actual simulation produces functional adaptive evidence"
+
+                          Expect.equal
+                              committed.DayResult.GameState.Clubs[int club.Id].CoordinationMemory.AttackLearning
+                              expected
+                              "accepted actual match evidence is merged without multiplying kickoff priors"
+
+                      Expect.isNonEmpty
+                          (AttackLearning.fromEvents cfg ClubSide.Home result.Events)
+                          "actual simulation produces functional adaptive evidence"
 
                       match
                           WorldRunner.commitUserMatchJobWithBalance
@@ -429,59 +604,97 @@ module WorldGenerationTests =
                               result
                       with
                       | Error error -> Expect.equal error "Match result was already committed" "replay is rejected"
-                       | Ok _ -> failtest "the same result was committed twice"
+                      | Ok _ -> failtest "the same result was committed twice"
 
               testCase "recorded replay owns the original seed football input and managerial commands"
               <| fun _ ->
                   let state, clock, result = completedUserJob ()
+
                   let committed =
                       WorldRunner.commitUserMatchJobWithBalance BalanceConfig.defaultConfig clock state result
                       |> function
                           | Ok committed -> committed.DayResult
                           | Error error -> failtest error
-                  Expect.equal committed.GameState.MatchSeeds[result.MatchId] result.Input.Seed "the actual seed is retained"
+
+                  Expect.equal
+                      committed.GameState.MatchSeeds[result.MatchId]
+                      result.Input.Seed
+                      "the actual seed is retained"
+
                   let changed =
                       { committed.GameState with
                           ExecutionSeed = 999UL
                           Players = Map.empty
                           Staff = Map.empty
                           CurrentDate = committed.GameState.CurrentDate.AddDays(20.0) }
+
                   let job =
                       WorldRunner.prepareReplayJob committed.WorldClock changed result.MatchId
                       |> function
                           | Ok job -> job
                           | Error error -> failtest error
+
                   Expect.equal job.Input result.Input "replay never rebuilds from today's career"
+
                   let session =
                       MatchSession.create Scheduler.systems job.Input (MatchRunMode.Replay 40<tickDelta>)
                       |> function
                           | Ok session -> session
                           | Error error -> failtestf "%A" error
+
                   let _, commands = committed.WorldClock.MatchExecutions[result.MatchId]
                   Expect.equal commands result.Commands "accepted managerial actions are retained"
+
                   for command in commands do
                       MatchSession.receive command session
                       |> function
                           | Ok() -> ()
                           | Error error -> failtestf "%A" error
+
                   let replay =
                       MatchSession.finish session
                       |> function
                           | Ok outcome -> outcome
                           | Error error -> failtestf "%A" error
+
                   Expect.equal replay.EventsHash result.EventsHash "the replay reproduces every sporting event"
-                  Expect.equal (replay.Final.State.HomeScore, replay.Final.State.AwayScore) (result.HomeScore, result.AwayScore) "the score follows that execution"
+
+                  Expect.equal
+                      (replay.Final.State.HomeScore, replay.Final.State.AwayScore)
+                      (result.HomeScore, result.AwayScore)
+                      "the score follows that execution"
+
                   let nextSeason =
-                      WorldRunner.advanceToNextSeasonWithBalance BalanceConfig.defaultConfig committed.WorldClock committed.GameState
-                  Expect.equal nextSeason.NextSeasonClock.MatchExecutions committed.WorldClock.MatchExecutions "season rollover cannot forget recorded executions"
-                  Expect.equal nextSeason.NextSeasonGs.MatchSeeds committed.GameState.MatchSeeds "completed seeds survive a new fixture schedule"
+                      WorldRunner.advanceToNextSeasonWithBalance
+                          BalanceConfig.defaultConfig
+                          committed.WorldClock
+                          committed.GameState
+
+                  Expect.equal
+                      nextSeason.NextSeasonClock.MatchExecutions
+                      committed.WorldClock.MatchExecutions
+                      "season rollover cannot forget recorded executions"
+
+                  Expect.equal
+                      nextSeason.NextSeasonGs.MatchSeeds
+                      committed.GameState.MatchSeeds
+                      "completed seeds survive a new fixture schedule"
+
                   for KeyValue(id, club) in committed.GameState.Clubs do
-                      let retained = AttackLearning.retain BalanceConfig.defaultConfig.CollectiveAttack club.CoordinationMemory.AttackLearning
-                      Expect.equal nextSeason.NextSeasonGs.Clubs[id].CoordinationMemory.AttackLearning retained "season rollover decays actual bounded football memory"
+                      let retained =
+                          AttackLearning.retain
+                              BalanceConfig.defaultConfig.CollectiveAttack
+                              club.CoordinationMemory.AttackLearning
+
+                      Expect.equal
+                          nextSeason.NextSeasonGs.Clubs[id].CoordinationMemory.AttackLearning
+                          retained
+                          "season rollover decays actual bounded football memory"
 
               testCase "an unrecorded fixture cannot be presented as a recorded replay"
               <| fun _ ->
                   let state = generate 0xC02UL []
+
                   Expect.isError
                       (WorldRunner.prepareReplayJob (WorldClockOps.init state.Season) state 1)
                       "replays must not invent a new simulation"

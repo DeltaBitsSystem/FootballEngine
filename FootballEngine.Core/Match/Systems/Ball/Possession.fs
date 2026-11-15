@@ -46,22 +46,31 @@ module BallPossession =
 
             // The latest occurrence of a touch point at or before this tick, compared with where the clock stood a
             // tick ago.
-            let crossed point = point + floor (phase - point) > previous
+            let crossed point =
+                point + floor (phase - point) > previous
 
             let crossing =
-                if cycles > 0.0 && crossed gait.CarryTouchPhase then ValueSome gait.CarryTouchPhase
-                elif cycles > 0.0 && crossed (gait.CarryTouchPhase + 0.5) then ValueSome(gait.CarryTouchPhase + 0.5)
-                else ValueNone
+                if cycles > 0.0 && crossed gait.CarryTouchPhase then
+                    ValueSome gait.CarryTouchPhase
+                elif cycles > 0.0 && crossed (gait.CarryTouchPhase + 0.5) then
+                    ValueSome(gait.CarryTouchPhase + 0.5)
+                else
+                    ValueNone
 
             let touch =
                 match ball.AnnouncedTouch, ball.FootMotion with
                 // An announced touch is a commitment, like a strike's wind-up: the boot is already swinging to the
                 // tick and face it was sent to, so it lands then, whatever the stride clock has drifted to since.
                 | ValueSome announced, _ when announced.Motion.Actor = pid ->
-                    if tick + 1<subtick> = announced.Motion.ContactAt then ValueSome announced.Motion.Foot else ValueNone
+                    if tick + 1<subtick> = announced.Motion.ContactAt then
+                        ValueSome announced.Motion.Foot
+                    else
+                        ValueNone
                 | _, Some motion when motion.Actor = pid ->
-                    if tick + 1<subtick> - motion.ContactAt < cfg.CarryTouchInterval then ValueNone
-                    elif cycles = 0.0 then ValueSome(BallFootContact.lateralFoot world side slot)
+                    if tick + 1<subtick> - motion.ContactAt < cfg.CarryTouchInterval then
+                        ValueNone
+                    elif cycles = 0.0 then
+                        ValueSome(BallFootContact.lateralFoot world side slot)
                     else
                         match crossing with
                         | ValueSome point -> ValueSome(Gait.swingFoot point)
@@ -92,7 +101,12 @@ module BallPossession =
                         let mutable foot = touchFoot
 
                         for candidate in 0..1 do
-                            let point = if candidate = 0 then gait.CarryTouchPhase else gait.CarryTouchPhase + 0.5
+                            let point =
+                                if candidate = 0 then
+                                    gait.CarryTouchPhase
+                                else
+                                    gait.CarryTouchPhase + 0.5
+
                             let mutable lap = Gait.wrap (point - phase)
 
                             while int (ceil (lap / cycles * perSecond)) < minimumTicks do
@@ -184,8 +198,11 @@ module BallPossession =
 
                 // Standing, no toe-off times the swing: the foot reaches over the whole interval.
                 let lead =
-                    if cycles > 0.0 then int (round (gait.CarrySwingLead / cycles * perSecond)) * 1<subtick>
-                    else nextTicks * 1<subtick>
+                    if cycles > 0.0 then
+                        int (round (gait.CarrySwingLead / cycles * perSecond)) * 1<subtick>
+                    else
+                        nextTicks * 1<subtick>
+
                 let struct (ballX, ballY, nextX, nextY) = rolled nextX nextY
 
                 BallFootContact.announceTouch

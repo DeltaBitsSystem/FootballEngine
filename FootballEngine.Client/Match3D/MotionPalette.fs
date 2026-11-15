@@ -57,7 +57,18 @@ type MotionPaletteEvaluator(rig: RigDefinition, config: AnimationConfig, matcher
                             | ValueNone ->
                                 ready <- false
                                 struct (ValueNone, ValueNone)
-                        | None -> PoseEvaluation.evaluateInto (config, rig, plan, time, root, facing, scratch, palettes, offset)
+                        | None ->
+                            PoseEvaluation.evaluateInto (
+                                config,
+                                rig,
+                                plan,
+                                time,
+                                root,
+                                facing,
+                                scratch,
+                                palettes,
+                                offset
+                            )
 
                     if left.IsSome then
                         residuals <- residuals + 1UL

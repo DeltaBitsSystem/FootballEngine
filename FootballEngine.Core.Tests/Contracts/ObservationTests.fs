@@ -369,7 +369,11 @@ module ObservationTests =
                       "unretained root does not fabricate a chain")
               testCase "physical contact observation retains the committed action identity" (fun _ ->
                   let ctx = TestBuilders.formationCtx ()
-                  let system = { Ctx = ctx; Clock = SimulationClock.defaultClock }
+
+                  let system =
+                      { Ctx = ctx
+                        Clock = SimulationClock.defaultClock }
+
                   let world = MatchFactory.create ctx
                   let homeId, awayId = world.Home.RosterIds[5], world.Away.RosterIds[5]
 
@@ -427,7 +431,11 @@ module ObservationTests =
                         Flags = { Bits = 0UL } }
 
                   let rng = Rng.ofSeed 17UL
-                  Expect.equal (ContactDynamics.step system rng world events) rng "recording contact consumes no random draws"
+
+                  Expect.equal
+                      (ContactDynamics.step system rng world events)
+                      rng
+                      "recording contact consumes no random draws"
 
                   let contactEvent =
                       events.Events
@@ -437,16 +445,36 @@ module ObservationTests =
                           | _ -> false)
 
                   let cause = world.Observation.ConsumeCause contactEvent
-                  Expect.equal cause (ValueSome(ActionCause actionId)) "physical evidence carries the executed action identity"
 
-                  let occurrence = world.Observation.Record(contactEvent.Tick, cause, EventCommitted contactEvent)
+                  Expect.equal
+                      cause
+                      (ValueSome(ActionCause actionId))
+                      "physical evidence carries the executed action identity"
+
+                  let occurrence =
+                      world.Observation.Record(contactEvent.Tick, cause, EventCommitted contactEvent)
+
                   Expect.isTrue occurrence.IsSome "the actual contact can be captured"
-                  use json = System.Text.Json.JsonDocument.Parse(Observation.exportJson (world.Observation.Snapshot()))
+
+                  use json =
+                      System.Text.Json.JsonDocument.Parse(Observation.exportJson (world.Observation.Snapshot()))
+
                   let row = json.RootElement.GetProperty("Entries")[0]
                   let source = row.GetProperty("Causes")[0]
-                  Expect.equal (source.GetProperty("Kind").GetString()) "action" "physical evidence exports a typed action link"
-                  Expect.equal (source.GetProperty("Id").GetUInt64()) 77UL "the exact contact action remains inspectable"
-                  Expect.isFalse (row.EnumerateObject() |> Seq.exists (fun property -> property.Name = "Duel")) "stochastic duel payloads are absent")
+
+                  Expect.equal
+                      (source.GetProperty("Kind").GetString())
+                      "action"
+                      "physical evidence exports a typed action link"
+
+                  Expect.equal
+                      (source.GetProperty("Id").GetUInt64())
+                      77UL
+                      "the exact contact action remains inspectable"
+
+                  Expect.isFalse
+                      (row.EnumerateObject() |> Seq.exists (fun property -> property.Name = "Duel"))
+                      "stochastic duel payloads are absent")
               testCase "cross attempt distinguishes an applied impulse from a rejected target search" (fun _ ->
                   let ctx = TestBuilders.defaultCtx ()
 

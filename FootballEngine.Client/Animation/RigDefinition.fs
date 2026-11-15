@@ -32,23 +32,25 @@ type RigCorrective =
       SupportBindRotation: Matrix4x4 }
 
 type RigDefinition =
-    { Hash: string
-      /// Node names in evaluation order; motion data names the joints it drives.
-      Names: string[]
-      Parents: int[]
-      DescendantEnds: int[]
-      Bind: RigLocalPose[]
-      JointNodes: int[]
-      InverseBind: Matrix4x4[]
-      Correctives: RigCorrective[]
-      LeftLeg: RigLimb
-      RightLeg: RigLimb
-      LeftArm: RigLimb
-      RightArm: RigLimb
-      Pelvis: int
-      Torso: int
-      Neck: int
-      Head: int }
+    {
+        Hash: string
+        /// Node names in evaluation order; motion data names the joints it drives.
+        Names: string[]
+        Parents: int[]
+        DescendantEnds: int[]
+        Bind: RigLocalPose[]
+        JointNodes: int[]
+        InverseBind: Matrix4x4[]
+        Correctives: RigCorrective[]
+        LeftLeg: RigLimb
+        RightLeg: RigLimb
+        LeftArm: RigLimb
+        RightArm: RigLimb
+        Pelvis: int
+        Torso: int
+        Neck: int
+        Head: int
+    }
 
 module RigDefinition =
     let conform (rig: RigDefinition) (proxy: FootballEngine.Core.Match.PhysicalMorphology) =

@@ -129,10 +129,18 @@ module WorldScheduler =
                         disjointBatches fixtures
                         |> List.fold
                             (fun (state, clock: WorldClock) batch ->
-                                let next, executions = MatchPhase.runFixtureExecutionsWithBalance balance batch state
+                                let next, executions =
+                                    MatchPhase.runFixtureExecutionsWithBalance balance batch state
+
                                 let recorded =
-                                    executions |> Array.fold (fun records (id, execution) -> Map.add id execution records) clock.MatchExecutions
-                                next, { clock with MatchExecutions = recorded })
+                                    executions
+                                    |> Array.fold
+                                        (fun records (id, execution) -> Map.add id execution records)
+                                        clock.MatchExecutions
+
+                                next,
+                                { clock with
+                                    MatchExecutions = recorded })
                             (s, c))
                     |> Result.map (fun (s2, c2, t) -> s2, c2, traces @ [ t ], fixtures))
             |> Result.bind (fun (s, c, traces, fixtures) ->
@@ -144,7 +152,10 @@ module WorldScheduler =
                         // for it yet, so the scheduler is the single place that supplies the defaults.
                         run ResolveDecisions s3 c3 (fun c s ->
                             runAgents balance s c
-                            |> FootballEngine.World.Pulse.WorldPulse.runOn (c.Current.Day % 7 = 0) WorldPulseConfig.defaultWorldPulse date,
+                            |> FootballEngine.World.Pulse.WorldPulse.runOn
+                                (c.Current.Day % 7 = 0)
+                                WorldPulseConfig.defaultWorldPulse
+                                date,
                             c)
                         |> Result.bind (fun (s4, c4, t3) ->
                             run CloseDay s4 c4 (fun c s ->

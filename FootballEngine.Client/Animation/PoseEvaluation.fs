@@ -15,18 +15,34 @@ module PoseEvaluation =
         else
             let struct (position, _) = Trajectory.evaluate config.TickSeconds time foot.Segment in position
 
-    let private orientFoot (config: AnimationConfig) time (rig: RigDefinition) (world: Matrix4x4[]) leg (foot: FootPlan) =
+    let private orientFoot
+        (config: AnimationConfig)
+        time
+        (rig: RigDefinition)
+        (world: Matrix4x4[])
+        leg
+        (foot: FootPlan)
+        =
         let pitch =
             if foot.Phase = SupportPhase.Swing || foot.Phase = SupportPhase.Landing then
                 let duration = foot.Segment.Finish - foot.ReleaseAt
-                let u = Math.Clamp((MotionTime.value time - foot.ReleaseAt) / max 1e-5f duration, 0.0f, 1.0f)
+
+                let u =
+                    Math.Clamp((MotionTime.value time - foot.ReleaseAt) / max 1e-5f duration, 0.0f, 1.0f)
+
                 let lift = MathF.Sin(MathF.PI * u)
                 config.FootSwingPitch * lift * lift
             else
                 0.0f
 
         let rotation = Matrix4x4.CreateRotationX pitch
-        ConstraintSolve.orient rig world leg (Vector3.TransformNormal(Vector3.UnitY, rotation)) (Vector3.TransformNormal(Vector3.UnitZ, rotation))
+
+        ConstraintSolve.orient
+            rig
+            world
+            leg
+            (Vector3.TransformNormal(Vector3.UnitY, rotation))
+            (Vector3.TransformNormal(Vector3.UnitZ, rotation))
 
     let private armTarget (config: AnimationConfig) speed (world: Matrix4x4[]) (arm: RigLimb) swing =
         let shoulder = world[arm.Upper].Translation
@@ -36,11 +52,19 @@ module PoseEvaluation =
         let lower = Vector3.Distance(elbow, wrist)
         let blend = Math.Clamp(speed * config.ArmBendSpeed, 0.0f, 1.0f)
         let flex = config.ArmIdleFlex + (config.ArmRunFlex - config.ArmIdleFlex) * blend
-        let swingAngle = Math.Clamp(swing * config.ArmSwing, -flex * config.ArmSwingFlexLimit, flex * config.ArmSwingFlexLimit)
+
+        let swingAngle =
+            Math.Clamp(swing * config.ArmSwing, -flex * config.ArmSwingFlexLimit, flex * config.ArmSwingFlexLimit)
         // Elbow flexion brings the forearm forward; centring both segments around vertical leaves running hands behind the hips.
         let upperAngle = min 0.0f (swingAngle - flex * 0.25f)
         let lowerAngle = upperAngle + flex
-        shoulder + Vector3(0.0f, -upper * MathF.Cos(upperAngle) - lower * MathF.Cos(lowerAngle), upper * MathF.Sin(upperAngle) + lower * MathF.Sin(lowerAngle))
+
+        shoulder
+        + Vector3(
+            0.0f,
+            -upper * MathF.Cos(upperAngle) - lower * MathF.Cos(lowerAngle),
+            upper * MathF.Sin(upperAngle) + lower * MathF.Sin(lowerAngle)
+        )
 
     let private orientHand (rig: RigDefinition) (world: Matrix4x4[]) (arm: RigLimb) inward =
         let elbow = world[arm.Lower].Translation
@@ -51,13 +75,23 @@ module PoseEvaluation =
 
     let footTaskTarget config time (foot: FootPlan) (overlay: FootOverlay) =
         if overlay.Active && MotionTime.value time <= overlay.Recovery.Finish then
-            let struct (position, _) = TaskPlanner.overlayPoint config (MotionTime.value time) overlay
+            let struct (position, _) =
+                TaskPlanner.overlayPoint config (MotionTime.value time) overlay
+
             position
         else
             footTarget config (MotionTime.value time) foot
 
     let taskSocket config time (overlay: FootOverlay) (leg: RigLimb) stature =
-        let mix = if overlay.Active && MotionTime.value time <= overlay.Recovery.Finish then let struct (value, _) = TaskPlanner.socketState config.TickSeconds (MotionTime.value time) overlay in value else 0.0f
+        let mix =
+            if overlay.Active && MotionTime.value time <= overlay.Recovery.Finish then
+                let struct (value, _) =
+                    TaskPlanner.socketState config.TickSeconds (MotionTime.value time) overlay in
+
+                value
+            else
+                0.0f
+
         Vector3.Lerp(leg.Socket, leg.BallSocket, mix) * stature
 
     let requiredPelvisDrop (world: Matrix4x4[]) (leg: RigLimb) target =
@@ -66,7 +100,10 @@ module PoseEvaluation =
         let ankle = world[leg.End].Translation
         let targetAnkle = target - Vector3.TransformNormal(leg.Socket, world[leg.End])
         let length = Vector3.Distance(hip, knee) + Vector3.Distance(knee, ankle)
-        let horizontal = Vector2(targetAnkle.X - hip.X, targetAnkle.Z - hip.Z).LengthSquared()
+
+        let horizontal =
+            Vector2(targetAnkle.X - hip.X, targetAnkle.Z - hip.Z).LengthSquared()
+
         let verticalReach = MathF.Sqrt(max 0.0f (length * length - horizontal))
         max 0.0f (hip.Y - targetAnkle.Y - verticalReach)
 
@@ -117,10 +154,13 @@ module PoseEvaluation =
         orientFoot config time rig scratch.World rightLeg plan.Right
 
         let pelvisDrop =
-            min (config.PelvisMaxDrop * stature) (max (requiredPelvisDrop scratch.World leftLeg left) (requiredPelvisDrop scratch.World rightLeg right))
+            min
+                (config.PelvisMaxDrop * stature)
+                (max (requiredPelvisDrop scratch.World leftLeg left) (requiredPelvisDrop scratch.World rightLeg right))
 
         if pelvisDrop > 0.0f then
             let offset = Matrix4x4.CreateTranslation(0.0f, -pelvisDrop, 0.0f)
+
             for node = rig.Pelvis to rig.DescendantEnds[rig.Pelvis] do
                 scratch.World[node] <- scratch.World[node] * offset
 
@@ -134,6 +174,7 @@ module PoseEvaluation =
         orientFoot config time rig scratch.World rightLeg plan.Right
         let speed = Vector3(plan.Root.Velocity.X, plan.Root.Velocity.Y, 0.0f).Length()
         let stride = left.Z - right.Z
+
         ConstraintSolve.limb (
             rig,
             scratch.World,

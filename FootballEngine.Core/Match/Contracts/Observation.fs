@@ -44,8 +44,7 @@ type ObservationQuery =
       FromTick: int<subtick>
       UntilTick: int<subtick> }
 
-type ProbabilityResolutionKind =
-    | Reception
+type ProbabilityResolutionKind = | Reception
 
 type ExecutionRejection =
     | PassDistanceLimit of distance: float<meter> * limit: float<meter>
@@ -82,8 +81,22 @@ type OrganizedDefenseEvidence =
       Cover: PlayerId option }
 
 type ObservationData =
-    | AttackEvaluated of ClubSide * uint64 * AttackPattern * context: int * geometry: float * learned: float * uncertainty: float
-    | AttackResolved of ClubSide * uint64 * AttackEnd * reward: float * connections: int * progress: float * exposure: float
+    | AttackEvaluated of
+        ClubSide *
+        uint64 *
+        AttackPattern *
+        context: int *
+        geometry: float *
+        learned: float *
+        uncertainty: float
+    | AttackResolved of
+        ClubSide *
+        uint64 *
+        AttackEnd *
+        reward: float *
+        connections: int *
+        progress: float *
+        exposure: float
     | AttackCooperation of actor: PlayerId * episode: uint64 * target: int * bias: float
     | DecisionChosen of DecisionEvidence
     | DecisionAlternatives of actor: PlayerId * ObservationOption list
@@ -133,7 +146,11 @@ type ObservationAudit =
 
 /// What cognition records while it runs beside the body, replayed into the match record at the tick barrier.
 type private DeferredObservation =
-    | DeferredRecord of tick: int<subtick> * cause: ObservationCause voption * data: ObservationData * provisional: uint64
+    | DeferredRecord of
+        tick: int<subtick> *
+        cause: ObservationCause voption *
+        data: ObservationData *
+        provisional: uint64
     | DeferredDecision of tick: int<subtick> * decision: DecisionEvidence
     | DeferredAlternatives of tick: int<subtick> * actor: PlayerId * options: ObservationOption[]
     | DeferredAssociate of event: MatchEvent * cause: ObservationCause
@@ -326,7 +343,8 @@ type ObservationBuffer private (capacity: int, target: ObservationBuffer option)
                         | ValueNone -> ()
                     | DeferredDecision(tick, decision) -> owner.Decision(tick, decision)
                     | DeferredAlternatives(tick, actor, options) -> owner.Alternatives(tick, actor, options)
-                    | DeferredAssociate(event, cause) -> remap cause |> ValueOption.iter (fun c -> owner.Associate(event, c))
+                    | DeferredAssociate(event, cause) ->
+                        remap cause |> ValueOption.iter (fun c -> owner.Associate(event, c))
                     | DeferredAssociateDefault(event, cause) ->
                         remap cause |> ValueOption.iter (fun c -> owner.AssociateDefault(event, c))
 
@@ -401,19 +419,61 @@ module Observation =
     let explain (entry: ObservationEntry) =
         match entry.Data with
         | AttackEvaluated(side, episode, pattern, context, geometry, learned, uncertainty) ->
-            sprintf "Attack %A #%d %A context %d: geometry %.3f, learned value %.3f, uncertainty %.3f. A feasible opportunity, not a promised pass." side episode pattern context geometry learned uncertainty
+            sprintf
+                "Attack %A #%d %A context %d: geometry %.3f, learned value %.3f, uncertainty %.3f. A feasible opportunity, not a promised pass."
+                side
+                episode
+                pattern
+                context
+                geometry
+                learned
+                uncertainty
         | AttackResolved(side, episode, reason, reward, connections, progress, exposure) ->
-            sprintf "Attack %A #%d ended %A: realized reward %.3f, connections %d, progress %.2fm, exposure %.3f. One bounded learning sample." side episode reason reward connections progress exposure
+            sprintf
+                "Attack %A #%d ended %A: realized reward %.3f, connections %d, progress %.2fm, exposure %.3f. One bounded learning sample."
+                side
+                episode
+                reason
+                reward
+                connections
+                progress
+                exposure
         | AttackCooperation(actor, episode, target, bias) ->
-            sprintf "%A cooperates with attack #%d: feasible target slot %d receives bounded utility %.3f; autonomous alternatives remain." actor episode target bias
+            sprintf
+                "%A cooperates with attack #%d: feasible target slot %d receives bounded utility %.3f; autonomous alternatives remain."
+                actor
+                episode
+                target
+                bias
         | TransitionEvaluated decision ->
-            sprintf "Transition %A (%A): %A because %A. Arrival %.2fs/window %.2fs; cover %.2fs; ready local players %d versus %d opponents; unprotected depth runners %d. First %A, cover %A. Viability is a commitment, not a promised recovery."
-                decision.Episode decision.Side decision.Mode decision.Reason (float decision.Arrival) (float decision.ArrivalWindow)
-                (float decision.CoverArrival) decision.LocalPlayers decision.Opponents decision.DepthRunners decision.Primary decision.Cover
+            sprintf
+                "Transition %A (%A): %A because %A. Arrival %.2fs/window %.2fs; cover %.2fs; ready local players %d versus %d opponents; unprotected depth runners %d. First %A, cover %A. Viability is a commitment, not a promised recovery."
+                decision.Episode
+                decision.Side
+                decision.Mode
+                decision.Reason
+                (float decision.Arrival)
+                (float decision.ArrivalWindow)
+                (float decision.CoverArrival)
+                decision.LocalPlayers
+                decision.Opponents
+                decision.DepthRunners
+                decision.Primary
+                decision.Cover
         | TransitionEnded(side, episode, outcome, reason) ->
-            sprintf "Transition %A (%A) finished: %A; last mode rationale %A. Recovery requires committed possession; stabilization requires actual goal-side arrival held over successive evaluations." episode side outcome reason
+            sprintf
+                "Transition %A (%A) finished: %A; last mode rationale %A. Recovery requires committed possession; stabilization requires actual goal-side arrival held over successive evaluations."
+                episode
+                side
+                outcome
+                reason
         | OrganizedDefenseEvaluated decision ->
-            sprintf "Organized defense %A: %A; first %A, cover %A. Assigned movement is not an immediate recovery." decision.Side decision.Reason decision.Primary decision.Cover
+            sprintf
+                "Organized defense %A: %A; first %A, cover %A. Assigned movement is not an immediate recovery."
+                decision.Side
+                decision.Reason
+                decision.Primary
+                decision.Cover
         | DecisionChosen decision ->
             let action =
                 match decision.ActionCode with

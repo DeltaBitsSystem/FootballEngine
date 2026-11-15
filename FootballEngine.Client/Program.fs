@@ -200,30 +200,28 @@ module Views =
                             Border.create [ Border.background brush; Border.isHitTestVisible false ] :> IView
                         child ] ]
 
-        backdrop <|
-        if not shellVisible then
-            content
-        elif isMatchRoute then
-            if viewportWidth () < compactThreshold then
-                content
-            else
-                DockPanel.create
-                    [ DockPanel.lastChildFill true
-                      DockPanel.children [ sidebar state dispatch; content ] ]
-        elif viewportWidth () < compactThreshold then
-            DockPanel.create
-                [ DockPanel.lastChildFill true
-                  DockPanel.children [ compactHeader; content ] ]
-        else
-            DockPanel.create
-                [ DockPanel.children
-                      [ sidebar state dispatch
-                        DockPanel.create
-                            [ DockPanel.lastChildFill true
-                              DockPanel.children
-                                  [ header state dispatch
-                                    |> fun h -> Border.create [ Border.dock Dock.Top; Border.child h ]
-                                    content ] ] ] ]
+        backdrop
+        <| if not shellVisible then
+               content
+           elif isMatchRoute then
+               if viewportWidth () < compactThreshold then
+                   content
+               else
+                   DockPanel.create
+                       [ DockPanel.lastChildFill true
+                         DockPanel.children [ sidebar state dispatch; content ] ]
+           elif viewportWidth () < compactThreshold then
+               DockPanel.create [ DockPanel.lastChildFill true; DockPanel.children [ compactHeader; content ] ]
+           else
+               DockPanel.create
+                   [ DockPanel.children
+                         [ sidebar state dispatch
+                           DockPanel.create
+                               [ DockPanel.lastChildFill true
+                                 DockPanel.children
+                                     [ header state dispatch
+                                       |> fun h -> Border.create [ Border.dock Dock.Top; Border.child h ]
+                                       content ] ] ] ]
 
 type MainWindow(initialGlobal: GlobalSettings, resolvedData: Data.ResolvedDataSet option, ?shots: Shots.Context) as this
     =
@@ -288,27 +286,56 @@ type MainWindow(initialGlobal: GlobalSettings, resolvedData: Data.ResolvedDataSe
 
         this.Closing.Add(fun args ->
             match shots, stateCell with
-            | None, Some state when not exitApproved && (state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome) ->
+            | None, Some state when
+                not exitApproved
+                && (state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome)
+                ->
                 args.Cancel <- true
+
                 if not exitPromptOpen then
                     exitPromptOpen <- true
-                    let dialog = Window(Title = Localization.resolve TranslationKey.MatchOverview [], Width = 520.0, Height = 230.0, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner)
+
+                    let dialog =
+                        Window(
+                            Title = Localization.resolve TranslationKey.MatchOverview [],
+                            Width = 520.0,
+                            Height = 230.0,
+                            CanResize = false,
+                            WindowStartupLocation = WindowStartupLocation.CenterOwner
+                        )
+
                     let body = StackPanel(Margin = Thickness(24.0), Spacing = 16.0)
-                    body.Children.Add(TextBlock(Text = Localization.resolve TranslationKey.LeaveMatchWarning [], TextWrapping = TextWrapping.Wrap))
-                    let keep = Button(Content = Localization.resolve TranslationKey.KeepPlaying [], IsDefault = true, IsCancel = true)
+
+                    body.Children.Add(
+                        TextBlock(
+                            Text = Localization.resolve TranslationKey.LeaveMatchWarning [],
+                            TextWrapping = TextWrapping.Wrap
+                        )
+                    )
+
+                    let keep =
+                        Button(
+                            Content = Localization.resolve TranslationKey.KeepPlaying [],
+                            IsDefault = true,
+                            IsCancel = true
+                        )
+
                     let leave = Button(Content = Localization.resolve TranslationKey.LeaveMatch [])
                     keep.Click.Add(fun _ -> dialog.Close(false))
                     leave.Click.Add(fun _ -> dialog.Close(true))
                     body.Children.Add(keep)
                     body.Children.Add(leave)
                     dialog.Content <- body
+
                     async {
                         let! leave = dialog.ShowDialog<bool>(this) |> Async.AwaitTask
                         exitPromptOpen <- false
+
                         if leave then
                             exitApproved <- true
                             this.Close()
-                    } |> Async.StartImmediate
+                    }
+                    |> Async.StartImmediate
             | _ -> ())
 
         this.KeyDown.Add(fun args ->
@@ -408,7 +435,13 @@ module Program =
             match args |> Array.tryFindIndex ((=) "--match-corpus") with
             | Some index ->
                 let count =
-                    args |> Array.tryItem (index + 1) |> Option.bind (fun v -> match System.Int32.TryParse v with | true, n -> Some n | _ -> None) |> Option.defaultValue 5
+                    args
+                    |> Array.tryItem (index + 1)
+                    |> Option.bind (fun v ->
+                        match System.Int32.TryParse v with
+                        | true, n -> Some n
+                        | _ -> None)
+                    |> Option.defaultValue 5
 
                 Shots.runCorpus count demo
                 exit 0

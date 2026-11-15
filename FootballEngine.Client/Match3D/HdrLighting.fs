@@ -169,8 +169,7 @@ module HdrLighting =
 
             let read name length =
                 let entry =
-                    files
-                    |> Seq.tryFind (fun item -> item.GetProperty("path").GetString() = name)
+                    files |> Seq.tryFind (fun item -> item.GetProperty("path").GetString() = name)
 
                 let entry =
                     entry
@@ -205,10 +204,16 @@ module HdrLighting =
 
                 data
 
-            let sun = root.GetProperty("sunDirection").EnumerateArray() |> Seq.map (fun value -> value.GetSingle()) |> Seq.toArray
+            let sun =
+                root.GetProperty("sunDirection").EnumerateArray()
+                |> Seq.map (fun value -> value.GetSingle())
+                |> Seq.toArray
+
             if sun.Length <> 3 || sun |> Array.exists (Single.IsFinite >> not) then
                 raise (InvalidDataException "HDR sky has an invalid solar direction.")
+
             let sunDirection = Vector3(sun[0], sun[1], sun[2])
+
             if abs (sunDirection.LengthSquared() - 1.0f) > 0.001f || sunDirection.Y <= 0.0f then
                 raise (InvalidDataException "HDR solar direction must be normalized and above the horizon.")
 

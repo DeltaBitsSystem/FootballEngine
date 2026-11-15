@@ -7,10 +7,31 @@ type EventFlags = { Bits: uint64 }
 [<Struct>]
 type EventId = EventId of uint64
 
-type AttackPattern = ThirdMan | AttractSwitch | ExploitDepth | SecureProgression
-type AttackStage = Preparing | Connected | Exploiting
-type AttackEnd = Completed | LostBall | TimedOut | Countered | ParticipantLeft | InstructionsChanged | Stopped | Deviated
-type AttackChange = Started of AttackPattern | Advanced of AttackStage * EventId | Ended of AttackEnd * float * learningKey: int option
+type AttackPattern =
+    | ThirdMan
+    | AttractSwitch
+    | ExploitDepth
+    | SecureProgression
+
+type AttackStage =
+    | Preparing
+    | Connected
+    | Exploiting
+
+type AttackEnd =
+    | Completed
+    | LostBall
+    | TimedOut
+    | Countered
+    | ParticipantLeft
+    | InstructionsChanged
+    | Stopped
+    | Deviated
+
+type AttackChange =
+    | Started of AttackPattern
+    | Advanced of AttackStage * EventId
+    | Ended of AttackEnd * float * learningKey: int option
 
 module EventId =
 
@@ -375,6 +396,7 @@ module MatchEvent =
             | ContactControlKind.HeldBall -> 4UL
 
         let h = fnv h tag
+
         let h =
             match control.Side with
             | None -> fnv h 0UL
@@ -387,6 +409,7 @@ module MatchEvent =
         let h = hashPlayer h contact.Actor
         let h = fnv h (uint64 (uint32 contact.ActorGeneration))
         let h = hashPlayerOption h contact.Other
+
         let h =
             match contact.OtherGeneration with
             | None -> fnv h 0UL
@@ -416,19 +439,27 @@ module MatchEvent =
 
         let h = fnv h (uint64 (uint32 (int contact.Tick)))
         let h = hashFloat h contact.Fraction
-        let h = hashFloat (hashFloat (hashFloat h contact.PointX) contact.PointY) contact.PointZ
-        let h = hashFloat (hashFloat (hashFloat h contact.NormalX) contact.NormalY) contact.NormalZ
+
+        let h =
+            hashFloat (hashFloat (hashFloat h contact.PointX) contact.PointY) contact.PointZ
+
+        let h =
+            hashFloat (hashFloat (hashFloat h contact.NormalX) contact.NormalY) contact.NormalZ
+
         let h = hashContactSurface (hashContactSurface h contact.SurfaceA) contact.SurfaceB
+
         let h =
             hashFloat
-                (hashFloat
-                    (hashFloat h contact.RelativeVelocityX)
-                    contact.RelativeVelocityY)
+                (hashFloat (hashFloat h contact.RelativeVelocityX) contact.RelativeVelocityY)
                 contact.RelativeVelocityZ
 
         let h = hashFloat (hashFloat h contact.NormalImpulse) contact.TangentialImpulse
-        let h = hashBodySupport (hashBodySupport h contact.SupportBefore) contact.SupportAfter
+
+        let h =
+            hashBodySupport (hashBodySupport h contact.SupportBefore) contact.SupportAfter
+
         let h = hashBool h contact.BallTouched
+
         let h =
             match contact.BallTouchOrder with
             | None -> fnv h 0UL
@@ -440,17 +471,42 @@ module MatchEvent =
         match data with
         | EventData.CollectiveAttack(side, episode, change) ->
             let h = fnv (hashSide (fnv h 48UL) side) episode
+
             match change with
             | Started pattern ->
-                let tag = match pattern with ThirdMan -> 0UL | AttractSwitch -> 1UL | ExploitDepth -> 2UL | SecureProgression -> 3UL
+                let tag =
+                    match pattern with
+                    | ThirdMan -> 0UL
+                    | AttractSwitch -> 1UL
+                    | ExploitDepth -> 2UL
+                    | SecureProgression -> 3UL
+
                 fnv (fnv h 0UL) tag
             | Advanced(stage, cause) ->
-                let tag = match stage with Preparing -> 0UL | Connected -> 1UL | Exploiting -> 2UL
+                let tag =
+                    match stage with
+                    | Preparing -> 0UL
+                    | Connected -> 1UL
+                    | Exploiting -> 2UL
+
                 fnv (fnv (fnv h 1UL) tag) (EventId.value cause)
             | Ended(reason, reward, key) ->
-                let tag = match reason with Completed -> 0UL | LostBall -> 1UL | TimedOut -> 2UL | Countered -> 3UL | ParticipantLeft -> 4UL | InstructionsChanged -> 5UL | Stopped -> 6UL | Deviated -> 7UL
+                let tag =
+                    match reason with
+                    | Completed -> 0UL
+                    | LostBall -> 1UL
+                    | TimedOut -> 2UL
+                    | Countered -> 3UL
+                    | ParticipantLeft -> 4UL
+                    | InstructionsChanged -> 5UL
+                    | Stopped -> 6UL
+                    | Deviated -> 7UL
+
                 let h = hashFloat (fnv (fnv h 2UL) tag) reward
-                match key with None -> fnv h 0UL | Some key -> fnv (fnv h 1UL) (uint64 key)
+
+                match key with
+                | None -> fnv h 0UL
+                | Some key -> fnv (fnv h 1UL) (uint64 key)
         | EventData.TeamInstruction side -> hashSide (fnv h 47UL) side
         | EventData.ManagerShift(side, shift) ->
             let tag =
@@ -466,19 +522,39 @@ module MatchEvent =
             fnv (hashSide (fnv h 52UL) side) tag
         | EventData.DefensiveTransition(side, episode, change) ->
             let h = fnv (hashSide (fnv h 46UL) side) (EventId.value episode)
+
             match change with
             | Lost -> fnv h 0UL
             | ModeSelected(mode, reason) ->
-                let modeTag = match mode with Assessing -> 0UL | Counterpress -> 1UL | Retreat -> 2UL
+                let modeTag =
+                    match mode with
+                    | Assessing -> 0UL
+                    | Counterpress -> 1UL
+                    | Retreat -> 2UL
+
                 let reasonTag =
                     match reason with
-                    | AwaitingAssessment -> 0UL | LocalAdvantage -> 1UL | ArrivalTooLate -> 2UL
-                    | Outnumbered -> 3UL | MissingCover -> 4UL | DepthThreat -> 5UL
-                    | TacticalRestraint -> 6UL | PressureBroken -> 7UL | PressWindowElapsed -> 8UL
+                    | AwaitingAssessment -> 0UL
+                    | LocalAdvantage -> 1UL
+                    | ArrivalTooLate -> 2UL
+                    | Outnumbered -> 3UL
+                    | MissingCover -> 4UL
+                    | DepthThreat -> 5UL
+                    | TacticalRestraint -> 6UL
+                    | PressureBroken -> 7UL
+                    | PressWindowElapsed -> 8UL
+
                 fnv (fnv (fnv h 1UL) modeTag) reasonTag
             | Handoff(first, cover) -> hashPlayerOption (hashPlayerOption (fnv h 2UL) first) cover
             | Finished outcome ->
-                let tag = match outcome with Recovered -> 0UL | PressureBeaten -> 1UL | Retreated -> 2UL | Interrupted -> 3UL | Stabilized -> 4UL
+                let tag =
+                    match outcome with
+                    | Recovered -> 0UL
+                    | PressureBeaten -> 1UL
+                    | Retreated -> 2UL
+                    | Interrupted -> 3UL
+                    | Stabilized -> 4UL
+
                 fnv (fnv h 3UL) tag
         | EventData.Possession(side, player) -> hashPlayer (hashSide (fnv h 0UL) side) player
         | EventData.Pass(passer, receiver, distance, quality, completed, fromX, fromY, toX, toY) ->
@@ -715,7 +791,8 @@ module MatchEvent =
     /// For tests/diagnostics only — the viewer derives its own text from EventData.
     let describe (ev: MatchEvent) : string =
         match ev.Data with
-        | EventData.CollectiveAttack(side, episode, change) -> sprintf "Collective attack %A #%d: %A" side episode change
+        | EventData.CollectiveAttack(side, episode, change) ->
+            sprintf "Collective attack %A #%d: %A" side episode change
         | EventData.TeamInstruction side -> sprintf "Effective team instruction: %A" side
         | EventData.ManagerShift(side, shift) -> sprintf "Manager shift %A: %A" side shift
         | EventData.DefensiveTransition(side, _, change) -> sprintf "Defensive transition %A: %A" side change
@@ -735,7 +812,12 @@ module MatchEvent =
         | EventData.RestartContact _ -> "Restart contact"
         | EventData.FootContact(player, foot, kind, _, _, _) -> $"{player} {foot} foot contact ({kind})"
         | EventData.PhysicalContact contact ->
-            sprintf "Physical contact %A (%A/%A, impulse %.3f)" contact.Id contact.SurfaceA contact.SurfaceB contact.NormalImpulse
+            sprintf
+                "Physical contact %A (%A/%A, impulse %.3f)"
+                contact.Id
+                contact.SurfaceA
+                contact.SurfaceB
+                contact.NormalImpulse
         | EventData.FootStrikeCancelled player -> $"{player} foot strike cancelled"
         | EventData.RestartCompleted _ -> "Restart completed"
         | EventData.RestartPlanChanged _ -> "Restart plan changed"

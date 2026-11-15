@@ -150,8 +150,12 @@ module CareerJourney =
                   |> List.maxBy fst
 
               yield tr (snd longest)
-              if pattern.Directness > 0.55 then yield tr TranslationKey.StyleDirect
-              if pattern.CrossRate > 0.35 then yield tr TranslationKey.StyleCrosses ]
+
+              if pattern.Directness > 0.55 then
+                  yield tr TranslationKey.StyleDirect
+
+              if pattern.CrossRate > 0.35 then
+                  yield tr TranslationKey.StyleCrosses ]
 
         let title, body, chips =
             match memory with
@@ -297,7 +301,9 @@ module CareerJourney =
                               WrapPanel.create
                                   [ WrapPanel.children
                                         [ column (if es then "Lectura de juego" else "Game reading") stars
-                                          column (if es then "Historial contra vos" else "Record against you") (text 13.0 Theme.TextMain record) ] ]
+                                          column
+                                              (if es then "Historial contra vos" else "Record against you")
+                                              (text 13.0 Theme.TextMain record) ] ]
                               column
                                   (if es then "Cómo te va a jugar" else "How he'll play you")
                                   (text 13.0 "#FFB27A" $"{vm.Formation} · {vm.PlanReason}") ] ]
@@ -306,12 +312,15 @@ module CareerJourney =
 
     /// The plan preview scores every formation for the rival's squad, which is too much to repeat on each render of
     /// the home page; the inputs are immutable values, so one entry keyed by reference is enough.
-    let mutable private coachCache: (obj * obj * bool * RivalCoachPresenter.RivalCoachVM option) option = None
+    let mutable private coachCache: (obj * obj * bool * RivalCoachPresenter.RivalCoachVM option) option =
+        None
 
     let private coachFor (es: bool) (settings: FootballEngine.Settings.SaveSettings) (gs: GameState) =
         match coachCache with
         | Some(cachedGs, cachedSettings, cachedEs, vm) when
-            obj.ReferenceEquals(cachedGs, gs) && obj.ReferenceEquals(cachedSettings, settings) && cachedEs = es
+            obj.ReferenceEquals(cachedGs, gs)
+            && obj.ReferenceEquals(cachedSettings, settings)
+            && cachedEs = es
             ->
             vm
         | _ ->
@@ -351,22 +360,33 @@ module CareerJourney =
                            chip (tr TranslationKey.MatchdayBadge) Theme.Accent (Theme.withAlpha "24" Theme.Accent)
                        else
                            chip
-                               (Localization.resolve TranslationKey.NextMatchBadge [ "date", date fixture.ScheduledDate ])
+                               (Localization.resolve
+                                   TranslationKey.NextMatchBadge
+                                   [ "date", date fixture.ScheduledDate ])
                                Theme.TextSub
                                (Theme.withAlpha "1F" Theme.TextMain))
                       WrapPanel.create
                           [ WrapPanel.children
-                                [ Border.create [ Border.margin (0.0, 0.0, 22.0, 6.0); Border.child (team fixture.HomeClubId Theme.TextMain) ]
+                                [ Border.create
+                                      [ Border.margin (0.0, 0.0, 22.0, 6.0)
+                                        Border.child (team fixture.HomeClubId Theme.TextMain) ]
                                   Border.create
                                       [ Border.margin (0.0, 0.0, 22.0, 6.0)
                                         Border.verticalAlignment VerticalAlignment.Center
                                         Border.child (UI.display (tr TranslationKey.Versus) 28.0 Theme.TextDim) ]
-                                  Border.create [ Border.margin (0.0, 0.0, 0.0, 6.0); Border.child (team fixture.AwayClubId "#CFE0D6") ] ] ]
+                                  Border.create
+                                      [ Border.margin (0.0, 0.0, 0.0, 6.0)
+                                        Border.child (team fixture.AwayClubId "#CFE0D6") ] ] ]
                       text
                           15.0
                           "#B9C7BF"
                           ($"{date fixture.ScheduledDate} · "
-                           + tr (if isHome then TranslationKey.VenueHome else TranslationKey.VenueAway)) ]
+                           + tr (
+                               if isHome then
+                                   TranslationKey.VenueHome
+                               else
+                                   TranslationKey.VenueAway
+                           )) ]
                 | None -> [ text 18.0 Theme.TextMain (tr TranslationKey.NoScheduledFixture) ]
 
             let hint =
@@ -397,7 +417,9 @@ module CareerJourney =
                                       dispatch (Navigate(Route.Tactics TacticsRoute.Overview)))
                                   if pending > 0 then
                                       button
-                                          (Localization.resolve TranslationKey.PendingDecisions [ "count", string pending ])
+                                          (Localization.resolve
+                                              TranslationKey.PendingDecisions
+                                              [ "count", string pending ])
                                           false
                                           true
                                           (fun () ->
@@ -408,7 +430,8 @@ module CareerJourney =
                                           dispatch (SimMsg CancelAdvance))
                                   elif
                                       next
-                                      |> Option.exists (fun (_, fixture) -> fixture.ScheduledDate.Date > gs.CurrentDate.Date)
+                                      |> Option.exists (fun (_, fixture) ->
+                                          fixture.ScheduledDate.Date > gs.CurrentDate.Date)
                                   then
                                       button (tr TranslationKey.AdvanceNextEvent) false (canContinue state) (fun () ->
                                           dispatch (SimMsg AdvanceToNextEvent))

@@ -78,18 +78,20 @@ module PhysicalMorphology =
 
 [<Struct>]
 type MotionRootSample =
-    { Actor: PlayerId
-      Generation: int
-      Position: Vector3
-      Velocity: Vector3
-      Facing: float32
-      AngularVelocity: float32
-      Condition: float32
-      /// Core's stride clock in [0, 1); the left foot supports the first half.
-      GaitPhase: float32
-      AttentionTarget: Vector3 voption
-      Morphology: PhysicalMorphology
-      Active: bool }
+    {
+        Actor: PlayerId
+        Generation: int
+        Position: Vector3
+        Velocity: Vector3
+        Facing: float32
+        AngularVelocity: float32
+        Condition: float32
+        /// Core's stride clock in [0, 1); the left foot supports the first half.
+        GaitPhase: float32
+        AttentionTarget: Vector3 voption
+        Morphology: PhysicalMorphology
+        Active: bool
+    }
 
 type MotionBoundary =
     { Tick: int<subtick>

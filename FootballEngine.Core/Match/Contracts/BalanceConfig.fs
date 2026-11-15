@@ -4,93 +4,99 @@ namespace FootballEngine.Core.Match
 /// tuning never leaks into agent code. (was PhysicsConfig + Interception + part of Pass)
 [<Struct>]
 type BallConfig =
-    { Gravity: float<meterPerSecondSquared>
-      /// kg/m³; with Mass and Radius it fixes how strongly the air acts on this ball.
-      AirDensity: float
-      /// kg
-      Mass: float
-      DragSubcritical: float
-      DragSupercritical: float
-      DragCrisisSpeed: float<meterPerSecond>
-      DragCrisisWidth: float<meterPerSecond>
-      /// Lift coefficient per unit spin parameter (r·ω/v) before saturation.
-      LiftSlope: float
-      MaxLift: float
-      WoodworkRestitution: float
-      WoodworkFriction: float
-      NetRestitution: float
-      NetFriction: float
-      Radius: float<meter>
-      InertiaRatio: float
-      SlipFriction: float
-      RollingResistance: float
-      FootReach: float<meter>
-      FootContactHeight: float<meter>
-      KickWindup: int<subtick>
-      KickRecovery: int<subtick>
-      CarryTouchInterval: int<subtick>
-      CarryOffset: float<meter>
-      CarryMaxSpeed: float<meterPerSecond>
-      CarryTechniqueError: float
-      PassRollingSpinRatio: float
-      BounceRestitution: float
-      BounceFriction: float
-      StopSpeedCutoff: float<meterPerSecond>
-      MaxShotSpeed: float<meterPerSecond>
-      SpinDecay: float
-      ReceptionGrace: int<subtick>
-      InterceptionBonus: float
-      SaveReflexWeight: float
-      SavePositioningWeight: float
-      ShootoutSaveDistancePenalty: float<meter>
-      ReceptionBase: float
-      ReceptionSpacePenalty: float
-      ShootoutSaveBaseProbability: float
-      InterceptionPaceWeight: float
-      InterceptionIntentBoost: float }
+    {
+        Gravity: float<meterPerSecondSquared>
+        /// kg/m³; with Mass and Radius it fixes how strongly the air acts on this ball.
+        AirDensity: float
+        /// kg
+        Mass: float
+        DragSubcritical: float
+        DragSupercritical: float
+        DragCrisisSpeed: float<meterPerSecond>
+        DragCrisisWidth: float<meterPerSecond>
+        /// Lift coefficient per unit spin parameter (r·ω/v) before saturation.
+        LiftSlope: float
+        MaxLift: float
+        WoodworkRestitution: float
+        WoodworkFriction: float
+        NetRestitution: float
+        NetFriction: float
+        Radius: float<meter>
+        InertiaRatio: float
+        SlipFriction: float
+        RollingResistance: float
+        FootReach: float<meter>
+        FootContactHeight: float<meter>
+        KickWindup: int<subtick>
+        KickRecovery: int<subtick>
+        CarryTouchInterval: int<subtick>
+        CarryOffset: float<meter>
+        CarryMaxSpeed: float<meterPerSecond>
+        CarryTechniqueError: float
+        PassRollingSpinRatio: float
+        BounceRestitution: float
+        BounceFriction: float
+        StopSpeedCutoff: float<meterPerSecond>
+        MaxShotSpeed: float<meterPerSecond>
+        SpinDecay: float
+        ReceptionGrace: int<subtick>
+        InterceptionBonus: float
+        SaveReflexWeight: float
+        SavePositioningWeight: float
+        ShootoutSaveDistancePenalty: float<meter>
+        ReceptionBase: float
+        ReceptionSpacePenalty: float
+        ShootoutSaveBaseProbability: float
+        InterceptionPaceWeight: float
+        InterceptionIntentBoost: float
+    }
 
 /// Movement and fatigue — speeds, acceleration, separation, smoothing, decay and
 /// recovery, scorer thresholds. (was Movement parts + scorer thresholds)
 [<Struct>]
 type MovementConfig =
-    { SprintSpeed: float<meterPerSecond>
-      JogSpeed: float<meterPerSecond>
-      WalkSpeed: float<meterPerSecond>
-      Acceleration: float<meterPerSecondSquared>
-      SeparationRadius: float<meter>
-      SeparationStrength: float
-      TurningRate: float<radianPerSecond>
-      TurningAcceleration: float<radianPerSecondSquared>
-      FacingIntentDistance: float<meter>
-      StandingHeight: float<meter>
-      JumpSpeed: float<meterPerSecond>
-      AerialIntentRadius: float<meter>
-      Smoothing: float
-      FatigueSpeedDecay: float
-      ConditionDecayPerSecond: float
-      RecoveryPerSecond: float
-      ReactiveRadius: float<meter>
-      /// A set-piece run sidesteps any body closer than this that stands ahead on its path.
-      SetPieceAvoidRadius: float<meter>
-      ConditionImpactThreshold: float
-      IntentFloor: float
-      IntentHysteresis: float
-      CommittedRunDuration: int<subtick>
-      /// Share of the jog-to-sprint range a carrier uses with the ball at their feet.
-      CarryEffort: float }
+    {
+        SprintSpeed: float<meterPerSecond>
+        JogSpeed: float<meterPerSecond>
+        WalkSpeed: float<meterPerSecond>
+        Acceleration: float<meterPerSecondSquared>
+        SeparationRadius: float<meter>
+        SeparationStrength: float
+        TurningRate: float<radianPerSecond>
+        TurningAcceleration: float<radianPerSecondSquared>
+        FacingIntentDistance: float<meter>
+        StandingHeight: float<meter>
+        JumpSpeed: float<meterPerSecond>
+        AerialIntentRadius: float<meter>
+        Smoothing: float
+        FatigueSpeedDecay: float
+        ConditionDecayPerSecond: float
+        RecoveryPerSecond: float
+        ReactiveRadius: float<meter>
+        /// A set-piece run sidesteps any body closer than this that stands ahead on its path.
+        SetPieceAvoidRadius: float<meter>
+        ConditionImpactThreshold: float
+        IntentFloor: float
+        IntentHysteresis: float
+        CommittedRunDuration: int<subtick>
+        /// Share of the jog-to-sprint range a carrier uses with the ball at their feet.
+        CarryEffort: float
+    }
 
 /// Stride clock. Step frequency rises with speed and falls with leg length (pendulum scaling), so ball touches
 /// and the viewer's feet share one cadence.
 [<Struct>]
 type GaitConfig =
-    { StepFrequencyBase: float
-      StepFrequencyPerSpeed: float
-      StepFrequencyMax: float
-      ReferenceLegLength: float<meter>
-      StandingSpeed: float<meterPerSecond>
-      CarryTouchPhase: float
-      /// Cycles before a carry touch at which the touching foot leaves the ground to swing to the ball.
-      CarrySwingLead: float }
+    {
+        StepFrequencyBase: float
+        StepFrequencyPerSpeed: float
+        StepFrequencyMax: float
+        ReferenceLegLength: float<meter>
+        StandingSpeed: float<meterPerSecond>
+        CarryTouchPhase: float
+        /// Cycles before a carry touch at which the touching foot leaves the ground to swing to the ball.
+        CarrySwingLead: float
+    }
 
 /// How one part of the boot shapes a kicked ball. `Spread` is the direction error (radians, one sigma) of a player
 /// with no technique. `SideSpinPerSpeed` is the side spin per m/s of launch; its sense belongs to the surface: the
@@ -104,219 +110,231 @@ type StrikeSurfaceConfig =
 /// speed; technique, pressure and balance at contact set how far a delivery strays from its aim.
 [<Struct>]
 type StrikeTechniqueConfig =
-    { Inside: StrikeSurfaceConfig
-      Instep: StrikeSurfaceConfig
-      Outside: StrikeSurfaceConfig
-      /// Angle (radians) toward the kicking foot's outer side beyond which the outside of the boot is used.
-      OutsideAngle: float
-      InstepSpeed: float<meterPerSecond>
-      /// Share of the surface spread a perfect technique removes.
-      TechniqueShare: float
-      PressureRadius: float<meter>
-      PressureSpreadPerOpponent: float
-      /// Share of the pressure effect a fully composed player ignores.
-      ComposureShield: float
-      OffBalanceSpread: float }
+    {
+        Inside: StrikeSurfaceConfig
+        Instep: StrikeSurfaceConfig
+        Outside: StrikeSurfaceConfig
+        /// Angle (radians) toward the kicking foot's outer side beyond which the outside of the boot is used.
+        OutsideAngle: float
+        InstepSpeed: float<meterPerSecond>
+        /// Share of the surface spread a perfect technique removes.
+        TechniqueShare: float
+        PressureRadius: float<meter>
+        PressureSpreadPerOpponent: float
+        /// Share of the pressure effect a fully composed player ignores.
+        ComposureShield: float
+        OffBalanceSpread: float
+    }
 
 /// Fixed-step collision, balance and recovery controls. Geometry fallbacks are
 /// explicit so missing player morphology never silently changes contact reach.
 [<Struct>]
 type ContactConfig =
-    { BodyRadiusFallback: float<meter>
-      BodyRadiusScale: float
-      CapsuleLowerHeightRatio: float
-      CapsuleUpperHeightRatio: float
-      HeadRadius: float<meter>
-      LegRadius: float<meter>
-      FootRadius: float<meter>
-      HandRadius: float<meter>
-      FallbackMass: float<kilogram>
-      BallMass: float<kilogram>
-      BodyRestitution: float
-      BodyFriction: float
-      BallBodyRestitution: float
-      BallFootRestitution: float
-      BallBodyFriction: float
-      BallControlSpeed: float<meterPerSecond>
-      MaximumTrapSpeed: float<meterPerSecond>
-      /// Share of the sliding speed a trap of no technique absorbs; technique adds `TrapAbsorptionSkill`.
-      TrapAbsorptionBase: float
-      TrapAbsorptionSkill: float
-      /// Extra restitution of a trap of no technique: a poor first touch bounces off the boot.
-      TrapPoorRestitution: float
-      /// Factor on a trap's lost technique while the receiver is off balance.
-      OffBalanceTrapPenalty: float
-      SupportedInverseMassScale: float
-      AirborneInverseMassScale: float
-      StabilityRecoveryPerSecond: float
-      StaggerImpulseThreshold: float
-      FallImpulseThreshold: float
-      RecoverStabilityThreshold: float
-      StaggerAccelerationScale: float
-      FallingAccelerationScale: float
-      PositionCorrectionPercent: float
-      MaximumPositionCorrection: float<meter>
-      VelocitySlop: float<meterPerSecond>
-      ToiTolerance: float
-      SimultaneousTolerance: float
-      SolverIterations: int
-      MaximumImpactIterations: int
-      CurvedPathSegments: int
-      MaximumPathError: float<meter>
-      /// Ticks after a strike during which the striker's own body cannot touch the departing ball.
-      StrikeSeparation: int<subtick> }
+    {
+        BodyRadiusFallback: float<meter>
+        BodyRadiusScale: float
+        CapsuleLowerHeightRatio: float
+        CapsuleUpperHeightRatio: float
+        HeadRadius: float<meter>
+        LegRadius: float<meter>
+        FootRadius: float<meter>
+        HandRadius: float<meter>
+        FallbackMass: float<kilogram>
+        BallMass: float<kilogram>
+        BodyRestitution: float
+        BodyFriction: float
+        BallBodyRestitution: float
+        BallFootRestitution: float
+        BallBodyFriction: float
+        BallControlSpeed: float<meterPerSecond>
+        MaximumTrapSpeed: float<meterPerSecond>
+        /// Share of the sliding speed a trap of no technique absorbs; technique adds `TrapAbsorptionSkill`.
+        TrapAbsorptionBase: float
+        TrapAbsorptionSkill: float
+        /// Extra restitution of a trap of no technique: a poor first touch bounces off the boot.
+        TrapPoorRestitution: float
+        /// Factor on a trap's lost technique while the receiver is off balance.
+        OffBalanceTrapPenalty: float
+        SupportedInverseMassScale: float
+        AirborneInverseMassScale: float
+        StabilityRecoveryPerSecond: float
+        StaggerImpulseThreshold: float
+        FallImpulseThreshold: float
+        RecoverStabilityThreshold: float
+        StaggerAccelerationScale: float
+        FallingAccelerationScale: float
+        PositionCorrectionPercent: float
+        MaximumPositionCorrection: float<meter>
+        VelocitySlop: float<meterPerSecond>
+        ToiTolerance: float
+        SimultaneousTolerance: float
+        SolverIterations: int
+        MaximumImpactIterations: int
+        CurvedPathSegments: int
+        MaximumPathError: float<meter>
+        /// Ticks after a strike during which the striker's own body cannot touch the departing ball.
+        StrikeSeparation: int<subtick>
+    }
 
 /// Shot-stopping: how fast a keeper reads a strike, how far a dive carries his hands, and what his hands can hold.
 type KeeperConfig =
-    { /// Seconds before an unanticipating keeper (0) reacts to a strike.
-      ReactionBase: float<second>
-      /// Seconds a fully anticipating keeper (100) saves off ReactionBase.
-      ReactionSkill: float<second>
-      /// Shoulder-to-glove reach without a dive.
-      ArmReach: float<meter>
-      /// Shoulder height as a share of stature; the dive is measured from here.
-      ShoulderHeightRatio: float
-      /// Seconds spent loading the push-off before the body leaves the ground.
-      DiveSetup: float<second>
-      /// Lateral dive speed of an average-agility keeper.
-      DiveSpeed: float<meterPerSecond>
-      /// Longest body extension a dive adds to arm reach.
-      MaxDive: float<meter>
-      /// Two gloved hands present a larger, softer surface than one bare hand.
-      HandRadius: float<meter>
-      /// Hand placement error (one standard deviation) of an unpositioned keeper at full stretch.
-      HandError: float<meter>
-      /// Ticks either side of the planned contact during which the hands are in place.
-      HandWindow: int<subtick>
-      /// Fastest ball a set keeper with perfect handling holds rather than parries.
-      CatchSpeed: float<meterPerSecond>
-      /// Restitution of a parry: the hands absorb most of the shot's energy.
-      ParryRestitution: float
-      /// Seconds a keeper keeps a caught ball before distributing it.
-      HoldSeconds: float<second> }
+    {
+        /// Seconds before an unanticipating keeper (0) reacts to a strike.
+        ReactionBase: float<second>
+        /// Seconds a fully anticipating keeper (100) saves off ReactionBase.
+        ReactionSkill: float<second>
+        /// Shoulder-to-glove reach without a dive.
+        ArmReach: float<meter>
+        /// Shoulder height as a share of stature; the dive is measured from here.
+        ShoulderHeightRatio: float
+        /// Seconds spent loading the push-off before the body leaves the ground.
+        DiveSetup: float<second>
+        /// Lateral dive speed of an average-agility keeper.
+        DiveSpeed: float<meterPerSecond>
+        /// Longest body extension a dive adds to arm reach.
+        MaxDive: float<meter>
+        /// Two gloved hands present a larger, softer surface than one bare hand.
+        HandRadius: float<meter>
+        /// Hand placement error (one standard deviation) of an unpositioned keeper at full stretch.
+        HandError: float<meter>
+        /// Ticks either side of the planned contact during which the hands are in place.
+        HandWindow: int<subtick>
+        /// Fastest ball a set keeper with perfect handling holds rather than parries.
+        CatchSpeed: float<meterPerSecond>
+        /// Restitution of a parry: the hands absorb most of the shot's energy.
+        ParryRestitution: float
+        /// Seconds a keeper keeps a caught ball before distributing it.
+        HoldSeconds: float<second>
+    }
 
 /// Temporal commitments are separate from the solver's laws and from team
 /// movement controls, so agents can change intent without changing physics.
 [<Struct>]
 type ContactActionConfig =
-    { ContainPreparation: int<subtick>
-      ShieldPreparation: int<subtick>
-      ShoulderPreparation: int<subtick>
-      StandingTacklePreparation: int<subtick>
-      SlidingTacklePreparation: int<subtick>
-      TrapPreparation: int<subtick>
-      StrikePreparation: int<subtick>
-      HeaderPreparation: int<subtick>
-      CommittedDuration: int<subtick>
-      RecoveryDuration: int<subtick>
-      FootReach: float<meter>
-      /// Horizontal reach of a sliding tackle's boot from the hips, the body travelling on the ground behind it.
-      SlidingReach: float<meter>
-      /// A receiver keeps running to where the pass was aimed while the rolling ball will arrive within this of it;
-      /// re-solving the meet point for every small deviation turns him away from a run the passer already led.
-      ReceptionTargetTolerance: float<meter>
-      /// A tackle is only launched when the carrier's body stays at least this far off the boot's path to the ball;
-      /// closer, the boot would go through his legs, which is a trip rather than a challenge.
-      TackleBodyClearance: float<meter>
-      HeadReach: float<meter>
-      MaximumReorientation: float<radian>
-      ExecutionErrorScale: float<meter>
-      MaximumExecutionError: float<meter>
-      ShieldOffset: float<meter>
-      NewImpactThreshold: float<meterPerSecond>
-      CarelessRelativeSpeed: float<meterPerSecond>
-      RecklessRelativeSpeed: float<meterPerSecond>
-      ExcessiveRelativeSpeed: float<meterPerSecond>
-      DangerousBallFirstSpeed: float<meterPerSecond> }
+    {
+        ContainPreparation: int<subtick>
+        ShieldPreparation: int<subtick>
+        ShoulderPreparation: int<subtick>
+        StandingTacklePreparation: int<subtick>
+        SlidingTacklePreparation: int<subtick>
+        TrapPreparation: int<subtick>
+        StrikePreparation: int<subtick>
+        HeaderPreparation: int<subtick>
+        CommittedDuration: int<subtick>
+        RecoveryDuration: int<subtick>
+        FootReach: float<meter>
+        /// Horizontal reach of a sliding tackle's boot from the hips, the body travelling on the ground behind it.
+        SlidingReach: float<meter>
+        /// A receiver keeps running to where the pass was aimed while the rolling ball will arrive within this of it;
+        /// re-solving the meet point for every small deviation turns him away from a run the passer already led.
+        ReceptionTargetTolerance: float<meter>
+        /// A tackle is only launched when the carrier's body stays at least this far off the boot's path to the ball;
+        /// closer, the boot would go through his legs, which is a trip rather than a challenge.
+        TackleBodyClearance: float<meter>
+        HeadReach: float<meter>
+        MaximumReorientation: float<radian>
+        ExecutionErrorScale: float<meter>
+        MaximumExecutionError: float<meter>
+        ShieldOffset: float<meter>
+        NewImpactThreshold: float<meterPerSecond>
+        CarelessRelativeSpeed: float<meterPerSecond>
+        RecklessRelativeSpeed: float<meterPerSecond>
+        ExcessiveRelativeSpeed: float<meterPerSecond>
+        DangerousBallFirstSpeed: float<meterPerSecond>
+    }
 
 /// Action outcomes — pass, shot, duel, cross, GK and dribble success curves,
 /// tunable without touching agent logic. (was PassConfig, ShotConfig, DuelConfig,
 /// CrossConfig, DribbleConfig, GKConfig, DecisionConfig + IndividualWeights)
 [<Struct>]
 type ActionsConfig =
-    { /// How far a player sees teammates and opponents when he perceives the pitch.
-      PerceptionRadius: float<meter>
-      /// An idle carrier with an opponent this close decides at once instead of at the decision cadence.
-      ReflexDecisionRadius: float<meter>
-      PassBaseQuality: float
-      PassDistancePenaltyPerMeter: float
-      PassLongThreshold: float<meter>
-      PassVisionWeight: float
-      PassTechnicalWeight: float
-      PassJitterBase: float
-      PassHeavyTouchChance: float
-      /// Speed a ground pass should still carry at the receiver; launch speed is solved from the roll model.
-      PassArrivalSpeed: float<meterPerSecond>
-      /// Extra arrival speed per metre: longer passes are driven so defenders get less time to close them.
-      PassArrivalSpeedGain: float
-      MaxPassExecutionDistance: float<meter>
-      ShotQualityGate: float
-      /// Execution error (rad, one standard deviation) of a world-class finisher striking unopposed.
-      ShotErrorBase: float
-      /// Extra execution error (rad) for a finisher at 0 rather than 100.
-      ShotErrorSkill: float
-      /// Vertical error as a share of horizontal: height is controlled by the strike, direction by the body.
-      ShotVerticalErrorRatio: float
-      /// Gap kept inside the post by a finisher at 0 when picking a corner; better finishers aim tighter.
-      ShotPostMargin: float<meter>
-      ShotDistanceToGoalMultiplier: float
-      /// Upper bound of the sidespin a shooter can impart to curl the ball around the keeper.
-      ShotCurlSpin: float<radianPerSecond>
-      /// Strike speed of a finisher with no strength, struck for power rather than placement.
-      ShotSpeedBase: float<meterPerSecond>
-      /// Extra full-power strike speed of a finisher at Strength 100.
-      ShotSpeedStrength: float<meterPerSecond>
-      /// Share of strike speed given up to place a finish tight to the post with the side of the foot.
-      ShotPlacementSpeedCost: float
-      CrossArrivalHeight: float<meter>
-      DuelSteepness: float
-      DuelMomentumBonus: float
-      DuelFoulSeverityBias: float
-      CrossLateralnessMin: float
-      CrossTargetRadius: float<meter>
-      GkPunchChance: float
-      GkParryChance: float
-      GkDistributionPressureRadius: float<meter>
-      DribbleBaseSuccess: float
-      DribbleRiskWeight: float
-      TackleBaseSuccess: float
-      DecisionSoftmaxTemperature: float
-      PerceptionConeAngle: float
-      PerceptionConeRange: float<meter>
-      LaneClearBlockRadius: float<meter>
-      CognitiveFatigueSteepness: float
-      CognitiveFatigueFloor: float
-      MemoryPassFailWeight: float
-      MemoryDuelWeight: float
-      MemoryMentalDecay: float }
+    {
+        /// How far a player sees teammates and opponents when he perceives the pitch.
+        PerceptionRadius: float<meter>
+        /// An idle carrier with an opponent this close decides at once instead of at the decision cadence.
+        ReflexDecisionRadius: float<meter>
+        PassBaseQuality: float
+        PassDistancePenaltyPerMeter: float
+        PassLongThreshold: float<meter>
+        PassVisionWeight: float
+        PassTechnicalWeight: float
+        PassJitterBase: float
+        PassHeavyTouchChance: float
+        /// Speed a ground pass should still carry at the receiver; launch speed is solved from the roll model.
+        PassArrivalSpeed: float<meterPerSecond>
+        /// Extra arrival speed per metre: longer passes are driven so defenders get less time to close them.
+        PassArrivalSpeedGain: float
+        MaxPassExecutionDistance: float<meter>
+        ShotQualityGate: float
+        /// Execution error (rad, one standard deviation) of a world-class finisher striking unopposed.
+        ShotErrorBase: float
+        /// Extra execution error (rad) for a finisher at 0 rather than 100.
+        ShotErrorSkill: float
+        /// Vertical error as a share of horizontal: height is controlled by the strike, direction by the body.
+        ShotVerticalErrorRatio: float
+        /// Gap kept inside the post by a finisher at 0 when picking a corner; better finishers aim tighter.
+        ShotPostMargin: float<meter>
+        ShotDistanceToGoalMultiplier: float
+        /// Upper bound of the sidespin a shooter can impart to curl the ball around the keeper.
+        ShotCurlSpin: float<radianPerSecond>
+        /// Strike speed of a finisher with no strength, struck for power rather than placement.
+        ShotSpeedBase: float<meterPerSecond>
+        /// Extra full-power strike speed of a finisher at Strength 100.
+        ShotSpeedStrength: float<meterPerSecond>
+        /// Share of strike speed given up to place a finish tight to the post with the side of the foot.
+        ShotPlacementSpeedCost: float
+        CrossArrivalHeight: float<meter>
+        DuelSteepness: float
+        DuelMomentumBonus: float
+        DuelFoulSeverityBias: float
+        CrossLateralnessMin: float
+        CrossTargetRadius: float<meter>
+        GkPunchChance: float
+        GkParryChance: float
+        GkDistributionPressureRadius: float<meter>
+        DribbleBaseSuccess: float
+        DribbleRiskWeight: float
+        TackleBaseSuccess: float
+        DecisionSoftmaxTemperature: float
+        PerceptionConeAngle: float
+        PerceptionConeRange: float<meter>
+        LaneClearBlockRadius: float<meter>
+        CognitiveFatigueSteepness: float
+        CognitiveFatigueFloor: float
+        MemoryPassFailWeight: float
+        MemoryDuelWeight: float
+        MemoryMentalDecay: float
+    }
 
 /// Dead-ball pacing and geometry: restart delays, wall setup, corner/free-kick targets.
 [<Struct>]
 type SetPieceConfig =
-    { KickoffDelay: float<second>
-      ThrowInDelay: float<second>
-      CornerDelay: float<second>
-      GoalKickDelay: float<second>
-      FreeKickDelay: float<second>
-      PenaltyDelay: float<second>
-      WallDistance: float<meter>
-      WallPlayers: int
-      PenaltyQualityBonus: float
-      FreeKickShotChance: float
-      CornerTargetRadius: float<meter>
-      DirectFreeKickRange: float<meter>
-      WallArcSpread: float<meter>
-      CornerNearZoneDist: float<meter>
-      CornerFarZoneDist: float<meter>
-      /// How far behind the corner spot the taker waits, along the goal line into the pitch.
-      CornerTakerOffset: float<meter>
-      /// How far every player but the executor stands from the ball before the kick is authorized.
-      BallClearance: float<meter>
-      TargetTolerance: float<meter>
-      MaxTargetDistance: float<meter>
-      /// How far inside the touchline a throw-in receiver is placed; the law needs the receiver on
-      /// the field, and a player chasing the ball out of play is often standing on the line itself.
-      ThrowInReceiverInset: float<meter> }
+    {
+        KickoffDelay: float<second>
+        ThrowInDelay: float<second>
+        CornerDelay: float<second>
+        GoalKickDelay: float<second>
+        FreeKickDelay: float<second>
+        PenaltyDelay: float<second>
+        WallDistance: float<meter>
+        WallPlayers: int
+        PenaltyQualityBonus: float
+        FreeKickShotChance: float
+        CornerTargetRadius: float<meter>
+        DirectFreeKickRange: float<meter>
+        WallArcSpread: float<meter>
+        CornerNearZoneDist: float<meter>
+        CornerFarZoneDist: float<meter>
+        /// How far behind the corner spot the taker waits, along the goal line into the pitch.
+        CornerTakerOffset: float<meter>
+        /// How far every player but the executor stands from the ball before the kick is authorized.
+        BallClearance: float<meter>
+        TargetTolerance: float<meter>
+        MaxTargetDistance: float<meter>
+        /// How far inside the touchline a throw-in receiver is placed; the law needs the receiver on
+        /// the field, and a player chasing the ball out of play is often standing on the line itself.
+        ThrowInReceiverInset: float<meter>
+    }
 
 /// The collective mind — utility weights, emergent loops, blackboard windows,
 /// shape. (was CollectiveWeights + UtilityWeights + MatchSituation + Influence +
@@ -362,83 +380,89 @@ type TeamConfig =
 /// (was FoulAnalysis consts + RefereeWeights + HomeAdvantage card parts)
 [<Struct>]
 type DefensiveTransitionConfig =
-    { ReevaluateTicks: int<tickDelta>
-      Commitment: int<subtick>
-      MaxPressDuration: int<subtick>
-      StabilizationHold: int<subtick>
-      BaseArrivalWindow: float<second>
-      PressArrivalExtension: float<second>
-      LocalArrivalWindow: float<second>
-      CoverArrivalWindow: float<second>
-      HandoffAdvantage: float<second>
-      MinimumPressIntensity: float
-      MinimumPressCondition: float
-      MinimumLocalPlayers: int
-      LocalSurplus: int
-      ApproachOffset: float<meter>
-      CarrierPrediction: float<second>
-      CoverDepth: float<meter>
-      BeatenMargin: float<meter>
-      EscapeProgress: float<meter>
-      ThreatGoalDistance: float<meter>
-      /// Within this distance of its own goal a retreating side still sends its quickest defender to the ball:
-      /// a block that leaves the carrier free lets him walk into the box.
-      EngageGoalDistance: float<meter>
-      CentralHalfWidth: float<meter>
-      DepthSafety: float<meter>
-      ScreenFraction: float
-      RetreatBallGap: float<meter>
-      RetreatWidthScale: float
-      SettledTolerance: float<meter>
-      MaximumScreens: int
-      CoverEffort: float
-      ScreenEffort: float
-      RecoveryEffort: float }
+    {
+        ReevaluateTicks: int<tickDelta>
+        Commitment: int<subtick>
+        MaxPressDuration: int<subtick>
+        StabilizationHold: int<subtick>
+        BaseArrivalWindow: float<second>
+        PressArrivalExtension: float<second>
+        LocalArrivalWindow: float<second>
+        CoverArrivalWindow: float<second>
+        HandoffAdvantage: float<second>
+        MinimumPressIntensity: float
+        MinimumPressCondition: float
+        MinimumLocalPlayers: int
+        LocalSurplus: int
+        ApproachOffset: float<meter>
+        CarrierPrediction: float<second>
+        CoverDepth: float<meter>
+        BeatenMargin: float<meter>
+        EscapeProgress: float<meter>
+        ThreatGoalDistance: float<meter>
+        /// Within this distance of its own goal a retreating side still sends its quickest defender to the ball:
+        /// a block that leaves the carrier free lets him walk into the box.
+        EngageGoalDistance: float<meter>
+        CentralHalfWidth: float<meter>
+        DepthSafety: float<meter>
+        ScreenFraction: float
+        RetreatBallGap: float<meter>
+        RetreatWidthScale: float
+        SettledTolerance: float<meter>
+        MaximumScreens: int
+        CoverEffort: float
+        ScreenEffort: float
+        RecoveryEffort: float
+    }
 
 [<Struct>]
 type RefereeConfig =
-    { /// Chance each physically judged severity is sanctioned: careless fouls are booked only for what the contact
-      /// alone cannot show (a promising attack stopped, persistent infringement); reckless means a caution and
-      /// excessive force a dismissal (Law 12), short of the referee misjudging it.
-      FoulMinorChance: float
-      FoulTacticalChance: float
-      FoulYellowWorthyChance: float
-      FoulRedWorthyChance: float
-      SecondYellowSuspension: bool
-      VarGoalReviewDelay: float<second>
-      VarOffsideMargin: float<meter>
-      AdvantageWindow: int<subtick>
-      HomeCardBonus: float
-      CardAccumulationThreshold: int
-      LastManFactor: float
-      /// Multiplies the discretionary booking chance (careless fouls and the last-man bonus) of an already booked
-      /// player: referees caution a booked player again for a reckless foul, rarely for a careless one.
-      BookedLeniency: float
-      /// Same for a challenge judged reckless: severity reads the offender's speed only, a proxy referees resolve in
-      /// a booked player's favour when it is borderline.
-      BookedRecklessLeniency: float
-      PromisingAttackFactor: float
-      ZoneFactor: float }
+    {
+        /// Chance each physically judged severity is sanctioned: careless fouls are booked only for what the contact
+        /// alone cannot show (a promising attack stopped, persistent infringement); reckless means a caution and
+        /// excessive force a dismissal (Law 12), short of the referee misjudging it.
+        FoulMinorChance: float
+        FoulTacticalChance: float
+        FoulYellowWorthyChance: float
+        FoulRedWorthyChance: float
+        SecondYellowSuspension: bool
+        VarGoalReviewDelay: float<second>
+        VarOffsideMargin: float<meter>
+        AdvantageWindow: int<subtick>
+        HomeCardBonus: float
+        CardAccumulationThreshold: int
+        LastManFactor: float
+        /// Multiplies the discretionary booking chance (careless fouls and the last-man bonus) of an already booked
+        /// player: referees caution a booked player again for a reckless foul, rarely for a careless one.
+        BookedLeniency: float
+        /// Same for a challenge judged reckless: severity reads the offender's speed only, a proxy referees resolve in
+        /// a booked player's favour when it is borderline.
+        BookedRecklessLeniency: float
+        PromisingAttackFactor: float
+        ZoneFactor: float
+    }
 
 /// Manager behaviour — substitution windows and thresholds. (was ManagerConfig +
 /// TimingConfig parts)
 [<Struct>]
 type ManagerConfig =
-    { MaxSubs: int
-      FirstSubWindowMin: int<matchMin>
-      SecondSubWindowMin: int<matchMin>
-      ThirdSubWindowMin: int<matchMin>
-      ConditionSubThreshold: float
-      AttackingSubGoalDeficit: int
-      InjurySubCondition: float
-      RedCardCompact: bool
-      DrawAttackingMinute: int<matchMin>
-      WinningDefensiveMinute: int<matchMin>
-      /// Condition (0..1) under which a player is replaced, by the score: a side that is losing changes tired
-      /// legs sooner, one that is winning keeps its shape longer.
-      ConditionThresholdWinning: float
-      ConditionThresholdDrawing: float
-      ConditionThresholdLosing: float }
+    {
+        MaxSubs: int
+        FirstSubWindowMin: int<matchMin>
+        SecondSubWindowMin: int<matchMin>
+        ThirdSubWindowMin: int<matchMin>
+        ConditionSubThreshold: float
+        AttackingSubGoalDeficit: int
+        InjurySubCondition: float
+        RedCardCompact: bool
+        DrawAttackingMinute: int<matchMin>
+        WinningDefensiveMinute: int<matchMin>
+        /// Condition (0..1) under which a player is replaced, by the score: a side that is losing changes tired
+        /// legs sooner, one that is winning keeps its shape longer.
+        ConditionThresholdWinning: float
+        ConditionThresholdDrawing: float
+        ConditionThresholdLosing: float
+    }
 
 /// Home advantage, crowd, weather hooks. (was HomeAdvantageConfig)
 [<Struct>]
@@ -452,90 +476,94 @@ type EnvironmentConfig =
 /// MatchVolumeConfig + TimingConfig parts)
 [<Struct>]
 type MatchConfig =
-    { MatchImportanceWeight: float
-      StoppageBasePerHalf: float<second>
-      StoppagePerGoal: float<second>
-      StoppagePerCard: float<second>
-      StoppagePerSub: float<second>
-      StoppagePerFoul: float<second>
-      StoppageMax: float<second>
-      HalfTimeDuration: float<second>
-      GoalPauseDuration: float<second>
-      VarReviewDuration: float<second>
-      InjuryPauseDuration: float<second>
-      FullTimeReviewDuration: float<second>
-      ExtraTimePeriodDuration: float<second>
-      ShootoutRounds: int
-      /// Events each team remembers for its emergent read of the match (channels, momentum).
-      EventWindowCapacity: int }
+    {
+        MatchImportanceWeight: float
+        StoppageBasePerHalf: float<second>
+        StoppagePerGoal: float<second>
+        StoppagePerCard: float<second>
+        StoppagePerSub: float<second>
+        StoppagePerFoul: float<second>
+        StoppageMax: float<second>
+        HalfTimeDuration: float<second>
+        GoalPauseDuration: float<second>
+        VarReviewDuration: float<second>
+        InjuryPauseDuration: float<second>
+        FullTimeReviewDuration: float<second>
+        ExtraTimePeriodDuration: float<second>
+        ShootoutRounds: int
+        /// Events each team remembers for its emergent read of the match (channels, momentum).
+        EventWindowCapacity: int
+    }
 
 /// The carrier's choice in goal probability: every option is worth what it is expected to add to his side's
 /// chance of scoring minus what it gives the opponent, so a shot, a pass and a carry compare on one scale and a
 /// player's skill changes how likely each is to work, not how much he likes it.
 type ExpectedValueConfig =
-    { /// Extra chance, over the floor, that a possession at the goal mouth ends in a goal.
-      ThreatPeak: float
-      /// Distance over which that chance falls by e.
-      ThreatDecay: float<meter>
-      /// Chance a possession anywhere still ends in a goal.
-      ThreatFloor: float
-      /// Race margin, in intercept steps, that turns a coin-flip pass into a near-certain one.
-      PassMarginScale: float
-      /// Margin steps an excellent passer (Passing 100) gains over an average one (60): weight and accuracy.
-      PassSkillSteps: float
-      /// Lowest race margin a carrier still considers; below it the pass is not on at all.
-      PassMinimumMargin: int
-      /// Metres a carry gains before the next decision.
-      CarryAdvance: float<meter>
-      /// Chance an average dribbler keeps the ball against an average tackler with nobody else near.
-      CarryKeepBase: float
-      /// Change in that chance per point of Dribbling over the nearest opponent's Tackling (0..100 scale).
-      CarrySkillWeight: float
-      /// Lost keep chance per opponent within reach.
-      CarryPressurePenalty: float
-      /// Distance at which an opponent closes a carry or an idle ball.
-      PressureRadius: float<meter>
-      /// Share of a shot's chance each outfield opponent inside the ball-to-posts triangle takes away.
-      ShotBlockShare: float
-      /// Lost keep chance per opponent standing in the carrier's path to goal.
-      CarryBlockPenalty: float
-      /// How far ahead, inside a cone toward goal, an opponent blocks a carry.
-      CarryBlockRange: float<meter>
-      /// Chance a cross by an average crosser (60) finds a teammate's head.
-      CrossBaseSuccess: float
-      /// Chance a met cross becomes a goal.
-      HeaderConversion: float
-      /// Share of the opponent's threat at the spot a clearance concedes.
-      ClearConcession: float
-      /// Chance a ball idle beside a nearby opponent is lost before the next action.
-      LossNear: float
-      /// Distance over which that chance fades.
-      LossRange: float<meter>
-      /// Share of that loss a teammate within support distance prevents.
-      SupportRelief: float
-      SupportDistance: float<meter>
-      /// Goal probability per unit of the style terms (tactics, memory, personality, collective intent), which
-      /// still nudge choices between options of similar value.
-      StyleValue: float
-      /// Softmax temperature in goal probability: options closer than this are chosen almost evenly.
-      Temperature: float
-      /// How far beyond the offside line a receiver must be before the passer sees it: nobody reads the line to
-      /// the centimetre, and the runs inside that margin are where real offsides come from.
-      OffsideReadMargin: float<meter>
-      /// Style terms, in their own units and scaled by StyleValue: a defending phase's reluctance to pass, how
-      /// teamwork, concentration and the receiver's consistency favour a pass, bravery and flair a shot, the
-      /// side's width a cross, bravery a carry, and a deep line's reluctance to carry.
-      StylePhasePenalty: float
-      StyleTeamwork: float
-      StyleConcentration: float
-      StyleConsistency: float
-      StyleShotBravery: float
-      StyleFlair: float
-      StyleCrossWidth: float
-      StyleCarryBravery: float
-      StyleCarryTempo: float
-      /// Finishing assumed for a shot later in a planned chain, whose shooter is not settled yet.
-      ChainFinishing: float }
+    {
+        /// Extra chance, over the floor, that a possession at the goal mouth ends in a goal.
+        ThreatPeak: float
+        /// Distance over which that chance falls by e.
+        ThreatDecay: float<meter>
+        /// Chance a possession anywhere still ends in a goal.
+        ThreatFloor: float
+        /// Race margin, in intercept steps, that turns a coin-flip pass into a near-certain one.
+        PassMarginScale: float
+        /// Margin steps an excellent passer (Passing 100) gains over an average one (60): weight and accuracy.
+        PassSkillSteps: float
+        /// Lowest race margin a carrier still considers; below it the pass is not on at all.
+        PassMinimumMargin: int
+        /// Metres a carry gains before the next decision.
+        CarryAdvance: float<meter>
+        /// Chance an average dribbler keeps the ball against an average tackler with nobody else near.
+        CarryKeepBase: float
+        /// Change in that chance per point of Dribbling over the nearest opponent's Tackling (0..100 scale).
+        CarrySkillWeight: float
+        /// Lost keep chance per opponent within reach.
+        CarryPressurePenalty: float
+        /// Distance at which an opponent closes a carry or an idle ball.
+        PressureRadius: float<meter>
+        /// Share of a shot's chance each outfield opponent inside the ball-to-posts triangle takes away.
+        ShotBlockShare: float
+        /// Lost keep chance per opponent standing in the carrier's path to goal.
+        CarryBlockPenalty: float
+        /// How far ahead, inside a cone toward goal, an opponent blocks a carry.
+        CarryBlockRange: float<meter>
+        /// Chance a cross by an average crosser (60) finds a teammate's head.
+        CrossBaseSuccess: float
+        /// Chance a met cross becomes a goal.
+        HeaderConversion: float
+        /// Share of the opponent's threat at the spot a clearance concedes.
+        ClearConcession: float
+        /// Chance a ball idle beside a nearby opponent is lost before the next action.
+        LossNear: float
+        /// Distance over which that chance fades.
+        LossRange: float<meter>
+        /// Share of that loss a teammate within support distance prevents.
+        SupportRelief: float
+        SupportDistance: float<meter>
+        /// Goal probability per unit of the style terms (tactics, memory, personality, collective intent), which
+        /// still nudge choices between options of similar value.
+        StyleValue: float
+        /// Softmax temperature in goal probability: options closer than this are chosen almost evenly.
+        Temperature: float
+        /// How far beyond the offside line a receiver must be before the passer sees it: nobody reads the line to
+        /// the centimetre, and the runs inside that margin are where real offsides come from.
+        OffsideReadMargin: float<meter>
+        /// Style terms, in their own units and scaled by StyleValue: a defending phase's reluctance to pass, how
+        /// teamwork, concentration and the receiver's consistency favour a pass, bravery and flair a shot, the
+        /// side's width a cross, bravery a carry, and a deep line's reluctance to carry.
+        StylePhasePenalty: float
+        StyleTeamwork: float
+        StyleConcentration: float
+        StyleConsistency: float
+        StyleShotBravery: float
+        StyleFlair: float
+        StyleCrossWidth: float
+        StyleCarryBravery: float
+        StyleCarryTempo: float
+        /// Finishing assumed for a shot later in a planned chain, whose shooter is not settled yet.
+        ChainFinishing: float
+    }
 
 /// Bounds individual continuation search independently of collective commitments.
 type PlannerConfig =
@@ -597,33 +625,37 @@ type TransferConfig = FootballEngine.Domain.TransferConfig
 /// Collective positioning (HELIOS formation + Voronoi evaluator + lateral pairs).
 [<Struct>]
 type PositioningConfig =
-    { EvalTeammateWeight: float
-      EvalOpponentWeight: float
-      EvalGoalWeight: float
-      EvalSearchRadius: float<meter>
-      EvalCandidateCount: int
-      RefineGroups: int
-      EvalMinTeammateDist: float<meter>
-      EvalOppOurWeight: float
-      LateralSwapThreshold: float<meter>
-      TargetInset: float<meter>
-      CarrySearchRadius: float<meter>
-      SupportForwardDistance: float<meter>
-      SupportLateralDistance: float<meter>
-      /// Farthest a keeper stands off his line, reached only when play is deep in the other half.
-      GkMaxAdvance: float<meter>
-      /// Keeper depth per metre of ball distance: close balls pin him to his line, far ones let him sweep.
-      GkDepthRatio: float }
+    {
+        EvalTeammateWeight: float
+        EvalOpponentWeight: float
+        EvalGoalWeight: float
+        EvalSearchRadius: float<meter>
+        EvalCandidateCount: int
+        RefineGroups: int
+        EvalMinTeammateDist: float<meter>
+        EvalOppOurWeight: float
+        LateralSwapThreshold: float<meter>
+        TargetInset: float<meter>
+        CarrySearchRadius: float<meter>
+        SupportForwardDistance: float<meter>
+        SupportLateralDistance: float<meter>
+        /// Farthest a keeper stands off his line, reached only when play is deep in the other half.
+        GkMaxAdvance: float<meter>
+        /// Keeper depth per metre of ball distance: close balls pin him to his line, far ones let him sweep.
+        GkDepthRatio: float
+    }
 
 /// RoboCup InterceptTable horizon: control radius and step budget.
 [<Struct>]
 type InterceptConfig =
-    { ControlRadius: float<meter>
-      MaxSteps: int
-      /// Launch-speed grid step of the tabulated rolling ball used by races.
-      RollTableResolution: float<meterPerSecond>
-      /// Fastest launch speed the tabulated roll covers; faster balls are rolled step by step.
-      RollTableMaxSpeed: float<meterPerSecond> }
+    {
+        ControlRadius: float<meter>
+        MaxSteps: int
+        /// Launch-speed grid step of the tabulated rolling ball used by races.
+        RollTableResolution: float<meterPerSecond>
+        /// Fastest launch speed the tabulated roll covers; faster balls are rolled step by step.
+        RollTableMaxSpeed: float<meterPerSecond>
+    }
 
 /// HELIOS updateSituation: the intercept-step lead that commits the team to a
 /// phase.
@@ -747,23 +779,25 @@ type QuickRoleWeights =
 /// user's club plays in. Every rate is fitted against full-engine matches (Training quick-fit), so a league
 /// played this way has the engine's distributions without its ticks.
 type QuickMatchConfig =
-    { GoalsPerTeam: float
-      HomeAdvantage: float
-      /// Log change of a team's scoring rate per point of mean starter attribute (0..100) over its opponent.
-      StrengthSensitivity: float
-      AssistedShare: float
-      ScorerByRole: QuickRoleWeights
-      AssistByRole: QuickRoleWeights
-      YellowsPerTeam: float
-      RedsPerTeam: float
-      FoulsPerTeam: float
-      InjuriesPerTeam: float
-      SubstitutionsPerTeam: float
-      FirstSubstitutionMinute: int
-      /// Foul and card share of a player with no aggression at all, so calm players are rarely but still booked.
-      CalmFoulShare: float
-      /// Injury share of a player with no proneness, so robust players can still be hurt.
-      RobustInjuryShare: float }
+    {
+        GoalsPerTeam: float
+        HomeAdvantage: float
+        /// Log change of a team's scoring rate per point of mean starter attribute (0..100) over its opponent.
+        StrengthSensitivity: float
+        AssistedShare: float
+        ScorerByRole: QuickRoleWeights
+        AssistByRole: QuickRoleWeights
+        YellowsPerTeam: float
+        RedsPerTeam: float
+        FoulsPerTeam: float
+        InjuriesPerTeam: float
+        SubstitutionsPerTeam: float
+        FirstSubstitutionMinute: int
+        /// Foul and card share of a player with no aggression at all, so calm players are rarely but still booked.
+        CalmFoulShare: float
+        /// Injury share of a player with no proneness, so robust players can still be hurt.
+        RobustInjuryShare: float
+    }
 
 type BalanceConfig =
     { Ball: BallConfig
@@ -801,33 +835,77 @@ module BalanceConfig =
 
     let defaultCollectiveAttack: CollectiveAttackConfig =
         // Episodes last several deliveries, but stale geometry and unsupported runs remain costly.
-        { Enabled = true; Duration = 480<subtick>; Recovery = 80<subtick>; CounterHold = 60<subtick>
-          LearningEnabled = true; MinimumDutySeparation = 3.0<meter>; PressureRadius = 8.0<meter>; PressureCount = 2
-          SupportDepth = 6.0<meter>; SupportWidth = 8.0<meter>; RunDepth = 13.0<meter>
-          SwitchWidth = 24.0<meter>; SecurityDepth = 9.0<meter>; OffsideMargin = 1.5<meter>
-          MaxArrival = 4.0<second>; LaneRadius = 2.0<meter>; SpaceScale = 12.0<meter>
-          MinimumCondition = 0.3; MinimumScore = 0.1; LearningWeight = 0.45; Exploration = 0.18
-          PriorStrength = 3.0; EvidenceCap = 48.0; SeasonalRetention = 0.65; CooperationWeight = 0.22
-          ProgressReward = 0.4; SpaceReward = 0.15; ConnectionReward = 0.12; ThreatReward = 0.5
-          LossPenalty = 0.65; IdlePenalty = 0.18; ExposurePenalty = 0.15
+        { Enabled = true
+          Duration = 480<subtick>
+          Recovery = 80<subtick>
+          CounterHold = 60<subtick>
+          LearningEnabled = true
+          MinimumDutySeparation = 3.0<meter>
+          PressureRadius = 8.0<meter>
+          PressureCount = 2
+          SupportDepth = 6.0<meter>
+          SupportWidth = 8.0<meter>
+          RunDepth = 13.0<meter>
+          SwitchWidth = 24.0<meter>
+          SecurityDepth = 9.0<meter>
+          OffsideMargin = 1.5<meter>
+          MaxArrival = 4.0<second>
+          LaneRadius = 2.0<meter>
+          SpaceScale = 12.0<meter>
+          MinimumCondition = 0.3
+          MinimumScore = 0.1
+          LearningWeight = 0.45
+          Exploration = 0.18
+          PriorStrength = 3.0
+          EvidenceCap = 48.0
+          SeasonalRetention = 0.65
+          CooperationWeight = 0.22
+          ProgressReward = 0.4
+          SpaceReward = 0.15
+          ConnectionReward = 0.12
+          ThreatReward = 0.5
+          LossPenalty = 0.65
+          IdlePenalty = 0.18
+          ExposurePenalty = 0.15
           // The horizon covers a ~30 m ground pass at real pass speeds (~2.2 s), so the planner can chain the
           // switches and through balls players actually play.
-          TerritoryBoundary = 20.0<meter>; AnticipationHorizon = 2.5<second>; AnticipationConfidence = 0.65 }
+          TerritoryBoundary = 20.0<meter>
+          AnticipationHorizon = 2.5<second>
+          AnticipationConfidence = 0.65 }
 
     let defaultDefensiveTransition: DefensiveTransitionConfig =
         // A short commitment tolerates geometry noise; depth danger still overrides it immediately.
-        { ReevaluateTicks = 4<tickDelta>; Commitment = 24<subtick>; MaxPressDuration = 240<subtick>
+        { ReevaluateTicks = 4<tickDelta>
+          Commitment = 24<subtick>
+          MaxPressDuration = 240<subtick>
           StabilizationHold = 24<subtick>
-          BaseArrivalWindow = 1.2<second>; PressArrivalExtension = 0.8<second>
-          LocalArrivalWindow = 2.0<second>; CoverArrivalWindow = 1.8<second>; HandoffAdvantage = 0.25<second>
-          MinimumPressIntensity = 0.3; MinimumPressCondition = 0.55; MinimumLocalPlayers = 3; LocalSurplus = 1
-          ApproachOffset = 0.75<meter>; CarrierPrediction = 0.15<second>; CoverDepth = 6.0<meter>
-          BeatenMargin = 2.5<meter>; EscapeProgress = 10.0<meter>; ThreatGoalDistance = 28.0<meter>
+          BaseArrivalWindow = 1.2<second>
+          PressArrivalExtension = 0.8<second>
+          LocalArrivalWindow = 2.0<second>
+          CoverArrivalWindow = 1.8<second>
+          HandoffAdvantage = 0.25<second>
+          MinimumPressIntensity = 0.3
+          MinimumPressCondition = 0.55
+          MinimumLocalPlayers = 3
+          LocalSurplus = 1
+          ApproachOffset = 0.75<meter>
+          CarrierPrediction = 0.15<second>
+          CoverDepth = 6.0<meter>
+          BeatenMargin = 2.5<meter>
+          EscapeProgress = 10.0<meter>
+          ThreatGoalDistance = 28.0<meter>
           // The edge of the defensive third: where a low block's line of engagement sits.
           EngageGoalDistance = 35.0<meter>
-          CentralHalfWidth = 18.0<meter>; DepthSafety = 3.0<meter>; ScreenFraction = 0.45
-          RetreatBallGap = 8.0<meter>; RetreatWidthScale = 0.6; SettledTolerance = 3.0<meter>
-          MaximumScreens = 2; CoverEffort = 0.85; ScreenEffort = 0.85; RecoveryEffort = 1.0 }
+          CentralHalfWidth = 18.0<meter>
+          DepthSafety = 3.0<meter>
+          ScreenFraction = 0.45
+          RetreatBallGap = 8.0<meter>
+          RetreatWidthScale = 0.6
+          SettledTolerance = 3.0<meter>
+          MaximumScreens = 2
+          CoverEffort = 0.85
+          ScreenEffort = 0.85
+          RecoveryEffort = 1.0 }
 
     let defaultBall: BallConfig =
         { Gravity = 9.81<meterPerSecondSquared>
@@ -884,9 +962,15 @@ module BalanceConfig =
         // A side-foot pass by an average passer (0.6) strays ~1.3 degrees, ~0.45 m over 20 m, a poor one (0.3) twice
         // that: technique has to separate passers, not only the boot. The instep trades precision for pace, and
         // the outside of the boot is the least precise but curls away from the body.
-        { Inside = { Spread = 0.05; SideSpinPerSpeed = 0.1 }
-          Instep = { Spread = 0.08; SideSpinPerSpeed = 0.0 }
-          Outside = { Spread = 0.10; SideSpinPerSpeed = 0.3 }
+        { Inside =
+            { Spread = 0.05
+              SideSpinPerSpeed = 0.1 }
+          Instep =
+            { Spread = 0.08
+              SideSpinPerSpeed = 0.0 }
+          Outside =
+            { Spread = 0.10
+              SideSpinPerSpeed = 0.3 }
           // A side-foot pass beyond ~35 degrees toward the kicking foot's outer side needs the hips turned; a
           // player in stride flicks it with the outside instead.
           OutsideAngle = 0.6
@@ -1382,7 +1466,10 @@ module BalanceConfig =
           DirectLongPassShare = 0.22
           PossessionShortPassShare = 0.55
           PressAnswerBoldness = 11
-          RevengeShift = { noShift with Mentality = 1; PressingIntensity = 1 }
+          RevengeShift =
+            { noShift with
+                Mentality = 1
+                PressingIntensity = 1 }
           UnderdogCautiousShift =
             { noShift with
                 Mentality = -1
@@ -1581,8 +1668,24 @@ module BalanceConfig =
           // Fitted: a starting eleven 16 attribute points better scores ~1.3 times as often.
           StrengthSensitivity = 0.016
           AssistedShare = 0.7
-          ScorerByRole = { Keeper = 0.0; CentreBack = 0.08; Fullback = 0.08; Holding = 0.16; Central = 0.33; Playmaker = 0.49; Wide = 0.2; Forward = 1.0 }
-          AssistByRole = { Keeper = 0.02; CentreBack = 0.1; Fullback = 0.3; Holding = 0.3; Central = 0.5; Playmaker = 0.8; Wide = 0.7; Forward = 0.5 }
+          ScorerByRole =
+            { Keeper = 0.0
+              CentreBack = 0.08
+              Fullback = 0.08
+              Holding = 0.16
+              Central = 0.33
+              Playmaker = 0.49
+              Wide = 0.2
+              Forward = 1.0 }
+          AssistByRole =
+            { Keeper = 0.02
+              CentreBack = 0.1
+              Fullback = 0.3
+              Holding = 0.3
+              Central = 0.5
+              Playmaker = 0.8
+              Wide = 0.7
+              Forward = 0.5 }
           // Fitted to the engine; reds keep the real prior, the fit's corpus over-counts them against `validate`.
           YellowsPerTeam = 3.35
           RedsPerTeam = 0.06

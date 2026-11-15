@@ -239,27 +239,41 @@ module UpdateSim =
         | CancelAdvance -> { state with AdvanceTarget = None }, Cmd.none
 
         | AdvanceFailed error ->
-            { state with IsProcessing = false; AdvanceTarget = None }
-            |> pushNotification NotificationIcons.error
+            { state with
+                IsProcessing = false
+                AdvanceTarget = None }
+            |> pushNotification
+                NotificationIcons.error
                 (Localization.resolve TranslationKey.JourneyTitle [])
-                (Localization.resolve TranslationKey.AdvanceFailed [ "error", error ]), Cmd.none
+                (Localization.resolve TranslationKey.AdvanceFailed [ "error", error ]),
+            Cmd.none
 
         | AdvanceToNextEvent ->
             match state.Mode, CareerFlow.continuation state with
             | InGame(gs, _), CareerFlow.AdvanceDay _ ->
-                let pending = gs.Inbox |> List.tryFind (fun message -> message.RequiresAction && message.ActionTaken <> Some true)
+                let pending =
+                    gs.Inbox
+                    |> List.tryFind (fun message -> message.RequiresAction && message.ActionTaken <> Some true)
 
                 match pending, GameState.getUserNextFixture gs with
                 | Some message, _ -> state, Cmd.ofMsg (Navigate(Route.Inbox(InboxRoute(Some message.Id))))
                 | None, Some(_, fixture) ->
-                    handle (Advance 1) { state with AdvanceTarget = Some fixture.ScheduledDate.Date }
+                    handle
+                        (Advance 1)
+                        { state with
+                            AdvanceTarget = Some fixture.ScheduledDate.Date }
                 | None, None -> handle ContinueCareer state
             | _ -> handle ContinueCareer state
 
         | Advance days ->
 
 
-            if days <= 0 || state.IsProcessing || state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome then
+            if
+                days <= 0
+                || state.IsProcessing
+                || state.Match.RuntimeId.IsSome
+                || state.Match.PendingResult.IsSome
+            then
 
                 state, Cmd.none
             else
@@ -273,7 +287,8 @@ module UpdateSim =
                     // A multi-day request must stop before the user's fixture, not simulate it as a background match.
                     let days =
                         GameState.getUserNextFixture gs
-                        |> Option.map (fun (_, fixture) -> max 1 (min days (int (fixture.ScheduledDate.Date - gs.CurrentDate.Date).TotalDays)))
+                        |> Option.map (fun (_, fixture) ->
+                            max 1 (min days (int (fixture.ScheduledDate.Date - gs.CurrentDate.Date).TotalDays)))
                         |> Option.defaultValue days
 
                     let gs = ExecutionRandomness.beginAttempt gs
@@ -301,20 +316,27 @@ module UpdateSim =
         | AdvanceDone result ->
 
             let nextState = applyDayResult result state
+
             let interrupted =
                 match state.Mode with
                 | InGame(before, _) -> CareerFlow.newAttention before result.GameState
                 | _ -> false
 
             let nextState =
-                if interrupted || result.SeasonComplete || (CareerFlow.todayFixture result.GameState).IsSome then
+                if
+                    interrupted
+                    || result.SeasonComplete
+                    || (CareerFlow.todayFixture result.GameState).IsSome
+                then
                     { nextState with AdvanceTarget = None }
                 else
                     nextState
 
             let nextState =
                 if interrupted && state.AdvanceTarget.IsSome then
-                    nextState |> pushNotification IconName.info
+                    nextState
+                    |> pushNotification
+                        IconName.info
                         (Localization.resolve TranslationKey.JourneyTitle [])
                         (Localization.resolve TranslationKey.AdvanceAttention [])
                 else
@@ -330,11 +352,7 @@ module UpdateSim =
             let userMatchId = userFixture result.GameState |> Option.map fst
 
             match userMatchId with
-            | Some matchId ->
-                nextState,
-                Cmd.batch
-                    [ Cmd.ofMsg (Navigate(Route.Match(matchId, Prematch)))
-                      baseCmd ]
+            | Some matchId -> nextState, Cmd.batch [ Cmd.ofMsg (Navigate(Route.Match(matchId, Prematch))); baseCmd ]
             | None -> nextState, Cmd.batch [ baseCmd; Cmd.ofMsg (SimMsg SimulateAiFixtures) ]
 
         | SimulateUserFixture ->
@@ -424,7 +442,11 @@ module UpdateSim =
 
             match tryGetGs () with
             | None -> state, Cmd.none
-            | Some _ when state.IsProcessing || state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome ->
+            | Some _ when
+                state.IsProcessing
+                || state.Match.RuntimeId.IsSome
+                || state.Match.PendingResult.IsSome
+                ->
                 state, Cmd.none
             | Some gs ->
                 { state with IsProcessing = true },
@@ -456,10 +478,14 @@ module UpdateSim =
 
                     let nextState =
                         match nextState.AdvanceTarget with
-                        | Some target when result.GameState.CurrentDate.Date >= target -> { nextState with AdvanceTarget = None }
+                        | Some target when result.GameState.CurrentDate.Date >= target ->
+                            { nextState with AdvanceTarget = None }
                         | _ -> nextState
 
-                    nextState, Cmd.batch [ saveCmd state result.GameState result.WorldClock state.SaveSettings; continuation ]
+                    nextState,
+                    Cmd.batch
+                        [ saveCmd state result.GameState result.WorldClock state.SaveSettings
+                          continuation ]
                 else
                     state, Cmd.none
             | _ -> state, Cmd.none
@@ -467,7 +493,11 @@ module UpdateSim =
         | SimulateSeason ->
 
 
-            if state.IsProcessing || state.Match.RuntimeId.IsSome || state.Match.PendingResult.IsSome then
+            if
+                state.IsProcessing
+                || state.Match.RuntimeId.IsSome
+                || state.Match.PendingResult.IsSome
+            then
 
                 state, Cmd.none
             else

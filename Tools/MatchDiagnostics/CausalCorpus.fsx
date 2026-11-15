@@ -100,36 +100,36 @@ let episodePredicates: (string * (ObservationEntry -> bool))[] =
   [| ("pass-result",
       eventMatches (function
         | EventData.Pass _ -> true
-        | _ -> false));
+        | _ -> false))
      ("possession-loss",
       eventMatches (function
         | EventData.Interception _
         | EventData.Tackle _ -> true
-        | _ -> false));
+        | _ -> false))
      ("shot-result",
       eventMatches (function
         | EventData.Shot _ -> true
-        | _ -> false));
+        | _ -> false))
      ("foul-restart",
       (fun entry ->
         match entry.Data with
         | RestartCreated { Cause = RestartCause.Foul _ } -> true
-        | _ -> false));
+        | _ -> false))
      ("recalled-advantage",
       (fun entry ->
         match entry.Data, entry.Cause with
         | RestartCreated _, ValueSome(PairedEvents _) -> true
-        | _ -> false));
+        | _ -> false))
      ("physical-ball-contact",
       (fun entry ->
         match entry.Data with
         | EventCommitted { Data = EventData.PhysicalContact contact } -> contact.BallTouched
-        | _ -> false));
+        | _ -> false))
      ("rejected-cross",
       (fun entry ->
         match entry.Data with
         | ActionRejected(_, NoCrossTarget) -> true
-        | _ -> false));
+        | _ -> false))
      ("effective-tactics",
       (fun entry ->
         match entry.Data with

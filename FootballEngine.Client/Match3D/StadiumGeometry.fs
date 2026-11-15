@@ -82,7 +82,8 @@ module StadiumGeometry =
     /// sized once so a stadium change never reallocates the scene bind group.
     let instanceCapacity = 131072
 
-    let toRenderer (x: float) (y: float) (z: float) = Vector3(float32 x, float32 z, float32 -y)
+    let toRenderer (x: float) (y: float) (z: float) =
+        Vector3(float32 x, float32 z, float32 -y)
 
     let private normalToRenderer (n: Vector3) = Vector3(n.X, n.Z, -n.Y)
 
@@ -109,7 +110,12 @@ module StadiumGeometry =
 
     /// Sweeps a stand section along the stand front. Vertices are shared along the run so curved corners shade
     /// smoothly; each profile segment keeps its own vertices so treads and risers keep crisp edges.
-    let private extrude (out: MeshOut) (material: KitMaterial) (stand: StadiumLayout.Stand) (profile: (float * float)[]) =
+    let private extrude
+        (out: MeshOut)
+        (material: KitMaterial)
+        (stand: StadiumLayout.Stand)
+        (profile: (float * float)[])
+        =
         let frames = StadiumLayout.frontFrames stand frameStep
 
         for i in 0 .. profile.Length - 2 do
@@ -157,7 +163,13 @@ module StadiumGeometry =
                     out.Indices.AddRange [| a; a + 1u; a + 3u; a; a + 3u; a + 2u |]
 
     /// Straight stands end in open sections; filling under every outward-going segment closes the solid profile.
-    let private caps (out: MeshOut) (material: KitMaterial) (stand: StadiumLayout.Stand) (profile: (float * float)[]) (bottom: float) =
+    let private caps
+        (out: MeshOut)
+        (material: KitMaterial)
+        (stand: StadiumLayout.Stand)
+        (profile: (float * float)[])
+        (bottom: float)
+        =
         let frames = StadiumLayout.frontFrames stand frameStep
         let (ax, ay), _ = frames[0]
         let (bx, by), _ = frames[frames.Length - 1]
@@ -168,8 +180,11 @@ module StadiumGeometry =
             let normal =
                 normalToRenderer (Vector3(float32 (dx * sign), float32 (dy * sign), 0.0f))
 
-            let point (o: float) (z: float) = toRenderer (px + nx * o) (py + ny * o) z
-            let uv (o: float) (z: float) = Vector2(float32 (o / 2.0), float32 (z / 2.0))
+            let point (o: float) (z: float) =
+                toRenderer (px + nx * o) (py + ny * o) z
+
+            let uv (o: float) (z: float) =
+                Vector2(float32 (o / 2.0), float32 (z / 2.0))
 
             for i in 0 .. profile.Length - 2 do
                 let o0, z0 = profile[i]
@@ -212,7 +227,12 @@ module StadiumGeometry =
                         // Hospitality glazing is read as dark reflective curtain wall, not see-through glass: the void
                         // behind it has no interior to reveal.
                         let band =
-                            out.Material(if next.VipBand then "curtain_glass" else "painted_steel:charcoal")
+                            out.Material(
+                                if next.VipBand then
+                                    "curtain_glass"
+                                else
+                                    "painted_steel:charcoal"
+                            )
 
                         extrude out band stand [| back, z0; back, z1 |]
 
@@ -231,6 +251,7 @@ module StadiumGeometry =
                     // Sheets are lit from above; the shader flips the normal for the underside the broadcast sees.
                     let up = if raw.Z < 0.0f then -raw else raw
                     let normal = normalToRenderer (Vector3.Normalize up)
+
                     let at index =
                         let x, y, z = quad[index]
                         toRenderer x y z
@@ -259,17 +280,28 @@ module StadiumGeometry =
         let backs = points (fun stand -> (List.last stand.Tiers).BackOffset + 0.6)
         let innerX, innerY = bounds fronts 1.0
         let outerX, outerY = bounds backs 8.0
-        let halfLength, halfWidth = StadiumLayout.pitchLength / 2.0, StadiumLayout.pitchWidth / 2.0
+
+        let halfLength, halfWidth =
+            StadiumLayout.pitchLength / 2.0, StadiumLayout.pitchWidth / 2.0
+
         let up = Vector3.UnitY
 
-        let rect material (x0: float) (y0: float) (x1: float) (y1: float) (uvScale: float) (surface: StadiumSurface option) =
-            let corners =
-                [| x0, y0; x1, y0; x1, y1; x0, y1 |]
+        let rect
+            material
+            (x0: float)
+            (y0: float)
+            (x1: float)
+            (y1: float)
+            (uvScale: float)
+            (surface: StadiumSurface option)
+            =
+            let corners = [| x0, y0; x1, y0; x1, y1; x0, y1 |]
 
             let first = uint32 out.Vertices.Count
 
             for x, y in corners do
-                let index = out.Add(material, toRenderer x y 0.0, up, Vector2(float32 (x / uvScale), float32 (y / uvScale)))
+                let index =
+                    out.Add(material, toRenderer x y 0.0, up, Vector2(float32 (x / uvScale), float32 (y / uvScale)))
 
                 match surface with
                 | Some value ->
@@ -300,10 +332,20 @@ module StadiumGeometry =
         rect concrete -horizon -outerY -outerX outerY 1.0 runoff
         rect concrete outerX -outerY horizon outerY 1.0 runoff
 
-    let private seatColour (layout: StadiumLayout.Layout) (identity: StadiumIdentity) (tierIndex: int) (tier: StadiumLayout.Tier) (row: int) =
+    let private seatColour
+        (layout: StadiumLayout.Layout)
+        (identity: StadiumIdentity)
+        (tierIndex: int)
+        (tier: StadiumLayout.Tier)
+        (row: int)
+        =
         match layout.SeatColours with
         | StadiumLayout.Solid -> identity.Primary
-        | StadiumLayout.Tiered -> if tierIndex % 2 = 0 then identity.Primary else identity.Secondary
+        | StadiumLayout.Tiered ->
+            if tierIndex % 2 = 0 then
+                identity.Primary
+            else
+                identity.Secondary
         | StadiumLayout.Blocks ->
             if row < 3 || row >= tier.Rows - 2 then
                 identity.Secondary
@@ -331,13 +373,17 @@ module StadiumGeometry =
             stands out layout
             roofs out layout
             ground out layout
-            let perPiece = Array.init kit.Pieces.Length (fun _ -> ResizeArray<StadiumCluster * Vector4[]>())
+
+            let perPiece =
+                Array.init kit.Pieces.Length (fun _ -> ResizeArray<StadiumCluster * Vector4[]>())
 
             let seats =
                 [| for si, stand in List.indexed layout.Stands do
                        for ti, tier in List.indexed stand.Tiers do
                            for x, y, z, yaw, row in StadiumLayout.seatPositions stand tier do
-                               let key = si, ti, int (Math.Floor(x / seatBlock)), int (Math.Floor(y / seatBlock)), row / 4
+                               let key =
+                                   si, ti, int (Math.Floor(x / seatBlock)), int (Math.Floor(y / seatBlock)), row / 4
+
                                yield key, (x, y, z, yaw, seatColour layout identity ti tier row) |]
 
             let seatKit = kit.Pieces[seatPiece]
@@ -364,14 +410,15 @@ module StadiumGeometry =
                     (centres |> Array.map (fun c -> Vector3.Distance(c, centre)) |> Array.max)
                     + seatKit.BoundsRadius
 
-                perPiece[seatPiece].Add(
-                    { Piece = seatPiece
-                      FirstInstance = 0
-                      InstanceCount = members.Length
-                      Centre = centre
-                      Radius = radius },
-                    vectors
-                )
+                perPiece[seatPiece]
+                    .Add(
+                        { Piece = seatPiece
+                          FirstInstance = 0
+                          InstanceCount = members.Length
+                          Centre = centre
+                          Radius = radius },
+                        vectors
+                    )
 
             for placed in layout.Pieces do
                 // Layout pieces the kit does not author (none today) are skipped, as the look-dev assembler does.
@@ -383,20 +430,28 @@ module StadiumGeometry =
                     let piece = kit.Pieces[index]
 
                     let centre =
-                        worldCentre piece (float32 placed.X) (float32 placed.Y) (float32 placed.Z) (float32 placed.Yaw) scale
+                        worldCentre
+                            piece
+                            (float32 placed.X)
+                            (float32 placed.Y)
+                            (float32 placed.Z)
+                            (float32 placed.Yaw)
+                            scale
 
-                    let scaledRadius = piece.BoundsRadius * MathF.Max(scale.X, MathF.Max(scale.Y, scale.Z))
+                    let scaledRadius =
+                        piece.BoundsRadius * MathF.Max(scale.X, MathF.Max(scale.Y, scale.Z))
 
-                    perPiece[index].Add(
-                        { Piece = index
-                          FirstInstance = 0
-                          InstanceCount = 1
-                          Centre = centre
-                          Radius = scaledRadius },
-                        [| Vector4(float32 placed.X, float32 placed.Y, float32 placed.Z, float32 placed.Yaw)
-                           Vector4(scale, 0.0f)
-                           Vector4(identity.Primary, 1.0f) |]
-                    )
+                    perPiece[index]
+                        .Add(
+                            { Piece = index
+                              FirstInstance = 0
+                              InstanceCount = 1
+                              Centre = centre
+                              Radius = scaledRadius },
+                            [| Vector4(float32 placed.X, float32 placed.Y, float32 placed.Z, float32 placed.Yaw)
+                               Vector4(scale, 0.0f)
+                               Vector4(identity.Primary, 1.0f) |]
+                        )
 
             let instances = ResizeArray<Vector4>()
             let clusters = ResizeArray<StadiumCluster>()
@@ -415,7 +470,8 @@ module StadiumGeometry =
                 ranges[index] <- struct (first, instances.Count / instanceVectors - first)
 
             if instances.Count / instanceVectors > instanceCapacity then
-                Error $"The stadium places {instances.Count / instanceVectors} kit instances; the viewer holds {instanceCapacity}."
+                Error
+                    $"The stadium places {instances.Count / instanceVectors} kit instances; the viewer holds {instanceCapacity}."
             else
                 Ok
                     { Layout = layout
@@ -449,7 +505,9 @@ module StadiumGeometry =
 
     let private visible (planes: Vector4[]) (centre: Vector3) (radius: float32) =
         planes
-        |> Array.forall (fun plane -> plane.X * centre.X + plane.Y * centre.Y + plane.Z * centre.Z + plane.W >= -radius)
+        |> Array.forall (fun plane ->
+            plane.X * centre.X + plane.Y * centre.Y + plane.Z * centre.Z + plane.W
+            >= -radius)
 
     /// Clusters outside the view are skipped: the broadcast gantry sits above the main stand, whose nearest seats
     /// would otherwise be drawn at full detail behind the lens. Consecutive visible clusters of one piece at one
@@ -458,7 +516,9 @@ module StadiumGeometry =
         let result = ResizeArray<KitBatch>()
         let planes = frustumPlanes viewProjection
 
-        for cluster in build.Clusters |> Seq.filter (fun cluster -> visible planes cluster.Centre cluster.Radius) do
+        for cluster in
+            build.Clusters
+            |> Seq.filter (fun cluster -> visible planes cluster.Centre cluster.Radius) do
             let distance =
                 MathF.Max(0.0f, Vector3.Distance(eye, cluster.Centre) - cluster.Radius)
 

@@ -267,7 +267,9 @@ module MotionTimelineTests =
                   let runtime = MotionRuntime(config, identity ())
                   let captured = boundaries ()
                   // The replayed second window continues the sequence numbering of the first, whatever its count.
-                  let shift = captured[0..255] |> Array.sumBy (fun boundary -> uint64 boundary.Evidence.Length)
+                  let shift =
+                      captured[0..255]
+                      |> Array.sumBy (fun boundary -> uint64 boundary.Evidence.Length)
 
                   let samples =
                       captured
@@ -495,17 +497,20 @@ module MotionTimelineTests =
 
                       // A synchronously waited thread-pool task may inline on the caller; a dedicated worker tests the intended boundary.
                       Threading.Tasks.Task.Factory
-                          .StartNew((fun () ->
-                              stream.RecoverMotion(
-                                  (fun _ ->
-                                      Expect.notEqual
-                                          Environment.CurrentManagedThreadId
-                                          ownerThread
-                                          "archive owner is not the render caller"
+                          .StartNew(
+                              (fun () ->
+                                  stream.RecoverMotion(
+                                      (fun _ ->
+                                          Expect.notEqual
+                                              Environment.CurrentManagedThreadId
+                                              ownerThread
+                                              "archive owner is not the render caller"
 
-                                      Ok samples[128..255]),
-                                  CancellationToken.None
-                               )), Threading.Tasks.TaskCreationOptions.LongRunning)
+                                          Ok samples[128..255]),
+                                      CancellationToken.None
+                                  )),
+                              Threading.Tasks.TaskCreationOptions.LongRunning
+                          )
                           .GetAwaiter()
                           .GetResult()
                       |> unwrap

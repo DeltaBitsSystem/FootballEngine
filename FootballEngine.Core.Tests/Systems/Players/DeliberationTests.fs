@@ -9,15 +9,33 @@ module DeliberationTests =
 
     let private ctx =
         let ctx = TestBuilders.formationCtx ()
-        { ctx with Config = { ctx.Config with Planner = { ctx.Config.Planner with DeliberationTime = deliberation } } }
 
-    let private system = { Ctx = ctx; Clock = SimulationClock.defaultClock }
-    let private buffer () = { Events = ResizeArray(); Applied = ResizeArray(); Flags = { Bits = 0UL } }
+        { ctx with
+            Config =
+                { ctx.Config with
+                    Planner =
+                        { ctx.Config.Planner with
+                            DeliberationTime = deliberation } } }
+
+    let private system =
+        { Ctx = ctx
+          Clock = SimulationClock.defaultClock }
+
+    let private buffer () =
+        { Events = ResizeArray()
+          Applied = ResizeArray()
+          Flags = { Bits = 0UL } }
 
     /// A home carrier in open play with every opponent far away, so nothing but the decision acts on him.
     let private carrierWorld () =
         let world = MatchFactory.create ctx
-        world.State <- { world.State with Tick = 4<subtick>; Flow = MatchFlow.Live; Ball = TestBuilders.emptyBall }
+
+        world.State <-
+            { world.State with
+                Tick = 4<subtick>
+                Flow = MatchFlow.Live
+                Ball = TestBuilders.emptyBall }
+
         world.Home.Frame.PosX[5] <- 0.0f
         world.Home.Frame.PosY[5] <- 0.0f
 
@@ -28,10 +46,12 @@ module DeliberationTests =
         world
 
     let private decided (world: World) slot =
-        world.Home.Proposals.ContainsKey slot || world.Home.PendingActions.ContainsKey slot
+        world.Home.Proposals.ContainsKey slot
+        || world.Home.PendingActions.ContainsKey slot
 
     let private possession (world: World) side player =
-        { Tick = world.State.Tick; Data = EventData.Possession(side, player) }
+        { Tick = world.State.Tick
+          Data = EventData.Possession(side, player) }
 
     let tests =
         testList
@@ -43,7 +63,9 @@ module DeliberationTests =
                   let buf = buffer ()
                   buf.Events.Add(possession world ClubSide.Home carrier)
                   let mutable rng = Rng.ofSeed 3UL
-                  let next () = let r, _, _ = Stepper.step Scheduler.systems system rng world buf in rng <- r
+
+                  let next () =
+                      let r, _, _ = Stepper.step Scheduler.systems system rng world buf in rng <- r
 
                   next ()
                   Expect.isTrue world.Cognition.Plan.Active "the decision began a deliberation"
@@ -51,11 +73,18 @@ module DeliberationTests =
 
                   for _ in 1 .. int deliberation - 1 do
                       next ()
-                      Expect.isFalse (decided world 5) $"no choice by tick {int world.State.Tick - 1}, before it is due"
+
+                      Expect.isFalse
+                          (decided world 5)
+                          $"no choice by tick {int world.State.Tick - 1}, before it is due"
 
                   next ()
 
-                  Expect.equal world.State.Ball.Control (BallControl.Controlled(ClubSide.Home, carrier)) "the fixture keeps the same carrier"
+                  Expect.equal
+                      world.State.Ball.Control
+                      (BallControl.Controlled(ClubSide.Home, carrier))
+                      "the fixture keeps the same carrier"
+
                   Expect.isTrue (decided world 5) "the choice is made once the deliberation is due"
 
                   let proposal =
@@ -72,7 +101,9 @@ module DeliberationTests =
                   let buf = buffer ()
                   buf.Events.Add(possession world ClubSide.Home carrier)
                   let mutable rng = Rng.ofSeed 3UL
-                  let next () = let r, _, _ = Stepper.step Scheduler.systems system rng world buf in rng <- r
+
+                  let next () =
+                      let r, _, _ = Stepper.step Scheduler.systems system rng world buf in rng <- r
 
                   next ()
                   Expect.isTrue world.Cognition.Plan.Active "the decision began a deliberation"

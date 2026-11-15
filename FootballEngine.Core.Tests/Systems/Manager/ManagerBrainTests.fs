@@ -26,8 +26,7 @@ module ManagerBrainTests =
           OwnRedSinceReview = false
           Current = ValueNone }
 
-    let private shiftOf (move: ManagerMove voption) =
-        move |> ValueOption.map _.Shift
+    let private shiftOf (move: ManagerMove voption) = move |> ValueOption.map _.Shift
 
     // ---- The world the system tests run on: eleven starters and four players on the bench ----
 
@@ -43,11 +42,7 @@ module ManagerBrainTests =
         { lineup with
             Profiles =
                 lineup.Profiles
-                |> Array.mapi (fun i p ->
-                    if i >= 11 then
-                        { p with Role = benchRoles.[i - 11] }
-                    else
-                        p) }
+                |> Array.mapi (fun i p -> if i >= 11 then { p with Role = benchRoles.[i - 11] } else p) }
 
     let private tiredBoundary offset =
         let boundary = MatchLineupBoundary.fromLineup (lineupWithBench offset)
@@ -121,8 +116,7 @@ module ManagerBrainTests =
             | _ -> None)
 
     let private instructionsOf (side: ClubSide) (events: MatchEvent list) =
-        events
-        |> List.filter (fun ev -> ev.Data = EventData.TeamInstruction side)
+        events |> List.filter (fun ev -> ev.Data = EventData.TeamInstruction side)
 
     let private substitutions (events: MatchEvent list) =
         events
@@ -160,9 +154,19 @@ module ManagerBrainTests =
                   let bold = ManagerBrain.decide cfg (profile 1.0f 0.8f 0.2f) (read 85 1) 0.0
 
                   Expect.equal (shiftOf cautious) (ValueSome ManagerShift.ProtectLead) "both protect the lead"
-                  Expect.equal (cautious |> ValueOption.map _.Directive) (ValueSome DirectiveKind.ParkTheBus) "the cautious one closes the shop"
+
+                  Expect.equal
+                      (cautious |> ValueOption.map _.Directive)
+                      (ValueSome DirectiveKind.ParkTheBus)
+                      "the cautious one closes the shop"
+
                   Expect.equal (shiftOf bold) (ValueSome ManagerShift.ProtectLead) "the bold one protects it too"
-                  Expect.equal (bold |> ValueOption.map _.Directive) (ValueSome DirectiveKind.Defend) "but only defends"
+
+                  Expect.equal
+                      (bold |> ValueOption.map _.Directive)
+                      (ValueSome DirectiveKind.Defend)
+                      "but only defends"
+
                   Expect.isGreaterThan
                       (cautious |> ValueOption.map _.Intensity |> ValueOption.defaultValue 0.0)
                       (bold |> ValueOption.map _.Intensity |> ValueOption.defaultValue 0.0)
@@ -182,8 +186,16 @@ module ManagerBrainTests =
               testCase "a coach who reads the game reacts to a goal sooner than one who does not" (fun _ ->
                   let sharp = profile 0.95f 0.5f 0.5f
                   let blunt = profile 0.25f 0.5f 0.5f
-                  Expect.isLessThan (ManagerBrain.reviewMinuteAfter cfg sharp 50) (ManagerBrain.reviewMinuteAfter cfg blunt 50) "sharp reviews first"
-                  Expect.equal (ManagerBrain.reviewMinuteAfter cfg (profile 1.0f 0.5f 0.5f) 50) 50 "perfect reading reacts on the spot"
+
+                  Expect.isLessThan
+                      (ManagerBrain.reviewMinuteAfter cfg sharp 50)
+                      (ManagerBrain.reviewMinuteAfter cfg blunt 50)
+                      "sharp reviews first"
+
+                  Expect.equal
+                      (ManagerBrain.reviewMinuteAfter cfg (profile 1.0f 0.5f 0.5f) 50)
+                      50
+                      "perfect reading reacts on the spot"
 
                   Expect.isLessThan
                       (ManagerBrain.reactionDelayMinutes cfg (profile 0.5f 0.5f 0.9f))
@@ -192,22 +204,33 @@ module ManagerBrainTests =
 
               testCase "no move inside the pause between moves unless a goal or a red card lifts it" (fun _ ->
                   let coach = profile 1.0f 0.9f 0.0f
-                  let recent = { read 70 -1 with MinutesSinceMove = cfg.MinMinutesBetweenMoves - 1 }
+
+                  let recent =
+                      { read 70 -1 with
+                          MinutesSinceMove = cfg.MinMinutesBetweenMoves - 1 }
 
                   Expect.equal (ManagerBrain.decide cfg coach recent 0.0 |> shiftOf) ValueNone "still inside the pause"
 
                   Expect.equal
-                      (ManagerBrain.decide cfg coach { recent with EventSinceMove = true } 0.0 |> shiftOf)
+                      (ManagerBrain.decide cfg coach { recent with EventSinceMove = true } 0.0
+                       |> shiftOf)
                       (ValueSome ManagerShift.ChaseGame)
                       "a goal lifts it"
 
                   Expect.equal
-                      (ManagerBrain.decide cfg coach { recent with OwnRedSinceReview = true } 0.0 |> shiftOf)
+                      (ManagerBrain.decide cfg coach { recent with OwnRedSinceReview = true } 0.0
+                       |> shiftOf)
                       (ValueSome ManagerShift.RedCardReshape)
                       "so does his own red card"
 
                   Expect.equal
-                      (ManagerBrain.decide cfg coach { recent with MinutesSinceMove = cfg.MinMinutesBetweenMoves } 0.0 |> shiftOf)
+                      (ManagerBrain.decide
+                          cfg
+                          coach
+                          { recent with
+                              MinutesSinceMove = cfg.MinMinutesBetweenMoves }
+                          0.0
+                       |> shiftOf)
                       (ValueSome ManagerShift.ChaseGame)
                       "and so does the pause running out"
 
@@ -221,7 +244,13 @@ module ManagerBrainTests =
                   let wrongCalls reading =
                       [ for seed in 1..600 do
                             let noise, _ = Rng.normal 0.0 1.0 (Rng.ofSeed (uint64 seed * 0x9E3779B97F4A7C15UL))
-                            let decision = ManagerBrain.decide cfg (profile reading 0.9f 0.2f) { read 40 0 with Momentum = 0.1 } noise
+
+                            let decision =
+                                ManagerBrain.decide
+                                    cfg
+                                    (profile reading 0.9f 0.2f)
+                                    { read 40 0 with Momentum = 0.1 }
+                                    noise
 
                             match shiftOf decision with
                             | ValueSome ManagerShift.WeatherStorm
@@ -238,32 +267,67 @@ module ManagerBrainTests =
                   let missed reading =
                       [ for seed in 1..600 do
                             let noise, _ = Rng.normal 0.0 1.0 (Rng.ofSeed (uint64 seed * 0x9E3779B97F4A7C15UL))
-                            let decision = ManagerBrain.decide cfg (profile reading 0.5f 0.2f) { read 40 0 with Momentum = -0.5 } noise
-                            if shiftOf decision = ValueSome ManagerShift.WeatherStorm then 0 else 1 ]
+
+                            let decision =
+                                ManagerBrain.decide
+                                    cfg
+                                    (profile reading 0.5f 0.2f)
+                                    { read 40 0 with Momentum = -0.5 }
+                                    noise
+
+                            if shiftOf decision = ValueSome ManagerShift.WeatherStorm then
+                                0
+                            else
+                                1 ]
                       |> List.sum
 
-                  Expect.isGreaterThan (missed 0.25f) (missed 0.95f + 40) "the poor reader sits through a siege more often")
+                  Expect.isGreaterThan
+                      (missed 0.25f)
+                      (missed 0.95f + 40)
+                      "the poor reader sits through a siege more often")
 
               testCase "the coach returns to his plan when what moved him is gone" (fun _ ->
                   let coach = profile 1.0f 0.9f 0.0f
 
                   Expect.equal
-                      (ManagerBrain.decide cfg coach { read 70 0 with Current = ValueSome ManagerShift.ChaseGame } 0.0 |> shiftOf)
+                      (ManagerBrain.decide
+                          cfg
+                          coach
+                          { read 70 0 with
+                              Current = ValueSome ManagerShift.ChaseGame }
+                          0.0
+                       |> shiftOf)
                       (ValueSome ManagerShift.BackToPlan)
                       "he equalised, the chase is over"
 
                   Expect.equal
-                      (ManagerBrain.decide cfg coach { read 70 -1 with Current = ValueSome ManagerShift.ChaseGame } 0.0 |> shiftOf)
+                      (ManagerBrain.decide
+                          cfg
+                          coach
+                          { read 70 -1 with
+                              Current = ValueSome ManagerShift.ChaseGame }
+                          0.0
+                       |> shiftOf)
                       ValueNone
                       "still behind, the chase goes on"
 
                   Expect.equal
-                      (ManagerBrain.decide cfg coach { read 70 0 with Current = ValueSome ManagerShift.ProtectLead } 0.0 |> shiftOf)
+                      (ManagerBrain.decide
+                          cfg
+                          coach
+                          { read 70 0 with
+                              Current = ValueSome ManagerShift.ProtectLead }
+                          0.0
+                       |> shiftOf)
                       (ValueSome ManagerShift.BackToPlan)
                       "he conceded, the lead is gone")
 
               testCase "a quiet spell cannot read as a siege" (fun _ ->
-                  Expect.isLessThan (abs (ManagerBrain.momentum cfg 0.0 0.05)) 0.4 "a few hundredths of xG is no domination"
+                  Expect.isLessThan
+                      (abs (ManagerBrain.momentum cfg 0.0 0.05))
+                      0.4
+                      "a few hundredths of xG is no domination"
+
                   Expect.isGreaterThan (ManagerBrain.momentum cfg 0.0 1.5) -1.0 "the ratio stays inside its bounds"
                   Expect.isLessThan (ManagerBrain.momentum cfg 0.0 1.5) -0.8 "a real siege reads as one")
 
@@ -287,43 +351,72 @@ module ManagerBrainTests =
                   Expect.isEmpty (shiftsOf ClubSide.Home events) "the commanded side is not touched"
                   Expect.isEmpty (instructionsOf ClubSide.Home events) "no instruction is made for it")
 
-              testCase "one lone chance in a quiet spell is no storm, sustained pressure over a quarter of an hour is" (fun _ ->
-                  // A sharp coach (reading 1.0) hears no noise, so only the decayed xG memory can move him; he is
-                  // level and cautious, so no other rule competes with the storm.
-                  let ctx = contextWith (profile 1.0f 0.2f 0.1f) ManagerProfile.human
+              testCase
+                  "one lone chance in a quiet spell is no storm, sustained pressure over a quarter of an hour is"
+                  (fun _ ->
+                      // A sharp coach (reading 1.0) hears no noise, so only the decayed xG memory can move him; he is
+                      // level and cautious, so no other rule competes with the storm.
+                      let ctx = contextWith (profile 1.0f 0.2f 0.1f) ManagerProfile.human
 
-                  let freshWorld () =
-                      let world = worldAt ctx (minuteTick 30) 0 0
-                      world.Away.Brain.LastReviewMinute <- 25
-                      world
+                      let freshWorld () =
+                          let world = worldAt ctx (minuteTick 30) 0 0
+                          world.Away.Brain.LastReviewMinute <- 25
+                          world
 
-                  let lone = freshWorld ()
-                  lone.Home.Stats.XgSum <- 0.1
-                  Expect.isEmpty (step ctx lone []) "a single 0.1 xG effort after the settle minute is not domination"
-                  Expect.equal lone.Away.Brain.Shift ValueNone "he did not dig in"
+                      let lone = freshWorld ()
+                      lone.Home.Stats.XgSum <- 0.1
 
-                  // Two reviews five minutes apart, the opponent creating real chances in between.
-                  let siege = worldAt ctx (minuteTick 20) 0 0
-                  siege.Away.Brain.LastReviewMinute <- 15
-                  siege.Home.Stats.XgSum <- 0.15
-                  let first = step ctx siege []
-                  Expect.isEmpty (shiftsOf ClubSide.Away first) "after one modest chance he is still calm"
+                      Expect.isEmpty
+                          (step ctx lone [])
+                          "a single 0.1 xG effort after the settle minute is not domination"
 
-                  siege.State <- { siege.State with Tick = minuteTick 25; Clock = { siege.State.Clock with Tick = minuteTick 25 } }
-                  siege.Home.Stats.XgSum <- 0.35
-                  let second = step ctx siege []
-                  Expect.equal (shiftsOf ClubSide.Away second) [ ManagerShift.WeatherStorm ] "the chances add up: he digs in"
-                  Expect.hasLength (instructionsOf ClubSide.Away second) 1 "and the viewer is told")
+                      Expect.equal lone.Away.Brain.Shift ValueNone "he did not dig in"
+
+                      // Two reviews five minutes apart, the opponent creating real chances in between.
+                      let siege = worldAt ctx (minuteTick 20) 0 0
+                      siege.Away.Brain.LastReviewMinute <- 15
+                      siege.Home.Stats.XgSum <- 0.15
+                      let first = step ctx siege []
+                      Expect.isEmpty (shiftsOf ClubSide.Away first) "after one modest chance he is still calm"
+
+                      siege.State <-
+                          { siege.State with
+                              Tick = minuteTick 25
+                              Clock =
+                                  { siege.State.Clock with
+                                      Tick = minuteTick 25 } }
+
+                      siege.Home.Stats.XgSum <- 0.35
+                      let second = step ctx siege []
+
+                      Expect.equal
+                          (shiftsOf ClubSide.Away second)
+                          [ ManagerShift.WeatherStorm ]
+                          "the chances add up: he digs in"
+
+                      Expect.hasLength (instructionsOf ClubSide.Away second) 1 "and the viewer is told")
 
               testCase "the shift is measured from the starting plan and undone when its cause goes" (fun _ ->
                   let ctx = contextWith (profile 1.0f 0.9f 0.2f) ManagerProfile.human
                   let world = worldAt ctx (minuteTick 60) 2 0
                   let plan = world.Away.Tactics
                   step ctx world [] |> ignore
-                  world.State <- { world.State with Tick = minuteTick 70; Clock = { world.State.Clock with Tick = minuteTick 70 }; AwayScore = 2 }
+
+                  world.State <-
+                      { world.State with
+                          Tick = minuteTick 70
+                          Clock =
+                              { world.State.Clock with
+                                  Tick = minuteTick 70 }
+                          AwayScore = 2 }
+
                   let events = step ctx world []
 
-                  Expect.equal (shiftsOf ClubSide.Away events) [ ManagerShift.BackToPlan ] "level again: back to the plan"
+                  Expect.equal
+                      (shiftsOf ClubSide.Away events)
+                      [ ManagerShift.BackToPlan ]
+                      "level again: back to the plan"
+
                   Expect.equal world.Away.Tactics plan "the starting plan is restored exactly"
                   Expect.equal world.Away.Brain.Shift ValueNone "and no shift is left active")
 
@@ -336,7 +429,11 @@ module ManagerBrainTests =
                       world.Away.Brain.LastReviewMinute <- 57
                       step ctx world [ EventData.Goal(ClubSide.Home, None, None, 0.0) ]
 
-                  Expect.equal (shiftsOf ClubSide.Away (react 1.0f)) [ ManagerShift.ChaseGame ] "the sharp coach reacts on the spot"
+                  Expect.equal
+                      (shiftsOf ClubSide.Away (react 1.0f))
+                      [ ManagerShift.ChaseGame ]
+                      "the sharp coach reacts on the spot"
+
                   Expect.isEmpty (react 0.25f) "the blunt coach is still working it out")
 
               testCase "his own red card reshapes the team immediately" (fun _ ->
@@ -352,13 +449,19 @@ module ManagerBrainTests =
               testCase "a red card for the other side is not his business" (fun _ ->
                   let ctx = contextWith (profile 0.6f 0.5f 0.5f) ManagerProfile.human
                   let world = worldAt ctx (minuteTick 40 + 600<subtick>) 0 0
-                  let events = step ctx world [ EventData.RedCardIssued ctx.HomeLineup.Profiles.[3].Id ]
+
+                  let events =
+                      step ctx world [ EventData.RedCardIssued ctx.HomeLineup.Profiles.[3].Id ]
+
                   Expect.isEmpty events "nothing happens")
 
               testCase "the commanded side runs today's code: nothing on a goal, only the minute schedule" (fun _ ->
                   let ctx = contextWith ManagerProfile.human ManagerProfile.human
                   let world = worldAt ctx (minuteTick 70 + 600<subtick>) 0 1
-                  Expect.isEmpty (step ctx world [ EventData.Goal(ClubSide.Away, None, None, 0.0) ]) "a goal tick between minutes changes nothing for him"
+
+                  Expect.isEmpty
+                      (step ctx world [ EventData.Goal(ClubSide.Away, None, None, 0.0) ])
+                      "a goal tick between minutes changes nothing for him"
 
                   let atMinute = worldAt ctx (minuteTick 70) 0 1
                   let events = step ctx atMinute []
@@ -387,8 +490,13 @@ module ManagerBrainTests =
                   Expect.equal world.Away.Brain.QueuedChanges 1 "one still owed"
 
                   let _, inn = substitutions events |> List.head
-                  let incomingRole = ctx.AwayLineup.Profiles |> Array.find (fun p -> p.Id = inn) |> _.Role
-                  Expect.isTrue (incomingRole = SlotRole.Striker || incomingRole = SlotRole.Winger) "a forward comes on")
+
+                  let incomingRole =
+                      ctx.AwayLineup.Profiles |> Array.find (fun p -> p.Id = inn) |> _.Role
+
+                  Expect.isTrue
+                      (incomingRole = SlotRole.Striker || incomingRole = SlotRole.Winger)
+                      "a forward comes on")
 
               testCase "a chase brings a forward on for a tired defensive player" (fun _ ->
                   let ctx = contextWith (profile 1.0f 0.9f 0.2f) ManagerProfile.human
@@ -399,7 +507,12 @@ module ManagerBrainTests =
                   match substitutions events |> List.tryFind (fun (out, _) -> out = idOf ctx 5) with
                   | Some(_, inn) ->
                       let role = ctx.AwayLineup.Profiles |> Array.find (fun p -> p.Id = inn) |> _.Role
-                      Expect.isTrue (role = SlotRole.Striker || role = SlotRole.Winger || role = SlotRole.AttackingMid) "a forward comes on"
+
+                      Expect.isTrue
+                          (role = SlotRole.Striker
+                           || role = SlotRole.Winger
+                           || role = SlotRole.AttackingMid)
+                          "a forward comes on"
                   | None -> failtest "the tired holding midfielder should be the one to go")
 
               testCase "protecting a lead brings a defender on for a forward" (fun _ ->
@@ -411,16 +524,29 @@ module ManagerBrainTests =
 
                   match substitutions events with
                   | [ out, inn ] ->
-                      let roleOf id = ctx.AwayLineup.Profiles |> Array.find (fun p -> p.Id = id) |> _.Role
-                      Expect.isTrue (List.contains (roleOf out) [ SlotRole.Striker; SlotRole.Winger; SlotRole.AttackingMid ]) "a forward goes off"
-                      Expect.isTrue (List.contains (roleOf inn) [ SlotRole.Defender; SlotRole.FullBack; SlotRole.DefensiveMid ]) "a defender comes on"
+                      let roleOf id =
+                          ctx.AwayLineup.Profiles |> Array.find (fun p -> p.Id = id) |> _.Role
+
+                      Expect.isTrue
+                          (List.contains (roleOf out) [ SlotRole.Striker; SlotRole.Winger; SlotRole.AttackingMid ])
+                          "a forward goes off"
+
+                      Expect.isTrue
+                          (List.contains (roleOf inn) [ SlotRole.Defender; SlotRole.FullBack; SlotRole.DefensiveMid ])
+                          "a defender comes on"
                   | other -> failtestf "expected one change, got %A" other)
 
               testCase "a coach who reads the game replaces a tired player with someone who plays his role" (fun _ ->
                   let swap reading =
                       let ctx = contextWith (profile reading 0.5f 0.2f) ManagerProfile.human
                       // Bench slot 12 (winger) rates best on the crude score, slot 14 (holding midfielder) matches the role.
-                      ctx.AwayLineup.Profiles.[12] <- { ctx.AwayLineup.Profiles.[12] with Pace = 99.0f; Dribbling = 99.0f; Finishing = 99.0f; Passing = 99.0f }
+                      ctx.AwayLineup.Profiles.[12] <-
+                          { ctx.AwayLineup.Profiles.[12] with
+                              Pace = 99.0f
+                              Dribbling = 99.0f
+                              Finishing = 99.0f
+                              Passing = 99.0f }
+
                       let world = worldAt ctx (minuteTick 60) 0 0
                       world.Away.Frame.Condition.[5] <- 0.3f
 
@@ -431,7 +557,11 @@ module ManagerBrainTests =
                       |> Option.map (fun inn -> ctx.AwayLineup.Profiles |> Array.findIndex (fun p -> p.Id = inn))
 
                   Expect.equal (swap 0.9f) (Some 14) "the sharp coach brings the holding midfielder on"
-                  Expect.equal (swap 0.2f) (Some 12) "the blunt coach brings the best-rated player on, whatever his role")
+
+                  Expect.equal
+                      (swap 0.2f)
+                      (Some 12)
+                      "the blunt coach brings the best-rated player on, whatever his role")
 
               testCase "a coach who reads the game takes a booked defender off late in the match" (fun _ ->
                   let ctx = contextWith (profile 0.9f 0.5f 0.2f) ManagerProfile.human
@@ -442,7 +572,12 @@ module ManagerBrainTests =
                   match substitutions events with
                   | [ out, inn ] ->
                       Expect.equal out (idOf ctx 1) "the booked defender goes"
-                      Expect.equal (ctx.AwayLineup.Profiles |> Array.find (fun p -> p.Id = inn) |> _.Role) SlotRole.Defender "a defender replaces him"
+
+                      Expect.equal
+                          (ctx.AwayLineup.Profiles |> Array.find (fun p -> p.Id = inn) |> _.Role)
+                          SlotRole.Defender
+                          "a defender replaces him"
+
                       Expect.isEmpty (shiftsOf ClubSide.Away events) "a change of players is no change of plan"
                   | other -> failtestf "expected one change, got %A" other
 
@@ -452,14 +587,25 @@ module ManagerBrainTests =
                   Expect.isEmpty (substitutions (step blunt bluntWorld [])) "a coach who reads poorly leaves him on")
 
               testCase "a shift is part of the event record and has its own kind" (fun _ ->
-                  let ev: MatchEvent = { Tick = 5<subtick>; Data = EventData.ManagerShift(ClubSide.Away, ManagerShift.AllOut) }
+                  let ev: MatchEvent =
+                      { Tick = 5<subtick>
+                        Data = EventData.ManagerShift(ClubSide.Away, ManagerShift.AllOut) }
+
                   Expect.equal (MatchEvent.kind ev) EventKind.ManagerShift "the scheduler can trigger on it"
                   Expect.isTrue (MatchEvent.isRecord ev) "it stays on the fixture record the viewer reads"
 
                   let ids =
-                      [ ManagerShift.ChaseGame; ManagerShift.AllOut; ManagerShift.ProtectLead; ManagerShift.WeatherStorm
-                        ManagerShift.TakeInitiative; ManagerShift.BackToPlan; ManagerShift.RedCardReshape ]
-                      |> List.map (fun shift -> MatchEvent.id { ev with Data = EventData.ManagerShift(ClubSide.Away, shift) })
+                      [ ManagerShift.ChaseGame
+                        ManagerShift.AllOut
+                        ManagerShift.ProtectLead
+                        ManagerShift.WeatherStorm
+                        ManagerShift.TakeInitiative
+                        ManagerShift.BackToPlan
+                        ManagerShift.RedCardReshape ]
+                      |> List.map (fun shift ->
+                          MatchEvent.id
+                              { ev with
+                                  Data = EventData.ManagerShift(ClubSide.Away, shift) })
                       |> List.distinct
 
                   Expect.hasLength ids 7 "every shift hashes differently, so none is lost as a duplicate")
@@ -482,6 +628,7 @@ module ManagerBrainTests =
 
     let private strongHome =
         let weak = contextWith (profile 0.9f 0.9f 0.5f) ManagerProfile.human
+
         let boosted (l: Lineup) =
             { l with
                 Profiles =
@@ -495,7 +642,8 @@ module ManagerBrainTests =
                             Tackling = p.Tackling + 25.0f
                             Positioning = p.Positioning + 25.0f }) }
 
-        { weak with HomeLineup = boosted weak.HomeLineup }
+        { weak with
+            HomeLineup = boosted weak.HomeLineup }
 
     let private run (ctx: MatchContext) (seed: uint64) : MatchOutcome =
         let effective =
@@ -519,7 +667,10 @@ module ManagerBrainTests =
 
     /// Event hashes of four-seed matches played by the engine before rival managers existed, with both sides
     /// commanded and two tired starters each so the old manager acts. Recorded from the commit before this change.
-    let private preChangeHashes = [ 1UL, 893044327239632373UL; 2UL, 1751300825762803254UL; 3UL, 12286449040674974461UL ]
+    let private preChangeHashes =
+        [ 1UL, 893044327239632373UL
+          2UL, 1751300825762803254UL
+          3UL, 12286449040674974461UL ]
 
     let matchTests =
         testList
@@ -543,26 +694,36 @@ module ManagerBrainTests =
                       Expect.equal outcome.EventsHash expected $"seed {seed}: the old path is untouched"
 
                       Expect.isFalse
-                          (outcome.Events |> List.exists (fun ev -> MatchEvent.kind ev = EventKind.ManagerShift))
+                          (outcome.Events
+                           |> List.exists (fun ev -> MatchEvent.kind ev = EventKind.ManagerShift))
                           "and no shift is ever announced")
 
-              testCase "an autonomous side that is losing pairs every instruction with a shift, the commanded side never gets one" (fun _ ->
-                  let mutable shifts = 0
+              testCase
+                  "an autonomous side that is losing pairs every instruction with a shift, the commanded side never gets one"
+                  (fun _ ->
+                      let mutable shifts = 0
 
-                  for seed in 1UL .. 3UL do
-                      let outcome = run strongHome seed
+                      for seed in 1UL .. 3UL do
+                          let outcome = run strongHome seed
 
-                      let at kind side =
-                          outcome.Events
-                          |> List.choose (fun ev ->
-                              match ev.Data with
-                              | EventData.TeamInstruction s when kind = 0 && s = side -> Some ev.Tick
-                              | EventData.ManagerShift(s, _) when kind = 1 && s = side -> Some ev.Tick
-                              | _ -> None)
+                          let at kind side =
+                              outcome.Events
+                              |> List.choose (fun ev ->
+                                  match ev.Data with
+                                  | EventData.TeamInstruction s when kind = 0 && s = side -> Some ev.Tick
+                                  | EventData.ManagerShift(s, _) when kind = 1 && s = side -> Some ev.Tick
+                                  | _ -> None)
 
-                      Expect.equal (at 0 ClubSide.Away) (at 1 ClubSide.Away) $"seed {seed}: each instruction has its shift at the same tick"
-                      Expect.isEmpty (at 0 ClubSide.Home) "the commanded side received no instruction it did not give"
-                      Expect.isEmpty (at 1 ClubSide.Home) "and no shift"
-                      shifts <- shifts + (at 1 ClubSide.Away).Length
+                          Expect.equal
+                              (at 0 ClubSide.Away)
+                              (at 1 ClubSide.Away)
+                              $"seed {seed}: each instruction has its shift at the same tick"
 
-                  Expect.isGreaterThan shifts 0 "the autonomous coach did change his plan somewhere in the corpus") ]
+                          Expect.isEmpty
+                              (at 0 ClubSide.Home)
+                              "the commanded side received no instruction it did not give"
+
+                          Expect.isEmpty (at 1 ClubSide.Home) "and no shift"
+                          shifts <- shifts + (at 1 ClubSide.Away).Length
+
+                      Expect.isGreaterThan shifts 0 "the autonomous coach did change his plan somewhere in the corpus") ]

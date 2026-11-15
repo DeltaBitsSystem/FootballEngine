@@ -146,7 +146,11 @@ module FieldEvaluatorTests =
                   // The keeper's target comes from goal-to-ball geometry, so the evaluator cannot pull him wide or
                   // forward into an outfield spot: he stays inside the goal mouth and his own half.
                   Expect.isLessThanOrEqual (abs gkY) (float Pitch.GoalHalfWidth) "GK target stays in the goal mouth"
-                  Expect.isLessThan gkX (-float Pitch.HalfLength + float ctx.Config.Positioning.GkMaxAdvance + 0.01) "GK target never passes his maximum advance")
+
+                  Expect.isLessThan
+                      gkX
+                      (-float Pitch.HalfLength + float ctx.Config.Positioning.GkMaxAdvance + 0.01)
+                      "GK target never passes his maximum advance")
 
               testCase "candidates include offside line crossing" (fun _ ->
                   let withLine = { evalParams with OffsideX = Some 12.0 }

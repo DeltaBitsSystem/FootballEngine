@@ -715,7 +715,8 @@ module PlayerStoriesTests =
                   let healing, longTerm = contracted[0], contracted[1]
 
                   let injure (until: DateTime) (p: Player) =
-                      { p with Status = Injured(InjurySeverity.Minor, until) }
+                      { p with
+                          Status = Injured(InjurySeverity.Minor, until) }
 
                   let injured =
                       { gs with

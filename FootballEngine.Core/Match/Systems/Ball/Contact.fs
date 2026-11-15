@@ -143,7 +143,8 @@ module BallContact =
             buffer.Events.Add event
 
             if world.Observation.Enabled then
-                ball.Impulse |> Option.iter (fun impulse -> world.Observation.Associate(event, ActionCause impulse.ActionId))
+                ball.Impulse
+                |> Option.iter (fun impulse -> world.Observation.Associate(event, ActionCause impulse.ActionId))
 
         let resolveTrajectory () =
             MatchWorld.updateBall world (fun current ->
@@ -158,9 +159,14 @@ module BallContact =
             let origin =
                 ball.Impulse
                 |> Option.map _.Origin
-                |> Option.defaultValue { X = ball.Position.X; Y = ball.Position.Y; Z = ball.Position.Z }
+                |> Option.defaultValue
+                    { X = ball.Position.X
+                      Y = ball.Position.Y
+                      Z = ball.Position.Z }
 
-            let distance = MatchMath.dist origin.X origin.Y ball.Position.X ball.Position.Y * 1.0<meter>
+            let distance =
+                MatchMath.dist origin.X origin.Y ball.Position.X ball.Position.Y * 1.0<meter>
+
             let controlled =
                 record.ControlAfter.Kind = ContactControlKind.ReceivingBall
                 && record.ControlAfter.Player = Some record.Actor
@@ -172,9 +178,22 @@ module BallContact =
                 && (record.Actor = receiver
                     || (MatchWorld.sideOfPlayer ctx.Ctx record.Actor).IsSome
                        && MatchWorld.sideOfPlayer ctx.Ctx record.Actor = MatchWorld.sideOfPlayer ctx.Ctx passer)
+
             let firstEvent = buffer.Events.Count
 
-            emit (EventData.Pass(passer, Some receiver, distance, quality, completed, origin.X, origin.Y, ball.Position.X, ball.Position.Y))
+            emit (
+                EventData.Pass(
+                    passer,
+                    Some receiver,
+                    distance,
+                    quality,
+                    completed,
+                    origin.X,
+                    origin.Y,
+                    ball.Position.X,
+                    ball.Position.Y
+                )
+            )
 
             match MatchWorld.sideOfPlayer ctx.Ctx record.Actor, MatchWorld.sideOfPlayer ctx.Ctx passer with
             | ValueSome actorSide, ValueSome passerSide when actorSide <> passerSide && controlled ->
@@ -210,7 +229,10 @@ module BallContact =
                 resolveTrajectory ()
             elif controlled then
                 if keeper then
-                    emit (EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, ball.Position.X, ball.Position.Y))
+                    emit (
+                        EventData.Shot(shooter, ShotResult.OnTarget true, xG, speed, ball.Position.X, ball.Position.Y)
+                    )
+
                     emit (EventData.Save(record.Actor, shooter))
                 else
                     emit (EventData.Shot(shooter, ShotResult.Blocked, xG, speed, ball.Position.X, ball.Position.Y))
@@ -226,17 +248,36 @@ module BallContact =
         | None, Some(TrajectoryIntent.Aimed(passer, receiver, quality)) when
             (ball.ArrivalGate |> Option.exists (fun gate -> gate <= tick))
             && (ball.StationarySince.IsSome
-                || (MatchMath.speedOf ball.Position.Vx ball.Position.Vy <= float ctx.Ctx.Config.Ball.StopSpeedCutoff
+                || (MatchMath.speedOf ball.Position.Vx ball.Position.Vy
+                    <= float ctx.Ctx.Config.Ball.StopSpeedCutoff
                     && abs (float ball.Position.Vz) <= float ctx.Ctx.Config.Ball.StopSpeedCutoff))
             ->
             // Arrival estimates ignore changing drag and receiver motion; only a stopped flight can expire without a touch.
             let origin =
                 ball.Impulse
                 |> Option.map _.Origin
-                |> Option.defaultValue { X = ball.Position.X; Y = ball.Position.Y; Z = ball.Position.Z }
+                |> Option.defaultValue
+                    { X = ball.Position.X
+                      Y = ball.Position.Y
+                      Z = ball.Position.Z }
 
-            let distance = MatchMath.dist origin.X origin.Y ball.Position.X ball.Position.Y * 1.0<meter>
-            emit (EventData.Pass(passer, Some receiver, distance, quality, false, origin.X, origin.Y, ball.Position.X, ball.Position.Y))
+            let distance =
+                MatchMath.dist origin.X origin.Y ball.Position.X ball.Position.Y * 1.0<meter>
+
+            emit (
+                EventData.Pass(
+                    passer,
+                    Some receiver,
+                    distance,
+                    quality,
+                    false,
+                    origin.X,
+                    origin.Y,
+                    ball.Position.X,
+                    ball.Position.Y
+                )
+            )
+
             resolveTrajectory ()
             emit (EventData.BallLoose(ball.Position.X, ball.Position.Y))
             rng

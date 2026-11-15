@@ -99,6 +99,7 @@ type MatchPitchControl() as this =
 
     let mutable state: PitchBindingState option = None
     let mutable presentation: PresentationLoop option = None
+
     let mutable firstPresented =
         Threading.Tasks.TaskCompletionSource<unit>(Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously)
 
@@ -166,7 +167,12 @@ type MatchPitchControl() as this =
 
     override this.OnAttachedToVisualTree args =
         base.OnAttachedToVisualTree args
-        firstPresented <- Threading.Tasks.TaskCompletionSource<unit>(Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously)
+
+        firstPresented <-
+            Threading.Tasks.TaskCompletionSource<unit>(
+                Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously
+            )
+
         let ready = firstPresented
 
         try
@@ -185,18 +191,28 @@ type MatchPitchControl() as this =
                         | Some value -> value
                         | None ->
                             let matcher =
-                                match MotionMatcher.Create(renderer.MotionDatabase, renderer.CharacterRig, AnimationConfig.defaultConfig, MatchingConfig.defaultConfig) with
+                                match
+                                    MotionMatcher.Create(
+                                        renderer.MotionDatabase,
+                                        renderer.CharacterRig,
+                                        AnimationConfig.defaultConfig,
+                                        MatchingConfig.defaultConfig
+                                    )
+                                with
                                 | Ok matcher -> Some matcher
                                 | Error message ->
                                     // A database that does not fit the rig leaves the procedural body rather than no players.
                                     Diagnostics.Trace.WriteLine($"Motion matching disabled: {message}")
                                     None
 
-                            let value = MotionPaletteEvaluator(renderer.CharacterRig, AnimationConfig.defaultConfig, matcher)
+                            let value =
+                                MotionPaletteEvaluator(renderer.CharacterRig, AnimationConfig.defaultConfig, matcher)
+
                             evaluator <- Some value
                             value
 
                     renderer.SetCamera camera
+
                     match state with
                     | Some state when bounds.Width > 0 && bounds.Height > 0 ->
                         let home = state.Binding.Fixture.Home
@@ -213,12 +229,18 @@ type MatchPitchControl() as this =
                         match currentFrame cache state with
                         | Some(frame, time) ->
                             match activeEvaluator with
-                            | evaluator when state.Stream.MotionRigMatches evaluator.RigHash && evaluator.Evaluate(state.Stream, frame, time) ->
-                                let presented = renderer.Render(bounds, frame, evaluator.Palettes, [||], state.HudStats)
+                            | evaluator when
+                                state.Stream.MotionRigMatches evaluator.RigHash
+                                && evaluator.Evaluate(state.Stream, frame, time)
+                                ->
+                                let presented =
+                                    renderer.Render(bounds, frame, evaluator.Palettes, [||], state.HudStats)
+
                                 if presented && not ready.Task.IsCompleted then
                                     // SurfacePresent queues work; capture readiness must also wait for the first GPU submission.
                                     renderer.WaitForGpu()
                                     ready.TrySetResult(()) |> ignore
+
                                 presented
                             | _ -> false
                         | None -> false

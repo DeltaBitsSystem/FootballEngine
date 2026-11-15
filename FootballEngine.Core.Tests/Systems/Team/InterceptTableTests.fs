@@ -45,7 +45,11 @@ module InterceptTableTests =
                   Expect.equal near 58 "stationary ball closed-form step is exact")
               testCase "a race from a standstill is slower than one at top speed" (fun _ ->
                   let b = ball 10.0<meter> 0.0<meter> 0.0<meterPerSecond> 0.0<meterPerSecond>
-                  let instant = { testParams with PlayerAcceleration = 0.0<meterPerSecondSquared> }
+
+                  let instant =
+                      { testParams with
+                          PlayerAcceleration = 0.0<meterPerSecondSquared> }
+
                   let ramped = InterceptTable.stepsToReach testParams b 0.0<meter> 0.0<meter>
                   Expect.equal (InterceptTable.stepsToReach instant b 0.0<meter> 0.0<meter>) 38 "idealised reach"
                   Expect.isGreaterThan ramped 38 "the acceleration limit costs time")
@@ -104,14 +108,19 @@ module InterceptTableTests =
                       { TestBuilders.emptyBall with
                           Position = ball 2.0<meter> -1.0<meter> (vx * 1.0<meterPerSecond>) (vy * 1.0<meterPerSecond>)
                           Spin =
-                            { X = -vy / radius * 1.0<radianPerSecond>
-                              Y = vx / radius * 1.0<radianPerSecond>
-                              Z = 0.0<radianPerSecond> } }
+                              { X = -vy / radius * 1.0<radianPerSecond>
+                                Y = vx / radius * 1.0<radianPerSecond>
+                                Z = 0.0<radianPerSecond> } }
 
                   for _ in 1..20 do
                       state <- BallDynamics.integrate cfg 0.025 0<subtick> state
 
-                  let predicted = InterceptTable.ballInertiaPoint testParams (ball 2.0<meter> -1.0<meter> (vx * 1.0<meterPerSecond>) (vy * 1.0<meterPerSecond>)) 20
+                  let predicted =
+                      InterceptTable.ballInertiaPoint
+                          testParams
+                          (ball 2.0<meter> -1.0<meter> (vx * 1.0<meterPerSecond>) (vy * 1.0<meterPerSecond>))
+                          20
+
                   let close (a: float) (c: float) = abs (a - c) < 1e-6
                   Expect.isTrue (close (float predicted.X) (float state.Position.X)) "X matches BallDynamics"
                   Expect.isTrue (close (float predicted.Y) (float state.Position.Y)) "Y matches BallDynamics"

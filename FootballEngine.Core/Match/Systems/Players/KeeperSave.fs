@@ -70,10 +70,14 @@ module KeeperSave =
             let kx = float (MatchWorld.posX frame slot)
             let ky = float (MatchWorld.posY frame slot)
             let tick = world.State.Tick
-            let reaction = float cfg.ReactionBase - float cfg.ReactionSkill * float profile.Anticipation / 100.0
+
+            let reaction =
+                float cfg.ReactionBase
+                - float cfg.ReactionSkill * float profile.Anticipation / 100.0
 
             let sinceStrike =
-                float (tick - SimTick.value impulse.ContactTick) / float ctx.Clock.SubTicksPerSecond
+                float (tick - SimTick.value impulse.ContactTick)
+                / float ctx.Clock.SubTicksPerSecond
 
             // Hands are only legal inside his own area; elsewhere he defends a shot with his body like anyone.
             if not (inOwnBox side kx ky) then
@@ -85,7 +89,10 @@ module KeeperSave =
                 | ValueNone -> NotCrossing
                 | ValueSome crossing ->
                     let stature =
-                        if profile.Morphology.Height > 0.0f then float profile.Morphology.Height else 1.88
+                        if profile.Morphology.Height > 0.0f then
+                            float profile.Morphology.Height
+                        else
+                            1.88
 
                     let shoulderZ = float frame.PosZ[slot] + stature * cfg.ShoulderHeightRatio
                     let lateral = crossing.Y - ky

@@ -6,14 +6,16 @@ open FootballEngine.Domain
 
 /// What the world knows about how the user has been playing: the recipe he leans on and how well it works.
 type UserRecipe =
-    { Formation: Formation
-      Instructions: TacticalInstructions
-      /// How many of the study's matches used this recipe.
-      Matches: int
-      /// Points per game the recipe earned.
-      Ppg: float
-      /// Mean play pattern over the matches that used it; matches with no readable pattern are left out.
-      Pattern: PatternVector }
+    {
+        Formation: Formation
+        Instructions: TacticalInstructions
+        /// How many of the study's matches used this recipe.
+        Matches: int
+        /// Points per game the recipe earned.
+        Ppg: float
+        /// Mean play pattern over the matches that used it; matches with no readable pattern are left out.
+        Pattern: PatternVector
+    }
 
 /// The rival coach's plan for the user's fixture, prepared before kickoff and deterministic per fixture:
 /// what the preview shows is what the match gets.
@@ -184,7 +186,9 @@ module GamePlanner =
 
         match preferred with
         | Some f when suit f >= cfg.FormationSuitabilityMin * best -> f
-        | _ -> FormationLineups.all |> List.maxBy (fun f -> suit f, -(List.findIndex ((=) f) FormationLineups.all))
+        | _ ->
+            FormationLineups.all
+            |> List.maxBy (fun f -> suit f, -(List.findIndex ((=) f) FormationLineups.all))
 
     /// The shape that answers an attacking one: a lone holder against trios up front, a flat four against a crowded middle.
     let private counterFormation (recipe: Formation) : Formation =
@@ -293,7 +297,9 @@ module GamePlanner =
                 let counterDraw, _ = Rng.double r2
 
                 let table =
-                    FormationLineups.all |> List.map (fun f -> f, squadSuitability players f) |> Map.ofList
+                    FormationLineups.all
+                    |> List.map (fun f -> f, squadSuitability players f)
+                    |> Map.ofList
 
                 let suit f = table[f]
                 let best = table |> Map.values |> Seq.max
@@ -329,7 +335,8 @@ module GamePlanner =
                         let revenge =
                             rival
                             |> Option.exists (fun r ->
-                                coach.Mind.Pride >= cfg.RevengePrideMin && r.LastMargin <= -cfg.HumiliationMargin)
+                                coach.Mind.Pride >= cfg.RevengePrideMin
+                                && r.LastMargin <= -cfg.HumiliationMargin)
 
                         match recipe with
                         | _ when revenge -> identity, shifted cfg.RevengeShift identityInstructions, Revenge
@@ -342,8 +349,10 @@ module GamePlanner =
                             let wanted = counterFormation r.Formation
 
                             let shape =
-                                if intensity >= cfg.CounterFormationIntensity
-                                   && suit wanted >= cfg.FormationSuitabilityMin * best then
+                                if
+                                    intensity >= cfg.CounterFormationIntensity
+                                    && suit wanted >= cfg.FormationSuitabilityMin * best
+                                then
                                     wanted
                                 else
                                     identity
@@ -395,7 +404,11 @@ module GamePlanner =
             |> Option.bind (fun coach -> prepare cfg (seedFor gs fixture coach.Id) gs fixture clubId))
 
     /// Writes each plan into the rival's own coach; the managed club and every fixture without the user are left alone.
-    let prepareForFixtures (cfg: RivalManagerConfig) (fixtures: (MatchId * MatchFixture) list) (gs: GameState) : GameState =
+    let prepareForFixtures
+        (cfg: RivalManagerConfig)
+        (fixtures: (MatchId * MatchFixture) list)
+        (gs: GameState)
+        : GameState =
         (gs, fixtures)
         ||> List.fold (fun state (_, fixture) ->
             match rivalOf state fixture with
@@ -405,9 +418,7 @@ module GamePlanner =
                 | Some coach, Some(lineup, note) ->
                     let planned =
                         { Staff.setLineup (Some lineup) coach with
-                            Mind =
-                                { coach.Mind with
-                                    LastPlan = Some note } }
+                            Mind = { coach.Mind with LastPlan = Some note } }
 
                     GameState.updateStaff planned state
                 | _ -> state)

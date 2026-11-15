@@ -16,11 +16,26 @@ module QuickMatch =
           Injured: Set<FootballEngine.Domain.PlayerId> }
 
     let private attributes (p: PlayerProfile) =
-        [| p.Pace; p.Strength; p.Stamina; p.Agility; p.Vision; p.Passing; p.Finishing; p.Crossing; p.Dribbling
-           p.Tackling; p.Marking; p.Positioning; p.Anticipation; p.Composure; p.Teamwork; p.DecisionMaking |]
+        [| p.Pace
+           p.Strength
+           p.Stamina
+           p.Agility
+           p.Vision
+           p.Passing
+           p.Finishing
+           p.Crossing
+           p.Dribbling
+           p.Tackling
+           p.Marking
+           p.Positioning
+           p.Anticipation
+           p.Composure
+           p.Teamwork
+           p.DecisionMaking |]
 
     let private starters (lineup: Lineup) =
-        lineup.Profiles |> Array.truncate (min lineup.StarterCount lineup.Profiles.Length)
+        lineup.Profiles
+        |> Array.truncate (min lineup.StarterCount lineup.Profiles.Length)
 
     /// Mean attribute of the starting eleven, on the engine's 0..100 scale.
     let strength (lineup: Lineup) : float =
@@ -102,7 +117,12 @@ module QuickMatch =
     let simulate (ctx: MatchContext) (seed: uint64) : Played =
         let cfg = ctx.Config.QuickMatch
         let mutable rng = Rng.ofSeed seed
-        let draw f = let value, next = f rng in rng <- next; value
+
+        let draw f =
+            let value, next = f rng in
+            rng <- next
+            value
+
         let events = ResizeArray<MatchEvent>()
         let at minute = minute * SimulationClock.minuteSubticks
         let home = sideOf ClubSide.Home ctx.HomeLineup
@@ -123,7 +143,14 @@ module QuickMatch =
 
             for k in 0 .. count - 1 do
                 let incoming = starterCount + k
-                let outfield = [| for slot in 0 .. starterCount - 1 -> if side.Lineup.Profiles[slot].IsGK || replaced.Contains slot then 0.0 else 1.0 |]
+
+                let outfield =
+                    [| for slot in 0 .. starterCount - 1 ->
+                           if side.Lineup.Profiles[slot].IsGK || replaced.Contains slot then
+                               0.0
+                           else
+                               1.0 |]
+
                 let outgoing = draw (pick outfield)
                 let minute = draw (Rng.intIn cfg.FirstSubstitutionMinute 89)
                 replaced.Add outgoing |> ignore
@@ -132,31 +159,46 @@ module QuickMatch =
 
                 events.Add
                     { Tick = at minute
-                      Data = EventData.Substitution(side.Lineup.Profiles[outgoing].Id, side.Lineup.Profiles[incoming].Id) }
+                      Data =
+                        EventData.Substitution(side.Lineup.Profiles[outgoing].Id, side.Lineup.Profiles[incoming].Id) }
 
         let onPitch (side: Side) slot = side.Minutes[slot] > 0
 
         let weighted (side: Side) (weight: PlayerProfile -> float) =
-            side.Lineup.Profiles |> Array.mapi (fun slot p -> if onPitch side slot then weight p * float side.Minutes[slot] else 0.0)
+            side.Lineup.Profiles
+            |> Array.mapi (fun slot p ->
+                if onPitch side slot then
+                    weight p * float side.Minutes[slot]
+                else
+                    0.0)
 
         let score (side: Side) goals =
-            let scorers = weighted side (fun p -> roleWeight cfg.ScorerByRole p.Role * float p.Finishing / 100.0)
+            let scorers =
+                weighted side (fun p -> roleWeight cfg.ScorerByRole p.Role * float p.Finishing / 100.0)
 
-            for _ in 1 .. goals do
+            for _ in 1..goals do
                 let scorer = draw (pick scorers)
                 let minute = draw (Rng.intIn 1 90)
-                side.Stats[scorer] <- { side.Stats[scorer] with GoalsScored = side.Stats[scorer].GoalsScored + 1 }
+
+                side.Stats[scorer] <-
+                    { side.Stats[scorer] with
+                        GoalsScored = side.Stats[scorer].GoalsScored + 1 }
 
                 let assist =
                     if draw (Rng.bernoulli cfg.AssistedShare) then
                         let assisters =
-                            weighted side (fun p -> roleWeight cfg.AssistByRole p.Role * float (p.Passing + p.Vision) / 200.0)
+                            weighted side (fun p ->
+                                roleWeight cfg.AssistByRole p.Role * float (p.Passing + p.Vision) / 200.0)
 
                         assisters[scorer] <- 0.0
 
                         if Array.sum assisters > 0.0 then
                             let assister = draw (pick assisters)
-                            side.Stats[assister] <- { side.Stats[assister] with AssistsGiven = side.Stats[assister].AssistsGiven + 1 }
+
+                            side.Stats[assister] <-
+                                { side.Stats[assister] with
+                                    AssistsGiven = side.Stats[assister].AssistsGiven + 1 }
+
                             Some side.Lineup.Profiles[assister].Id
                         else
                             None
@@ -168,21 +210,37 @@ module QuickMatch =
                       Data = EventData.Goal(side.Club, Some side.Lineup.Profiles[scorer].Id, assist, 0.0) }
 
         let discipline (side: Side) =
-            let aggression = weighted side (fun p -> cfg.CalmFoulShare + float p.Aggression / 100.0)
+            let aggression =
+                weighted side (fun p -> cfg.CalmFoulShare + float p.Aggression / 100.0)
 
             for _ in 1 .. draw (poisson cfg.FoulsPerTeam) do
                 let fouler = draw (pick aggression)
-                side.Stats[fouler] <- { side.Stats[fouler] with FoulsCommitted = side.Stats[fouler].FoulsCommitted + 1 }
+
+                side.Stats[fouler] <-
+                    { side.Stats[fouler] with
+                        FoulsCommitted = side.Stats[fouler].FoulsCommitted + 1 }
 
             for _ in 1 .. draw (poisson cfg.YellowsPerTeam) do
                 let player = draw (pick aggression)
-                side.Stats[player] <- { side.Stats[player] with YellowCards = side.Stats[player].YellowCards + 1 }
-                events.Add { Tick = at (draw (Rng.intIn 1 90)); Data = EventData.Card(side.Lineup.Profiles[player].Id, CardColor.Yellow) }
+
+                side.Stats[player] <-
+                    { side.Stats[player] with
+                        YellowCards = side.Stats[player].YellowCards + 1 }
+
+                events.Add
+                    { Tick = at (draw (Rng.intIn 1 90))
+                      Data = EventData.Card(side.Lineup.Profiles[player].Id, CardColor.Yellow) }
 
             for _ in 1 .. draw (poisson cfg.RedsPerTeam) do
                 let player = draw (pick aggression)
-                side.Stats[player] <- { side.Stats[player] with RedCards = side.Stats[player].RedCards + 1 }
-                events.Add { Tick = at (draw (Rng.intIn 1 90)); Data = EventData.Card(side.Lineup.Profiles[player].Id, CardColor.Red) }
+
+                side.Stats[player] <-
+                    { side.Stats[player] with
+                        RedCards = side.Stats[player].RedCards + 1 }
+
+                events.Add
+                    { Tick = at (draw (Rng.intIn 1 90))
+                      Data = EventData.Card(side.Lineup.Profiles[player].Id, CardColor.Red) }
 
             let prone = weighted side (fun p -> cfg.RobustInjuryShare + float p.InjuryProne)
 
@@ -190,7 +248,10 @@ module QuickMatch =
                 let player = draw (pick prone)
                 let id = side.Lineup.Profiles[player].Id
                 injured.Add(domainId id) |> ignore
-                events.Add { Tick = at (draw (Rng.intIn 1 90)); Data = EventData.Injury(id, 1) }
+
+                events.Add
+                    { Tick = at (draw (Rng.intIn 1 90))
+                      Data = EventData.Injury(id, 1) }
 
         substitute home
         substitute away
@@ -204,7 +265,9 @@ module QuickMatch =
 
         let finish (side: Side) =
             side.Stats
-            |> Array.mapi (fun slot stats -> { stats with MinutesPlayed = side.Minutes[slot] })
+            |> Array.mapi (fun slot stats ->
+                { stats with
+                    MinutesPlayed = side.Minutes[slot] })
             |> Array.filter (fun stats -> stats.MinutesPlayed > 0)
 
         { HomeScore = homeGoals

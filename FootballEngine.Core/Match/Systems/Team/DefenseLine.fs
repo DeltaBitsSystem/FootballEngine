@@ -15,7 +15,9 @@ module DefenseLine =
 
         for slot in MatchWorld.activeSlots frame do
             if slot <> 0 then
-                let distance = MatchMath.dist (MatchWorld.posX frame slot) (MatchWorld.posY frame slot) own 0.0<meter>
+                let distance =
+                    MatchMath.dist (MatchWorld.posX frame slot) (MatchWorld.posY frame slot) own 0.0<meter>
+
                 if distance < firstDistance then
                     second <- first
                     secondDistance <- firstDistance

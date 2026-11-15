@@ -7,7 +7,8 @@ open System.Numerics
 /// whenever the identity changes, and every frame each cluster picks its level of detail from the camera.
 [<Sealed>]
 type StadiumSystem
-    private (context: GpuContext, kit: StadiumKitData, kitMesh: GpuMesh, instances: GpuBuffer<Vector4>, seatPiece: int) =
+    private (context: GpuContext, kit: StadiumKitData, kitMesh: GpuMesh, instances: GpuBuffer<Vector4>, seatPiece: int)
+    =
     let mutable generated: GpuMesh option = None
     let mutable build: StadiumBuild option = None
     let mutable staticDraws: Draw<GpuMesh> list = []
@@ -79,7 +80,9 @@ type StadiumSystem
             match build with
             | None -> ()
             | Some current ->
-                let batches = StadiumGeometry.batches kit current scene.Camera.Position scene.Camera.ViewProjection
+                let batches =
+                    StadiumGeometry.batches kit current scene.Camera.Position scene.Camera.ViewProjection
+
                 let opaque = ResizeArray<Draw<GpuMesh>>()
                 let blended = ResizeArray<Draw<GpuMesh>>()
 

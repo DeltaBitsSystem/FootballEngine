@@ -382,20 +382,42 @@ module MatchOutcome =
                     outcomes
                     |> Array.fold
                         (fun seeds outcome ->
-                            seeds |> Map.add outcome.FixtureId (MatchContextBuilder.seedOf gs.ExecutionSeed outcome.FixtureId))
-                        gs.MatchSeeds }, outcomes)
+                            seeds
+                            |> Map.add
+                                outcome.FixtureId
+                                (MatchContextBuilder.seedOf gs.ExecutionSeed outcome.FixtureId))
+                        gs.MatchSeeds },
+             outcomes)
             ||> Array.fold (fun acc o ->
                 updateAfterMatch o.HomeScore o.AwayScore o.Fixture.HomeClubId o.Fixture.AwayClubId acc)
 
         let withUpdatedExperiences =
             outcomes
-            |> Array.fold (fun acc outcome ->
-                let updated = updatePlayerExperiences acc outcome
-                let merge clubId side (state: GameState) =
-                    { state with Clubs = state.Clubs |> Map.change clubId (Option.map (fun club ->
-                                { club with CoordinationMemory =
-                                                { club.CoordinationMemory with AttackLearning = AttackLearning.applyEvents attackConfig side club.CoordinationMemory.AttackLearning outcome.Fixture.Events } })) }
-                updated |> merge outcome.Fixture.HomeClubId ClubSide.Home |> merge outcome.Fixture.AwayClubId ClubSide.Away) withUpdatedMorale
+            |> Array.fold
+                (fun acc outcome ->
+                    let updated = updatePlayerExperiences acc outcome
+
+                    let merge clubId side (state: GameState) =
+                        { state with
+                            Clubs =
+                                state.Clubs
+                                |> Map.change
+                                    clubId
+                                    (Option.map (fun club ->
+                                        { club with
+                                            CoordinationMemory =
+                                                { club.CoordinationMemory with
+                                                    AttackLearning =
+                                                        AttackLearning.applyEvents
+                                                            attackConfig
+                                                            side
+                                                            club.CoordinationMemory.AttackLearning
+                                                            outcome.Fixture.Events } })) }
+
+                    updated
+                    |> merge outcome.Fixture.HomeClubId ClubSide.Home
+                    |> merge outcome.Fixture.AwayClubId ClubSide.Away)
+                withUpdatedMorale
 
         // Every fixture is a meeting between two coaches, engine or background alike; each remembers it from his side.
         let withRivalries =
@@ -448,8 +470,7 @@ module MatchOutcome =
                         |> Seq.fold (fun acc pid -> applyInjury acc severityByPlayer pid) players)
                     withRivalries.Players
 
-            { withRivalries with
-                Players = players }
+            { withRivalries with Players = players }
 
     let private freshLoadOutcomes (outcomes: FixtureOutcome[]) (gs: GameState) : FixtureOutcome[] =
         let seen = System.Collections.Generic.HashSet<MatchId>()
@@ -605,7 +626,8 @@ module MatchPhase =
             GameState.getLineup userClub gs
             |> Option.map (fun lineup ->
                 let instructions =
-                    lineup.Instructions |> Option.defaultValue TacticalInstructions.defaultInstructions
+                    lineup.Instructions
+                    |> Option.defaultValue TacticalInstructions.defaultInstructions
 
                 let clubOfEnginePlayer (FootballEngine.Core.Match.PlayerId n) =
                     gs.Players |> Map.tryFind n |> Option.bind Player.clubOf
@@ -642,7 +664,11 @@ module MatchPhase =
         | _, None -> None
         | Ok effective, Some ctx ->
             let input =
-                MatchInput.create (uint64 fixtureId) (MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId) effective ctx
+                MatchInput.create
+                    (uint64 fixtureId)
+                    (MatchContextBuilder.seedOf gs.ExecutionSeed fixtureId)
+                    effective
+                    ctx
 
             match MatchAdapter.runOutcome Scheduler.systems input [] with
             | Error _ -> None
@@ -716,7 +742,8 @@ module MatchPhase =
         | Some club -> MatchFixture.involves club
 
     let simulateFixtureWithBalance balance fixtureId fixture gs : FixtureOutcome option =
-        simulateFixtureExecutionWithBalance balance fixtureId fixture gs |> Option.map fst
+        simulateFixtureExecutionWithBalance balance fixtureId fixture gs
+        |> Option.map fst
 
     let simulateFixture (fixtureId: MatchId) (fixture: MatchFixture) (gs: GameState) : FixtureOutcome option =
         let balance = WeightMergeSettings.mergeWithOverridesSave None
@@ -733,14 +760,24 @@ module MatchPhase =
         simulateFixtureWithBalance balance fixtureId fixture gs
 
     /// The engine for the user's own fixtures, the background model for every other one.
-    let simulateFixtureForWorldWithBalance (balance: BalanceConfig) (fixtureId: MatchId) (fixture: MatchFixture) (gs: GameState) =
+    let simulateFixtureForWorldWithBalance
+        (balance: BalanceConfig)
+        (fixtureId: MatchId)
+        (fixture: MatchFixture)
+        (gs: GameState)
+        =
         if playsOnEngine gs fixture then
             simulateFixtureExecutionWithBalance balance fixtureId fixture gs
         else
             simulateFixtureQuickWithBalance balance fixtureId fixture gs
 
-    let runFixtureExecutionsWithBalance (balance: BalanceConfig) (fixtures: (MatchId * MatchFixture) list) (state: GameState) =
+    let runFixtureExecutionsWithBalance
+        (balance: BalanceConfig)
+        (fixtures: (MatchId * MatchFixture) list)
+        (state: GameState)
+        =
         let config = balance
+
         let gsReady =
             state
             |> FootballEngine.World.Agents.GamePlanner.prepareForFixtures balance.RivalManager fixtures
@@ -754,9 +791,14 @@ module MatchPhase =
 
         // A background result carries no passes or patterns: pressing coordination and scouting learn nothing from it.
         let hasEvidence (o: FixtureOutcome) =
-            o.Fixture.Events |> List.exists (fun e -> match e.Data with EventData.Pass _ -> true | _ -> false)
+            o.Fixture.Events
+            |> List.exists (fun e ->
+                match e.Data with
+                | EventData.Pass _ -> true
+                | _ -> false)
 
-        let outcomes = freshOutcomes (fixtureToCompMap gsReady) (executions |> Array.map fst) gsReady
+        let outcomes =
+            freshOutcomes (fixtureToCompMap gsReady) (executions |> Array.map fst) gsReady
 
         let afterOutcomes =
             applyPostMatchLoad balance.Training outcomes gsReady
@@ -895,16 +937,21 @@ module MatchPhase =
             ||> Array.fold (fun gs o ->
                 if hasEvidence o then
                     match userMatchRecord config.Scout gsReady o.Fixture o.HomeScore o.AwayScore o.Fixture.Events with
-                    | Some record -> FootballEngine.World.Agents.GamePlanner.recordUserMatch config.RivalManager record gs
+                    | Some record ->
+                        FootballEngine.World.Agents.GamePlanner.recordUserMatch config.RivalManager record gs
                     | None -> gs
                 else
                     gs)
 
         let acceptedIds = outcomes |> Array.map _.FixtureId |> Set.ofArray
+
         let acceptedInputs =
             executions
             |> Array.choose (fun (outcome, input) ->
-                if Set.contains outcome.FixtureId acceptedIds && GameState.isUserFixture state outcome.Fixture then
+                if
+                    Set.contains outcome.FixtureId acceptedIds
+                    && GameState.isUserFixture state outcome.Fixture
+                then
                     Some(outcome.FixtureId, (MatchInput.snapshot input, []))
                 else
                     None)

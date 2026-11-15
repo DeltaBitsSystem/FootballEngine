@@ -246,7 +246,10 @@ type WebGpuStadiumRenderer
 
         resources <- Some(owner.Own(unwrap (SceneResources.Create(ctx, cache, inputs))))
         // The pixels now live on the GPU; holding the CPU copy would keep ~110 MB alive for the whole match.
-        assets <- { assets with KitTextures = KitTextureData.empty }
+        assets <-
+            { assets with
+                KitTextures = KitTextureData.empty }
+
         hud <- Some(owner.Own(unwrap (HudOverlay.Create(ctx, cache))))
         unwrap (hud.Value.Resize(width, height))
 

@@ -24,39 +24,41 @@ type UserMatchRecord =
       GoalsAgainst: int }
 
 type GameState =
-    { ExecutionSeed: uint64
-      MatchSeeds: Map<MatchId, uint64>
-      CurrentDate: DateTime
-      Season: int
-      TrainingWeeksApplied: int
-      Clubs: Map<ClubId, Club>
-      Players: Map<PlayerId, Player>
-      Staff: Map<StaffId, Staff>
-      Competitions: Map<CompetitionId, Competition>
-      Countries: Map<CountryCode, CountryData>
-      DataLock: DataLock
-      UserClubId: ClubId
-      UserStaffId: StaffId
-      PrimaryCountry: CountryCode
-      Inbox: InboxMessage list
-      NextInboxId: int
-      PendingNegotiations: Map<int, Negotiation>
-      NextNegotiationId: int
-      Market: MarketState
-      ProfileCache: Map<PlayerId, BehavioralProfile>
-      PlayerExperiences: Map<PlayerId, PlayerExperience>
-      TeamEmphasis: TeamEmphasis
-      SeasonHistory: SeasonRecord list
-      CareerHistory: ManagerCareerEvent list
-      News: NewsItem list
-      NextNewsId: int
-      /// Played fixtures the pulse already absorbed; results can be committed after the day they are scheduled.
-      PulseProcessed: Set<MatchId>
-      PulseQueues: PulseQueues
-      JobOffers: JobOffer list
-      NextJobOfferId: int
-      /// The user's last engine matches, newest first, capped at the configured study window.
-      UserStudy: UserMatchRecord list }
+    {
+        ExecutionSeed: uint64
+        MatchSeeds: Map<MatchId, uint64>
+        CurrentDate: DateTime
+        Season: int
+        TrainingWeeksApplied: int
+        Clubs: Map<ClubId, Club>
+        Players: Map<PlayerId, Player>
+        Staff: Map<StaffId, Staff>
+        Competitions: Map<CompetitionId, Competition>
+        Countries: Map<CountryCode, CountryData>
+        DataLock: DataLock
+        UserClubId: ClubId
+        UserStaffId: StaffId
+        PrimaryCountry: CountryCode
+        Inbox: InboxMessage list
+        NextInboxId: int
+        PendingNegotiations: Map<int, Negotiation>
+        NextNegotiationId: int
+        Market: MarketState
+        ProfileCache: Map<PlayerId, BehavioralProfile>
+        PlayerExperiences: Map<PlayerId, PlayerExperience>
+        TeamEmphasis: TeamEmphasis
+        SeasonHistory: SeasonRecord list
+        CareerHistory: ManagerCareerEvent list
+        News: NewsItem list
+        NextNewsId: int
+        /// Played fixtures the pulse already absorbed; results can be committed after the day they are scheduled.
+        PulseProcessed: Set<MatchId>
+        PulseQueues: PulseQueues
+        JobOffers: JobOffer list
+        NextJobOfferId: int
+        /// The user's last engine matches, newest first, capped at the configured study window.
+        UserStudy: UserMatchRecord list
+    }
 
 module GameState =
 

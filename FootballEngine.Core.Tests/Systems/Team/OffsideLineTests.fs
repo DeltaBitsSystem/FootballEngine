@@ -75,9 +75,21 @@ module OffsideLineTests =
               testCase "the offside line is the last outfield defender, whichever way the attack goes" (fun _ ->
                   let world = TestBuilders.formationWorld ()
                   setPosX world.Away.Frame 1 [| 30.0f; 40.0f; 45.0f; 35.0f; 25.0f; 15.0f; 10.0f; 5.0f; 0.0f; -5.0f |]
-                  setPosX world.Home.Frame 1 [| -30.0f; -40.0f; -45.0f; -35.0f; -25.0f; -15.0f; -10.0f; -5.0f; 0.0f; 5.0f |]
-                  Expect.equal (MatchWorld.offsideLine ctx world ClubSide.Home) 45.0<meter> "home attack: the deepest away outfielder"
-                  Expect.equal (MatchWorld.offsideLine ctx world ClubSide.Away) -45.0<meter> "away attack: the deepest home outfielder")
+
+                  setPosX
+                      world.Home.Frame
+                      1
+                      [| -30.0f; -40.0f; -45.0f; -35.0f; -25.0f; -15.0f; -10.0f; -5.0f; 0.0f; 5.0f |]
+
+                  Expect.equal
+                      (MatchWorld.offsideLine ctx world ClubSide.Home)
+                      45.0<meter>
+                      "home attack: the deepest away outfielder"
+
+                  Expect.equal
+                      (MatchWorld.offsideLine ctx world ClubSide.Away)
+                      -45.0<meter>
+                      "away attack: the deepest home outfielder")
 
               testCase "the offside line never enters the attacker's own half" (fun _ ->
                   let world = TestBuilders.formationWorld ()

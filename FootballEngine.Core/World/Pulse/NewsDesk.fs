@@ -39,7 +39,8 @@ module NewsDesk =
         | NewsScope.World -> config.DailyBudgetWorld
 
     let private kindCase (kind: NewsKind) =
-        Reflection.FSharpValue.GetUnionFields(kind, typeof<NewsKind>) |> fun (case, _) -> case.Tag
+        Reflection.FSharpValue.GetUnionFields(kind, typeof<NewsKind>)
+        |> fun (case, _) -> case.Tag
 
     let private primary (clubs: ClubId list) (players: PlayerId list) =
         match players, clubs with

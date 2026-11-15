@@ -109,24 +109,29 @@ module MotionDatabaseTests =
                   match MotionDatabase.read spin with
                   | Error(InvalidClip(_, reason)) -> Expect.stringContains reason "yaw" "half-turn in one frame"
                   | other -> failtestf "yaw discontinuity accepted: %A" other)
-              testCase "the shipped database drives joints that exist in the player rig, with provenance per clip" (fun _ ->
-                  let db = shipped.Force()
-                  let model = SharpGLTF.Schema2.ModelRoot.Load(Path.Combine(assetDirectory, "player.glb"))
-                  let rigJoints = model.LogicalSkins[0].Joints |> Seq.map _.Name |> Set.ofSeq
+              testCase
+                  "the shipped database drives joints that exist in the player rig, with provenance per clip"
+                  (fun _ ->
+                      let db = shipped.Force()
 
-                  for joint in db.DrivenJoints do
-                      Expect.isTrue (rigJoints.Contains joint) $"driven joint {joint} exists in the rig"
+                      let model =
+                          SharpGLTF.Schema2.ModelRoot.Load(Path.Combine(assetDirectory, "player.glb"))
 
-                  Expect.equal db.RateHz 60 "display-rate sampling"
-                  Expect.isGreaterThanOrEqual db.FrameCount 30000 "enough poses for matching"
+                      let rigJoints = model.LogicalSkins[0].Joints |> Seq.map _.Name |> Set.ofSeq
 
-                  for clip in db.Clips do
-                      Expect.stringStarts clip.Source "CMU " $"{clip.Name} names its capture source"
+                      for joint in db.DrivenJoints do
+                          Expect.isTrue (rigJoints.Contains joint) $"driven joint {joint} exists in the rig"
 
-                  let families = db.Clips |> Array.map _.Family |> Set.ofArray
+                      Expect.equal db.RateHz 60 "display-rate sampling"
+                      Expect.isGreaterThanOrEqual db.FrameCount 30000 "enough poses for matching"
 
-                  for family in [ "locomotion"; "footwork"; "walking"; "kick"; "reach" ] do
-                      Expect.isTrue (families.Contains family) $"family {family} is covered")
+                      for clip in db.Clips do
+                          Expect.stringStarts clip.Source "CMU " $"{clip.Name} names its capture source"
+
+                      let families = db.Clips |> Array.map _.Family |> Set.ofArray
+
+                      for family in [ "locomotion"; "footwork"; "walking"; "kick"; "reach" ] do
+                          Expect.isTrue (families.Contains family) $"family {family} is covered")
               testCase "the shipped capture has no source flips and a root that does not sway with the stride" (fun _ ->
                   // Faster than ~2400 deg/s between 60 Hz frames no joint moves, kicking knees included: such a step
                   // is an Euler wrap or marker swap that the pose would show as a one-frame twist.
@@ -136,9 +141,15 @@ module MotionDatabaseTests =
                   for clip in db.Clips do
                       for frame = clip.Start + 1 to clip.Start + clip.Count - 1 do
                           for joint = 0 to joints - 1 do
-                              let dot = abs (Quaternion.Dot(db.Rotation(frame - 1, joint), db.Rotation(frame, joint)))
+                              let dot =
+                                  abs (Quaternion.Dot(db.Rotation(frame - 1, joint), db.Rotation(frame, joint)))
+
                               let degrees = 2.0 * Math.Acos(min 1.0 (float dot)) * 180.0 / Math.PI
-                              Expect.isLessThan degrees 40.0 $"{clip.Name} {db.DrivenJoints[joint]} frame {frame - clip.Start}"
+
+                              Expect.isLessThan
+                                  degrees
+                                  40.0
+                                  $"{clip.Name} {db.DrivenJoints[joint]} frame {frame - clip.Start}"
 
                   // Straight running: the root heading follows the path, so its spread stays well under the pelvis swing.
                   for name in [ "16_45"; "09_01"; "35_22" ] do
@@ -160,7 +171,7 @@ module MotionDatabaseTests =
 
                       if clip.Family = "locomotion" && speed > 3.0f then
                           checkedClips <- checkedClips + 1
-                          let frames = [| clip.Start..last |]
+                          let frames = [| clip.Start .. last |]
 
                           for bit, foot in [ 1uy, "left"; 2uy, "right" ] do
                               let planted = frames |> Array.map (fun f -> db.Contacts[f] &&& bit <> 0uy)
@@ -168,22 +179,33 @@ module MotionDatabaseTests =
                               let mutable start = -1
 
                               for i = 0 to planted.Length - 1 do
-                                  if planted[i] && start < 0 then start <- i
+                                  if planted[i] && start < 0 then
+                                      start <- i
+
                                   if not planted[i] && start >= 0 then
                                       stances.Add(start, i)
                                       start <- -1
 
-                              if start >= 0 then stances.Add(start, planted.Length)
+                              if start >= 0 then
+                                  stances.Add(start, planted.Length)
+
                               Expect.isGreaterThan stances.Count 0 $"{clip.Name}: the {foot} foot plants at least once"
 
                               for first, past in stances do
                                   // Stances cut by the clip edges are partial and say nothing about duration.
                                   if first > 0 && past < planted.Length then
                                       let seconds = float (past - first) / float db.RateHz
-                                      Expect.isTrue (seconds >= 0.05 && seconds <= 0.45) $"{clip.Name}: {foot} stance of {seconds:F2} s"
 
-                          let both = frames |> Array.averageBy (fun f -> if db.Contacts[f] = 3uy then 1.0 else 0.0)
-                          let flight = frames |> Array.averageBy (fun f -> if db.Contacts[f] = 0uy then 1.0 else 0.0)
+                                      Expect.isTrue
+                                          (seconds >= 0.05 && seconds <= 0.45)
+                                          $"{clip.Name}: {foot} stance of {seconds:F2} s"
+
+                          let both =
+                              frames |> Array.averageBy (fun f -> if db.Contacts[f] = 3uy then 1.0 else 0.0)
+
+                          let flight =
+                              frames |> Array.averageBy (fun f -> if db.Contacts[f] = 0uy then 1.0 else 0.0)
+
                           Expect.isLessThan both 0.25 $"{clip.Name}: a run has almost no double support"
                           Expect.isGreaterThan flight 0.05 $"{clip.Name}: a run has flight phases"
 

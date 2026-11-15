@@ -105,7 +105,15 @@ module BallFootContact =
     let withdrawTouch (world: World) =
         match world.State.Ball.AnnouncedTouch with
         | ValueSome announced ->
-            publish world announced.TaskId MotionEvidencePhase.Cancelled announced.Motion (vector announced.Motion.Point) ValueNone ValueNone
+            publish
+                world
+                announced.TaskId
+                MotionEvidencePhase.Cancelled
+                announced.Motion
+                (vector announced.Motion.Point)
+                ValueNone
+                ValueNone
+
             MatchWorld.updateBall world (fun ball -> { ball with AnnouncedTouch = ValueNone })
         | ValueNone -> ()
 
@@ -114,7 +122,10 @@ module BallFootContact =
         withdrawTouch world
         let taskId = world.Motion.NextSequence
         publish world taskId MotionEvidencePhase.Prepared motion (vector motion.Point) ValueNone ValueNone
-        MatchWorld.updateBall world (fun ball -> { ball with AnnouncedTouch = ValueSome { TaskId = taskId; Motion = motion } })
+
+        MatchWorld.updateBall world (fun ball ->
+            { ball with
+                AnnouncedTouch = ValueSome { TaskId = taskId; Motion = motion } })
 
     /// Contact point on the ball's rear surface for a ball centred at (x, y) leaving along (vx, vy).
     let rearPoint (cfg: BallConfig) (x: float) (y: float) (vx: float) (vy: float) : Vec3 =
@@ -206,7 +217,18 @@ module BallFootContact =
                 { Tick = world.State.Tick
                   Data = EventData.FootStrikeCancelled impulse.ActorId }
 
-    let recordTouch (ctx: SystemContext) (world: World) (buffer: EventBuffer) side slot touchFoot kind (vx: float) (vy: float) (outgoingVz: float) =
+    let recordTouch
+        (ctx: SystemContext)
+        (world: World)
+        (buffer: EventBuffer)
+        side
+        slot
+        touchFoot
+        kind
+        (vx: float)
+        (vy: float)
+        (outgoingVz: float)
+        =
         let actor = (MatchWorld.profileOf ctx.Ctx side slot).Id
         let cfg = ctx.Ctx.Config.Ball
 
@@ -224,7 +246,11 @@ module BallFootContact =
               Point =
                 match kind with
                 | FootTouchKind.Carry ->
-                    point cfg world.State.Ball (float world.State.Ball.Position.Vx + vx) (float world.State.Ball.Position.Vy + vy)
+                    point
+                        cfg
+                        world.State.Ball
+                        (float world.State.Ball.Position.Vx + vx)
+                        (float world.State.Ball.Position.Vy + vy)
                 | _ -> point cfg world.State.Ball vx vy
               BallCenter = centre world.State.Ball }
 
@@ -234,7 +260,9 @@ module BallFootContact =
         let struct (taskId, motion) =
             match world.State.Ball.AnnouncedTouch with
             | ValueSome announced when
-                announced.Motion.Actor = actor && announced.Motion.Foot = touchFoot && kind = FootTouchKind.Carry
+                announced.Motion.Actor = actor
+                && announced.Motion.Foot = touchFoot
+                && kind = FootTouchKind.Carry
                 ->
                 MatchWorld.updateBall world (fun ball -> { ball with AnnouncedTouch = ValueNone })
                 let aimed = announced.Motion
@@ -312,13 +340,19 @@ module BallFootContact =
                         let flight distance =
                             if groundPass then
                                 let solved =
-                                    BallAero.pass cfg.Ball cfg.Actions.PassArrivalSpeed cfg.Actions.PassArrivalSpeedGain distance
+                                    BallAero.pass
+                                        cfg.Ball
+                                        cfg.Actions.PassArrivalSpeed
+                                        cfg.Actions.PassArrivalSpeedGain
+                                        distance
 
                                 solved.Seconds, solved.LaunchSpeed
                             else
                                 distance / speed, speed
 
-                        let distanceTo x y = sqrt ((x - float origin.X) ** 2.0 + (y - float origin.Y) ** 2.0)
+                        let distanceTo x y =
+                            sqrt ((x - float origin.X) ** 2.0 + (y - float origin.Y) ** 2.0)
+
                         let mutable flightSeconds, launchSpeed = flight (distanceTo receiverX receiverY)
                         let mutable targetX = receiverX
                         let mutable targetY = receiverY
@@ -335,9 +369,12 @@ module BallFootContact =
                               Y = targetY * 1.0<meter> }
 
                         let travelTicks =
-                            max 1 (int (ceil (flightSeconds * float ctx.Clock.SubTicksPerSecond))) * 1<subtick>
+                            max 1 (int (ceil (flightSeconds * float ctx.Clock.SubTicksPerSecond)))
+                            * 1<subtick>
 
-                        Some target, Some(world.State.Tick + travelTicks), (if groundPass then Some launchSpeed else None)
+                        Some target,
+                        Some(world.State.Tick + travelTicks),
+                        (if groundPass then Some launchSpeed else None)
                     else
                         unchanged
                 | ValueNone -> unchanged
@@ -358,7 +395,10 @@ module BallFootContact =
                     | BallControl.Controlled(_, actor) -> actor = announced.Motion.Actor
                     | _ -> false
 
-                if not controlled || tick > announced.Motion.ContactAt + ctx.Ctx.Config.Ball.CarryTouchInterval then
+                if
+                    not controlled
+                    || tick > announced.Motion.ContactAt + ctx.Ctx.Config.Ball.CarryTouchInterval
+                then
                     withdrawTouch world
             | ValueNone -> ()
 
@@ -395,12 +435,17 @@ module BallFootContact =
                     let predicted = vector motion.Point
                     let old = pending.Impulse
                     let origin = world.State.Ball.Position
-                    let intendedTarget, arrivalGate, solvedSpeed = liveAimedTarget ctx world pending origin old
+
+                    let intendedTarget, arrivalGate, solvedSpeed =
+                        liveAimedTarget ctx world pending origin old
 
                     let speed =
                         solvedSpeed
                         |> Option.defaultValue (MatchMath.speedOf old.LinearVelocity.X old.LinearVelocity.Y)
-                    let old = { old with IntendedTarget = intendedTarget }
+
+                    let old =
+                        { old with
+                            IntendedTarget = intendedTarget }
 
                     let velocity =
                         match old.IntendedTarget with
@@ -423,7 +468,15 @@ module BallFootContact =
 
                     // Technique, pressure and balance are read at contact, where the boot actually meets the ball.
                     let struct (impulse, shaped) =
-                        StrikeTechnique.shape ctx.Ctx world pending.Side pending.Slot motion.Foot motion.Surface impulse rng
+                        StrikeTechnique.shape
+                            ctx.Ctx
+                            world
+                            pending.Side
+                            pending.Slot
+                            motion.Foot
+                            motion.Surface
+                            impulse
+                            rng
 
                     rng <- shaped
 

@@ -19,9 +19,7 @@ let private shipped =
 let private kit () = fst shipped.Value
 
 let private scenarios =
-    [ "giant", 9600, 0, 7
-      "second_div", 2800, 1, 31
-      "third_div", 1200, 2, 41 ]
+    [ "giant", 9600, 0, 7; "second_div", 2800, 1, 31; "third_div", 1200, 2, 41 ]
 
 let private identity reputation level seed =
     StadiumIdentity.create reputation level seed 0xFF1E5AA8u 0xFFF2C230u
@@ -32,7 +30,8 @@ let private built reputation level seed =
     | Error error -> failtest error
 
 /// An orthographic box around the whole site: nothing is culled, so batches can be checked for completeness.
-let private everything = Matrix4x4.CreateOrthographic(4000.0f, 4000.0f, -4000.0f, 4000.0f)
+let private everything =
+    Matrix4x4.CreateOrthographic(4000.0f, 4000.0f, -4000.0f, 4000.0f)
 
 let private pieceCount (kit: StadiumKitData) (build: StadiumBuild) (id: string) =
     match StadiumKit.pieceIndex kit id with
@@ -45,7 +44,10 @@ let private pieceCount (kit: StadiumKitData) (build: StadiumBuild) (id: string) 
 let private referenceTransform (instance: Vector4) (scale: Vector3) (local: Vector3) =
     let b = Vector3(local.X * scale.X, -local.Z * scale.Y, local.Y * scale.Z)
     let rotation = Matrix4x4.CreateRotationZ(instance.W * MathF.PI / 180.0f)
-    let layout = Vector3.Transform(b, rotation) + Vector3(instance.X, instance.Y, instance.Z)
+
+    let layout =
+        Vector3.Transform(b, rotation) + Vector3(instance.X, instance.Y, instance.Z)
+
     Vector3(layout.X, layout.Z, -layout.Y)
 
 let tests =
@@ -56,7 +58,11 @@ let tests =
               Expect.equal kit.Pieces.Length 20 "twenty authored pieces"
               Expect.isTrue (kit.Pieces |> Array.forall (fun piece -> piece.Lods.Length = 3)) "three LODs each"
               Expect.equal (textures.Size, textures.Layers, textures.Levels) (1024, 7, 11) "full mip chains"
-              Expect.equal textures.Albedo.Length (Array.sum [| for l in 0..10 -> (1024 >>> l) * (1024 >>> l) * 4 * 7 |]) "packed array"
+
+              Expect.equal
+                  textures.Albedo.Length
+                  (Array.sum [| for l in 0..10 -> (1024 >>> l) * (1024 >>> l) * 4 * 7 |])
+                  "packed array"
 
               let lod (id: string) level =
                   kit.Pieces[(StadiumKit.pieceIndex kit id).Value].Lods[level]
@@ -65,10 +71,16 @@ let tests =
               Expect.isGreaterThan (lod "railing_glass" 0).Blended.Count 0u "glazed railings blend"
               Expect.isGreaterThan (lod "goal_net" 0).Blended.Count 0u "nets blend through their coverage mask"
               Expect.equal (lod "goal_net" 0).Opaque.Count 0u "a net has no opaque triangles"
-              Expect.isLessThan (lod "seat" 2).Opaque.Count ((lod "seat" 0).Opaque.Count / 100u) "distant seats are cheap"
+
+              Expect.isLessThan
+                  (lod "seat" 2).Opaque.Count
+                  ((lod "seat" 0).Opaque.Count / 100u)
+                  "distant seats are cheap"
 
               Expect.isTrue
-                  (kit.Vertices |> Array.forall (fun vertex -> vertex.RootIndex = SceneRoot.instanced && vertex.Weights = Vector4.Zero))
+                  (kit.Vertices
+                   |> Array.forall (fun vertex ->
+                       vertex.RootIndex = SceneRoot.instanced && vertex.Weights = Vector4.Zero))
                   "kit vertices address the instance table and are never skinned")
           testCase "material ids drop the export prefix and Blender collision suffixes" (fun _ ->
               Expect.equal (StadiumKit.materialId "kit.seat_plastic:club.001") "seat_plastic:club" "suffix"
@@ -83,7 +95,9 @@ let tests =
 
                   let seats =
                       layout.Stands
-                      |> List.sumBy (fun stand -> stand.Tiers |> List.sumBy (fun tier -> (StadiumLayout.seatPositions stand tier).Length))
+                      |> List.sumBy (fun stand ->
+                          stand.Tiers
+                          |> List.sumBy (fun tier -> (StadiumLayout.seatPositions stand tier).Length))
 
                   Expect.isGreaterThan seats 0 $"{name} has seats"
                   Expect.equal build.SeatCount seats $"{name} seat count"
@@ -102,13 +116,19 @@ let tests =
               for cluster in build.Clusters do
                   Expect.equal cluster.FirstInstance next "no gap or overlap"
                   let struct (first, count) = build.PieceInstances[cluster.Piece]
-                  Expect.isTrue (cluster.FirstInstance >= first && cluster.FirstInstance + cluster.InstanceCount <= first + count) "inside its piece"
+
+                  Expect.isTrue
+                      (cluster.FirstInstance >= first
+                       && cluster.FirstInstance + cluster.InstanceCount <= first + count)
+                      "inside its piece"
+
                   next <- cluster.FirstInstance + cluster.InstanceCount
 
               Expect.equal next (build.Instances.Length / StadiumGeometry.instanceVectors) "all instances covered"
 
               let seatClusters =
-                  build.Clusters |> Array.filter (fun cluster -> cluster.Piece = (StadiumKit.pieceIndex (kit ()) "seat").Value)
+                  build.Clusters
+                  |> Array.filter (fun cluster -> cluster.Piece = (StadiumKit.pieceIndex (kit ()) "seat").Value)
 
               Expect.isLessThan seatClusters.Length (build.SeatCount / 20) "seats are grouped into blocks"
               Expect.isLessThan (seatClusters |> Array.map _.Radius |> Array.max) 12.0f "blocks stay local")
@@ -122,21 +142,46 @@ let tests =
               let build = built 9600 0 7
               let total = build.Instances.Length / StadiumGeometry.instanceVectors
 
-              for eye in [ Vector3(0.0f, 20.0f, 60.0f); Vector3(0.0f, 1.7f, 0.0f); Vector3(4000.0f, 300.0f, 0.0f) ] do
+              for eye in
+                  [ Vector3(0.0f, 20.0f, 60.0f)
+                    Vector3(0.0f, 1.7f, 0.0f)
+                    Vector3(4000.0f, 300.0f, 0.0f) ] do
                   let batches = StadiumGeometry.batches kit build eye everything
-                  Expect.equal (batches |> Array.sumBy (fun batch -> int batch.InstanceCount)) total "each instance once"
 
-              let far = StadiumGeometry.batches kit build (Vector3(4000.0f, 300.0f, 0.0f)) everything
-              Expect.isTrue (far |> Array.forall (fun batch -> batch.Lod = 2)) "a distant camera sees only the coarsest level"
-              Expect.equal far.Length (build.PieceInstances |> Array.filter (fun (struct (_, count)) -> count > 0) |> Array.length) "one merged draw per piece"
+                  Expect.equal
+                      (batches |> Array.sumBy (fun batch -> int batch.InstanceCount))
+                      total
+                      "each instance once"
+
+              let far =
+                  StadiumGeometry.batches kit build (Vector3(4000.0f, 300.0f, 0.0f)) everything
+
+              Expect.isTrue
+                  (far |> Array.forall (fun batch -> batch.Lod = 2))
+                  "a distant camera sees only the coarsest level"
+
+              Expect.equal
+                  far.Length
+                  (build.PieceInstances
+                   |> Array.filter (fun (struct (_, count)) -> count > 0)
+                   |> Array.length)
+                  "one merged draw per piece"
 
               let near = StadiumGeometry.batches kit build (Vector3(0.0f, 1.7f, 0.0f)) everything
-              Expect.isTrue (near |> Array.exists (fun batch -> batch.Lod < 2)) "the pitch-level camera refines nearby kit")
+
+              Expect.isTrue
+                  (near |> Array.exists (fun batch -> batch.Lod < 2))
+                  "the pitch-level camera refines nearby kit")
           testCase "clusters behind the broadcast lens are culled, the stand in front is kept" (fun _ ->
               let kit = kit ()
               let build = built 9600 0 7
-              let frame = ViewerCamera.frame ViewerCamera.Broadcast 1.62f (Vector3(0.0f, 1.0f, 0.0f))
-              let batches = StadiumGeometry.batches kit build frame.Position (ViewerCamera.viewProjection 1.62f frame)
+
+              let frame =
+                  ViewerCamera.frame ViewerCamera.Broadcast 1.62f (Vector3(0.0f, 1.0f, 0.0f))
+
+              let batches =
+                  StadiumGeometry.batches kit build frame.Position (ViewerCamera.viewProjection 1.62f frame)
+
               let seat = (StadiumKit.pieceIndex kit "seat").Value
               let drawnSeats = batches |> Array.filter (fun batch -> batch.Piece = seat)
               let total = build.SeatCount
@@ -145,23 +190,40 @@ let tests =
 
               let drawn =
                   [ for batch in drawnSeats do
-                        for index in int batch.FirstInstance .. int (batch.FirstInstance + batch.InstanceCount) - 1 -> index ]
+                        for index in int batch.FirstInstance .. int (batch.FirstInstance + batch.InstanceCount) - 1 ->
+                            index ]
 
               Expect.isLessThan drawn.Length (total * 4 / 5) "the main stand behind the gantry is skipped"
-              Expect.isTrue (drawn |> List.forall (fun index -> renderedZ index < frame.Position.Z + 15.0f)) "nothing far behind the lens"
+
+              Expect.isTrue
+                  (drawn |> List.forall (fun index -> renderedZ index < frame.Position.Z + 15.0f))
+                  "nothing far behind the lens"
+
               Expect.isTrue (drawn |> List.exists (fun index -> renderedZ index < -40.0f)) "the far stand is drawn")
           testCase "seats face the pitch through the shader's instance transform" (fun _ ->
               let build = built 5200 0 19
-              let struct (first, count) = build.PieceInstances[(StadiumKit.pieceIndex (kit ()) "seat").Value]
 
-              for index in first .. 97 .. first + count - 1 do
+              let struct (first, count) =
+                  build.PieceInstances[(StadiumKit.pieceIndex (kit ()) "seat").Value]
+
+              for index in first..97 .. first + count - 1 do
                   let place = build.Instances[index * 3]
                   let scale = build.Instances[index * 3 + 1]
-                  let origin = referenceTransform place (Vector3(scale.X, scale.Y, scale.Z)) Vector3.Zero
+
+                  let origin =
+                      referenceTransform place (Vector3(scale.X, scale.Y, scale.Z)) Vector3.Zero
                   // Seat fronts face glTF -Z (Blender +Y), the axis the kit contract says points at the pitch.
-                  let front = referenceTransform place (Vector3(scale.X, scale.Y, scale.Z)) (Vector3(0.0f, 0.0f, -1.0f)) - origin
+                  let front =
+                      referenceTransform place (Vector3(scale.X, scale.Y, scale.Z)) (Vector3(0.0f, 0.0f, -1.0f))
+                      - origin
+
                   let toPitch = Vector3(-origin.X, 0.0f, -origin.Z)
-                  Expect.isGreaterThan (Vector3.Dot(Vector3.Normalize front, Vector3.Normalize toPitch)) 0.3f "seat looks inwards"
+
+                  Expect.isGreaterThan
+                      (Vector3.Dot(Vector3.Normalize front, Vector3.Normalize toPitch))
+                      0.3f
+                      "seat looks inwards"
+
                   Expect.isGreaterThan origin.Y -0.01f "seats are above ground")
           testCase "seat colours follow the layout scheme and the club colours" (fun _ ->
               let kit = kit ()
@@ -169,7 +231,9 @@ let tests =
 
               for reputation, level, seed in [ 9600, 0, 7; 7800, 0, 11; 1200, 2, 41 ] do
                   let build = built reputation level seed
-                  let struct (first, count) = build.PieceInstances[(StadiumKit.pieceIndex kit "seat").Value]
+
+                  let struct (first, count) =
+                      build.PieceInstances[(StadiumKit.pieceIndex kit "seat").Value]
 
                   let colours =
                       [ for index in first .. first + count - 1 -> build.Instances[index * 3 + 2] ]
@@ -190,18 +254,30 @@ let tests =
           testCase "generated stands have unit normals and sane extents" (fun _ ->
               let build = built 9600 0 7
               Expect.equal (build.Indices.Length % 3) 0 "triangles"
-              Expect.isTrue (build.Indices |> Array.forall (fun index -> int index < build.Vertices.Length)) "indices in range"
+
+              Expect.isTrue
+                  (build.Indices |> Array.forall (fun index -> int index < build.Vertices.Length))
+                  "indices in range"
 
               for vertex in build.Vertices do
                   Expect.isLessThan (abs (vertex.Normal.Length() - 1.0f)) 0.001f "unit normal"
                   // Only the turf skirt reaches the far plane; every built surface stays on the site.
                   if vertex.Surface >= 16u then
-                      Expect.isTrue (abs vertex.Position.X < 250.0f && abs vertex.Position.Z < 250.0f) "inside the site"
+                      Expect.isTrue
+                          (abs vertex.Position.X < 250.0f && abs vertex.Position.Z < 250.0f)
+                          "inside the site"
+
                   Expect.isTrue (vertex.Position.Y >= -0.001f && vertex.Position.Y < 80.0f) "between ground and roof"
 
               // A tread faces up; the tier front faces the pitch.
-              let concrete = build.Vertices |> Array.filter (fun vertex -> vertex.Surface >= 16u && vertex.Surface < 32u)
-              Expect.isTrue (concrete |> Array.exists (fun vertex -> vertex.Normal.Y > 0.99f && vertex.Position.Y > 1.0f)) "upward treads")
+              let concrete =
+                  build.Vertices
+                  |> Array.filter (fun vertex -> vertex.Surface >= 16u && vertex.Surface < 32u)
+
+              Expect.isTrue
+                  (concrete
+                   |> Array.exists (fun vertex -> vertex.Normal.Y > 0.99f && vertex.Position.Y > 1.0f))
+                  "upward treads")
           testCase "packed club colours decode to linear light with an explicit fallback" (fun _ ->
               let fallback = Vector3(0.5f, 0.25f, 0.125f)
               Expect.equal (StadiumIdentity.linearOfPacked 0u fallback) fallback "no kit colour"

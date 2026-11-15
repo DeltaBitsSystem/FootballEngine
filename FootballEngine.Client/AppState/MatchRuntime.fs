@@ -318,7 +318,9 @@ type private MatchRuntime
                         // snapshot gives the viewer one. Live play never starts held, so it is unaffected.
                         if initialHold < MatchSession.maxTicks then
                             let starting = Replay.capture session.World
-                            presentation.Publish(starting.Tick, starting, Stopwatch.GetTimestamp()) |> ignore
+
+                            presentation.Publish(starting.Tick, starting, Stopwatch.GetTimestamp())
+                            |> ignore
 
                         let ticksPerSlice =
                             match runMode with
@@ -332,9 +334,12 @@ type private MatchRuntime
                             (match runMode with
                              | MatchRunMode.Live _ -> true
                              | _ -> false)
-                            && source = LiveSession && initialHold >= MatchSession.maxTicks
+                            && source = LiveSession
+                            && initialHold >= MatchSession.maxTicks
+
                         let mutable director = KeyMoments.init
                         let mutable cruising = false
+
                         let nameOf (id: FootballEngine.Core.Match.PlayerId) =
                             fixtureContext.PlayerNames |> Map.tryFind id |> Option.defaultValue ""
 
@@ -343,6 +348,7 @@ type private MatchRuntime
                                 ClubSide.Home
                             else
                                 ClubSide.Away
+
                         let mutable nextAdvance = Stopwatch.GetTimestamp()
                         let mutable finished = Result.isError motionConfiguration
                         let mutable paused = false
@@ -379,7 +385,9 @@ type private MatchRuntime
                                 | VeryFast -> 4
 
                             let due =
-                                frontier - lastSemanticTick >= int policy.SemanticEvery * multiplier * 1<subtick>
+                                frontier - lastSemanticTick
+                                >= int policy.SemanticEvery * multiplier * 1<subtick>
+
                             let scoreChanged = score <> lastSemanticScore
 
                             if force || due || scoreChanged then
@@ -430,6 +438,7 @@ type private MatchRuntime
                                 nextAdvance <- Stopwatch.GetTimestamp()
                                 presentation.SetPlayback(value, paused, Stopwatch.GetTimestamp())
                                 acceptImmediate command
+
                                 enqueue
                                     dispatch
                                     (StatusChanged(
@@ -548,6 +557,7 @@ type private MatchRuntime
                             else
                                 let current = session.World.State.Tick
                                 let previousFlow = session.World.State.Flow
+
                                 let advanceResult =
                                     receiveRecordedCommands ()
                                     |> Result.bind (fun () ->
@@ -556,7 +566,9 @@ type private MatchRuntime
                                             if skipping then 400
                                             elif fastForward then KeyMoments.cruiseSliceTicks
                                             else ticksPerSlice
+
                                         let target = min MatchSession.maxTicks (current + slice * 1<subtick>)
+
                                         let target =
                                             match replayCommands with
                                             | command :: _ -> min target command.EffectiveTick
@@ -627,11 +639,16 @@ type private MatchRuntime
                                     published
                                     |> Array.iter (fun pose ->
                                         let timestamp =
-                                            if skipping || fastForward then capturedAt else poseTimestamp pose
+                                            if skipping || fastForward then
+                                                capturedAt
+                                            else
+                                                poseTimestamp pose
+
                                         presentation.Publish(pose.Tick, pose, timestamp) |> ignore)
 
                                     presentation.PublishEvents advance.Events |> ignore
                                     pendingEvents <- pendingEvents @ (Array.toList advance.Events)
+
                                     if pacing && not skipping && not finished then
                                         let input =
                                             KeyMoments.inputOf
@@ -643,7 +660,9 @@ type private MatchRuntime
 
                                         let next, stop = KeyMoments.step highlight input director
                                         director <- next
-                                        let wantsCruise = highlight <> HighlightFilter.All && next.Pace = KeyMoments.Cruise
+
+                                        let wantsCruise =
+                                            highlight <> HighlightFilter.All && next.Pace = KeyMoments.Cruise
 
                                         if wantsCruise <> cruising then
                                             cruising <- wantsCruise
@@ -654,7 +673,9 @@ type private MatchRuntime
                                             )
 
                                             if not paused then
-                                                enqueue dispatch (StatusChanged(if cruising then Cruising else Live speed))
+                                                enqueue
+                                                    dispatch
+                                                    (StatusChanged(if cruising then Cruising else Live speed))
 
                                         match stop with
                                         | Some reason when not paused ->
@@ -694,16 +715,21 @@ type private MatchRuntime
 
                                         match MatchSession.finish session with
                                         | Error error -> enqueue dispatch (Failed(sprintf "%A" error))
-                                         | Ok outcome ->
+                                        | Ok outcome ->
                                             let recordedEvents =
                                                 gs.Competitions
                                                 |> Map.toSeq
-                                                |> Seq.collect (fun (_, competition) -> competition.Fixtures |> Map.toSeq)
+                                                |> Seq.collect (fun (_, competition) ->
+                                                    competition.Fixtures |> Map.toSeq)
                                                 |> Seq.tryFind (fun (id, _) -> id = matchId)
-                                                |> Option.map (fun (_, fixture) -> MatchOutcomeHash.eventsHash fixture.Events)
+                                                |> Option.map (fun (_, fixture) ->
+                                                    MatchOutcomeHash.eventsHash fixture.Events)
 
                                             if source = RecordedReplay && recordedEvents <> Some outcome.EventsHash then
-                                                enqueue dispatch (Failed "Recorded execution differs from the committed sporting events.")
+                                                enqueue
+                                                    dispatch
+                                                    (Failed
+                                                        "Recorded execution differs from the committed sporting events.")
                                             else
                                                 let result = compactResult job session outcome
                                                 enqueue dispatch (Finished result)
@@ -873,7 +899,10 @@ type MatchRuntimeHost() =
         lock syncRoot (fun () ->
             nextId <- nextId + 1UL
             let runtimeId = MatchRuntimeId nextId
-            let runtime = MatchRuntime(runtimeId, matchId, gs, clock, saveOpt, runMode, initialHold, highlight)
+
+            let runtime =
+                MatchRuntime(runtimeId, matchId, gs, clock, saveOpt, runMode, initialHold, highlight)
+
             runtimes.Add(runtimeId, runtime)
             runtimeId)
 
@@ -945,7 +974,8 @@ module MatchRuntime =
     // armed here and consumed by the next live match; live play always starts at MatchSession.maxTicks.
     let mutable private pendingInitialHold: int<subtick> option = None
 
-    let armInitialHold (tick: int<subtick>) = Volatile.Write(&pendingInitialHold, Some tick)
+    let armInitialHold (tick: int<subtick>) =
+        Volatile.Write(&pendingInitialHold, Some tick)
 
     let createUserMatch matchId gs clock saveOpt highlight =
         let initialHold =

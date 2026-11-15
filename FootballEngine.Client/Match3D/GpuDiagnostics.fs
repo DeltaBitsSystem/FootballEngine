@@ -155,7 +155,8 @@ module ViewerDiagnostics =
     /// live play leaves it unset and follows the wall clock.
     let mutable private pinnedWindSeconds: float option = None
 
-    let pinWindSeconds (seconds: float option) = Volatile.Write(&pinnedWindSeconds, seconds)
+    let pinWindSeconds (seconds: float option) =
+        Volatile.Write(&pinnedWindSeconds, seconds)
 
     let windPin () = Volatile.Read(&pinnedWindSeconds)
 
@@ -174,12 +175,15 @@ module ViewerDiagnostics =
     let mutable private presentationPinned = false
     let mutable private presentationPulls = 0L
 
-    let pinPresentationClock (pinned: bool) = Volatile.Write(&presentationPinned, pinned)
+    let pinPresentationClock (pinned: bool) =
+        Volatile.Write(&presentationPinned, pinned)
 
     let presentationTimestamp () =
         if Volatile.Read(&presentationPinned) then
             let pull = Interlocked.Increment(&presentationPulls)
-            Diagnostics.Stopwatch.GetTimestamp() + pull * 3600L * Diagnostics.Stopwatch.Frequency
+
+            Diagnostics.Stopwatch.GetTimestamp()
+            + pull * 3600L * Diagnostics.Stopwatch.Frequency
         else
             Diagnostics.Stopwatch.GetTimestamp()
 

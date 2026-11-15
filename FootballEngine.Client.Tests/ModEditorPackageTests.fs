@@ -37,7 +37,9 @@ let private writePackage (document: EditorDocument) (modsDir: string) =
     File.WriteAllText(Path.Combine(workspace, "manifest.json"), input.ManifestJson)
 
     for KeyValue(relative, bytes) in input.Files do
-        let file = Path.Combine(workspace, relative.Replace('/', Path.DirectorySeparatorChar))
+        let file =
+            Path.Combine(workspace, relative.Replace('/', Path.DirectorySeparatorChar))
+
         Directory.CreateDirectory(Path.GetDirectoryName file) |> ignore
         File.WriteAllBytes(file, bytes)
 
@@ -145,7 +147,8 @@ let tests =
                   let _, baseState = generate emptyMods []
 
                   Expect.isFalse
-                      (baseState.Players |> Map.exists (fun _ p -> p.Name = keeper.Name || p.Name = striker.Name))
+                      (baseState.Players
+                       |> Map.exists (fun _ p -> p.Name = keeper.Name || p.Name = striker.Name))
                       "builtin-only world does not contain the authored players"
 
                   let mods = Path.Combine(temp, "mods")
@@ -154,12 +157,17 @@ let tests =
                   let materialized, state = generate mods [ doc.Manifest.Id ]
 
                   Expect.equal
-                      (materialized.Countries |> List.filter (fun c -> c.Country.Code = "ARG") |> List.length)
+                      (materialized.Countries
+                       |> List.filter (fun c -> c.Country.Code = "ARG")
+                       |> List.length)
                       1
                       "override replaced the builtin country"
 
                   Expect.equal
-                      (state.Countries |> Map.toList |> List.filter (fun (c, _) -> c = "ARG") |> List.length)
+                      (state.Countries
+                       |> Map.toList
+                       |> List.filter (fun (c, _) -> c = "ARG")
+                       |> List.length)
                       1
                       "one ARG in world"
 
@@ -207,7 +215,9 @@ let tests =
                           { FirstNames = [ "Alex"; "Sam" ]
                             LastNames = [ "Stone"; "River" ] }
                       LeagueNames = [ "Top"; "Second" ]
-                      LeagueRules = [ UpdateModEditor.createEmptyLeague "Top"; UpdateModEditor.createEmptyLeague "Second" ]
+                      LeagueRules =
+                          [ UpdateModEditor.createEmptyLeague "Top"
+                            UpdateModEditor.createEmptyLeague "Second" ]
                       Clubs =
                           [ for i in 1..4 -> UpdateModEditor.createEmptyClub $"Top FC {i}" 0 ]
                           @ [ for i in 1..4 -> UpdateModEditor.createEmptyClub $"Second FC {i}" 1 ] }

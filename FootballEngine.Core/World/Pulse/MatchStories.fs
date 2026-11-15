@@ -36,7 +36,8 @@ module MatchFacts =
     let newlyPlayed (date: DateTime) (gs: GameState) : PlayedMatch list =
         played gs
         |> List.filter (fun m ->
-            m.Fixture.ScheduledDate.Date <= date.Date && not (gs.PulseProcessed.Contains m.Id))
+            m.Fixture.ScheduledDate.Date <= date.Date
+            && not (gs.PulseProcessed.Contains m.Id))
         |> List.sortBy (fun m -> m.Fixture.ScheduledDate.Date, m.Id)
 
     /// Ids still needed to avoid reprocessing: fixtures that no longer exist or are unplayed cannot recur.
@@ -58,7 +59,10 @@ module MatchFacts =
         |> List.rev
 
     let goalsOf (m: PlayedMatch) (club: ClubId) =
-        if m.Fixture.HomeClubId = club then m.HomeGoals, m.AwayGoals else m.AwayGoals, m.HomeGoals
+        if m.Fixture.HomeClubId = club then
+            m.HomeGoals, m.AwayGoals
+        else
+            m.AwayGoals, m.HomeGoals
 
     let outcomeFor (m: PlayedMatch) (club: ClubId) : MatchOutcomeTag =
         let mine, theirs = goalsOf m club
@@ -112,7 +116,8 @@ module ResultsLedger =
                 match Map.tryFind club clubs with
                 | Some c ->
                     let results =
-                        (MatchFacts.outcomeFor m club :: c.RecentResults) |> List.truncate config.RecentResultsKept
+                        (MatchFacts.outcomeFor m club :: c.RecentResults)
+                        |> List.truncate config.RecentResultsKept
 
                     Map.add club { c with RecentResults = results } clubs
                 | None -> clubs
@@ -126,10 +131,7 @@ module ResultsLedger =
 module MatchStories =
 
     let private importance (gs: GameState) (top: Set<ClubId>) (clubs: ClubId list) (baseline: NewsImportance) =
-        if
-            clubs |> List.contains gs.UserClubId
-            || clubs |> List.exists top.Contains
-        then
+        if clubs |> List.contains gs.UserClubId || clubs |> List.exists top.Contains then
             NewsImportance.Headline
         else
             baseline
@@ -186,6 +188,7 @@ module MatchStories =
         fun gs date ->
             let top = MatchFacts.topThree gs
             let lowest = List.head config.StreakThresholds
+
             MatchFacts.newlyPlayed date gs
             |> List.collect (fun m -> [ m.Fixture.HomeClubId; m.Fixture.AwayClubId ])
             |> List.distinct
@@ -226,7 +229,8 @@ module MatchStories =
 
     let newLeader (config: WorldPulseConfig) : PulseDetector =
         fun gs date ->
-            let playedToday = MatchFacts.newlyPlayed date gs |> List.map _.Competition.Id |> Set.ofList
+            let playedToday =
+                MatchFacts.newlyPlayed date gs |> List.map _.Competition.Id |> Set.ofList
 
             gs.Competitions
             |> Map.toList
@@ -252,10 +256,17 @@ module MatchStories =
                                 | NationalLeague(LeagueLevel 0, _) -> true
                                 | _ -> false
 
-                            let baseline = if topFlight then NewsImportance.Major else NewsImportance.Notable
+                            let baseline =
+                                if topFlight then
+                                    NewsImportance.Major
+                                else
+                                    NewsImportance.Notable
 
                             let importance =
-                                if leader = gs.UserClubId then NewsImportance.Headline else baseline
+                                if leader = gs.UserClubId then
+                                    NewsImportance.Headline
+                                else
+                                    baseline
 
                             Some(
                                 NewsKind.NewLeader(leader, id),
@@ -289,12 +300,13 @@ module MatchStories =
             |> List.choose (fun (player, club) ->
                 let run =
                     MatchFacts.playedByClubUntil club date gs
-                    |> List.takeWhile (fun m ->
-                        MatchFacts.scorers m.Fixture |> List.exists (fun (p, _) -> p = player))
+                    |> List.takeWhile (fun m -> MatchFacts.scorers m.Fixture |> List.exists (fun (p, _) -> p = player))
                     |> List.length
                 // Multiples keep a long run alive in the news without reporting it every single match.
                 if run >= config.ScoringRunMatches && run % config.ScoringRunMatches = 0 then
-                    Some(candidate gs top (NewsKind.ScoringRun(player, run)) NewsImportance.Notable [ club ] [ player ])
+                    Some(
+                        candidate gs top (NewsKind.ScoringRun(player, run)) NewsImportance.Notable [ club ] [ player ]
+                    )
                 else
                     None)
 

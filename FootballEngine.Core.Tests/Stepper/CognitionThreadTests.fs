@@ -19,7 +19,8 @@ module CognitionThreadTests =
         | Ok session -> session
         | Error error -> failtestf "session rejected: %A" error
 
-    let private names (fields: System.Reflection.PropertyInfo[]) = fields |> Array.map _.Name |> Set.ofArray
+    let private names (fields: System.Reflection.PropertyInfo[]) =
+        fields |> Array.map _.Name |> Set.ofArray
 
     let ownershipTests =
         testList
@@ -29,17 +30,30 @@ module CognitionThreadTests =
                   let body = Set.ofList CognitionView.bodyFrameFields
                   let shared = Set.ofList CognitionView.sharedFrameFields
                   Expect.isEmpty (Set.intersect body shared) "no frame field has two owners"
-                  Expect.equal (Set.union body shared) declared "a new frame field must be given an owner in CognitionView")
+
+                  Expect.equal
+                      (Set.union body shared)
+                      declared
+                      "a new frame field must be given an owner in CognitionView")
 
               testCase "every team field is either the body's, fixed, or handed back from cognition" (fun _ ->
                   let declared = names (FSharpType.GetRecordFields typeof<TeamWorld>)
 
                   let lists =
-                      [ CognitionView.bodyTeamFields; CognitionView.fixedTeamFields; CognitionView.cognitionTeamFields ]
+                      [ CognitionView.bodyTeamFields
+                        CognitionView.fixedTeamFields
+                        CognitionView.cognitionTeamFields ]
                       |> List.map Set.ofList
 
-                  Expect.equal (lists |> List.sumBy Set.count) (Set.unionMany lists |> Set.count) "no team field has two owners"
-                  Expect.equal (Set.unionMany lists) declared "a new team field must be given an owner in CognitionView") ]
+                  Expect.equal
+                      (lists |> List.sumBy Set.count)
+                      (Set.unionMany lists |> Set.count)
+                      "no team field has two owners"
+
+                  Expect.equal
+                      (Set.unionMany lists)
+                      declared
+                      "a new team field must be given an owner in CognitionView") ]
 
     let matchTests =
         testList
@@ -56,10 +70,12 @@ module CognitionThreadTests =
                           let tick = oneThread.World.State.Tick + 1<subtick>
 
                           let one =
-                              MatchSession.advanceTo tick oneThread |> Result.defaultWith (fun e -> failtestf "%A" e)
+                              MatchSession.advanceTo tick oneThread
+                              |> Result.defaultWith (fun e -> failtestf "%A" e)
 
                           let two =
-                              MatchSession.advanceTo tick ownThread |> Result.defaultWith (fun e -> failtestf "%A" e)
+                              MatchSession.advanceTo tick ownThread
+                              |> Result.defaultWith (fun e -> failtestf "%A" e)
 
                           if one.Events <> two.Events then
                               failtestf

@@ -44,48 +44,130 @@ let tests =
               let rig = loaded.Rig
               let model = SharpGLTF.Schema2.ModelRoot.Load path
               let skin = model.LogicalSkins[0]
-              let names = skin.Joints |> Seq.mapi (fun index node -> node.Name, index) |> Map.ofSeq
+
+              let names =
+                  skin.Joints |> Seq.mapi (fun index node -> node.Name, index) |> Map.ofSeq
+
               let root =
-                  { Actor = PlayerId 1; Generation = 1; Position = Vector3.Zero; Velocity = Vector3.Zero
-                    Facing = 0.0f; AngularVelocity = 0.0f; Condition = 1.0f; GaitPhase = 0.0f; AttentionTarget = ValueNone
-                    Morphology = PhysicalMorphology.standard; Active = true }
+                  { Actor = PlayerId 1
+                    Generation = 1
+                    Position = Vector3.Zero
+                    Velocity = Vector3.Zero
+                    Facing = 0.0f
+                    AngularVelocity = 0.0f
+                    Condition = 1.0f
+                    GaitPhase = 0.0f
+                    AttentionTarget = ValueNone
+                    Morphology = PhysicalMorphology.standard
+                    Active = true }
+
               let config = AnimationConfig.defaultConfig
+
               for speed in [| 0.0f; 4.0f |] do
-                  let sample = { root with Velocity = Vector3(speed, 0.0f, 0.0f) }
+                  let sample =
+                      { root with
+                          Velocity = Vector3(speed, 0.0f, 0.0f) }
+
                   let plan = SupportPlanner.initialize config 0 sample
                   let scratch = PoseScratch rig
                   let palette = Array.create rig.JointNodes.Length Matrix4x4.Identity
-                  PoseEvaluation.evaluateInto (config, rig, plan, { Tick = 0; Fraction = 0.0f }, Vector3.Zero, MotionInput.facing sample.Facing, scratch, palette, 0) |> ignore
+
+                  PoseEvaluation.evaluateInto (
+                      config,
+                      rig,
+                      plan,
+                      { Tick = 0; Fraction = 0.0f },
+                      Vector3.Zero,
+                      MotionInput.facing sample.Facing,
+                      scratch,
+                      palette,
+                      0
+                  )
+                  |> ignore
+
                   for side, chain, inward in [| "L", rig.LeftArm, -Vector3.UnitX; "R", rig.RightArm, Vector3.UnitX |] do
                       let elbow = scratch.World[chain.Lower].Translation
                       let wrist = scratch.World[chain.End].Translation
                       let direction = Vector3.Normalize(wrist - elbow)
-                      let forward = Vector3.Normalize(Vector3.TransformNormal(chain.SocketForward, scratch.World[chain.End]))
-                      let palm = Vector3.Normalize(Vector3.TransformNormal(chain.SocketNormal, scratch.World[chain.End]))
+
+                      let forward =
+                          Vector3.Normalize(Vector3.TransformNormal(chain.SocketForward, scratch.World[chain.End]))
+
+                      let palm =
+                          Vector3.Normalize(Vector3.TransformNormal(chain.SocketNormal, scratch.World[chain.End]))
+
                       Expect.isGreaterThan (Vector3.Dot(forward, direction)) 0.99f "wrist continues the forearm"
                       Expect.isGreaterThan (Vector3.Dot(palm, inward)) 0.95f "palm faces the thigh"
                       let indexJoint = rig.JointNodes[names["index_01." + side]]
                       let littleJoint = rig.JointNodes[names["little_01." + side]]
-                      let spread = scratch.World[indexJoint].Translation - scratch.World[littleJoint].Translation
+
+                      let spread =
+                          scratch.World[indexJoint].Translation - scratch.World[littleJoint].Translation
+
                       Expect.isGreaterThan spread.Z 0.0f "thumb/index edge faces forward on both hands"
                       let handJoint = names["hand." + side]
                       let mutable handBind = Matrix4x4.Identity
                       Expect.isTrue (Matrix4x4.Invert(rig.InverseBind[handJoint], &handBind)) "hand bind is invertible"
-                      let bindPalm = Vector3.Normalize(Vector3.TransformNormal(chain.SocketNormal, handBind))
+
+                      let bindPalm =
+                          Vector3.Normalize(Vector3.TransformNormal(chain.SocketNormal, handBind))
+
                       let vertices =
                           loaded.Batches[0].Vertices
-                          |> Array.filter (fun v -> int v.Joints.X = handJoint && v.Weights.X > 0.8f && Vector3.Dot(v.Normal, bindPalm) > 0.8f)
+                          |> Array.filter (fun v ->
+                              int v.Joints.X = handJoint
+                              && v.Weights.X > 0.8f
+                              && Vector3.Dot(v.Normal, bindPalm) > 0.8f)
+
                       Expect.isGreaterThan vertices.Length 0 "hand has visible palm-facing skinned vertices"
+
                       for vertex in vertices do
                           let transformed = Vector3.Transform(vertex.Position, palette[handJoint])
-                          let normal = Vector3.Normalize(Vector3.TransformNormal(vertex.Normal, palette[handJoint]))
-                          Expect.isTrue (Single.IsFinite transformed.X && Single.IsFinite transformed.Y && Single.IsFinite transformed.Z) "hand vertices stay finite"
-                          Expect.isGreaterThan (Vector3.Dot(normal, inward)) 0.7f "visible palm surface turns towards the thigh")
+
+                          let normal =
+                              Vector3.Normalize(Vector3.TransformNormal(vertex.Normal, palette[handJoint]))
+
+                          Expect.isTrue
+                              (Single.IsFinite transformed.X
+                               && Single.IsFinite transformed.Y
+                               && Single.IsFinite transformed.Z)
+                              "hand vertices stay finite"
+
+                          Expect.isGreaterThan
+                              (Vector3.Dot(normal, inward))
+                              0.7f
+                              "visible palm surface turns towards the thigh")
           testCase "runtime correctives match Blender basis rotations under rotated parents" (fun _ ->
-              use golden = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "corrective-golden.json")))
+              use golden =
+                  JsonDocument.Parse(
+                      File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "corrective-golden.json"))
+                  )
+
               let matrix (value: JsonElement) =
-                  let a = value.EnumerateArray() |> Seq.collect (fun row -> row.EnumerateArray()) |> Seq.map _.GetSingle() |> Seq.toArray
-                  Matrix4x4(a[0], a[4], a[8], a[12], a[1], a[5], a[9], a[13], a[2], a[6], a[10], a[14], a[3], a[7], a[11], a[15])
+                  let a =
+                      value.EnumerateArray()
+                      |> Seq.collect (fun row -> row.EnumerateArray())
+                      |> Seq.map _.GetSingle()
+                      |> Seq.toArray
+
+                  Matrix4x4(
+                      a[0],
+                      a[4],
+                      a[8],
+                      a[12],
+                      a[1],
+                      a[5],
+                      a[9],
+                      a[13],
+                      a[2],
+                      a[6],
+                      a[10],
+                      a[14],
+                      a[3],
+                      a[7],
+                      a[11],
+                      a[15]
+                  )
 
               let pose (matrix: Matrix4x4) : RigLocalPose =
                   { Translation = matrix.Translation
@@ -99,38 +181,69 @@ let tests =
                   let expected = get "supportWorld"
                   let bindSource = get "sourceBindLocal"
                   let bindHelper = get "supportBindLocal"
+
                   let rig =
                       { asset.Value.Rig with
                           Names = [| "root"; "source"; "support" |]
                           Parents = [| -1; 0; 0 |]
                           DescendantEnds = [| 2; 1; 2 |]
                           Bind = [| pose Matrix4x4.Identity; pose bindSource; pose bindHelper |]
-                          Correctives = [| { Source = 1; Support = 2; Weight = 0.5f
-                                             SourceBindInverse = Matrix4x4.Transpose(Matrix4x4.CreateFromQuaternion((pose bindSource).Rotation))
-                                             SupportBindRotation = Matrix4x4.CreateFromQuaternion((pose bindHelper).Rotation) } |] }
+                          Correctives =
+                              [| { Source = 1
+                                   Support = 2
+                                   Weight = 0.5f
+                                   SourceBindInverse =
+                                     Matrix4x4.Transpose(Matrix4x4.CreateFromQuaternion((pose bindSource).Rotation))
+                                   SupportBindRotation = Matrix4x4.CreateFromQuaternion((pose bindHelper).Rotation) } |] }
 
                   let world = [| parent; source; bindHelper * parent |]
                   ConstraintSolve.correctives rig world
                   let beforeSource = world[1]
                   let a, b = world[2], expected
+
                   let error =
-                      [| a.M11-b.M11; a.M12-b.M12; a.M13-b.M13; a.M21-b.M21; a.M22-b.M22; a.M23-b.M23
-                         a.M31-b.M31; a.M32-b.M32; a.M33-b.M33; a.M41-b.M41; a.M42-b.M42; a.M43-b.M43 |]
-                      |> Array.map abs |> Array.max
+                      [| a.M11 - b.M11
+                         a.M12 - b.M12
+                         a.M13 - b.M13
+                         a.M21 - b.M21
+                         a.M22 - b.M22
+                         a.M23 - b.M23
+                         a.M31 - b.M31
+                         a.M32 - b.M32
+                         a.M33 - b.M33
+                         a.M41 - b.M41
+                         a.M42 - b.M42
+                         a.M43 - b.M43 |]
+                      |> Array.map abs
+                      |> Array.max
+
                   Expect.isLessThan error 0.0001f (entry.GetProperty("source").GetString())
                   Expect.equal beforeSource source "corrective does not rotate the source twice")
           testCase "ground and ball sockets come from the live boot bind geometry" (fun _ ->
               let rig = asset.Value.Rig
               let world = Array.create rig.Bind.Length Matrix4x4.Identity
+
               for i = 0 to world.Length - 1 do
                   let p = rig.Bind[i]
-                  let local = Matrix4x4.CreateFromQuaternion(p.Rotation) * Matrix4x4.CreateTranslation(p.Translation)
-                  world[i] <- if rig.Parents[i] < 0 then local else local * world[rig.Parents[i]]
+
+                  let local =
+                      Matrix4x4.CreateFromQuaternion(p.Rotation)
+                      * Matrix4x4.CreateTranslation(p.Translation)
+
+                  world[i] <-
+                      if rig.Parents[i] < 0 then
+                          local
+                      else
+                          local * world[rig.Parents[i]]
               // Independent oracle: the lowest and frontmost bind vertices of each foot in the GLB itself,
               // not the manifest that produced the sockets, so a wrong derivation or stale manifest fails.
               let vertices = asset.Value.Batches |> Array.collect _.Vertices
+
               for leg, side in [| rig.LeftLeg, 1.0f; rig.RightLeg, -1.0f |] do
-                  let foot = vertices |> Array.filter (fun v -> v.Position.X * side > 0.02f && v.Position.Y < 0.2f)
+                  let foot =
+                      vertices
+                      |> Array.filter (fun v -> v.Position.X * side > 0.02f && v.Position.Y < 0.2f)
+
                   let soleY = foot |> Array.map _.Position.Y |> Array.min
                   let sole = foot |> Array.filter (fun v -> abs (v.Position.Y - soleY) < 0.00001f)
                   let soleZ = sole |> Array.map _.Position.Z
@@ -138,8 +251,14 @@ let tests =
                   let ground = Vector3.Transform(leg.Socket, world[leg.End])
                   let ball = Vector3.Transform(leg.BallSocket, world[leg.End])
                   Expect.isLessThan (abs (ground.Y - soleY)) 0.00001f "ground socket on sole"
-                  Expect.isLessThan (abs (ground.Z - (Array.min soleZ + Array.max soleZ) * 0.5f)) 0.00001f "sole footprint center"
+
+                  Expect.isLessThan
+                      (abs (ground.Z - (Array.min soleZ + Array.max soleZ) * 0.5f))
+                      0.00001f
+                      "sole footprint center"
+
                   Expect.isLessThan (abs (ball.Z - frontZ)) 0.00001f "ball socket on front cap"
+
               Expect.equal rig.Correctives.Length 8 "all authored support rules loaded")
           testCase "contact time maps to the authored marker regardless of windup duration" (fun _ ->
               let clip = asset.Value.Clips["shot_right"]

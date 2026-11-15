@@ -136,5 +136,8 @@ module ChainIntegrationTests =
                   let rng = Rng.ofSeed 42UL
                   let _ = PlayerDecision.choose ctx world ClubSide.Home 5 100<subtick> rng
 
-                  Expect.isNone world.Home.Attack.Episode "individual Decision cannot invent or overwrite a collective episode"
+                  Expect.isNone
+                      world.Home.Attack.Episode
+                      "individual Decision cannot invent or overwrite a collective episode"
+
                   Expect.equal world.Home.Attack.NextId 1UL "team owner alone allocates commitments") ]

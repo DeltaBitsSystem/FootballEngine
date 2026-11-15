@@ -34,8 +34,10 @@ module Pass =
         let originX = world.State.Ball.Position.X
         let originY = world.State.Ball.Position.Y
         let flightDistance = MatchMath.dist originX originY rx ry
+
         let leadSeconds =
-            (BallAero.pass cfg.Ball cfg.Actions.PassArrivalSpeed cfg.Actions.PassArrivalSpeedGain flightDistance).Seconds
+            (BallAero.pass cfg.Ball cfg.Actions.PassArrivalSpeed cfg.Actions.PassArrivalSpeedGain flightDistance)
+                .Seconds
 
         // A receiver running toward a line is led to a point he can still collect on the pitch; leading him past
         // the line passes the ball out of play.
@@ -58,7 +60,10 @@ module Pass =
         // The lead point was found with the receiver's current distance; re-solving for the lead itself keeps the
         // arrival speed and the arrival gate true to where the ball is actually sent.
         let direction = max (float (MatchMath.dist originX originY targetRx targetRy)) 0.001
-        let groundPass = BallAero.pass cfg.Ball cfg.Actions.PassArrivalSpeed cfg.Actions.PassArrivalSpeedGain direction
+
+        let groundPass =
+            BallAero.pass cfg.Ball cfg.Actions.PassArrivalSpeed cfg.Actions.PassArrivalSpeedGain direction
+
         let speed = groundPass.LaunchSpeed
         let flightSeconds = groundPass.Seconds
 

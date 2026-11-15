@@ -56,8 +56,7 @@ let tests =
               for settings in
                   [ { daylight with
                         ExposureStops = Single.NaN }
-                    { daylight with
-                        ExposureStops = 17.0f }
+                    { daylight with ExposureStops = 17.0f }
                     { daylight with
                         EnvironmentIntensity = -1.0f }
                     { daylight with
@@ -104,9 +103,17 @@ let tests =
                   Expect.equal
                       (pack.Width, pack.Height, pack.Layers, pack.LutSize)
                       (128, 64, 7, 128)
-                   "authoritative pack dimensions"
-                  Expect.equal (pack.SkyWidth, pack.SkyHeight, pack.Sky.Length) (2048, 1024, 2048 * 1024 * 8) "original visible sky is separate from low-resolution IBL"
-                  Expect.isLessThan (Vector3.Distance(pack.SunDirection, daylight.SunDirection)) 0.0001f "authored sun and geometry shadows agree"
+                      "authoritative pack dimensions"
+
+                  Expect.equal
+                      (pack.SkyWidth, pack.SkyHeight, pack.Sky.Length)
+                      (2048, 1024, 2048 * 1024 * 8)
+                      "original visible sky is separate from low-resolution IBL"
+
+                  Expect.isLessThan
+                      (Vector3.Distance(pack.SunDirection, daylight.SunDirection))
+                      0.0001f
+                      "authored sun and geometry shadows agree"
 
                   let samples =
                       [| for offset in 0..2 .. pack.Environment.Length - 2 ->
@@ -221,7 +228,8 @@ let tests =
                       Expect.isLessThan (abs clip.X) clip.W "entire pitch width is visible"
                       Expect.isLessThan (abs clip.Y) clip.W "entire pitch length is visible")
           testCase "stadium package supplies the authored lighting rather than a runtime duplicate" (fun _ ->
-              let sidecar = Path.Combine(Path.GetDirectoryName directory, "stadium.environment.json")
+              let sidecar =
+                  Path.Combine(Path.GetDirectoryName directory, "stadium.environment.json")
 
               match StadiumEnvironment.load sidecar with
               | Error error -> failtest error
@@ -229,7 +237,12 @@ let tests =
                   Expect.isOk (HdrLighting.validate package.Settings) "authored lighting is admissible"
                   Expect.equal package.Settings.SunDirection package.Environment.SunDirection "one solar direction"
                   Expect.floatClose Accuracy.medium (float package.Settings.ExposureStops) -0.35 "authored exposure"
-                  Expect.floatClose Accuracy.medium (float package.Settings.SunRadiance.Y) 3.0912 "cloud sun and runtime sun agree")
+
+                  Expect.floatClose
+                      Accuracy.medium
+                      (float package.Settings.SunRadiance.Y)
+                      3.0912
+                      "cloud sun and runtime sun agree")
           testCase "missing sidecar does not silently load default lighting" (fun _ ->
               withStadium (fun asset sidecar ->
                   File.Delete sidecar

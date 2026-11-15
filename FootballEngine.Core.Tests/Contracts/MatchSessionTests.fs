@@ -91,7 +91,8 @@ module MatchSessionTests =
                       let session =
                           MatchSession.create
                               Scheduler.systems
-                              { input 11 with Context = TestBuilders.defaultCtx () }
+                              { input 11 with
+                                  Context = TestBuilders.defaultCtx () }
                               (MatchRunMode.Live LiveExecutionPolicy.defaultPolicy)
                           |> unwrap
 
@@ -100,7 +101,10 @@ module MatchSessionTests =
                       while session.World.State.Flow <> MatchFlow.MatchEnded do
                           let cut = cuts[index % cuts.Length] * 1<subtick>
                           index <- index + 1
-                          MatchSession.advanceTo (session.World.State.Tick + cut) session |> unwrap |> ignore
+
+                          MatchSession.advanceTo (session.World.State.Tick + cut) session
+                          |> unwrap
+                          |> ignore
 
                       MatchSession.finish session |> unwrap
 
@@ -137,12 +141,20 @@ module MatchSessionTests =
                       (0.25 * float outcome.Events.Length)
                       "physics is most of a match's events, so dropping it shrinks what a save keeps"
 
-                  Expect.equal (Simulator.eventsHash record) outcome.EventsHash "the stored record verifies against the result hash"
+                  Expect.equal
+                      (Simulator.eventsHash record)
+                      outcome.EventsHash
+                      "the stored record verifies against the result hash"
 
                   let goals events =
-                      events |> List.filter (fun ev -> match ev.Data with EventData.Goal _ -> true | _ -> false)
+                      events
+                      |> List.filter (fun ev ->
+                          match ev.Data with
+                          | EventData.Goal _ -> true
+                          | _ -> false)
 
                   Expect.equal (goals record) (goals outcome.Events) "every goal is kept"
+
                   let overturned =
                       record
                       |> List.filter (fun ev -> ev.Data = EventData.VARDecision VARResult.GoalOverturned)

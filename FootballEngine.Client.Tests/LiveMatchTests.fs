@@ -179,7 +179,13 @@ let tests =
         [ testCase "cancel stops chained advance without discarding the current day"
           <| fun _ ->
               let gs = career ()
-              let state = { AppTypes.initialState () with Mode = InGame(gs, managerEmployment gs); IsProcessing = true; AdvanceTarget = Some(gs.CurrentDate.AddDays 20.0) }
+
+              let state =
+                  { AppTypes.initialState () with
+                      Mode = InGame(gs, managerEmployment gs)
+                      IsProcessing = true
+                      AdvanceTarget = Some(gs.CurrentDate.AddDays 20.0) }
+
               let cancelled, command = AppState.update (SimMsg CancelAdvance) state
               Expect.isNone cancelled.AdvanceTarget "no further day is scheduled"
               Expect.isTrue cancelled.IsProcessing "the in-flight day is allowed to finish coherently"
@@ -189,7 +195,13 @@ let tests =
           testCase "advance failure clears busy state and target and offers visible recovery"
           <| fun _ ->
               let gs = career ()
-              let state = { AppTypes.initialState () with Mode = InGame(gs, managerEmployment gs); IsProcessing = true; AdvanceTarget = Some(gs.CurrentDate.AddDays 20.0) }
+
+              let state =
+                  { AppTypes.initialState () with
+                      Mode = InGame(gs, managerEmployment gs)
+                      IsProcessing = true
+                      AdvanceTarget = Some(gs.CurrentDate.AddDays 20.0) }
+
               let failed, command = AppState.update (SimMsg(AdvanceFailed "test failure")) state
               Expect.isFalse failed.IsProcessing "retry is available"
               Expect.isNone failed.AdvanceTarget "failed advance cannot keep chaining"
@@ -275,14 +287,37 @@ let tests =
           testCase "suggested lineup never selects suspended players"
           <| fun _ ->
               let gs = career ()
-              let starter = (TacticsSlice.Query.currentLineup gs).Value.Slots |> List.pick _.PlayerId
-              let gs = { gs with Players = gs.Players |> Map.change starter (Option.map (fun player -> { player with Status = Suspended 1 })) }
-              let state = { AppTypes.initialState () with Mode = InGame(gs, managerEmployment gs); IsProcessing = false }
+
+              let starter =
+                  (TacticsSlice.Query.currentLineup gs).Value.Slots |> List.pick _.PlayerId
+
+              let gs =
+                  { gs with
+                      Players =
+                          gs.Players
+                          |> Map.change starter (Option.map (fun player -> { player with Status = Suspended 1 })) }
+
+              let state =
+                  { AppTypes.initialState () with
+                      Mode = InGame(gs, managerEmployment gs)
+                      IsProcessing = false }
+
               let suggested, _ = AppState.update (TacticsMsg QuickPick) state
-              let updated = match suggested.Mode with InGame(value, _) -> value | _ -> failtest "expected career"
+
+              let updated =
+                  match suggested.Mode with
+                  | InGame(value, _) -> value
+                  | _ -> failtest "expected career"
+
               let slots = (TacticsSlice.Query.currentLineup updated).Value.Slots
-              Expect.isFalse (slots |> List.exists (fun slot -> slot.PlayerId = Some starter)) "an unavailable starter must not be suggested"
-              Expect.isTrue (CareerFlow.lineupReadiness updated).IsReady "an available squad produces a valid suggested eleven"
+
+              Expect.isFalse
+                  (slots |> List.exists (fun slot -> slot.PlayerId = Some starter))
+                  "an unavailable starter must not be suggested"
+
+              Expect.isTrue
+                  (CareerFlow.lineupReadiness updated).IsReady
+                  "an available squad produces a valid suggested eleven"
 
           testCase "navigation retains a valid match and returns to the same session"
           <| fun _ ->

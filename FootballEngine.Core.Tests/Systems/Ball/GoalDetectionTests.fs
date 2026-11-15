@@ -43,7 +43,13 @@ module GoalDetectionTests =
 
     let private resolveCrossing (y: float<meter>) (x: float<meter>) : EventBuffer =
         let world = TestBuilders.minimalWorld ()
-        let previousX = if x >= defLine then defLine - 0.5<meter> else x - 0.5<meter>
+
+        let previousX =
+            if x >= defLine then
+                defLine - 0.5<meter>
+            else
+                x - 0.5<meter>
+
         configureShot world (spatial previousX y 0.0<meter>) (spatial x y 0.0<meter>) shooter
         let buf = buffer ()
         BallOutcome.step sctx (Rng.ofSeed 0UL) world buf |> ignore
@@ -83,7 +89,9 @@ module GoalDetectionTests =
           ControlAfter = control }
 
     let private applyPhysicalTouch (world: World) (actor: PlayerId) (control: ContactControlSnapshot) =
-        let side = MatchWorld.sideOfPlayer ctx actor |> ValueOption.defaultValue ClubSide.Away
+        let side =
+            MatchWorld.sideOfPlayer ctx actor |> ValueOption.defaultValue ClubSide.Away
+
         let ballControl =
             match control.Kind, control.Side, control.Player with
             | ContactControlKind.ReceivingBall, Some ownerSide, Some player when player = actor ->
@@ -98,6 +106,7 @@ module GoalDetectionTests =
                         LastTouch = Some actor } }
 
         let buf = buffer ()
+
         buf.Events.Add
             { Tick = world.State.Tick
               Data = EventData.PhysicalContact(physicalRecord actor control) }
@@ -110,7 +119,14 @@ module GoalDetectionTests =
             let frame = (MatchWorld.team world side).Frame
 
             for slot in MatchWorld.activeSlots frame do
-                frame.PosX[slot] <- float32 (if side = ClubSide.Home then -40.0 + float slot * 2.0 else 40.0 - float slot * 2.0)
+                frame.PosX[slot] <-
+                    float32 (
+                        if side = ClubSide.Home then
+                            -40.0 + float slot * 2.0
+                        else
+                            40.0 - float slot * 2.0
+                    )
+
                 frame.PosY[slot] <- if slot % 2 = 0 then -25.0f else 25.0f
                 frame.VelX[slot] <- 0.0f
                 frame.VelY[slot] <- 0.0f
@@ -135,13 +151,19 @@ module GoalDetectionTests =
                   // The whole ball (r = 0.11 m) must be over the line, so the centre is placed 0.2 m beyond it.
                   let buf = resolveCrossing 0.5<meter> (defLine + 0.2<meter>)
                   Expect.isTrue (hasGoal buf) "an unobstructed in-frame crossing is a goal"
+
                   Expect.isFalse
-                      (buf.Events |> Seq.exists (fun event -> match event.Data with EventData.Save _ -> true | _ -> false))
+                      (buf.Events
+                       |> Seq.exists (fun event ->
+                           match event.Data with
+                           | EventData.Save _ -> true
+                           | _ -> false))
                       "keeper attributes cannot create a save")
 
               testCase "wide of the posts is never a goal" (fun _ ->
                   let buf = resolveCrossing 6.0<meter> (defLine + 0.1<meter>)
                   Expect.isFalse (hasGoal buf) "wide of the posts can't score"
+
                   Expect.isTrue
                       (buf.Events
                        |> Seq.exists (fun event ->
@@ -169,7 +191,10 @@ module GoalDetectionTests =
                   let towardHome = spatial (Pitch.homeGoalX + 1.0<meter>) 0.0<meter> 0.0<meter>
                   let pastHome = spatial (Pitch.homeGoalX - 1.0<meter>) 0.0<meter> 0.0<meter>
 
-                  match BallPhysics.goalCrossing 0.11<meter> towardAway pastAway, BallPhysics.goalCrossing 0.11<meter> towardHome pastHome with
+                  match
+                      BallPhysics.goalCrossing 0.11<meter> towardAway pastAway,
+                      BallPhysics.goalCrossing 0.11<meter> towardHome pastHome
+                  with
                   | Some away, Some home ->
                       Expect.equal away.Side ClubSide.Home "away goal belongs to home scorer"
                       Expect.equal home.Side ClubSide.Away "home goal belongs to away scorer"
@@ -193,6 +218,7 @@ module GoalDetectionTests =
 
                   Expect.isNone world.State.Ball.Trajectory "physical control cancels the original shot flight"
                   Expect.isFalse (hasGoal outcomeEvents) "a cancelled shot cannot score on its old label"
+
                   Expect.isTrue
                       (contactEvents.Events
                        |> Seq.exists (fun event ->
@@ -238,6 +264,7 @@ module GoalDetectionTests =
                   BallOutcome.step sctx (Rng.ofSeed 0UL) world outcomeEvents |> ignore
 
                   Expect.isFalse (hasGoal outcomeEvents) "the deflected crossing misses the frame"
+
                   Expect.isTrue
                       (outcomeEvents.Events
                        |> Seq.exists (fun event ->
@@ -245,6 +272,7 @@ module GoalDetectionTests =
                            | EventData.Shot(_, ShotResult.Blocked, _, _, _, _) -> true
                            | _ -> false))
                       "the actual defensive touch classifies the shot as blocked"
+
                   Expect.isTrue
                       (outcomeEvents.Events
                        |> Seq.exists (fun event ->
@@ -270,6 +298,7 @@ module GoalDetectionTests =
                   BallOutcome.step sctx (Rng.ofSeed 0UL) world outcomeEvents |> ignore
 
                   Expect.isFalse (hasGoal outcomeEvents) "the deflected ball misses"
+
                   Expect.isTrue
                       (outcomeEvents.Events
                        |> Seq.exists (fun event ->
@@ -277,6 +306,7 @@ module GoalDetectionTests =
                            | EventData.Save(keeper, attempt) -> keeper = goalkeeper && attempt = shooter
                            | _ -> false))
                       "a goalkeeper save is tied to a real keeper-ball touch and terminal miss"
+
                   Expect.isTrue
                       (outcomeEvents.Events
                        |> Seq.exists (fun event ->
@@ -332,5 +362,8 @@ module GoalDetectionTests =
                   let outcome = buffer ()
                   BallOutcome.step sctx (Rng.ofSeed 3UL) world outcome |> ignore
 
-                  Expect.isFalse (hasGoal outcome) "the post-contact ball velocity, not the initial shot label, decides the goal"
+                  Expect.isFalse
+                      (hasGoal outcome)
+                      "the post-contact ball velocity, not the initial shot label, decides the goal"
+
                   Expect.isSome world.State.Ball.Trajectory "a loose physical deflection retains shot provenance") ]

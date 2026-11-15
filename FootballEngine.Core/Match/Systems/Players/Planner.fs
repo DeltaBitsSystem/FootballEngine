@@ -3,32 +3,36 @@ namespace FootballEngine.Core.Match
 /// Chain state used by the planner and tests. Defined at namespace level
 /// so tests can reference it bare after `open FootballEngine.Core.Match`.
 type ChainState =
-    { BallX: float<meter>
-      BallY: float<meter>
-      CarrierSlot: int
-      Side: ClubSide
-      OurPos: struct (int * float<meter> * float<meter>)[]
-      OppPos: struct (int * float<meter> * float<meter>)[]
-      OffsideLine: float<meter>
-      Dir: float
-      OurMotion: struct (int * float<meterPerSecond> * float<meterPerSecond>)[]
-      OppMotion: struct (int * float<meterPerSecond> * float<meterPerSecond>)[]
-      Horizon: float<second>
-      Confidence: float
-      /// Bit per slot; the search tests membership for every projected player, which a tree set made costly.
-      GoalkeeperSlots: uint64
-      OurGoalkeeperSlots: uint64
-      PassBall: BallConfig
-      PassArrivalSpeed: float<meterPerSecond>
-      PassArrivalSpeedGain: float
-      MaxPassDistance: float<meter>
-      CarrySpeed: float<meterPerSecond> }
+    {
+        BallX: float<meter>
+        BallY: float<meter>
+        CarrierSlot: int
+        Side: ClubSide
+        OurPos: struct (int * float<meter> * float<meter>)[]
+        OppPos: struct (int * float<meter> * float<meter>)[]
+        OffsideLine: float<meter>
+        Dir: float
+        OurMotion: struct (int * float<meterPerSecond> * float<meterPerSecond>)[]
+        OppMotion: struct (int * float<meterPerSecond> * float<meterPerSecond>)[]
+        Horizon: float<second>
+        Confidence: float
+        /// Bit per slot; the search tests membership for every projected player, which a tree set made costly.
+        GoalkeeperSlots: uint64
+        OurGoalkeeperSlots: uint64
+        PassBall: BallConfig
+        PassArrivalSpeed: float<meterPerSecond>
+        PassArrivalSpeedGain: float
+        MaxPassDistance: float<meter>
+        CarrySpeed: float<meterPerSecond>
+    }
 
 /// Slot sets as one word each: a lineup has far fewer than 64 slots.
 module SlotMask =
     let inline contains (slot: int) (mask: uint64) = (mask >>> slot) &&& 1UL = 1UL
     let inline add (slot: int) (mask: uint64) = mask ||| (1UL <<< slot)
-    let ofSeq (slots: int seq) = Seq.fold (fun mask slot -> add slot mask) 0UL slots
+
+    let ofSeq (slots: int seq) =
+        Seq.fold (fun mask slot -> add slot mask) 0UL slots
 
 /// Action-chain planner: given the level-1 options from Decision, simulate
 /// multi-step continuations (pass → pass → shoot, etc.) and score each chain
@@ -58,12 +62,18 @@ module Planner =
 
         for struct (_, ox, oy) in s.OppPos do
             let d = MatchMath.dist s.BallX s.BallY ox oy
-            if d < nearest then nearest <- d
+
+            if d < nearest then
+                nearest <- d
 
         let mutable supported = false
 
         for struct (slot, tx, ty) in s.OurPos do
-            if slot <> s.CarrierSlot && not supported && MatchMath.dist s.BallX s.BallY tx ty < float e.SupportDistance then
+            if
+                slot <> s.CarrierSlot
+                && not supported
+                && MatchMath.dist s.BallX s.BallY tx ty < float e.SupportDistance
+            then
                 supported <- true
 
         DecisionValue.held e s.Side s.BallX s.BallY nearest supported
@@ -87,7 +97,10 @@ module Planner =
                 // A projected state lists motions in position order, so the same index is tried first; the scan
                 // keeps hand-built states with any order correct.
                 let mutable index =
-                    if i < motions.Length && (let struct (m, _, _) = motions[i] in m = slot) then i else 0
+                    if i < motions.Length && (let struct (m, _, _) = motions[i] in m = slot) then
+                        i
+                    else
+                        0
 
                 let mutable found = false
                 let mutable px = x
@@ -173,7 +186,9 @@ module Planner =
         Array.init key.Count (fun i -> BallAero.pass key.Ball key.Arrival key.Gain (float i * key.Resolution))
 
     let private passTableFor (resolution: float) (s: ChainState) =
-        let key = passKeyOf resolution s.PassBall s.PassArrivalSpeed s.PassArrivalSpeedGain s.MaxPassDistance
+        let key =
+            passKeyOf resolution s.PassBall s.PassArrivalSpeed s.PassArrivalSpeedGain s.MaxPassDistance
+
         passTables.GetOrAdd(key, (fun k -> buildPassTable k))
 
     let private interpolatePass (samples: BallAero.GroundPass[]) (step: float) (distance: float) : BallAero.GroundPass =
@@ -248,7 +263,15 @@ module Planner =
 
         member private this.Reallocate(capacity: int, keep: bool) =
             let players = this.Players
-            let sized (a: 'T[]) n = if keep then (let b = Array.zeroCreate<'T> n in Array.blit a 0 b 0 a.Length; b) else Array.zeroCreate<'T> n
+
+            let sized (a: 'T[]) n =
+                if keep then
+                    (let b = Array.zeroCreate<'T> n in
+                     Array.blit a 0 b 0 a.Length
+                     b)
+                else
+                    Array.zeroCreate<'T> n
+
             this.OurX <- sized this.OurX (capacity * players)
             this.OurY <- sized this.OurY (capacity * players)
             this.OppX <- sized this.OppX (capacity * players)
@@ -268,7 +291,9 @@ module Planner =
             this.Capacity <- capacity
 
         member this.New() =
-            if this.Count = this.Capacity then this.Reallocate(this.Capacity * 2, true)
+            if this.Count = this.Capacity then
+                this.Reallocate(this.Capacity * 2, true)
+
             let i = this.Count
             this.Count <- i + 1
             i
@@ -286,7 +311,9 @@ module Planner =
     /// same race parameters.
     let private buildReaches (p: InterceptTable.InterceptParams) =
         let control = float p.ControlRadius
-        Array.init (p.MaxSteps + 1) (fun n -> control + InterceptTable.reachableDistance p (float n * float InterceptTable.dt))
+
+        Array.init (p.MaxSteps + 1) (fun n ->
+            control + InterceptTable.reachableDistance p (float n * float InterceptTable.dt))
 
     /// Reused buffers of one thread's search. Every array is sized up front from the input, so nothing in the
     /// search can run past its end.
@@ -310,10 +337,14 @@ module Planner =
         member val ReachKey: ReachKey voption = ValueNone with get, set
         member val Reaches: float[] = [||] with get, set
 
-    let private scratches = new System.Threading.ThreadLocal<Scratch>(fun () -> Scratch())
+    let private scratches =
+        new System.Threading.ThreadLocal<Scratch>(fun () -> Scratch())
 
     let private room (a: 'T[]) (n: int) : 'T[] =
-        if a.Length >= n then a else Array.zeroCreate<'T> (max n (a.Length * 2))
+        if a.Length >= n then
+            a
+        else
+            Array.zeroCreate<'T> (max n (a.Length * 2))
 
     /// The search both entry points share: given level-1 options, simulate the first action, then
     /// expand the best continuation recursively up to MaxChainLength.
@@ -494,7 +525,9 @@ module Planner =
                 let dx = bx - arena.OppX[b + i]
                 let dy = by - arena.OppY[b + i]
                 let d = sqrt (dx * dx + dy * dy)
-                if d < nearest then nearest <- d
+
+                if d < nearest then
+                    nearest <- d
 
             let mutable supported = false
             let carrier = arena.Carrier[st]
@@ -563,13 +596,18 @@ module Planner =
                     while verdict = 0 && j < candidates do
                         let dx = sc.CandX[j] - x
                         let dy = sc.CandY[j] - y
-                        if dx * dx + dy * dy <= r2 then verdict <- -1
+
+                        if dx * dx + dy * dy <= r2 then
+                            verdict <- -1
+
                         j <- j + 1
 
                     if verdict = 0 then
                         let dx = rx - x
                         let dy = ry - y
-                        if dx * dx + dy * dy <= r2 then verdict <- 1
+
+                        if dx * dx + dy * dy <= r2 then
+                            verdict <- 1
 
                     k <- k + 1
 
@@ -682,7 +720,9 @@ module Planner =
         // First actions are considered for every root before any continuation; later input options cannot be
         // starved by an early tree.
         for index in 0 .. count - 1 do
-            let code, target, utility = opts.Code[index], opts.Target[index], opts.Utility[index]
+            let code, target, utility =
+                opts.Code[index], opts.Target[index], opts.Utility[index]
+
             scores[index] <- utility
             beamStart[index] <- index * beamWidth
             let before = used
@@ -696,19 +736,28 @@ module Planner =
 
                         if st >= 0 then
                             arena.Parent[st] <- -1
-                            if wantChains then chains[index] <- [| actionOf st |]
+
+                            if wantChains then
+                                chains[index] <- [| actionOf st |]
+
                             rootValues[index] <- valueOf st
                             arena.Visited[st] <- SlotMask.add carrierSlot 0UL |> SlotMask.add arena.Carrier[st]
                             beamStore[beamStart[index]] <- st
                             beamLen[index] <- 1
                     | 2 ->
-                        if wantChains then chains[index] <- [| Shoot |]
+                        if wantChains then
+                            chains[index] <- [| Shoot |]
+
                         rootValues[index] <- valueOf root
                     | 4 ->
-                        if wantChains then chains[index] <- [| Clear |]
+                        if wantChains then
+                            chains[index] <- [| Clear |]
+
                         rootValues[index] <- valueOf root
                     | 5 ->
-                        if wantChains then chains[index] <- [| Cross(target, ballX0 * 1.0<meter>, ballY0 * 1.0<meter>) |]
+                        if wantChains then
+                            chains[index] <- [| Cross(target, ballX0 * 1.0<meter>, ballY0 * 1.0<meter>) |]
+
                         rootValues[index] <- valueOf root
                     | _ -> ()
 
@@ -738,10 +787,15 @@ module Planner =
                         // Stop and shoot competes with passing; it is not postponed until every pass fails.
                         if goalDistance < float cfg.ShootingRange then
                             if spend () then
-                                let score = utility + confidence * (MatchMath.xGFrom goalDistance e.ChainFinishing 1.0 - rootValues[index])
+                                let score =
+                                    utility
+                                    + confidence
+                                      * (MatchMath.xGFrom goalDistance e.ChainFinishing 1.0 - rootValues[index])
 
                                 if score > scores[index] then
-                                    if wantChains then chains[index] <- pathOf st (ValueSome Shoot)
+                                    if wantChains then
+                                        chains[index] <- pathOf st (ValueSome Shoot)
+
                                     scores[index] <- score
 
                         let visited = arena.Visited[st]
@@ -789,14 +843,18 @@ module Planner =
                                 q <- q - 1
 
                             best[pos] <- st
-                            if kept < k then kept <- kept + 1
+
+                            if kept < k then
+                                kept <- kept + 1
 
                     for b in 0 .. kept - 1 do
                         let st = best[b]
 
                         if arena.Score[st] > scores[index] then
                             scores[index] <- arena.Score[st]
-                            if wantChains then chains[index] <- pathOf st ValueNone
+
+                            if wantChains then
+                                chains[index] <- pathOf st ValueNone
 
                     for b in 0 .. kept - 1 do
                         beamStore[beamStart[index] + b] <- best[b]
@@ -854,7 +912,10 @@ module Planner =
                 moves[i] <- false
 
                 let mutable index =
-                    if i < motions.Length && (let struct (k, _, _) = motions[i] in k = slot) then i else 0
+                    if i < motions.Length && (let struct (k, _, _) = motions[i] in k = slot) then
+                        i
+                    else
+                        0
 
                 let mutable found = false
 
@@ -933,16 +994,29 @@ module Planner =
 
         let oppPos =
             [| for s in MatchWorld.activeSlots oppFrame do
-                    struct (s, MatchWorld.posX oppFrame s, MatchWorld.posY oppFrame s) |]
+                   struct (s, MatchWorld.posX oppFrame s, MatchWorld.posY oppFrame s) |]
 
         let motion (f: TeamFrame) =
             [| for s in MatchWorld.activeSlots f do
                    let speed = sqrt (float f.VelX[s] ** 2.0 + float f.VelY[s] ** 2.0)
-                   let cap = float ctx.Config.Movement.SprintSpeed * (1.0 - (1.0 - float f.Condition[s]) * ctx.Config.Movement.FatigueSpeedDecay)
+
+                   let cap =
+                       float ctx.Config.Movement.SprintSpeed
+                       * (1.0 - (1.0 - float f.Condition[s]) * ctx.Config.Movement.FatigueSpeedDecay)
+
                    let scale = if speed > cap && speed > 0.0 then cap / speed else 1.0
-                   struct (s, float f.VelX[s] * scale * 1.0<meterPerSecond>, float f.VelY[s] * scale * 1.0<meterPerSecond>) |]
+
+                   struct (s,
+                           float f.VelX[s] * scale * 1.0<meterPerSecond>,
+                           float f.VelY[s] * scale * 1.0<meterPerSecond>) |]
+
         let profile = MatchWorld.profileOf ctx side slot
-        let confidence = ctx.Config.CollectiveAttack.AnticipationConfidence * float profile.Anticipation / 100.0 * float frame.Cognitive[slot] * float frame.Condition[slot]
+
+        let confidence =
+            ctx.Config.CollectiveAttack.AnticipationConfidence * float profile.Anticipation
+            / 100.0
+            * float frame.Cognitive[slot]
+            * float frame.Condition[slot]
 
         { BallX = ballX
           BallY = ballY
@@ -956,13 +1030,21 @@ module Planner =
           OppMotion = motion oppFrame
           Horizon = ctx.Config.CollectiveAttack.AnticipationHorizon
           Confidence = confidence
-          GoalkeeperSlots = MatchWorld.activeSlots oppFrame |> Array.filter (fun slot -> oppFrame.SlotRoles[slot] = SlotRole.Goalkeeper) |> SlotMask.ofSeq
-          OurGoalkeeperSlots = MatchWorld.activeSlots frame |> Array.filter (fun slot -> frame.SlotRoles[slot] = SlotRole.Goalkeeper) |> SlotMask.ofSeq
+          GoalkeeperSlots =
+            MatchWorld.activeSlots oppFrame
+            |> Array.filter (fun slot -> oppFrame.SlotRoles[slot] = SlotRole.Goalkeeper)
+            |> SlotMask.ofSeq
+          OurGoalkeeperSlots =
+            MatchWorld.activeSlots frame
+            |> Array.filter (fun slot -> frame.SlotRoles[slot] = SlotRole.Goalkeeper)
+            |> SlotMask.ofSeq
           PassBall = ctx.Config.Ball
           PassArrivalSpeed = ctx.Config.Actions.PassArrivalSpeed
           PassArrivalSpeedGain = ctx.Config.Actions.PassArrivalSpeedGain
           MaxPassDistance = ctx.Config.Actions.MaxPassExecutionDistance
-          CarrySpeed = ctx.Config.Movement.SprintSpeed * float profile.Dribbling / 100.0 * float frame.Condition[slot] }
+          CarrySpeed =
+            ctx.Config.Movement.SprintSpeed * float profile.Dribbling / 100.0
+            * float frame.Condition[slot] }
 
     /// `project` into a root's own arrays: the same values and arithmetic, no allocation once they have grown.
     let projectInto (root: ChainRoot) (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) =
@@ -1002,7 +1084,11 @@ module Planner =
                 px[i] <- float (MatchWorld.posX f s)
                 py[i] <- float (MatchWorld.posY f s)
                 let speed = sqrt (float f.VelX[s] ** 2.0 + float f.VelY[s] ** 2.0)
-                let cap = float ctx.Config.Movement.SprintSpeed * (1.0 - (1.0 - float f.Condition[s]) * ctx.Config.Movement.FatigueSpeedDecay)
+
+                let cap =
+                    float ctx.Config.Movement.SprintSpeed
+                    * (1.0 - (1.0 - float f.Condition[s]) * ctx.Config.Movement.FatigueSpeedDecay)
+
                 let scale = if speed > cap && speed > 0.0 then cap / speed else 1.0
                 vx[i] <- float f.VelX[s] * scale
                 vy[i] <- float f.VelY[s] * scale
@@ -1014,8 +1100,20 @@ module Planner =
             goalkeepers
 
         root.OurGoalkeeperSlots <- load frame ours root.OurSlot root.OurX root.OurY root.OurVx root.OurVy root.OurMoves
-        root.GoalkeeperSlots <- load oppFrame opponents root.OppSlot root.OppX root.OppY root.OppVx root.OppVy root.OppMoves
+
+        root.GoalkeeperSlots <-
+            load oppFrame opponents root.OppSlot root.OppX root.OppY root.OppVx root.OppVy root.OppMoves
 
         let profile = MatchWorld.profileOf ctx side slot
-        root.Confidence <- ctx.Config.CollectiveAttack.AnticipationConfidence * float profile.Anticipation / 100.0 * float frame.Cognitive[slot] * float frame.Condition[slot]
-        root.CarrySpeed <- float (ctx.Config.Movement.SprintSpeed * float profile.Dribbling / 100.0 * float frame.Condition[slot])
+
+        root.Confidence <-
+            ctx.Config.CollectiveAttack.AnticipationConfidence * float profile.Anticipation
+            / 100.0
+            * float frame.Cognitive[slot]
+            * float frame.Condition[slot]
+
+        root.CarrySpeed <-
+            float (
+                ctx.Config.Movement.SprintSpeed * float profile.Dribbling / 100.0
+                * float frame.Condition[slot]
+            )

@@ -36,7 +36,8 @@ module MotionMatchingTests =
 
     /// Root path integrated per tick from a speed (m/s) and turn-rate (rad/s) profile over seconds.
     /// The stride clock follows Core's own cadence law, shifted by `phaseOffset` cycles.
-    type private Path(ticks: int, speed: float32 -> float32, turn: float32 -> float32, origin: Vector2, phaseOffset: float32) =
+    type private Path
+        (ticks: int, speed: float32 -> float32, turn: float32 -> float32, origin: Vector2, phaseOffset: float32) =
         let dt = animation.TickSeconds
         let positions = Array.zeroCreate<Vector2> ticks
         let headings = Array.zeroCreate<float32> ticks
@@ -57,6 +58,7 @@ module MotionMatchingTests =
                     phase
                     + Gait.cyclesPerSecond BalanceConfig.defaultGait PhysicalMorphology.standard (float (speed seconds))
                       * float dt
+
                 heading <- heading + turn seconds * dt
                 position <- position + Vector2(MathF.Cos heading, MathF.Sin heading) * (speed seconds * dt)
 
@@ -89,7 +91,9 @@ module MotionMatchingTests =
             let b = this.Root(actor, tick + 1)
             let u = float32 (time - floor time)
             let turn = b.Facing - a.Facing
-            Vector3.Lerp(MotionInput.vector a.Position, MotionInput.vector b.Position, u), MotionInput.facing (a.Facing + turn * u)
+
+            Vector3.Lerp(MotionInput.vector a.Position, MotionInput.vector b.Position, u),
+            MotionInput.facing (a.Facing + turn * u)
 
         /// Plans as the live runtime publishes them: past its frontier it answers with the latest plan it has.
         member this.Source(frontier: int) =
@@ -103,7 +107,15 @@ module MotionMatchingTests =
                         plan <- SupportPlanner.initialize animation tick (this.Root(actor, tick))
                         true }
 
-    let private evaluate (matcher: MotionMatcher) (path: Path) (source: IMotionPlanSource) actor (time: float) (scratch: PoseScratch) (palette: Matrix4x4[]) =
+    let private evaluate
+        (matcher: MotionMatcher)
+        (path: Path)
+        (source: IMotionPlanSource)
+        actor
+        (time: float)
+        (scratch: PoseScratch)
+        (palette: Matrix4x4[])
+        =
         let motion = MotionTime.ofTicks time
         let mutable plan = SupportPlanner.initialize animation 0 (path.Root(actor, 0))
 
@@ -117,7 +129,9 @@ module MotionMatchingTests =
         | ValueNone -> failtestf "matcher had no pose at tick %.2f" time
 
     let private soleWorld (rig: RigDefinition) (world: Matrix4x4[]) (leg: RigLimb) rootPosition facing =
-        let local = world[leg.End].Translation + Vector3.TransformNormal(leg.Socket, world[leg.End])
+        let local =
+            world[leg.End].Translation + Vector3.TransformNormal(leg.Socket, world[leg.End])
+
         Vector3.Transform(local, Matrix4x4.CreateRotationY facing) + rootPosition
 
     let private actor = PlayerId 7
@@ -209,13 +223,16 @@ module MotionMatchingTests =
                   let mutable time = 8.0
 
                   while time < 460.0 do
-                      let pose, rootPosition, facing = evaluate matcher varied source actor time scratch palette
+                      let pose, rootPosition, facing =
+                          evaluate matcher varied source actor time scratch palette
 
                       if pose.Switched then
                           switches <- switches + 1
 
                       for node = 0 to rig.Bind.Length - 1 do
-                          let world = Vector3.Transform(scratch.World[node].Translation, Matrix4x4.CreateRotationY facing) + rootPosition
+                          let world =
+                              Vector3.Transform(scratch.World[node].Translation, Matrix4x4.CreateRotationY facing)
+                              + rootPosition
 
                           if samples >= 2 then
                               fastest <- max fastest (Vector3.Distance(world, previous[node]))
@@ -252,7 +269,8 @@ module MotionMatchingTests =
                   let mutable time = 80.0
 
                   while time < 360.0 do
-                      let pose, rootPosition, facing = evaluate matcher path source actor time scratch palette
+                      let pose, rootPosition, facing =
+                          evaluate matcher path source actor time scratch palette
 
                       for foot, weight, leg in [ 0, pose.LeftLock, rig.LeftLeg; 1, pose.RightLock, rig.RightLeg ] do
                           if weight >= 1.0f then
@@ -275,56 +293,80 @@ module MotionMatchingTests =
                   Expect.isGreaterThan locked 100 "the run must plant its feet"
                   Expect.isLessThan worst 0.01f $"planted sole drifted {worst:F4} m, {worstAt}")
               // Timing is only meaningful without the rest of the suite competing for the same cores.
-              testCase "a run follows Core's stride clock, so the support foot is planted when Core touches the ball" (fun _ ->
-                  let _, db = loaded.Force()
+              testCase
+                  "a run follows Core's stride clock, so the support foot is planted when Core touches the ball"
+                  (fun _ ->
+                      let _, db = loaded.Force()
 
-                  // Both clock offsets must be followed: a pose that happened to agree with one would fail the other.
-                  for offset in [ 0.0f; 0.5f ] do
-                      let matcher = matcher ()
-                      let path = Path(400, (fun _ -> 4.5f), (fun _ -> 0.0f), Vector2.Zero, offset)
-                      let source = path.Source(path.Ticks - 1)
-                      let rig, _ = loaded.Force()
-                      let scratch = PoseScratch rig
-                      let palette = Array.create rig.Bind.Length Matrix4x4.Identity
-                      let errors = ResizeArray<float32>()
-                      let mutable supported, touches = 0, 0
+                      // Both clock offsets must be followed: a pose that happened to agree with one would fail the other.
+                      for offset in [ 0.0f; 0.5f ] do
+                          let matcher = matcher ()
+                          let path = Path(400, (fun _ -> 4.5f), (fun _ -> 0.0f), Vector2.Zero, offset)
+                          let source = path.Source(path.Ticks - 1)
+                          let rig, _ = loaded.Force()
+                          let scratch = PoseScratch rig
+                          let palette = Array.create rig.Bind.Length Matrix4x4.Identity
+                          let errors = ResizeArray<float32>()
+                          let mutable supported, touches = 0, 0
 
-                      for tick in 120..380 do
-                          let pose, _, _ = evaluate matcher path source actor (float tick) scratch palette
-                          let captured = matcher.Features.Phase[int pose.Frame]
-                          Expect.isFalse (Single.IsNaN captured) $"tick {tick}: a run is matched to striding capture"
-                          let core = path.Root(actor, tick).GaitPhase
-                          let gap = core - captured
-                          errors.Add(abs (gap - MathF.Round gap))
+                          for tick in 120..380 do
+                              let pose, _, _ = evaluate matcher path source actor (float tick) scratch palette
+                              let captured = matcher.Features.Phase[int pose.Frame]
 
-                          // Core's touch point is CarryTouchPhase after a strike; the striking foot must be planted.
-                          let sinceStrike = core - MathF.Floor(core * 2.0f) * 0.5f
-                          let touch = float32 BalanceConfig.defaultGait.CarryTouchPhase
+                              Expect.isFalse
+                                  (Single.IsNaN captured)
+                                  $"tick {tick}: a run is matched to striding capture"
 
-                          if abs (sinceStrike - touch) < 0.04f then
-                              touches <- touches + 1
-                              let bit = if core < 0.5f then 1uy else 2uy
-                              if db.Contacts[int pose.Frame] &&& bit <> 0uy then supported <- supported + 1
+                              let core = path.Root(actor, tick).GaitPhase
+                              let gap = core - captured
+                              errors.Add(abs (gap - MathF.Round gap))
 
-                      let mean = Seq.average errors
-                      Expect.isLessThan mean 0.08f $"offset {offset}: mean phase gap {mean:F3} cycles"
-                      Expect.isLessThan (Seq.max errors) 0.2f $"offset {offset}: worst phase gap"
-                      Expect.isGreaterThan touches 10 "the run passes many touch points"
-                      Expect.isGreaterThanOrEqual (float supported / float touches) 0.9 $"offset {offset}: support foot planted at {supported}/{touches} touch points")
-              testSequenced <| testCase "twenty-two players are matched within the frame budget" (fun _ ->
+                              // Core's touch point is CarryTouchPhase after a strike; the striking foot must be planted.
+                              let sinceStrike = core - MathF.Floor(core * 2.0f) * 0.5f
+                              let touch = float32 BalanceConfig.defaultGait.CarryTouchPhase
+
+                              if abs (sinceStrike - touch) < 0.04f then
+                                  touches <- touches + 1
+                                  let bit = if core < 0.5f then 1uy else 2uy
+
+                                  if db.Contacts[int pose.Frame] &&& bit <> 0uy then
+                                      supported <- supported + 1
+
+                          let mean = Seq.average errors
+                          Expect.isLessThan mean 0.08f $"offset {offset}: mean phase gap {mean:F3} cycles"
+                          Expect.isLessThan (Seq.max errors) 0.2f $"offset {offset}: worst phase gap"
+                          Expect.isGreaterThan touches 10 "the run passes many touch points"
+
+                          Expect.isGreaterThanOrEqual
+                              (float supported / float touches)
+                              0.9
+                              $"offset {offset}: support foot planted at {supported}/{touches} touch points")
+              testSequenced
+              <| testCase "twenty-two players are matched within the frame budget" (fun _ ->
                   let rig, _ = loaded.Force()
                   let matcher = matcher ()
-                  let paths = Array.init 22 (fun i -> Path(1200, (fun t -> 2.0f + 4.0f * MathF.Sin(t * 0.7f + float32 i)), (fun t -> 0.6f * MathF.Sin(t * 0.4f + float32 i)), Vector2(float32 i * 3.0f, 0.0f)))
+
+                  let paths =
+                      Array.init 22 (fun i ->
+                          Path(
+                              1200,
+                              (fun t -> 2.0f + 4.0f * MathF.Sin(t * 0.7f + float32 i)),
+                              (fun t -> 0.6f * MathF.Sin(t * 0.4f + float32 i)),
+                              Vector2(float32 i * 3.0f, 0.0f)
+                          ))
+
                   let sources = paths |> Array.map (fun path -> path.Source(path.Ticks - 1))
                   let scratch = PoseScratch rig
                   let palette = Array.create rig.JointNodes.Length Matrix4x4.Identity
                   let frame = 40.0 / 60.0
+
                   let run first last =
                       let mutable time = first
 
                       while time < last do
                           for i = 0 to 21 do
-                              evaluate matcher paths[i] sources[i] (PlayerId(i + 1)) time scratch palette |> ignore
+                              evaluate matcher paths[i] sources[i] (PlayerId(i + 1)) time scratch palette
+                              |> ignore
 
                           time <- time + frame
 

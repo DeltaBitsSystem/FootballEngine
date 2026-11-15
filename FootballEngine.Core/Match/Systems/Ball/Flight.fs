@@ -9,11 +9,13 @@ module BallFlight =
 
     [<Struct>]
     type Arrival =
-        { /// Underside height when the ball reaches the target distance, or minus the shortfall if it landed first.
-          Height: float
-          /// Signed offset to the left of the aim line at the target distance.
-          Lateral: float
-          Seconds: float }
+        {
+            /// Underside height when the ball reaches the target distance, or minus the shortfall if it landed first.
+            Height: float
+            /// Signed offset to the left of the aim line at the target distance.
+            Lateral: float
+            Seconds: float
+        }
 
     [<Struct>]
     type Launch =
@@ -107,7 +109,11 @@ module BallFlight =
         let speed = float speed
         let mutable heading = aimHeading
         let mutable elevation = 0.0
-        let mutable arrival = { Height = 0.0; Lateral = 0.0; Seconds = 0.0 }
+
+        let mutable arrival =
+            { Height = 0.0
+              Lateral = 0.0
+              Seconds = 0.0 }
 
         let flyAt heading elevation =
             let velocity = velocityFor speed heading elevation

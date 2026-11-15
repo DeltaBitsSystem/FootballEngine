@@ -90,7 +90,8 @@ module RefereeFouls =
                 | FoulSeverity.RedWorthy -> referee.FoulRedWorthyChance, 1.0 - referee.FoulRedWorthyChance
 
             // Stopping the last line of defence near goal denies a scoring chance, which the contact cannot show.
-            let pYellow = MatchMath.clamp01 (pYellow + if lastMan then referee.LastManFactor else 0.0)
+            let pYellow =
+                MatchMath.clamp01 (pYellow + if lastMan then referee.LastManFactor else 0.0)
 
             let alreadyBooked =
                 match side with

@@ -26,7 +26,10 @@ module SimulatorRunner =
                  |> Map.toSeq
                  |> Seq.collect (fun (_, c) -> c.Fixtures |> Map.toSeq |> Seq.map snd)
                  |> Seq.filter (fun fixture ->
-                     FootballEngine.World.Phases.MatchContextBuilder.build gs fixture FootballEngine.Core.Match.BalanceConfig.defaultConfig
+                     FootballEngine.World.Phases.MatchContextBuilder.build
+                         gs
+                         fixture
+                         FootballEngine.Core.Match.BalanceConfig.defaultConfig
                      |> Option.isSome)
                  |> Array.ofSeq
 
@@ -64,10 +67,16 @@ module SimulatorRunner =
 
         int (finish session).State.Tick
 
-    let runOne (cfg: BalanceConfig) (seed: uint64) : World = finish (session Scheduler.systems cfg seed)
+    let runOne (cfg: BalanceConfig) (seed: uint64) : World =
+        finish (session Scheduler.systems cfg seed)
 
     /// Same match as `runOne`, handing every tick's applied events to `observe`.
-    let runObservedOn (ownThread: bool) (cfg: BalanceConfig) (seed: uint64) (observe: World -> MatchEvent seq -> unit) : World =
+    let runObservedOn
+        (ownThread: bool)
+        (cfg: BalanceConfig)
+        (seed: uint64)
+        (observe: World -> MatchEvent seq -> unit)
+        : World =
         let session = session Scheduler.systems cfg seed
 
         if ownThread then

@@ -6,7 +6,10 @@ open FootballEngine.Core.Tests.Infrastructure
 
 module DuelContactTests =
     let private ctx = TestBuilders.formationCtx ()
-    let private system = { Ctx = ctx; Clock = SimulationClock.defaultClock }
+
+    let private system =
+        { Ctx = ctx
+          Clock = SimulationClock.defaultClock }
 
     let private buffer () : EventBuffer =
         { Events = ResizeArray()
@@ -59,7 +62,9 @@ module DuelContactTests =
                 Ball =
                     { TestBuilders.emptyBall with
                         Control = BallControl.Free
-                        Position = { TestBuilders.emptyBall.Position with Vx = 10.0<meterPerSecond> } } }
+                        Position =
+                            { TestBuilders.emptyBall.Position with
+                                Vx = 10.0<meterPerSecond> } } }
 
         world
 
@@ -77,7 +82,8 @@ module DuelContactTests =
                   Actions.step system (Rng.ofSeed 1UL) near (buffer ()) |> ignore
 
                   match near.Home.Frame.ContactActions[5] with
-                  | Some action -> Expect.equal action.Kind ContactActionKind.ContactTrap "the receiver sets to trap it"
+                  | Some action ->
+                      Expect.equal action.Kind ContactActionKind.ContactTrap "the receiver sets to trap it"
                   | None -> failtest "a ball arriving inside the window is trapped")
 
               testCase "take-on proposes a timed shield without awarding possession" (fun _ ->
@@ -99,116 +105,141 @@ module DuelContactTests =
                           Expect.equal action.Kind ContactActionKind.ContactShield "take-on protects the carrier"
                           Expect.equal action.Target None "shield has no opponent winner"
                           Expect.equal action.Phase ContactActionPhase.ContactActionPreparing "protection has a windup"
-                          Expect.equal action.Generation team.Frame.ContactGeneration[5] "action belongs to this participation"
+
+                          Expect.equal
+                              action.Generation
+                              team.Frame.ContactGeneration[5]
+                              "action belongs to this participation"
                       | None -> failtest "reachable carrier did not receive a shield action")
 
-             ; testCase "unreachable or inactive carrier cannot prepare a shield" (fun _ ->
-                 for kind in [ 0; 1 ] do
-                     let world = carrierWorld ClubSide.Home
-                     let frame = world.Home.Frame
+              testCase "unreachable or inactive carrier cannot prepare a shield" (fun _ ->
+                  for kind in [ 0; 1 ] do
+                      let world = carrierWorld ClubSide.Home
+                      let frame = world.Home.Frame
 
-                     if kind = 0 then
-                         world.State <-
-                             { world.State with
-                                 Ball =
-                                     { world.State.Ball with
-                                         Position = { world.State.Ball.Position with X = 3.0<meter> } } }
-                     else
-                         frame.Occupancy[5] <-
-                             OccupancyKind.Sidelined
-                                 { Id = world.Home.RosterIds[5]
-                                   Reason = PlayerOutReason.Injury }
+                      if kind = 0 then
+                          world.State <-
+                              { world.State with
+                                  Ball =
+                                      { world.State.Ball with
+                                          Position =
+                                              { world.State.Ball.Position with
+                                                  X = 3.0<meter> } } }
+                      else
+                          frame.Occupancy[5] <-
+                              OccupancyKind.Sidelined
+                                  { Id = world.Home.RosterIds[5]
+                                    Reason = PlayerOutReason.Injury }
 
-                         frame.ActiveCache.Revision <- frame.ActiveCache.Revision + 1
+                          frame.ActiveCache.Revision <- frame.ActiveCache.Revision + 1
 
-                     let events = buffer ()
-                     let rng = Rng.ofSeed 4UL
+                      let events = buffer ()
+                      let rng = Rng.ofSeed 4UL
 
-                     Expect.equal (Duel.adjudicate system rng world events ClubSide.Home 5) rng "rejection consumes no sporting randomness"
-                     Expect.isNone frame.ContactActions[5] "rejected proposal leaves no action"
-                     Expect.isEmpty events.Events "rejection emits no sporting result"
-                     Expect.isTrue
-                         (world.Observation.Snapshot().Entries
-                          |> Array.exists (fun entry ->
-                              match entry.Data with
-                              | ActionRejected(_, DuelCarrierUnavailable) -> true
-                              | _ -> false))
-                         "rejection remains observable")
+                      Expect.equal
+                          (Duel.adjudicate system rng world events ClubSide.Home 5)
+                          rng
+                          "rejection consumes no sporting randomness"
 
-             ; testCase "a challenge is reported only after physical player contact" (fun _ ->
-                 let world = carrierWorld ClubSide.Home
-                 let homeId = world.Home.RosterIds[5]
-                 let awayId = world.Away.RosterIds[5]
-                 let home = world.Home.Frame
-                 let away = world.Away.Frame
+                      Expect.isNone frame.ContactActions[5] "rejected proposal leaves no action"
+                      Expect.isEmpty events.Events "rejection emits no sporting result"
 
-                 for slot in MatchWorld.activeSlots home do
-                     if slot <> 5 then
-                         home.PosX[slot] <- -30.0f
-                         home.PosY[slot] <- 20.0f + float32 slot * 2.0f
+                      Expect.isTrue
+                          (world.Observation.Snapshot().Entries
+                           |> Array.exists (fun entry ->
+                               match entry.Data with
+                               | ActionRejected(_, DuelCarrierUnavailable) -> true
+                               | _ -> false))
+                          "rejection remains observable")
 
-                 for slot in MatchWorld.activeSlots away do
-                     if slot <> 5 then
-                         away.PosX[slot] <- 30.0f
-                         away.PosY[slot] <- 20.0f + float32 slot * 2.0f
+              testCase "a challenge is reported only after physical player contact" (fun _ ->
+                  let world = carrierWorld ClubSide.Home
+                  let homeId = world.Home.RosterIds[5]
+                  let awayId = world.Away.RosterIds[5]
+                  let home = world.Home.Frame
+                  let away = world.Away.Frame
 
-                 home.PosX[5] <- -0.22f
-                 home.PosY[5] <- 0.0f
-                 home.VelX[5] <- 8.0f
-                 home.TargetVelX[5] <- 8.0f
-                 away.PosX[5] <- 0.22f
-                 away.PosY[5] <- 0.0f
-                 away.VelX[5] <- -8.0f
-                 away.TargetVelX[5] <- -8.0f
+                  for slot in MatchWorld.activeSlots home do
+                      if slot <> 5 then
+                          home.PosX[slot] <- -30.0f
+                          home.PosY[slot] <- 20.0f + float32 slot * 2.0f
 
-                 world.State <-
-                     { world.State with
-                         Ball =
-                             { world.State.Ball with
-                                 Position =
-                                     { world.State.Ball.Position with
-                                         X = 4.0<meter>
-                                         Y = 0.0<meter> } } }
+                  for slot in MatchWorld.activeSlots away do
+                      if slot <> 5 then
+                          away.PosX[slot] <- 30.0f
+                          away.PosY[slot] <- 20.0f + float32 slot * 2.0f
 
-                 let actionId = ActionId 77UL
+                  home.PosX[5] <- -0.22f
+                  home.PosY[5] <- 0.0f
+                  home.VelX[5] <- 8.0f
+                  home.TargetVelX[5] <- 8.0f
+                  away.PosX[5] <- 0.22f
+                  away.PosY[5] <- 0.0f
+                  away.VelX[5] <- -8.0f
+                  away.TargetVelX[5] <- -8.0f
 
-                 away.ContactActions[5] <-
-                     Some
-                         { Id = actionId
-                           Actor = awayId
-                           Generation = away.ContactGeneration[5]
-                           Kind = ContactActionKind.ContactStandingTackle
-                           Target = Some homeId
-                           Phase = ContactActionPhase.ContactActionCommitted
-                           StartedAt = 0<subtick>
-                           CommitAt = 0<subtick>
-                           EndsAt = 20<subtick>
-                           Foot = Some ContactFoot.Right
-                           PredictedX = 0.0<meter>
-                           PredictedY = 0.0<meter>
-                           PredictedZ = 0.0<meter>
-                           ErrorX = 0.0f
-                           ErrorY = 0.0f
-                           ErrorZ = 0.0f }
+                  world.State <-
+                      { world.State with
+                          Ball =
+                              { world.State.Ball with
+                                  Position =
+                                      { world.State.Ball.Position with
+                                          X = 4.0<meter>
+                                          Y = 0.0<meter> } } }
 
-                 let events = buffer ()
-                 let rng = Rng.ofSeed 17UL
-                 let next = ContactDynamics.step system rng world events
+                  let actionId = ActionId 77UL
 
-                 Expect.equal next rng "the physical solver does not draw a winner"
+                  away.ContactActions[5] <-
+                      Some
+                          { Id = actionId
+                            Actor = awayId
+                            Generation = away.ContactGeneration[5]
+                            Kind = ContactActionKind.ContactStandingTackle
+                            Target = Some homeId
+                            Phase = ContactActionPhase.ContactActionCommitted
+                            StartedAt = 0<subtick>
+                            CommitAt = 0<subtick>
+                            EndsAt = 20<subtick>
+                            Foot = Some ContactFoot.Right
+                            PredictedX = 0.0<meter>
+                            PredictedY = 0.0<meter>
+                            PredictedZ = 0.0<meter>
+                            ErrorX = 0.0f
+                            ErrorY = 0.0f
+                            ErrorZ = 0.0f }
 
-                 let contact =
-                     events.Events
-                     |> Seq.tryPick (fun event ->
-                         match event.Data with
-                         | EventData.PhysicalContact record when record.Other = Some homeId -> Some record
-                         | _ -> None)
-                     |> Option.defaultWith (fun () -> failtest "the body collision produced no physical contact record")
+                  let events = buffer ()
+                  let rng = Rng.ofSeed 17UL
+                  let next = ContactDynamics.step system rng world events
 
-                 Expect.equal contact.Actor awayId "the committed challenge actor is retained"
-                 Expect.equal contact.Action (Some actionId) "contact links to the committed action"
-                 Expect.equal contact.ActionKind (Some ContactActionKind.ContactStandingTackle) "the action kind is evidence, not a result"
-                 Expect.equal world.State.Ball.Control (BallControl.Controlled(ClubSide.Home, homeId)) "body contact alone cannot transfer the ball"
-                 Expect.isFalse
-                     (events.Events |> Seq.exists (fun event -> match event.Data with EventData.Tackle _ -> true | _ -> false))
-                     "contact is not automatically a successful tackle") ]
+                  Expect.equal next rng "the physical solver does not draw a winner"
+
+                  let contact =
+                      events.Events
+                      |> Seq.tryPick (fun event ->
+                          match event.Data with
+                          | EventData.PhysicalContact record when record.Other = Some homeId -> Some record
+                          | _ -> None)
+                      |> Option.defaultWith (fun () ->
+                          failtest "the body collision produced no physical contact record")
+
+                  Expect.equal contact.Actor awayId "the committed challenge actor is retained"
+                  Expect.equal contact.Action (Some actionId) "contact links to the committed action"
+
+                  Expect.equal
+                      contact.ActionKind
+                      (Some ContactActionKind.ContactStandingTackle)
+                      "the action kind is evidence, not a result"
+
+                  Expect.equal
+                      world.State.Ball.Control
+                      (BallControl.Controlled(ClubSide.Home, homeId))
+                      "body contact alone cannot transfer the ball"
+
+                  Expect.isFalse
+                      (events.Events
+                       |> Seq.exists (fun event ->
+                           match event.Data with
+                           | EventData.Tackle _ -> true
+                           | _ -> false))
+                      "contact is not automatically a successful tackle") ]

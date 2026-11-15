@@ -92,7 +92,8 @@ module PlayerView =
                                               [ TextBlock.text (
                                                     Localization.resolve
                                                         TranslationKey.PlayerAgeMorale
-                                                        [ "age", string (Player.age currentDate p); "morale", string p.Morale ]
+                                                        [ "age", string (Player.age currentDate p)
+                                                          "morale", string p.Morale ]
                                                 )
                                                 TextBlock.fontSize 13.0
                                                 TextBlock.foreground Theme.TextMuted ] ] ]
@@ -229,7 +230,8 @@ module PlayerView =
               Border.clipToBounds true
               Border.child (
                   match player with
-                  | None -> UI.emptyState IconName.squad (tr TranslationKey.SelectPlayer) (tr TranslationKey.SelectPlayerHint)
+                  | None ->
+                      UI.emptyState IconName.squad (tr TranslationKey.SelectPlayer) (tr TranslationKey.SelectPlayerHint)
                   | Some p ->
                       let kit = if p.Position = GK then ClubIdentity.keeperKit else clubKit
 
@@ -241,7 +243,10 @@ module PlayerView =
                                 [ Border.create
                                       [ Grid.row 0
                                         Border.background (
-                                            Theme.spotlightBrush (Theme.withAlpha "66" tint) (Theme.withAlpha "22" tint) Theme.BgCard
+                                            Theme.spotlightBrush
+                                                (Theme.withAlpha "66" tint)
+                                                (Theme.withAlpha "22" tint)
+                                                Theme.BgCard
                                         )
                                         Border.padding (24.0, 24.0, 24.0, 18.0)
                                         Border.child (
@@ -255,11 +260,13 @@ module PlayerView =
                                                                   [ UI.shirt kit "" 84.0 "#0A1020" 1.5
                                                                     StackPanel.create
                                                                         [ StackPanel.spacing 6.0
-                                                                          StackPanel.verticalAlignment VerticalAlignment.Center
+                                                                          StackPanel.verticalAlignment
+                                                                              VerticalAlignment.Center
                                                                           StackPanel.children
                                                                               [ UI.display p.Name 30.0 Theme.TextMain
                                                                                 StackPanel.create
-                                                                                    [ StackPanel.orientation Orientation.Horizontal
+                                                                                    [ StackPanel.orientation
+                                                                                          Orientation.Horizontal
                                                                                       StackPanel.spacing 8.0
                                                                                       StackPanel.children
                                                                                           [ UI.positionBadge p.Position
@@ -267,19 +274,40 @@ module PlayerView =
                                                                                                 [ TextBlock.text (
                                                                                                       Localization.resolve
                                                                                                           TranslationKey.PlayerAgeMorale
-                                                                                                          [ "age", string (Player.age currentDate p)
-                                                                                                            "morale", string p.Morale ]
+                                                                                                          [ "age",
+                                                                                                            string (
+                                                                                                                Player.age
+                                                                                                                    currentDate
+                                                                                                                    p
+                                                                                                            )
+                                                                                                            "morale",
+                                                                                                            string
+                                                                                                                p.Morale ]
                                                                                                   )
-                                                                                                  TextBlock.fontSize 14.0
-                                                                                                  TextBlock.foreground Theme.TextSub
+                                                                                                  TextBlock.fontSize
+                                                                                                      14.0
+                                                                                                  TextBlock.foreground
+                                                                                                      Theme.TextSub
                                                                                                   TextBlock.verticalAlignment
                                                                                                       VerticalAlignment.Center ] ] ] ] ] ] ]
                                                         WrapPanel.create
                                                             [ WrapPanel.children
-                                                                  [ figure TranslationKey.PlayerLevel (string p.CurrentSkill) Theme.TextMain
-                                                                    figure TranslationKey.PlayerPotential (string p.PotentialSkill) Theme.Accent
-                                                                    figure TranslationKey.PlayerCondition $"{p.Condition}%%" (conditionColor p.Condition)
-                                                                    figure TranslationKey.PlayerMatchFitness $"{p.MatchFitness}%%" Theme.TextMain
+                                                                  [ figure
+                                                                        TranslationKey.PlayerLevel
+                                                                        (string p.CurrentSkill)
+                                                                        Theme.TextMain
+                                                                    figure
+                                                                        TranslationKey.PlayerPotential
+                                                                        (string p.PotentialSkill)
+                                                                        Theme.Accent
+                                                                    figure
+                                                                        TranslationKey.PlayerCondition
+                                                                        $"{p.Condition}%%"
+                                                                        (conditionColor p.Condition)
+                                                                    figure
+                                                                        TranslationKey.PlayerMatchFitness
+                                                                        $"{p.MatchFitness}%%"
+                                                                        Theme.TextMain
                                                                     figure
                                                                         TranslationKey.PlayerContract
                                                                         (Player.contractOf p

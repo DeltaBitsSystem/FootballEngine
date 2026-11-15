@@ -186,8 +186,10 @@ let unitTests =
               let input =
                   { baseInput tick with
                       Events =
-                        [| { Tick = tick; Data = EventData.TeamInstruction ClubSide.Away }
-                           { Tick = tick; Data = EventData.ManagerShift(ClubSide.Away, ManagerShift.ChaseGame) } |] }
+                          [| { Tick = tick
+                               Data = EventData.TeamInstruction ClubSide.Away }
+                             { Tick = tick
+                               Data = EventData.ManagerShift(ClubSide.Away, ManagerShift.ChaseGame) } |] }
 
               let director, first = stepKeyMoments input KeyMoments.init
               Expect.equal first (Some(RivalShift ManagerShift.ChaseGame)) "the shift is the stop"
@@ -201,7 +203,9 @@ let unitTests =
               let tick = seconds 60
 
               let _, rival =
-                  stepKeyMoments (baseInput tick |> withEvent tick (EventData.TeamInstruction ClubSide.Away)) KeyMoments.init
+                  stepKeyMoments
+                      (baseInput tick |> withEvent tick (EventData.TeamInstruction ClubSide.Away))
+                      KeyMoments.init
 
               Expect.equal rival (Some(RivalChange "")) "an unexplained rival change is still announced"
 
@@ -212,9 +216,10 @@ let unitTests =
               let ownWithShift =
                   { own with
                       Events =
-                        Array.append
-                            own.Events
-                            [| { Tick = tick; Data = EventData.ManagerShift(userSide, ManagerShift.ChaseGame) } |] }
+                          Array.append
+                              own.Events
+                              [| { Tick = tick
+                                   Data = EventData.ManagerShift(userSide, ManagerShift.ChaseGame) } |] }
 
               let _, ownShiftStop = stepKeyMoments ownWithShift KeyMoments.init
               Expect.isNone ownShiftStop "a shift on the user's own side never stops the match"
@@ -226,8 +231,10 @@ let unitTests =
               let input =
                   { baseInput tick with
                       Events =
-                        [| { Tick = tick; Data = EventData.TeamInstruction ClubSide.Away }
-                           { Tick = tick; Data = EventData.ManagerShift(ClubSide.Away, ManagerShift.BackToPlan) } |] }
+                          [| { Tick = tick
+                               Data = EventData.TeamInstruction ClubSide.Away }
+                             { Tick = tick
+                               Data = EventData.ManagerShift(ClubSide.Away, ManagerShift.BackToPlan) } |] }
 
               let _, stop = stepKeyMoments input KeyMoments.init
               Expect.isNone stop "undoing a move the viewer already stopped for is not a new moment"
@@ -235,15 +242,28 @@ let unitTests =
           testCase "a rival shift outranks a tired player and yields to a goal and a red card"
           <| fun _ ->
               let tick = seconds 60
-              let tired = { baseInput tick with UserPlayers = [ { Id = PlayerId 1; Name = "Perez"; Condition = 0.3 } ] }
 
-              let shift = { Tick = tick; Data = EventData.ManagerShift(ClubSide.Away, ManagerShift.AllOut) }
-              let red = { Tick = tick; Data = EventData.RedCardIssued(PlayerId 20) }
+              let tired =
+                  { baseInput tick with
+                      UserPlayers =
+                          [ { Id = PlayerId 1
+                              Name = "Perez"
+                              Condition = 0.3 } ] }
+
+              let shift =
+                  { Tick = tick
+                    Data = EventData.ManagerShift(ClubSide.Away, ManagerShift.AllOut) }
+
+              let red =
+                  { Tick = tick
+                    Data = EventData.RedCardIssued(PlayerId 20) }
 
               let _, first = stepKeyMoments { tired with Events = [| shift |] } KeyMoments.init
               Expect.equal first (Some(RivalShift ManagerShift.AllOut)) "the shift comes before the tiring player"
 
-              let _, second = stepKeyMoments { tired with Events = [| shift; red |] } KeyMoments.init
+              let _, second =
+                  stepKeyMoments { tired with Events = [| shift; red |] } KeyMoments.init
+
               Expect.equal second (Some(RedCardShown("P20", false))) "a red card is more urgent than a tactical change"
 
           testCase "a goal outranks a red card and a tired player in the same slice, and the rest follow"

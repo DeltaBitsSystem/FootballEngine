@@ -36,39 +36,41 @@ module Shots =
     let mutable Enabled = false
 
     type Options =
-        { Dir: string
-          Width: float
-          Height: float
-          Pages: Route list
-          SettleMs: int
-          VideoPath: string option
-          VideoFps: int
-          VideoStep: int
-          VideoFrames: int
-          MatchIndex: int
-          /// Days the demo world runs before capture, so world pages (news, board) show real stories, not empty states.
-          WorldDays: int
-          /// Capture the career right after a dismissal, so the job hunt is reviewable.
-          Unemployed: bool
-          InspectMatch: bool
-          MatchSeed: uint64 option
-          /// Skip through the live match unpaced and write the match second of every goal; captures nothing.
-          VideoFindGoals: bool
-          /// Find every goal, then record each in a fresh run of the same seeded match.
-          VideoGoals: bool
-          /// Skip unpaced to just before each of these match seconds, then record the move at normal speed.
-          VideoGoalsAt: int list
-          VideoMaxGoals: int
-          VideoLeadSeconds: int
-          VideoTailSeconds: int
-          /// Render the fixed validation scenes into this directory, with per-pass timings.
-          ViewerScenesDir: string option
-          /// Forces the 3D quality tier for this run instead of the saved setting.
-          ViewerQualityTier: ViewerQualityTier option
-          ViewerSceneFrames: int
-          /// Match second of the goal used by the goal scene; it depends on the match seed.
-          ViewerGoalSecond: int
-          Args: string[] }
+        {
+            Dir: string
+            Width: float
+            Height: float
+            Pages: Route list
+            SettleMs: int
+            VideoPath: string option
+            VideoFps: int
+            VideoStep: int
+            VideoFrames: int
+            MatchIndex: int
+            /// Days the demo world runs before capture, so world pages (news, board) show real stories, not empty states.
+            WorldDays: int
+            /// Capture the career right after a dismissal, so the job hunt is reviewable.
+            Unemployed: bool
+            InspectMatch: bool
+            MatchSeed: uint64 option
+            /// Skip through the live match unpaced and write the match second of every goal; captures nothing.
+            VideoFindGoals: bool
+            /// Find every goal, then record each in a fresh run of the same seeded match.
+            VideoGoals: bool
+            /// Skip unpaced to just before each of these match seconds, then record the move at normal speed.
+            VideoGoalsAt: int list
+            VideoMaxGoals: int
+            VideoLeadSeconds: int
+            VideoTailSeconds: int
+            /// Render the fixed validation scenes into this directory, with per-pass timings.
+            ViewerScenesDir: string option
+            /// Forces the 3D quality tier for this run instead of the saved setting.
+            ViewerQualityTier: ViewerQualityTier option
+            ViewerSceneFrames: int
+            /// Match second of the goal used by the goal scene; it depends on the match seed.
+            ViewerGoalSecond: int
+            Args: string[]
+        }
 
     type Context = { Opts: Options; Demo: State }
 
@@ -298,10 +300,7 @@ module Shots =
         let gs =
             if opts.Unemployed then
                 Career.dismiss gs.CurrentDate "Board confidence collapsed" gs.UserStaffId gs
-                |> FootballEngine.World.Pulse.JobMarket.refresh
-                    WorldPulseConfig.defaultWorldPulse
-                    true
-                    gs.CurrentDate
+                |> FootballEngine.World.Pulse.JobMarket.refresh WorldPulseConfig.defaultWorldPulse true gs.CurrentDate
             else
                 gs
 
@@ -383,7 +382,9 @@ module Shots =
                              FootballEngine.Client.Match3D.ViewerQualitySelection.select tier
 
                              { globalSettings with
-                                 MatchView = { globalSettings.MatchView with ViewerQuality = tier } }
+                                 MatchView =
+                                     { globalSettings.MatchView with
+                                         ViewerQuality = tier } }
                          | None -> globalSettings)
                         SaveSettings.defaults
                 SaveSettings = SaveSettings.defaults
@@ -434,7 +435,8 @@ module Shots =
         async {
             let attached =
                 System.Threading.Tasks.TaskCompletionSource<System.Threading.Tasks.Task<unit>>(
-                    System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously)
+                    System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously
+                )
 
             let findPitch () =
                 window.GetVisualDescendants()
@@ -458,13 +460,14 @@ module Shots =
                 // Attachment and GPU presentation share one deadline, not two fixed settling delays.
                 do! ready.WaitAsync(max TimeSpan.Zero remaining) |> Async.AwaitTask
             finally
-                Dispatcher.UIThread.Invoke(fun () ->
-                    window.LayoutUpdated.RemoveHandler handler)
+                Dispatcher.UIThread.Invoke(fun () -> window.LayoutUpdated.RemoveHandler handler)
         }
 
     /// X11 import of one window id; the native WebGPU child is invisible to Avalonia's own offscreen renderer.
     let private importWindow (id: uint64) (path: string) =
-        let info = ProcessStartInfo("import", UseShellExecute = false, RedirectStandardError = true)
+        let info =
+            ProcessStartInfo("import", UseShellExecute = false, RedirectStandardError = true)
+
         info.ArgumentList.Add("-window")
         info.ArgumentList.Add(string id)
         info.ArgumentList.Add(path)
@@ -562,7 +565,8 @@ module Shots =
                             $"[corpus] {ctx.HomeClub.Name} {world.State.HomeScore}-{world.State.AwayScore} {ctx.AwayClub.Name} | shots {home.Shots}-{away.Shots} on target {home.OnTarget}-{away.OnTarget} xG {home.XgSum:F2}-{away.XgSum:F2} passes {home.PassesCompleted}/{home.Passes} {away.PassesCompleted}/{away.Passes}"
 
             if played > 0 then
-                printfn $"[corpus] {played} matches: {float goals / float played:F2} goals and {float shots / float played:F1} shots per match"
+                printfn
+                    $"[corpus] {played} matches: {float goals / float played:F2} goals and {float shots / float played:F1} shots per match"
         | _ -> eprintfn "[corpus] demo state is not in game"
 
     let runLoop
@@ -621,17 +625,23 @@ module Shots =
                 | None -> ()
 
             let goals () =
-                live () |> Option.map (fun state -> fst state.Score + snd state.Score) |> Option.defaultValue 0
+                live ()
+                |> Option.map (fun state -> fst state.Score + snd state.Score)
+                |> Option.defaultValue 0
 
             let openLiveMatch dispatch =
                 async {
-                    Dispatcher.UIThread.Invoke(fun () -> dispatch (Navigate(liveRoute (Route.Match(1, MatchPhase.Live)))))
+                    Dispatcher.UIThread.Invoke(fun () ->
+                        dispatch (Navigate(liveRoute (Route.Match(1, MatchPhase.Live)))))
+
                     do! Async.Sleep ctx.Opts.SettleMs
                     do! waitForPitch window
                 }
 
             let liveTick () =
-                live () |> Option.map (fun state -> state.Clock.Elapsed) |> Option.defaultValue 0<subtick>
+                live ()
+                |> Option.map (fun state -> state.Clock.Elapsed)
+                |> Option.defaultValue 0<subtick>
 
             let ended () =
                 match live () |> Option.map _.Status with
@@ -650,7 +660,9 @@ module Shots =
                     sendLive dispatch (FootballEngine.LiveMatch.SkipAhead target)
                     let deadline = Stopwatch.StartNew()
 
-                    while liveTick () < target && not (ended ()) && deadline.Elapsed < TimeSpan.FromMinutes 5.0 do
+                    while liveTick () < target
+                          && not (ended ())
+                          && deadline.Elapsed < TimeSpan.FromMinutes 5.0 do
                         do! Async.Sleep 20
                 }
 
@@ -705,6 +717,7 @@ module Shots =
                     | _ -> ()
 
                     File.WriteAllLines(Path.Combine(ctx.Opts.Dir, "goals.txt"), found |> List.map string)
+
                     let stats (team: TeamStats) =
                         $"shots {team.Shots} on target {team.OnTarget} xG {team.XgSum:F2} passes {team.PassesCompleted}/{team.Passes}"
 
@@ -719,7 +732,9 @@ module Shots =
             // Commands carry the revision they expect, so the next one waits until this one was applied.
             let sendAcked dispatch payload =
                 async {
-                    let revision () = live () |> Option.map _.Revision |> Option.defaultValue 0UL
+                    let revision () =
+                        live () |> Option.map _.Revision |> Option.defaultValue 0UL
+
                     let before = revision ()
                     sendLive dispatch payload
                     let deadline = Stopwatch.StartNew()
@@ -728,14 +743,21 @@ module Shots =
                         do! Async.Sleep 2
                 }
 
-            let ticksPerFrame = max 1 (SimulationClock.defaultClock.SubTicksPerSecond / ctx.Opts.VideoFps)
+            let ticksPerFrame =
+                max 1 (SimulationClock.defaultClock.SubTicksPerSecond / ctx.Opts.VideoFps)
             // Margin for the paced worker to publish the frame and the viewer clock to reach it.
             let viewerCatchUpMs = 60
 
             let recordGoals dispatch (goalSeconds: int list) =
                 async {
                     do! openLiveMatch dispatch
-                    let stem = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(videoBase ())), Path.GetFileNameWithoutExtension(videoBase ()))
+
+                    let stem =
+                        Path.Combine(
+                            Path.GetDirectoryName(Path.GetFullPath(videoBase ())),
+                            Path.GetFileNameWithoutExtension(videoBase ())
+                        )
+
                     let framesDir = Path.Combine(ctx.Opts.Dir, "frames")
 
                     for index, goalAt in goalSeconds |> List.truncate ctx.Opts.VideoMaxGoals |> List.indexed do
@@ -761,7 +783,12 @@ module Shots =
                         while frame < ctx.Opts.VideoFrames && tick < stopAt && not (ended ()) do
                             tick <- tick + ticksPerFrame * 1<subtick>
                             do! sendAcked dispatch (FootballEngine.LiveMatch.HoldAt tick)
-                            do! Async.Sleep(ticksPerFrame * 1000 / SimulationClock.defaultClock.SubTicksPerSecond + viewerCatchUpMs)
+
+                            do!
+                                Async.Sleep(
+                                    ticksPerFrame * 1000 / SimulationClock.defaultClock.SubTicksPerSecond
+                                    + viewerCatchUpMs
+                                )
 
                             do!
                                 Dispatcher.UIThread
@@ -769,7 +796,9 @@ module Shots =
                                     .GetTask()
                                 |> Async.AwaitTask
 
-                            Dispatcher.UIThread.Invoke(fun () -> captureTo window (Path.Combine(framesDir, $"%06d{frame}.png")) true)
+                            Dispatcher.UIThread.Invoke(fun () ->
+                                captureTo window (Path.Combine(framesDir, $"%06d{frame}.png")) true)
+
                             frame <- frame + 1
 
                         do! sendAcked dispatch (FootballEngine.LiveMatch.HoldAt MatchSession.maxTicks)
@@ -780,7 +809,9 @@ module Shots =
                         if goals () = scoreBefore then
                             eprintfn $"[video] warning: no goal was scored while recording around second {goalAt}"
 
-                        printfn $"[video] goal {index + 1} at {goalAt / 60}:%02d{goalAt % 60}: {frame} frames at {fps} fps, captured in {wall.Elapsed.TotalSeconds:F1}s -> {output}"
+                        printfn
+                            $"[video] goal {index + 1} at {goalAt / 60}:%02d{goalAt % 60}: {frame} frames at {fps} fps, captured in {wall.Elapsed.TotalSeconds:F1}s -> {output}"
+
                         encodeVideo output fps framesDir
                         Directory.Delete(framesDir, true)
                 }
@@ -802,7 +833,10 @@ module Shots =
 
                 let info = ProcessStartInfo(exe, UseShellExecute = false)
 
-                for argument in prefix @ args @ [ "--video-goal-at"; goalSeconds |> List.map string |> String.concat "," ] do
+                for argument in
+                    prefix
+                    @ args
+                    @ [ "--video-goal-at"; goalSeconds |> List.map string |> String.concat "," ] do
                     info.ArgumentList.Add argument
 
                 use child = Process.Start info
@@ -880,7 +914,8 @@ module Shots =
                         ViewerDiagnostics.beginWindow ()
                         let deadline = Stopwatch.StartNew()
 
-                        while ViewerDiagnostics.windowFrames () < ctx.Opts.ViewerSceneFrames && deadline.Elapsed < TimeSpan.FromSeconds 120.0 do
+                        while ViewerDiagnostics.windowFrames () < ctx.Opts.ViewerSceneFrames
+                              && deadline.Elapsed < TimeSpan.FromSeconds 120.0 do
                             do! Async.Sleep 25
 
                         let average = ViewerDiagnostics.windowAverage ()
@@ -938,8 +973,14 @@ module Shots =
                     do! sendAcked dispatch (FootballEngine.LiveMatch.HoldAt MatchSession.maxTicks)
                 }
 
-            match ctx.Opts.VideoFindGoals || ctx.Opts.VideoGoals, ctx.Opts.VideoGoalsAt, ctx.Opts.VideoPath, getDispatch () with
-            | _, _, _, Some dispatch when ctx.Opts.ViewerScenesDir.IsSome -> do! viewerScenes dispatch ctx.Opts.ViewerScenesDir.Value
+            match
+                ctx.Opts.VideoFindGoals || ctx.Opts.VideoGoals,
+                ctx.Opts.VideoGoalsAt,
+                ctx.Opts.VideoPath,
+                getDispatch ()
+            with
+            | _, _, _, Some dispatch when ctx.Opts.ViewerScenesDir.IsSome ->
+                do! viewerScenes dispatch ctx.Opts.ViewerScenesDir.Value
             | true, _, _, Some dispatch ->
                 let! found = findGoals dispatch
 
@@ -963,7 +1004,9 @@ module Shots =
                             .GetTask()
                         |> Async.AwaitTask
 
-                    Dispatcher.UIThread.Invoke(fun () -> captureTo window (Path.Combine(framesDir, $"%06d{frame}.png")) true)
+                    Dispatcher.UIThread.Invoke(fun () ->
+                        captureTo window (Path.Combine(framesDir, $"%06d{frame}.png")) true)
+
                     frame <- frame + 1
                     do! Async.Sleep ctx.Opts.VideoStep
 
@@ -1040,8 +1083,7 @@ module Shots =
                                     idx <- idx + 1
                                 }
 
-                            let argentina =
-                                Path.Combine(ModPaths.builtinsDir, "builtin.argentina-1.0.0.femod")
+                            let argentina = Path.Combine(ModPaths.builtinsDir, "builtin.argentina-1.0.0.femod")
 
                             editor (ModEditorMsg.OpenPackage(argentina, true))
                             editor (ModEditorMsg.SetSubTab ModEditorTypes.Clubs)

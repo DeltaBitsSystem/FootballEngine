@@ -29,7 +29,11 @@ module Actions =
             | RestartAction.RestartCross _ -> 20.0
             | RestartAction.RestartClearance _ -> 22.0
             | RestartAction.RestartPass _ ->
-                (BallAero.pass ctx.Ctx.Config.Ball ctx.Ctx.Config.Actions.PassArrivalSpeed ctx.Ctx.Config.Actions.PassArrivalSpeedGain distance)
+                (BallAero.pass
+                    ctx.Ctx.Config.Ball
+                    ctx.Ctx.Config.Actions.PassArrivalSpeed
+                    ctx.Ctx.Config.Actions.PassArrivalSpeedGain
+                    distance)
                     .LaunchSpeed
 
         let trajectory =
@@ -134,8 +138,12 @@ module Actions =
             let ball = world.State.Ball.Position
             let config = ctx.Ctx.Config.ContactAction
             let movement = ctx.Ctx.Config.Movement
-            let preparation = float config.StandingTacklePreparation / float ctx.Clock.SubTicksPerSecond
-            let slidePreparation = float config.SlidingTacklePreparation / float ctx.Clock.SubTicksPerSecond
+
+            let preparation =
+                float config.StandingTacklePreparation / float ctx.Clock.SubTicksPerSecond
+
+            let slidePreparation =
+                float config.SlidingTacklePreparation / float ctx.Clock.SubTicksPerSecond
 
             for side in MatchWorld.sides do
                 if side <> ownerSide then
@@ -153,6 +161,7 @@ module Actions =
                         if pid <> ownerId && not profile.IsGK then
                             let dx = float ball.X - float team.Frame.PosX[slot]
                             let dy = float ball.Y - float team.Frame.PosY[slot]
+
                             let closing =
                                 if engaging then
                                     float movement.SprintSpeed * (0.5 + 0.006 * float profile.Pace)
@@ -171,21 +180,35 @@ module Actions =
                             // One the carrier has already got past has nothing left to hold for and goes through the
                             // man: the tactical foul that stops an attack.
                             let ownGoal = float (MatchMath.ownGoalX side)
+
                             let shielded seconds =
                                 match ownerSlot with
                                 | carrier when
                                     carrier >= 0
-                                    && abs (float ownerFrame.PosX[carrier] - ownGoal) >= abs (float team.Frame.PosX[slot] - ownGoal)
+                                    && abs (float ownerFrame.PosX[carrier] - ownGoal)
+                                       >= abs (float team.Frame.PosX[slot] - ownGoal)
                                     ->
                                     let px, py = float team.Frame.PosX[slot], float team.Frame.PosY[slot]
-                                    let bx, by = float ball.X + float ball.Vx * seconds, float ball.Y + float ball.Vy * seconds
+
+                                    let bx, by =
+                                        float ball.X + float ball.Vx * seconds, float ball.Y + float ball.Vy * seconds
+
                                     let cx = float ownerFrame.PosX[carrier] + float ownerFrame.VelX[carrier] * seconds
                                     let cy = float ownerFrame.PosY[carrier] + float ownerFrame.VelY[carrier] * seconds
                                     let sx, sy = bx - px, by - py
                                     let length = sx * sx + sy * sy
-                                    let along = if length > 1e-9 then ((cx - px) * sx + (cy - py) * sy) / length else 0.0
+
+                                    let along =
+                                        if length > 1e-9 then
+                                            ((cx - px) * sx + (cy - py) * sy) / length
+                                        else
+                                            0.0
+
                                     let ox, oy = px + sx * along - cx, py + sy * along - cy
-                                    along > 0.0 && along < 1.0 && sqrt (ox * ox + oy * oy) < float config.TackleBodyClearance
+
+                                    along > 0.0
+                                    && along < 1.0
+                                    && sqrt (ox * ox + oy * oy) < float config.TackleBodyClearance
                                 | _ -> false
 
                             // Only a player sent to engage goes in while the ball is at the carrier's boot; a containing or
@@ -215,14 +238,18 @@ module Actions =
                                     ValueNone
 
                             match kind with
-                            | ValueSome kind -> ContactActionPlanner.prepare ctx world side slot kind (Some ownerId) |> ignore
+                            | ValueSome kind ->
+                                ContactActionPlanner.prepare ctx world side slot kind (Some ownerId) |> ignore
                             | ValueNone -> ()
         | _ -> ()
 
     let private prepareReceptions (ctx: SystemContext) (world: World) =
         let ball = world.State.Ball
         let cfg = ctx.Ctx.Config.ContactAction
-        let horizon = float (cfg.TrapPreparation + cfg.CommittedDuration) / float ctx.Clock.SubTicksPerSecond
+
+        let horizon =
+            float (cfg.TrapPreparation + cfg.CommittedDuration)
+            / float ctx.Clock.SubTicksPerSecond
 
         let intendedReceiver =
             match ball.Trajectory with
@@ -254,8 +281,13 @@ module Actions =
                         let vx = float ball.Position.Vx - float frame.VelX[slot]
                         let vy = float ball.Position.Vy - float frame.VelY[slot]
                         let speedSquared = vx * vx + vy * vy
+
                         let approach =
-                            if speedSquared > 1e-9 then -(dx * vx + dy * vy) / speedSquared else 0.0
+                            if speedSquared > 1e-9 then
+                                -(dx * vx + dy * vy) / speedSquared
+                            else
+                                0.0
+
                         let closestAt = MatchMath.clamp 0.0 horizon approach
                         let closestX, closestY = dx + vx * closestAt, dy + vy * closestAt
                         let height = float ball.Position.Z + float ball.Position.Vz * closestAt
@@ -265,9 +297,11 @@ module Actions =
                         if
                             approach <= horizon
                             && closestX * closestX + closestY * closestY <= float cfg.FootReach ** 2.0
-                            && abs (height - float frame.PosZ[slot]) <= float ctx.Ctx.Config.Ball.FootContactHeight
+                            && abs (height - float frame.PosZ[slot])
+                               <= float ctx.Ctx.Config.Ball.FootContactHeight
                         then
-                            ContactActionPlanner.prepare ctx world side slot ContactActionKind.ContactTrap None |> ignore
+                            ContactActionPlanner.prepare ctx world side slot ContactActionKind.ContactTrap None
+                            |> ignore
         | _ -> ()
 
     let step: SystemStep =

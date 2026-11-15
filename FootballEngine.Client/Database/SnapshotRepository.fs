@@ -279,6 +279,7 @@ module Db =
           // Immutable recordings stay in independent chunks so decades do not inflate every daily root write.
           for KeyValue(id, execution) in clock.MatchExecutions do
               let input, _ = execution
+
               if input.MatchId <> uint64 id then
                   invalidOp "Match execution map key does not match its input ID."
 
@@ -336,7 +337,11 @@ module Db =
         |> List.choose (fun entry ->
             if entry.Key.StartsWith("match-execution:", StringComparison.Ordinal) then
                 let input, commands = decodeValue<MatchInput * MatchCommand list> entry.Payload
-                if input.MatchId > uint64 Int32.MaxValue || entry.Key <> $"match-execution:{input.MatchId}" then
+
+                if
+                    input.MatchId > uint64 Int32.MaxValue
+                    || entry.Key <> $"match-execution:{input.MatchId}"
+                then
                     invalidOp "Match execution chunk key does not match its input ID."
 
                 Some(int input.MatchId, (input, commands))
@@ -399,7 +404,9 @@ module Db =
                                 { SportsContent = ""
                                   Translations = ""
                                   Assets = "" } } }
-              Clock = { clock with MatchExecutions = Map.empty }
+              Clock =
+                { clock with
+                    MatchExecutions = Map.empty }
               Settings = settings
               ConfigContent = config.Content
               ConfigHash = config.Hash }
@@ -745,7 +752,7 @@ module Db =
                            isNull chunk.Payload
                            || hash chunk.Payload <> chunk.Hash
                            || not (
-                                [ "player:"; "club:"; "staff:"; "competition:"; "country:"; "match-execution:" ]
+                               [ "player:"; "club:"; "staff:"; "competition:"; "country:"; "match-execution:" ]
                                |> List.exists (fun prefix -> chunk.Key.StartsWith(prefix, StringComparison.Ordinal))
                                || chunk.Key = "datalock:snapshot"
                            ))
@@ -809,7 +816,9 @@ module Db =
                                 Ok
                                     { Envelope = envelope
                                       State = state
-                                      WorldClock = { payload.Clock with MatchExecutions = restoreMatchExecutions chunks }
+                                      WorldClock =
+                                        { payload.Clock with
+                                            MatchExecutions = restoreMatchExecutions chunks }
                                       SaveSettings = settings
                                       ResolvedData = resolved
                                       RecoveredFromBackup = false }

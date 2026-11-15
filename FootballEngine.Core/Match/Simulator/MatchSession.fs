@@ -79,7 +79,8 @@ module MatchSession =
     let initialMotion (session: MatchSession) =
         if session.World.State.Tick <> 0<subtick> then
             Error(InvalidAdvanceBoundary "initial motion is available only at session creation")
-        else captureMotion session
+        else
+            captureMotion session
 
     let motionBlock tick (session: MatchSession) =
         match session.ReplayWriter with
@@ -436,7 +437,10 @@ module MatchSession =
             applyTactics (MatchWorld.team session.World side) session.World.State.Tick tactics
             (MatchWorld.team session.World side).Proposals.Clear()
             (MatchWorld.team session.World side).PendingActions.Clear()
-            session.Buffer.Events.Add { Tick = session.World.State.Tick; Data = EventData.TeamInstruction side }
+
+            session.Buffer.Events.Add
+                { Tick = session.World.State.Tick
+                  Data = EventData.TeamInstruction side }
         | RequestSubstitution(outgoing, incoming) ->
             session.Buffer.Events.Add
                 { Tick = session.World.State.Tick
@@ -448,10 +452,16 @@ module MatchSession =
                 | ChangeTactics tactics -> TacticsEffective(command.Manager, command.Sequence, tactics)
                 | RequestSubstitution _ -> CommandEffective(command.Manager, command.Sequence)
 
-            let id = session.World.Observation.Record(session.World.State.Tick, ValueNone, evidence)
+            let id =
+                session.World.Observation.Record(session.World.State.Tick, ValueNone, evidence)
+
             match command.Action, id with
             | ChangeTactics _, ValueSome id ->
-                session.World.Observation.Associate({ Tick = session.World.State.Tick; Data = EventData.TeamInstruction side }, DecisionCause id)
+                session.World.Observation.Associate(
+                    { Tick = session.World.State.Tick
+                      Data = EventData.TeamInstruction side },
+                    DecisionCause id
+                )
             | _ -> ()
 
     let private validateMode mode =
@@ -731,7 +741,12 @@ module MatchSession =
             Error(InvalidCheckpoint "checkpoint configuration revision does not match")
         elif checkpoint.InputHash <> MatchJob.inputHash input then
             Error(InvalidCheckpoint "checkpoint resolved football input does not match")
-        elif not (AttackCheckpoint.validFor input.Context ClubSide.Home checkpoint.Frontier checkpoint.HomeAttack && AttackCheckpoint.validFor input.Context ClubSide.Away checkpoint.Frontier checkpoint.AwayAttack) then
+        elif
+            not (
+                AttackCheckpoint.validFor input.Context ClubSide.Home checkpoint.Frontier checkpoint.HomeAttack
+                && AttackCheckpoint.validFor input.Context ClubSide.Away checkpoint.Frontier checkpoint.AwayAttack
+            )
+        then
             Error(InvalidCheckpoint "checkpoint attacking state violates input identities or configured bounds")
         else
             match create systems input checkpoint.Mode with
@@ -761,11 +776,17 @@ module MatchSession =
                             Error(InvalidCheckpoint "checkpoint pending command queue differs after replay")
                         elif session.Rng <> checkpoint.Rng then
                             Error(InvalidCheckpoint "checkpoint RNG differs after replay")
-                        elif DefensiveCheckpoint.snapshot session.World.Home <> checkpoint.HomeDefense
-                             || DefensiveCheckpoint.snapshot session.World.Away <> checkpoint.AwayDefense then
+                        elif
+                            DefensiveCheckpoint.snapshot session.World.Home <> checkpoint.HomeDefense
+                            || DefensiveCheckpoint.snapshot session.World.Away <> checkpoint.AwayDefense
+                        then
                             Error(InvalidCheckpoint "checkpoint defensive commitments differ after replay")
-                        elif CollectiveAttackState.snapshot session.World.Home.Attack <> checkpoint.HomeAttack
-                             || CollectiveAttackState.snapshot session.World.Away.Attack <> checkpoint.AwayAttack then
+                        elif
+                            CollectiveAttackState.snapshot session.World.Home.Attack
+                            <> checkpoint.HomeAttack
+                            || CollectiveAttackState.snapshot session.World.Away.Attack
+                               <> checkpoint.AwayAttack
+                        then
                             Error(InvalidCheckpoint "checkpoint attacking commitments or learner differ after replay")
                         else
                             Ok session

@@ -23,7 +23,10 @@ module DefensiveCheckpoint =
         | ValueNone -> writer.Write false
 
     let private readValueOption (reader: BinaryReader) read =
-        if reader.ReadBoolean() then ValueSome(read ()) else ValueNone
+        if reader.ReadBoolean() then
+            ValueSome(read ())
+        else
+            ValueNone
 
     let private readOption (reader: BinaryReader) read =
         if reader.ReadBoolean() then Some(read ()) else None

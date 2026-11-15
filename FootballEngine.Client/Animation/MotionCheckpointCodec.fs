@@ -166,7 +166,8 @@ module MotionCheckpointCodec =
                                           Acceleration = readVector reader
                                           Lean = readVector reader
                                           Gaze = Vector2(reader.ReadSingle(), reader.ReadSingle())
-                                          Seed = reader.ReadUInt64() } : ActorPlan)
+                                          Seed = reader.ReadUInt64() }
+                                        : ActorPlan)
 
                                 let tasks =
                                     Array.init boundary.Evidence.Length (fun index ->

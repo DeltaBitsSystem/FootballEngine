@@ -207,11 +207,16 @@ module internal SettingsCards =
 
               let filterLabel filter =
                   match filter with
-                  | HighlightFilter.KeyMoments -> if es then "Momentos clave (recomendado)" else "Key moments (recommended)"
+                  | HighlightFilter.KeyMoments ->
+                      if es then
+                          "Momentos clave (recomendado)"
+                      else
+                          "Key moments (recommended)"
                   | HighlightFilter.GoalsOnly -> if es then "Solo goles" else "Goals only"
                   | HighlightFilter.All -> if es then "Partido completo" else "Full match"
 
-              let filters = [ HighlightFilter.KeyMoments; HighlightFilter.GoalsOnly; HighlightFilter.All ]
+              let filters =
+                  [ HighlightFilter.KeyMoments; HighlightFilter.GoalsOnly; HighlightFilter.All ]
 
               let ctl3 =
                   ComboBox.create
@@ -652,8 +657,7 @@ module internal SettingsCards =
                                             (sprintf "%.1f m/s" (float effective.Ball.MaxShotSpeed))
                                         readOnlyValue
                                             "Sprint"
-                                            (sprintf "%.1f m/s" (float effective.Movement.SprintSpeed))
-                                        ] ]
+                                            (sprintf "%.1f m/s" (float effective.Movement.SprintSpeed)) ] ]
                         ) ]
                   :> IView ]
             else
@@ -715,7 +719,9 @@ module internal SettingsCards =
                                               let d = gs.Data
 
                                               if checkBox.IsChecked = System.Nullable true then
-                                                  let current = if d.ActiveMods.IsEmpty then resolvedIds else d.ActiveMods
+                                                  let current =
+                                                      if d.ActiveMods.IsEmpty then resolvedIds else d.ActiveMods
+
                                                   let nextActive = (modId :: current) |> List.distinct
 
                                                   let nextOrder =
@@ -730,7 +736,9 @@ module internal SettingsCards =
                                                               ActiveMods = nextActive
                                                               ModOrder = nextOrder } }
                                               else
-                                                  let current = if d.ActiveMods.IsEmpty then resolvedIds else d.ActiveMods
+                                                  let current =
+                                                      if d.ActiveMods.IsEmpty then resolvedIds else d.ActiveMods
+
                                                   let nextActive = current |> List.filter ((<>) modId)
 
                                                   { gs with

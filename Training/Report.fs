@@ -13,7 +13,14 @@ module Report =
 
     let private runMatch (cfg: BalanceConfig) (seed: uint64) : MatchRun =
         let counts = Dictionary<string, float>()
-        let add key = counts[key] <- (match counts.TryGetValue key with | true, v -> v | _ -> 0.0) + 1.0
+
+        let add key =
+            counts[key] <-
+                (match counts.TryGetValue key with
+                 | true, v -> v
+                 | _ -> 0.0)
+                + 1.0
+
         let mutable lastBall = "open play"
 
         let world =
@@ -60,7 +67,10 @@ module Report =
 
     let private perMatch (runs: MatchRun list) key =
         runs
-        |> List.averageBy (fun r -> match r.Counts.TryGetValue key with | true, v -> v | _ -> 0.0)
+        |> List.averageBy (fun r ->
+            match r.Counts.TryGetValue key with
+            | true, v -> v
+            | _ -> 0.0)
 
     /// Mean and 95 % half-width of the mean over matches; a difference smaller than the half-widths is noise.
     let private meanAndInterval (values: float list) =
@@ -68,8 +78,10 @@ module Report =
         let mean = List.average values
 
         let sd =
-            if values.Length < 2 then 0.0
-            else sqrt (values |> List.sumBy (fun v -> (v - mean) ** 2.0) |> fun s -> s / (n - 1.0))
+            if values.Length < 2 then
+                0.0
+            else
+                sqrt (values |> List.sumBy (fun v -> (v - mean) ** 2.0) |> (fun s -> s / (n - 1.0)))
 
         mean, 1.96 * sd / sqrt n
 
@@ -79,11 +91,21 @@ module Report =
 
         for t in ErrorCalculator.targets do
             let values =
-                runs |> List.map (fun r -> Metrics.toPairs r.Metrics |> List.find (fun (name, _) -> name = t.Name) |> snd)
+                runs
+                |> List.map (fun r -> Metrics.toPairs r.Metrics |> List.find (fun (name, _) -> name = t.Name) |> snd)
 
             let mean, half = meanAndInterval values
             let marker = if mean >= t.Lo && mean <= t.Hi then "OK " else "BAD"
-            printfn "  %-11s %6.1f ±%-5.1f (target %.1f, band [%.1f..%.1f]) %s" t.Name mean half t.Target t.Lo t.Hi marker
+
+            printfn
+                "  %-11s %6.1f ±%-5.1f (target %.1f, band [%.1f..%.1f]) %s"
+                t.Name
+                mean
+                half
+                t.Target
+                t.Lo
+                t.Hi
+                marker
 
         printfn "  total error: %.3f" (ErrorCalculator.error (runs |> List.map _.Metrics))
 

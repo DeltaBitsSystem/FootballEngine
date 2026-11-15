@@ -20,7 +20,8 @@ module RestartPlanner =
         match kind with
         | SetPieceKind.Corner ->
             clampPoint
-                (float spot.X - float ctx.Config.SetPiece.CornerTakerOffset * MatchMath.goalDirection side)
+                (float spot.X
+                 - float ctx.Config.SetPiece.CornerTakerOffset * MatchMath.goalDirection side)
                 (float spot.Y)
         | _ -> spot
 
@@ -163,9 +164,20 @@ module RestartPlanner =
                             else
                                 let dir = MatchMath.goalDirection side
                                 // A radial exclusion cannot guarantee leaving the rectangular area or staying behind the spot.
-                                let boundary = float (MatchMath.goalX side) * dir - float Pitch.PenaltyAreaDepth - float ctx.Config.SetPiece.TargetTolerance
-                                let behindArea = clampPoint (min (float current.X * dir) boundary * dir) (float current.Y)
-                                RestartRole.Support, awayFrom spot behindArea (float ctx.Config.SetPiece.WallDistance + float ctx.Config.SetPiece.TargetTolerance)
+                                let boundary =
+                                    float (MatchMath.goalX side) * dir
+                                    - float Pitch.PenaltyAreaDepth
+                                    - float ctx.Config.SetPiece.TargetTolerance
+
+                                let behindArea =
+                                    clampPoint (min (float current.X * dir) boundary * dir) (float current.Y)
+
+                                RestartRole.Support,
+                                awayFrom
+                                    spot
+                                    behindArea
+                                    (float ctx.Config.SetPiece.WallDistance
+                                     + float ctx.Config.SetPiece.TargetTolerance)
                         elif
                             currentSide = side
                             && (match actionFor ctx world kind side executorSlot spot with
@@ -311,7 +323,8 @@ module RestartRules =
                 if
                     target.Player <> plan.Executor
                     && plan.Kind <> SetPieceKind.ThrowIn
-                    && distance current spot < float ctx.Config.SetPiece.BallClearance - float ctx.Config.SetPiece.TargetTolerance
+                    && distance current spot < float ctx.Config.SetPiece.BallClearance
+                                               - float ctx.Config.SetPiece.TargetTolerance
                 then
                     add Rule.BallClearance (Some target.Player) "player is still at the ball"
             | ValueNone -> add Rule.TargetReachability (Some target.Player) "target player is not in the lineup"
@@ -322,6 +335,7 @@ module RestartRules =
                     let required = float ctx.Config.SetPiece.WallDistance
                     let tolerance = float ctx.Config.SetPiece.TargetTolerance
                     let targetDistance = distance target.Position spot
+
                     let currentDistance =
                         match currentPosition with
                         | ValueSome current -> distance current spot
@@ -331,7 +345,10 @@ module RestartRules =
                         add Rule.OpponentDistance (Some target.Player) "corner target is inside the minimum distance"
 
                     if currentDistance + tolerance < required then
-                        add Rule.OpponentDistance (Some target.Player) "opponent has not yet vacated the corner distance"
+                        add
+                            Rule.OpponentDistance
+                            (Some target.Player)
+                            "opponent has not yet vacated the corner distance"
                 | SetPieceKind.FreeKick, RestartRole.Wall ->
                     let d = distance target.Position spot
 

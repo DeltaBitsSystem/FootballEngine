@@ -47,8 +47,12 @@ module Cross =
                 BallFlight.solve
                     cfg.Ball
                     (float (SimulationClock.dt ctx.Clock))
-                    { X = ballPosition.X; Y = ballPosition.Y; Z = ballPosition.Z }
-                    { X = rx; Y = ry; Z = cfg.Actions.CrossArrivalHeight }
+                    { X = ballPosition.X
+                      Y = ballPosition.Y
+                      Z = ballPosition.Z }
+                    { X = rx
+                      Y = ry
+                      Z = cfg.Actions.CrossArrivalHeight }
                     (speed * 1.0<meterPerSecond>)
                     angularVelocity
 

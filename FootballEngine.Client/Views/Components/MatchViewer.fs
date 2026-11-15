@@ -27,21 +27,41 @@ module MatchViewer =
         let es = Localization.active () = Locale.Es
 
         match reason with
-        | GoalScored true -> if es then "Momento clave: ¡Gol de tu equipo!" else "Key moment: your team scored!"
-        | GoalScored false -> if es then "Momento clave: gol del rival" else "Key moment: the rival scored"
+        | GoalScored true ->
+            if es then
+                "Momento clave: ¡Gol de tu equipo!"
+            else
+                "Key moment: your team scored!"
+        | GoalScored false ->
+            if es then
+                "Momento clave: gol del rival"
+            else
+                "Key moment: the rival scored"
         | RedCardShown(name, true) ->
-            if es then $"Momento clave: {name} expulsado" else $"Key moment: {name} sent off"
+            if es then
+                $"Momento clave: {name} expulsado"
+            else
+                $"Key moment: {name} sent off"
         | RedCardShown(name, false) ->
-            if es then $"Momento clave: {name} (rival) expulsado" else $"Key moment: {name} (rival) sent off"
+            if es then
+                $"Momento clave: {name} (rival) expulsado"
+            else
+                $"Key moment: {name} (rival) sent off"
         | PlayerTiring(name, condition) ->
             if es then
                 $"Momento clave: {name} está agotado ({condition}%%)"
             else
                 $"Key moment: {name} is exhausted ({condition}%%)"
         | RivalChange "" ->
-            if es then "Momento clave: el rival cambió su planteamiento" else "Key moment: the rival changed approach"
+            if es then
+                "Momento clave: el rival cambió su planteamiento"
+            else
+                "Key moment: the rival changed approach"
         | RivalChange change ->
-            if es then $"Momento clave: cambio del rival ({change})" else $"Key moment: rival substitution ({change})"
+            if es then
+                $"Momento clave: cambio del rival ({change})"
+            else
+                $"Key moment: rival substitution ({change})"
         | RivalShift shift ->
             let spanish, english =
                 match shift with
@@ -66,7 +86,11 @@ module MatchViewer =
         | Connecting -> "CONNECTING"
         | Preparing -> "PREPARING"
         | Live _ -> "LIVE"
-        | Cruising -> if Localization.active () = Locale.Es then "⏩ AVANZANDO" else "⏩ FAST-FORWARD"
+        | Cruising ->
+            if Localization.active () = Locale.Es then
+                "⏩ AVANZANDO"
+            else
+                "⏩ FAST-FORWARD"
         | Paused -> "PAUSED"
         | KeyMomentStop reason -> keyMomentText reason
         | AwaitingDecision _ -> "DECISION REQUIRED"
@@ -483,7 +507,7 @@ module MatchViewer =
                ViewerCamera.CloseUp, TranslationKey.MatchCameraCloseUp |]
             |> Array.map (fun (mode, key) -> mode, localized key)
 
-        let cameraSelector : IView =
+        let cameraSelector: IView =
             ComboBox.create
                 [ ComboBox.dataItems (cameraChoices |> Array.map snd)
                   ComboBox.selectedItem (cameraChoices |> Array.find (fun (mode, _) -> mode = camera) |> snd)
@@ -581,7 +605,8 @@ module MatchViewer =
                         TextBlock.maxWidth 230.0
                         TextBlock.textWrapping TextWrapping.Wrap
                         TextBlock.fontSize 11.0
-                        TextBlock.foreground colors.TextSecondary ] :> IView ]
+                        TextBlock.foreground colors.TextSecondary ]
+                  :> IView ]
             | Players ->
                 [ TextBlock.create
                       [ TextBlock.text (
@@ -736,28 +761,37 @@ module MatchViewer =
             |> List.rev
             |> List.tryFind (fun (_, pending) ->
                 match pending.Command.Payload with
-                | SetLiveSpeed _ | SkipAhead _ | HoldAt _ | PauseMatch | ResumeMatch -> false
+                | SetLiveSpeed _
+                | SkipAhead _
+                | HoldAt _
+                | PauseMatch
+                | ResumeMatch -> false
                 | _ -> true)
 
         match latest with
         | None -> Border.create [] :> IView
         | Some(_, pending) ->
             let tr key = Localization.resolve key []
+
             let action =
                 match pending.Command.Payload with
                 | ChangeMentality Defensive -> tr TranslationKey.MatchDefensive
                 | ChangeMentality Balanced -> tr TranslationKey.MatchBalanced
                 | ChangeMentality Positive -> tr TranslationKey.MatchPositive
                 | ChangeMentality Attacking -> tr TranslationKey.MatchAttacking
-                | ConfirmSubstitutions _ | PrepareSubstitutions _ -> tr TranslationKey.MatchSubstitutions
+                | ConfirmSubstitutions _
+                | PrepareSubstitutions _ -> tr TranslationKey.MatchSubstitutions
                 | IssueTouchlineInstruction _ -> tr TranslationKey.MatchTouchline
                 | _ -> tr TranslationKey.Tactics
+
             let status =
                 match pending.Lifecycle with
                 | Queued -> tr TranslationKey.MatchChangeQueued
                 | Accepted _ -> tr TranslationKey.MatchChangeAccepted
-                | Applied(revision, _) -> Localization.resolve TranslationKey.MatchChangeApplied [ "revision", string revision ]
-                | Rejected reason -> Localization.resolve TranslationKey.MatchChangeRejected [ "reason", sprintf "%A" reason ]
+                | Applied(revision, _) ->
+                    Localization.resolve TranslationKey.MatchChangeApplied [ "revision", string revision ]
+                | Rejected reason ->
+                    Localization.resolve TranslationKey.MatchChangeRejected [ "reason", sprintf "%A" reason ]
 
             Border.create
                 [ Border.padding (12.0, 6.0)
@@ -769,7 +803,8 @@ module MatchViewer =
                             TextBlock.fontSize 12.0
                             TextBlock.foreground Theme.TextMain
                             TextBlock.textWrapping TextWrapping.Wrap ]
-                  ) ] :> IView
+                  ) ]
+            :> IView
 
     let private noMatch (error: string option) : IView =
         Grid.create

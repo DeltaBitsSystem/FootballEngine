@@ -15,12 +15,18 @@ module PlannerReference =
 
         for struct (_, ox, oy) in s.OppPos do
             let d = MatchMath.dist s.BallX s.BallY ox oy
-            if d < nearest then nearest <- d
+
+            if d < nearest then
+                nearest <- d
 
         let mutable supported = false
 
         for struct (slot, tx, ty) in s.OurPos do
-            if slot <> s.CarrierSlot && not supported && MatchMath.dist s.BallX s.BallY tx ty < float e.SupportDistance then
+            if
+                slot <> s.CarrierSlot
+                && not supported
+                && MatchMath.dist s.BallX s.BallY tx ty < float e.SupportDistance
+            then
                 supported <- true
 
         DecisionValue.held e s.Side s.BallX s.BallY nearest supported
@@ -44,7 +50,10 @@ module PlannerReference =
                 // A projected state lists motions in position order, so the same index is tried first; the scan
                 // keeps hand-built states with any order correct.
                 let mutable index =
-                    if i < motions.Length && (let struct (m, _, _) = motions[i] in m = slot) then i else 0
+                    if i < motions.Length && (let struct (m, _, _) = motions[i] in m = slot) then
+                        i
+                    else
+                        0
 
                 let mutable found = false
                 let mutable px = x
@@ -210,7 +219,10 @@ module PlannerReference =
             while open' && index < s.OppPos.Length do
                 let struct (oslot, ox, oy) = s.OppPos[index]
 
-                if not (SlotMask.contains oslot s.GoalkeeperSlots) && rolled.ReachesWithin(ox, oy, receiverSteps) then
+                if
+                    not (SlotMask.contains oslot s.GoalkeeperSlots)
+                    && rolled.ReachesWithin(ox, oy, receiverSteps)
+                then
                     open' <- false
 
                 index <- index + 1
@@ -230,36 +242,79 @@ module PlannerReference =
         (s: ChainState)
         (options: (int * int * float)[])
         : ChainEvaluation[] =
-        let rolled = InterceptTable.RolledBalls.Rent(pparams, { X = s.BallX; Y = s.BallY; Z = 0.0<meter>; Vx = 0.0<meterPerSecond>; Vy = 0.0<meterPerSecond>; Vz = 0.0<meterPerSecond> })
+        let rolled =
+            InterceptTable.RolledBalls.Rent(
+                pparams,
+                { X = s.BallX
+                  Y = s.BallY
+                  Z = 0.0<meter>
+                  Vx = 0.0<meterPerSecond>
+                  Vy = 0.0<meterPerSecond>
+                  Vz = 0.0<meterPerSecond> }
+            )
+
         let mutable used = 0
         let mutable frontierLimit = cfg.MaxEvaluateLimit
         // Spending the budget is a test, not a wrapper taking a thunk: one closure per evaluation dominated the
         // planner's allocations.
         let spend () =
-            if used < min cfg.MaxEvaluateLimit frontierLimit then used <- used + 1; true else false
+            if used < min cfg.MaxEvaluateLimit frontierLimit then
+                used <- used + 1
+                true
+            else
+                false
+
         let pass state slot =
             match findReceiver state slot with
-            | ValueSome(struct(_, x, y)) when slot <> state.CarrierSlot && not (SlotMask.contains slot state.OurGoalkeeperSlots) && not (isOffside state x) ->
+            | ValueSome(struct (_, x, y)) when
+                slot <> state.CarrierSlot
+                && not (SlotMask.contains slot state.OurGoalkeeperSlots)
+                && not (isOffside state x)
+                ->
                 let distance = MatchMath.dist state.BallX state.BallY x y
                 // Length limits are settled before the roll is solved: most candidates fail them, and the solve
                 // was the planner's largest cost.
-                if distance < float cfg.MinimumPassDistance || distance <= 0.0 || distance > float state.MaxPassDistance then None else
-                // The roll is solved once: feasibility and the simulated flight fly the same pass.
-                let roll = tabledPass cfg.PassTableResolution state distance
-                let flight = roll.Seconds * 1.0<second>
-                if distance >= float cfg.MinimumPassDistance && flight <= state.Horizon && isPassFeasible pparams rolled state x y distance roll then
-                    let next = simulatePassWith state roll slot
-                    Some(next, Pass(slot, next.BallX, next.BallY))
-                else None
+                if
+                    distance < float cfg.MinimumPassDistance
+                    || distance <= 0.0
+                    || distance > float state.MaxPassDistance
+                then
+                    None
+                else
+                    // The roll is solved once: feasibility and the simulated flight fly the same pass.
+                    let roll = tabledPass cfg.PassTableResolution state distance
+                    let flight = roll.Seconds * 1.0<second>
+
+                    if
+                        distance >= float cfg.MinimumPassDistance
+                        && flight <= state.Horizon
+                        && isPassFeasible pparams rolled state x y distance roll
+                    then
+                        let next = simulatePassWith state roll slot
+                        Some(next, Pass(slot, next.BallX, next.BallY))
+                    else
+                        None
             | _ -> None
+
         let carry state =
             let duration = min cfg.DribbleDuration state.Horizon
-            if duration <= 0.0<second> then None else
-            let x, y = MatchMath.pitchClamp (float (state.BallX + state.Dir * state.CarrySpeed * duration)) (float state.BallY)
-            let bx, by = x * 1.0<meter>, y * 1.0<meter>
-            let carrier = state.CarrierSlot
-            let next = advanceWith state duration carrier bx by (fun _ -> struct (bx, by, carrier))
-            Some(next, Dribble)
+
+            if duration <= 0.0<second> then
+                None
+            else
+                let x, y =
+                    MatchMath.pitchClamp
+                        (float (state.BallX + state.Dir * state.CarrySpeed * duration))
+                        (float state.BallY)
+
+                let bx, by = x * 1.0<meter>, y * 1.0<meter>
+                let carrier = state.CarrierSlot
+
+                let next =
+                    advanceWith state duration carrier bx by (fun _ -> struct (bx, by, carrier))
+
+                Some(next, Dribble)
+
         let count = options.Length
         let chains = Array.init count (fun _ -> [||])
         let states = Array.create count None
@@ -272,9 +327,11 @@ module PlannerReference =
         for index in 0 .. count - 1 do
             let code, target, _ = options[index]
             let before = used
+
             if cfg.Enabled then
                 let result =
-                    if not (spend ()) then None
+                    if not (spend ()) then
+                        None
                     else
                         match code with
                         | 1 -> pass s target
@@ -283,11 +340,21 @@ module PlannerReference =
                         | 4 -> Some(s, Clear)
                         | 5 -> Some(s, Cross(target, s.BallX, s.BallY))
                         | _ -> None
-                result |> Option.iter (fun (state, action) ->
-                    chains[index] <- [|action|]
+
+                result
+                |> Option.iter (fun (state, action) ->
+                    chains[index] <- [| action |]
                     rootValues[index] <- value e state
-                    if code = 1 || code = 3 then states[index] <- Some [|(state, [|action|], SlotMask.add s.CarrierSlot 0UL |> SlotMask.add state.CarrierSlot)|])
+
+                    if code = 1 || code = 3 then
+                        states[index] <-
+                            Some
+                                [| (state,
+                                    [| action |],
+                                    SlotMask.add s.CarrierSlot 0UL |> SlotMask.add state.CarrierSlot) |])
+
             work[index] <- used - before
+
         for _ in 2 .. cfg.MaxChainLength do
             for index in 0 .. count - 1 do
                 match states[index] with
@@ -296,28 +363,79 @@ module PlannerReference =
                     let remainingRoots = states[index..] |> Array.filter Option.isSome |> Array.length
                     frontierLimit <- used + (cfg.MaxEvaluateLimit - used + remainingRoots - 1) / max 1 remainingRoots
                     let branches = ResizeArray<ChainState * ChainAction[] * uint64 * float>()
+
                     for state, path, visited in beam do
                         // Stop and shoot competes with passing; it is not postponed until every pass fails.
                         if MatchMath.distanceToGoal state.Side state.BallX state.BallY < float cfg.ShootingRange then
                             if spend () then
                                 let _, _, utility = options[index]
-                                let score = utility + s.Confidence * (MatchMath.xGFrom (MatchMath.distanceToGoal state.Side state.BallX state.BallY) e.ChainFinishing 1.0 - rootValues[index])
-                                if score > scores[index] then chains[index] <- Array.append path [|Shoot|]; scores[index] <- score
-                        for struct(slot, _, _) in state.OurPos do
-                            if not (SlotMask.contains slot visited) && not (SlotMask.contains slot state.OurGoalkeeperSlots) then
-                                (if spend () then pass state slot else None) |> Option.iter (fun (next, action) ->
-                                    let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value e next - rootValues[index])
-                                    branches.Add(next, Array.append path [|action|], SlotMask.add slot visited, score))
-                        (if spend () then carry state else None) |> Option.iter (fun (next, action) ->
-                            let score = (let _, _, utility = options[index] in utility) + s.Confidence * (value e next - rootValues[index])
-                            branches.Add(next, Array.append path [|action|], visited, score))
-                    let best = branches |> Seq.sortByDescending (fun (_, _, _, score) -> score) |> Seq.truncate cfg.BeamWidth |> Seq.toArray
+
+                                let score =
+                                    utility
+                                    + s.Confidence
+                                      * (MatchMath.xGFrom
+                                          (MatchMath.distanceToGoal state.Side state.BallX state.BallY)
+                                          e.ChainFinishing
+                                          1.0
+                                         - rootValues[index])
+
+                                if score > scores[index] then
+                                    chains[index] <- Array.append path [| Shoot |]
+                                    scores[index] <- score
+
+                        for struct (slot, _, _) in state.OurPos do
+                            if
+                                not (SlotMask.contains slot visited)
+                                && not (SlotMask.contains slot state.OurGoalkeeperSlots)
+                            then
+                                (if spend () then pass state slot else None)
+                                |> Option.iter (fun (next, action) ->
+                                    let score =
+                                        (let _, _, utility = options[index] in utility)
+                                        + s.Confidence * (value e next - rootValues[index])
+
+                                    branches.Add(
+                                        next,
+                                        Array.append path [| action |],
+                                        SlotMask.add slot visited,
+                                        score
+                                    ))
+
+                        (if spend () then carry state else None)
+                        |> Option.iter (fun (next, action) ->
+                            let score =
+                                (let _, _, utility = options[index] in utility)
+                                + s.Confidence * (value e next - rootValues[index])
+
+                            branches.Add(next, Array.append path [| action |], visited, score))
+
+                    let best =
+                        branches
+                        |> Seq.sortByDescending (fun (_, _, _, score) -> score)
+                        |> Seq.truncate cfg.BeamWidth
+                        |> Seq.toArray
+
                     for _, path, _, score in best do
-                        if score > scores[index] then scores[index] <- score; chains[index] <- path
-                    states[index] <- if best.Length = 0 then None else Some(best |> Array.map (fun (state, path, visited, _) -> state, path, visited))
+                        if score > scores[index] then
+                            scores[index] <- score
+                            chains[index] <- path
+
+                    states[index] <-
+                        if best.Length = 0 then
+                            None
+                        else
+                            Some(best |> Array.map (fun (state, path, visited, _) -> state, path, visited))
+
                     frontierLimit <- cfg.MaxEvaluateLimit
                     work[index] <- work[index] + used - before
                 | None -> ()
+
         InterceptTable.RolledBalls.Return rolled
-        options |> Array.mapi (fun index (code, target, _) ->
-            { ActionCode = code; TargetSlot = target; Chain = chains[index]; Value = scores[index]; CandidateEvaluations = work[index] })
+
+        options
+        |> Array.mapi (fun index (code, target, _) ->
+            { ActionCode = code
+              TargetSlot = target
+              Chain = chains[index]
+              Value = scores[index]
+              CandidateEvaluations = work[index] })

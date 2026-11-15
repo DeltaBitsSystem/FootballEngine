@@ -121,7 +121,10 @@ module TransitionGeometry =
         if previous >= 0 && outfielder frame previous && not (excluded previous) then
             let held = arrivalTimeFor effort ctx frame previous target
 
-            if held <= time + margin then struct (previous, held) else struct (best, time)
+            if held <= time + margin then
+                struct (previous, held)
+            else
+                struct (best, time)
         else
             struct (best, time)
 
@@ -365,7 +368,12 @@ module TeamTransition =
 
                 let primary = if mode = Counterpress then assessment.Primary else -1
                 let cover = if mode = Counterpress then assessment.Cover else -1
-                let slotOfOption (slot: int option) = match slot with Some slot -> slot | None -> -1
+
+                let slotOfOption (slot: int option) =
+                    match slot with
+                    | Some slot -> slot
+                    | None -> -1
+
                 let primaryChanged = primary <> slotOfOption episode.Primary
                 let coverChanged = cover <> slotOfOption episode.Cover
 
@@ -435,8 +443,13 @@ module TeamTransition =
 
                 episode.Mode <- mode
                 episode.Reason <- reason
-                if primaryChanged then episode.Primary <- (if primary >= 0 then Some primary else None)
-                if coverChanged then episode.Cover <- (if cover >= 0 then Some cover else None)
+
+                if primaryChanged then
+                    episode.Primary <- (if primary >= 0 then Some primary else None)
+
+                if coverChanged then
+                    episode.Cover <- (if cover >= 0 then Some cover else None)
+
                 episode.EvaluatedAt <- tick
                 episode.Tactics <- team.Tactics
                 episode.ParticipationRevision <- team.Frame.ActiveCache.Revision

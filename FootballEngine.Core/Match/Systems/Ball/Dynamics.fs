@@ -48,7 +48,8 @@ module BallAero =
             seconds <- seconds + (atan (start * root) - atan (finish * root)) / sqrt (a * k)
             speed <- start
 
-        { LaunchSpeed = speed; Seconds = seconds }
+        { LaunchSpeed = speed
+          Seconds = seconds }
 
     /// The pass every planner and passer means by "a pass of this length": one arrival-speed law, one roll model.
     let pass (ball: BallConfig) (arrivalSpeed: float<meterPerSecond>) (arrivalSpeedGain: float) (distance: float) =
@@ -145,7 +146,8 @@ module BallDynamics =
         if speed > 1e-10 then
             // A rolling ball still pushes through air; at pass speeds drag outweighs turf resistance.
             let loss =
-                (cfg.RollingResistance * float cfg.Gravity + BallAero.dragDeceleration cfg speed) * duration
+                (cfg.RollingResistance * float cfg.Gravity + BallAero.dragDeceleration cfg speed)
+                * duration
 
             let retained = max 0.0 (speed - loss) / speed
 
@@ -210,7 +212,15 @@ module BallDynamics =
 
     /// Posts, crossbar and net as analytic shapes. The path is swept so a 30 m/s shot cannot tunnel through a 12 cm
     /// post between ticks; one contact per step is enough at tick rate.
-    let private goalFrame (cfg: BallConfig) dt tick x0 y0 z0 (motion: Motion) : struct (Motion * GoalFrameContact voption) =
+    let private goalFrame
+        (cfg: BallConfig)
+        dt
+        tick
+        x0
+        y0
+        z0
+        (motion: Motion)
+        : struct (Motion * GoalFrameContact voption) =
         let radius = float cfg.Radius
         let postRadius = float Pitch.PostRadius
         let halfWidth = float Pitch.GoalHalfWidth
@@ -222,7 +232,12 @@ module BallDynamics =
         let dx, dy, dz = m.X - x0, m.Y - y0, (m.Z + radius) - c0
 
         for goalIndex = 0 to 1 do
-            let goalX = if goalIndex = 0 then float Pitch.homeGoalX else float Pitch.awayGoalX
+            let goalX =
+                if goalIndex = 0 then
+                    float Pitch.homeGoalX
+                else
+                    float Pitch.awayGoalX
+
             let defender = if goalIndex = 0 then ClubSide.Home else ClubSide.Away
             let near = abs (x0 - goalX) < depth + 2.0 || abs (m.X - goalX) < depth + 2.0
 
@@ -287,7 +302,9 @@ module BallDynamics =
                     let direction = if goalX > 0.0 then 1.0 else -1.0
                     let c1 = m.Z + radius
                     let depth0, depth1 = (x0 - goalX) * direction, (m.X - goalX) * direction
-                    let crossed s0 s1 = (s0 >= radius && s1 < radius) || (s0 <= -radius && s1 > -radius)
+
+                    let crossed s0 s1 =
+                        (s0 >= radius && s1 < radius) || (s0 <= -radius && s1 > -radius)
 
                     let mutable index = 0
 
@@ -308,7 +325,12 @@ module BallDynamics =
                             let hd = (hx - goalX) * direction
                             let slack = radius + 0.01
 
-                            if hd > -slack && hd < depth + slack && abs hy < halfWidth + slack && hz < height + slack then
+                            if
+                                hd > -slack
+                                && hd < depth + slack
+                                && abs hy < halfWidth + slack
+                                && hz < height + slack
+                            then
                                 // Inward normal from inside the goal, outward from outside it.
                                 let sign = if s0 > 0.0 then 1.0 else -1.0
                                 m <- bounce m (fx * sign) (fy * sign) (fz * sign) cfg.NetRestitution cfg.NetFriction
@@ -322,7 +344,10 @@ module BallDynamics =
                                         { Tick = tick
                                           Part = Net
                                           Goal = defender
-                                          Position = { X = m.X * 1.0<meter>; Y = m.Y * 1.0<meter>; Z = m.Z * 1.0<meter> } }
+                                          Position =
+                                            { X = m.X * 1.0<meter>
+                                              Y = m.Y * 1.0<meter>
+                                              Z = m.Z * 1.0<meter> } }
 
                         index <- index + 1
 
@@ -353,6 +378,7 @@ module BallDynamics =
         else
             let struct (ax, ay, az) =
                 BallAero.flightAcceleration cfg dt m.Vx m.Vy m.Vz m.Wx m.Wy m.Wz
+
             let nextZ = m.Z + m.Vz * dt + 0.5 * az * dt * dt
 
             if nextZ >= 0.0 then
@@ -438,5 +464,9 @@ module BallDynamics =
                     match ball.StationarySince with
                     | Some _ -> ball.StationarySince
                     | None -> Some tick
-            FrameContact = if frameContact.IsSome then frameContact else ball.FrameContact
+            FrameContact =
+                if frameContact.IsSome then
+                    frameContact
+                else
+                    ball.FrameContact
             PreviousPosition = ValueSome p }

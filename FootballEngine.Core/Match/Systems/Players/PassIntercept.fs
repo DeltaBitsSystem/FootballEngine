@@ -110,9 +110,13 @@ module PassIntercept =
         let interceptor = rolled.FirstArrival(bodyX, bodyY, count, p.MaxSteps)
 
         let own = (MatchWorld.team world side).Frame
-        let arrival = rolled.StepsFor(MatchWorld.posX own receiverSlot, MatchWorld.posY own receiverSlot)
+
+        let arrival =
+            rolled.StepsFor(MatchWorld.posX own receiverSlot, MatchWorld.posY own receiverSlot)
+
         InterceptTable.RolledBalls.Return rolled
         interceptor + riskFor cfg world side receiverSlot ball offsideLine - arrival
 
     /// The receiver wins the race: a positive margin.
-    let feasible cfg p world side receiverSlot ball offsideLine = margin cfg p world side receiverSlot ball offsideLine > 0
+    let feasible cfg p world side receiverSlot ball offsideLine =
+        margin cfg p world side receiverSlot ball offsideLine > 0

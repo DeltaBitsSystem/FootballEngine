@@ -100,8 +100,14 @@ module TeamPosition =
             let mutable coverDistance = 0.0
 
             for slot in active do
-                if frame.SlotRoles[slot] <> SlotRole.Goalkeeper && slot <> nearest && slot <> rest1 && slot <> rest2 then
-                    let distance = MatchMath.dist ball.X ball.Y (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
+                if
+                    frame.SlotRoles[slot] <> SlotRole.Goalkeeper
+                    && slot <> nearest
+                    && slot <> rest1
+                    && slot <> rest2
+                then
+                    let distance =
+                        MatchMath.dist ball.X ball.Y (MatchWorld.posX frame slot) (MatchWorld.posY frame slot)
 
                     if precedes distance slot coverDistance cover then
                         cover <- slot
@@ -268,7 +274,13 @@ module TeamPosition =
                         let towardY = float ballFy
                         let ballDistance = max 1.0 (sqrt (towardX * towardX + towardY * towardY))
                         let depth = min (float posCfg.GkMaxAdvance) (posCfg.GkDepthRatio * ballDistance)
-                        let targetY = MatchMath.clamp (-float Pitch.GoalHalfWidth) (float Pitch.GoalHalfWidth) (depth * towardY / ballDistance)
+
+                        let targetY =
+                            MatchMath.clamp
+                                (-float Pitch.GoalHalfWidth)
+                                (float Pitch.GoalHalfWidth)
+                                (depth * towardY / ballDistance)
+
                         FPoint.ofXY (goalFx + depth * towardX / ballDistance) targetY
                     else
                         FieldEvaluator.refineInto
@@ -347,9 +359,18 @@ module TeamPosition =
 
         // A task identical to the standing one is left in place, so a steady plan allocates nothing.
         let assign slot role (target: Vec2) (opponentId: PlayerId voption) =
-            let inset = if role = DefensiveRole.FirstDefender then 0.0 else float ctx.Config.Positioning.TargetInset
-            let x = MatchMath.clamp (-float Pitch.HalfLength + inset) (float Pitch.HalfLength - inset) (float target.X)
-            let y = MatchMath.clamp (-float Pitch.HalfWidth + inset) (float Pitch.HalfWidth - inset) (float target.Y)
+            let inset =
+                if role = DefensiveRole.FirstDefender then
+                    0.0
+                else
+                    float ctx.Config.Positioning.TargetInset
+
+            let x =
+                MatchMath.clamp (-float Pitch.HalfLength + inset) (float Pitch.HalfLength - inset) (float target.X)
+
+            let y =
+                MatchMath.clamp (-float Pitch.HalfWidth + inset) (float Pitch.HalfWidth - inset) (float target.Y)
+
             let targetX = x * 1.0<meter>
             let targetY = y * 1.0<meter>
 
@@ -359,7 +380,8 @@ module TeamPosition =
                 && previous.Target.X = targetX
                 && previous.Target.Y = targetY
                 && sameOpponent previous.Opponent opponentId
-                -> ()
+                ->
+                ()
             | _ ->
                 team.Defense.Tasks[slot] <-
                     ValueSome
@@ -370,33 +392,63 @@ module TeamPosition =
             team.Frame.DefensiveRoles[slot] <- role
 
         for slot in 0 .. frame.SlotCount - 1 do
-            if not (TransitionGeometry.outfielder frame slot) then team.Defense.Tasks[slot] <- ValueNone
+            if not (TransitionGeometry.outfielder frame slot) then
+                team.Defense.Tasks[slot] <- ValueNone
 
         let protect slot =
             if slot >= 0 then
                 let mutable runner = -1
                 let mutable deepest = float ball.X * dir
+
                 for candidate in MatchWorld.activeSlots opponent.Frame do
                     let sameCorridor =
-                        if slot = rest1 then float opponent.Frame.PosY[candidate] <= float ball.Y
-                        else float opponent.Frame.PosY[candidate] >= float ball.Y
+                        if slot = rest1 then
+                            float opponent.Frame.PosY[candidate] <= float ball.Y
+                        else
+                            float opponent.Frame.PosY[candidate] >= float ball.Y
+
                     if TransitionGeometry.outfielder opponent.Frame candidate && sameCorridor then
                         let x = float opponent.Frame.PosX[candidate] * dir
-                        if x < deepest then runner <- candidate; deepest <- x
+
+                        if x < deepest then
+                            runner <- candidate
+                            deepest <- x
+
                 let ownSide = if team.Frame.PosY[slot] < 0.0f then -1.0 else 1.0
+
                 let y =
-                    if runner >= 0 then (float ball.Y + float opponent.Frame.PosY[runner]) / 2.0
-                    else float ball.Y + ownSide * float cfg.DepthSafety
-                let opponentId = if runner >= 0 then ValueSome opponent.RosterIds[runner] else ValueNone
-                let x = min (float team.Shape.TargetsX[slot] * dir) (deepest - float cfg.DepthSafety - float cfg.CoverDepth)
-                assign slot DefensiveRole.ProtectDepth (Vec2.create (x * dir * 1.0<meter>) (MatchMath.clamp (-float cfg.CentralHalfWidth) (float cfg.CentralHalfWidth) y * 1.0<meter>)) opponentId
+                    if runner >= 0 then
+                        (float ball.Y + float opponent.Frame.PosY[runner]) / 2.0
+                    else
+                        float ball.Y + ownSide * float cfg.DepthSafety
+
+                let opponentId =
+                    if runner >= 0 then
+                        ValueSome opponent.RosterIds[runner]
+                    else
+                        ValueNone
+
+                let x =
+                    min (float team.Shape.TargetsX[slot] * dir) (deepest - float cfg.DepthSafety - float cfg.CoverDepth)
+
+                assign
+                    slot
+                    DefensiveRole.ProtectDepth
+                    (Vec2.create
+                        (x * dir * 1.0<meter>)
+                        (MatchMath.clamp (-float cfg.CentralHalfWidth) (float cfg.CentralHalfWidth) y
+                         * 1.0<meter>))
+                    opponentId
 
         protect rest1
         protect rest2
 
         let available slot =
-            TransitionGeometry.outfielder team.Frame slot && slot <> rest1 && slot <> rest2
-            && slot <> primary && slot <> cover
+            TransitionGeometry.outfielder team.Frame slot
+            && slot <> rest1
+            && slot <> rest2
+            && slot <> primary
+            && slot <> cover
 
         if mode = Counterpress then
             if primary >= 0 then
@@ -416,8 +468,14 @@ module TeamPosition =
 
             for index in 0 .. opponentSlots.Length - 1 do
                 let slot = opponentSlots[index]
+
                 distances[slot] <-
-                    MatchMath.dist ball.X ball.Y (MatchWorld.posX opponent.Frame slot) (MatchWorld.posY opponent.Frame slot)
+                    MatchMath.dist
+                        ball.X
+                        ball.Y
+                        (MatchWorld.posX opponent.Frame slot)
+                        (MatchWorld.posY opponent.Frame slot)
+
                 depths[slot] <- float opponent.Frame.PosX[slot] * dir
 
                 // Insertion by (distance, depth, slot): a total order, so it matches the stable sort it replaces.
@@ -425,6 +483,7 @@ module TeamPosition =
 
                 while position > 0
                       && (let other = order[position - 1]
+
                           distances[slot] < distances[other]
                           || (distances[slot] = distances[other]
                               && (depths[slot] < depths[other] || (depths[slot] = depths[other] && slot < other)))) do
@@ -436,16 +495,33 @@ module TeamPosition =
             for index in 0 .. opponentSlots.Length - 1 do
                 let outlet = order[index]
                 let ox, oy = float opponent.Frame.PosX[outlet], float opponent.Frame.PosY[outlet]
-                let distance = MatchMath.dist ball.X ball.Y (MatchWorld.posX opponent.Frame outlet) (MatchWorld.posY opponent.Frame outlet)
+
+                let distance =
+                    MatchMath.dist
+                        ball.X
+                        ball.Y
+                        (MatchWorld.posX opponent.Frame outlet)
+                        (MatchWorld.posY opponent.Frame outlet)
+
                 let isCarrier =
                     match world.State.Ball.Control with
-                    | BallControl.Controlled(_, pid) | BallControl.Receiving(_, pid, _) -> opponent.RosterIds[outlet] = pid
+                    | BallControl.Controlled(_, pid)
+                    | BallControl.Receiving(_, pid, _) -> opponent.RosterIds[outlet] = pid
                     | _ -> false
-                if screens < cfg.MaximumScreens && TransitionGeometry.outfielder opponent.Frame outlet && not isCarrier
-                   && distance <= float ctx.Config.Actions.MaxPassExecutionDistance then
-                    let target = Vec2.create
-                                     ((float ball.X + (ox - float ball.X) * cfg.ScreenFraction - dir * float cfg.ApproachOffset) * 1.0<meter>)
-                                     ((float ball.Y + (oy - float ball.Y) * cfg.ScreenFraction) * 1.0<meter>)
+
+                if
+                    screens < cfg.MaximumScreens
+                    && TransitionGeometry.outfielder opponent.Frame outlet
+                    && not isCarrier
+                    && distance <= float ctx.Config.Actions.MaxPassExecutionDistance
+                then
+                    let target =
+                        Vec2.create
+                            ((float ball.X + (ox - float ball.X) * cfg.ScreenFraction
+                              - dir * float cfg.ApproachOffset)
+                             * 1.0<meter>)
+                            ((float ball.Y + (oy - float ball.Y) * cfg.ScreenFraction) * 1.0<meter>)
+
                     let outletId = opponent.RosterIds[outlet]
                     let mutable previous = -1
                     let slots = MatchWorld.activeSlots frame
@@ -463,9 +539,15 @@ module TeamPosition =
                         scan <- scan + 1
 
                     let struct (chosen, time) =
-                        TransitionGeometry.chooseSlotFor cfg.ScreenEffort ctx frame target
+                        TransitionGeometry.chooseSlotFor
+                            cfg.ScreenEffort
+                            ctx
+                            frame
+                            target
                             (fun slot -> not (available slot) || team.Frame.DefensiveRoles[slot] = DefensiveRole.Screen)
-                            previous cfg.HandoffAdvantage
+                            previous
+                            cfg.HandoffAdvantage
+
                     if chosen >= 0 && time <= cfg.LocalArrivalWindow then
                         assign chosen DefensiveRole.Screen target (ValueSome outletId)
                         screens <- screens + 1
@@ -485,18 +567,37 @@ module TeamPosition =
 
             // Only a defender still goal-side can stand in the carrier's way; one he has passed would only chase
             // him from behind into a foul.
-            let goalSide slot = float frame.PosX[slot] * dir <= float ball.X * dir + float cfg.BeatenMargin
+            let goalSide slot =
+                float frame.PosX[slot] * dir <= float ball.X * dir + float cfg.BeatenMargin
 
             let struct (contain, _) =
-                TransitionGeometry.chooseSlotFor 1.0 ctx frame target (fun slot -> not (available slot && goalSide slot)) previous cfg.HandoffAdvantage
+                TransitionGeometry.chooseSlotFor
+                    1.0
+                    ctx
+                    frame
+                    target
+                    (fun slot -> not (available slot && goalSide slot))
+                    previous
+                    cfg.HandoffAdvantage
 
-            if contain >= 0 then assign contain DefensiveRole.Contain target ValueNone
+            if contain >= 0 then
+                assign contain DefensiveRole.Contain target ValueNone
 
         for slot in MatchWorld.activeSlots frame do
-            if TransitionGeometry.outfielder frame slot && frame.DefensiveRoles[slot] = DefensiveRole.Unassigned then
-                let x = min (float team.Shape.TargetsX[slot] * dir) (float ball.X * dir - float cfg.RetreatBallGap)
+            if
+                TransitionGeometry.outfielder frame slot
+                && frame.DefensiveRoles[slot] = DefensiveRole.Unassigned
+            then
+                let x =
+                    min (float team.Shape.TargetsX[slot] * dir) (float ball.X * dir - float cfg.RetreatBallGap)
+
                 let width = min 1.0 (cfg.RetreatWidthScale * (1.0 + float team.Tactics.Width))
-                assign slot DefensiveRole.RecoverShape (Vec2.create (x * dir * 1.0<meter>) (float team.Shape.TargetsY[slot] * width * 1.0<meter>)) ValueNone
+
+                assign
+                    slot
+                    DefensiveRole.RecoverShape
+                    (Vec2.create (x * dir * 1.0<meter>) (float team.Shape.TargetsY[slot] * width * 1.0<meter>))
+                    ValueNone
 
     let private assignOrganizedDefense (ctx: MatchContext) (world: World) side =
         let team = MatchWorld.team world side
@@ -506,63 +607,111 @@ module TeamPosition =
         let mutable hadTasks = false
         let mutable previousPrimary = -1
         let mutable previousCover = -1
+
         for slot in MatchWorld.activeSlots frame do
             match team.Defense.Tasks[slot] with
             | ValueSome task ->
                 hadTasks <- true
                 // The last slot holding the role wins, as the per-role scans it replaces resolved duplicates.
-                if task.Role = DefensiveRole.FirstDefender then previousPrimary <- slot
-                if task.Role = DefensiveRole.Cover then previousCover <- slot
+                if task.Role = DefensiveRole.FirstDefender then
+                    previousPrimary <- slot
+
+                if task.Role = DefensiveRole.Cover then
+                    previousCover <- slot
             | ValueNone -> ()
 
         let ball = world.State.Ball.Position
         let dir = MatchMath.goalDirection side
         let pressGate = TeamDecide.pressGate team.Tactics
+
         let eligible slot =
-            slot <> rest1 && slot <> rest2
+            slot <> rest1
+            && slot <> rest2
             && float frame.Condition[slot] >= cfg.MinimumPressCondition
             && float frame.PosX[slot] * dir <= float ball.X * dir + float cfg.BeatenMargin
 
         let mutable depthThreat = rest2 < 0
+
         if rest2 >= 0 then
             let depthLine = float frame.PosX[rest2] * dir
             let opponents = (MatchWorld.team world (MatchWorld.oppOf side)).Frame
+
             for slot in MatchWorld.activeSlots opponents do
-                if TransitionGeometry.outfielder opponents slot
-                   && float opponents.PosX[slot] * dir < depthLine - float cfg.DepthSafety
-                   && abs (float opponents.PosY[slot]) <= float cfg.CentralHalfWidth then
+                if
+                    TransitionGeometry.outfielder opponents slot
+                    && float opponents.PosX[slot] * dir < depthLine - float cfg.DepthSafety
+                    && abs (float opponents.PosY[slot]) <= float cfg.CentralHalfWidth
+                then
                     depthThreat <- true
 
         let mutable reason = OrganizedUnavailable
         let mutable nextPrimary = -1
         let mutable nextCover = -1
 
-        if float team.Tactics.PressIntensity < cfg.MinimumPressIntensity then reason <- OrganizedTacticalRestraint
-        elif float ball.X * dir <= pressGate then reason <- OrganizedOutsidePressZone
-        elif depthThreat then reason <- OrganizedDepthThreat
+        if float team.Tactics.PressIntensity < cfg.MinimumPressIntensity then
+            reason <- OrganizedTacticalRestraint
+        elif float ball.X * dir <= pressGate then
+            reason <- OrganizedOutsidePressZone
+        elif depthThreat then
+            reason <- OrganizedDepthThreat
         else
             let struct (primary, arrival) =
-                TransitionGeometry.chooseSlotFor 1.0 ctx frame (TransitionGeometry.pressPoint ctx world side)
-                    (fun slot -> not (eligible slot)) previousPrimary cfg.HandoffAdvantage
-            if primary < 0 || arrival > cfg.LocalArrivalWindow then reason <- OrganizedUnavailable
+                TransitionGeometry.chooseSlotFor
+                    1.0
+                    ctx
+                    frame
+                    (TransitionGeometry.pressPoint ctx world side)
+                    (fun slot -> not (eligible slot))
+                    previousPrimary
+                    cfg.HandoffAdvantage
+
+            if primary < 0 || arrival > cfg.LocalArrivalWindow then
+                reason <- OrganizedUnavailable
             else
                 let struct (cover, coverArrival) =
-                    TransitionGeometry.chooseSlotFor cfg.CoverEffort ctx frame (TransitionGeometry.coverPoint ctx world side)
+                    TransitionGeometry.chooseSlotFor
+                        cfg.CoverEffort
+                        ctx
+                        frame
+                        (TransitionGeometry.coverPoint ctx world side)
                         (fun slot -> not (eligible slot) || slot = primary)
-                        previousCover cfg.HandoffAdvantage
-                if cover < 0 || coverArrival > cfg.CoverArrivalWindow then reason <- OrganizedUnavailable
+                        previousCover
+                        cfg.HandoffAdvantage
+
+                if cover < 0 || coverArrival > cfg.CoverArrivalWindow then
+                    reason <- OrganizedUnavailable
                 else
                     reason <- OrganizedPressure
                     nextPrimary <- primary
                     nextCover <- cover
 
-        if world.Observation.Enabled && (not hadTasks || nextPrimary <> previousPrimary || nextCover <> previousCover) then
-            let player slot = if slot >= 0 then Some team.RosterIds[slot] else None
-            world.Observation.Record(world.State.Tick, ValueNone,
-                OrganizedDefenseEvaluated { Side = side; Reason = reason; Primary = player nextPrimary; Cover = player nextCover }) |> ignore
+        if
+            world.Observation.Enabled
+            && (not hadTasks || nextPrimary <> previousPrimary || nextCover <> previousCover)
+        then
+            let player slot =
+                if slot >= 0 then Some team.RosterIds[slot] else None
 
-        assignDefensiveTasks ctx world side (if reason = OrganizedPressure then Counterpress else Retreat)
-            nextPrimary nextCover rest1 rest2
+            world.Observation.Record(
+                world.State.Tick,
+                ValueNone,
+                OrganizedDefenseEvaluated
+                    { Side = side
+                      Reason = reason
+                      Primary = player nextPrimary
+                      Cover = player nextCover }
+            )
+            |> ignore
+
+        assignDefensiveTasks
+            ctx
+            world
+            side
+            (if reason = OrganizedPressure then Counterpress else Retreat)
+            nextPrimary
+            nextCover
+            rest1
+            rest2
 
     let step: SystemStep =
         fun ctx rng world _ ->
@@ -583,20 +732,36 @@ module TeamPosition =
                 let groups = ctx.Ctx.Config.Positioning.RefineGroups
 
                 let refineGroup =
-                    if groups <= 1 || team.LastRoleAssignmentTick < 0<subtick> || int (tick - team.LastRoleAssignmentTick) > cadence then
+                    if
+                        groups <= 1
+                        || team.LastRoleAssignmentTick < 0<subtick>
+                        || int (tick - team.LastRoleAssignmentTick) > cadence
+                    then
                         ValueNone
                     else
                         ValueSome((int tick / max 1 cadence) % groups)
 
                 positionTeam ctx.Ctx world side refineGroup
+
                 match team.Defense.Episode with
                 | Some episode when episode.EndedAt.IsNone ->
                     let struct (rest1, rest2) = TransitionGeometry.restDefendersV world side
-                    assignDefensiveTasks ctx.Ctx world side episode.Mode (Option.defaultValue -1 episode.Primary) (Option.defaultValue -1 episode.Cover) rest1 rest2
+
+                    assignDefensiveTasks
+                        ctx.Ctx
+                        world
+                        side
+                        episode.Mode
+                        (Option.defaultValue -1 episode.Primary)
+                        (Option.defaultValue -1 episode.Cover)
+                        rest1
+                        rest2
                 | _ ->
                     match world.State.Flow, MatchWorld.ballCarrier ctx.Ctx world with
-                    | MatchFlow.Live, ValueSome(struct (owner, _, _)) when owner <> side -> assignOrganizedDefense ctx.Ctx world side
+                    | MatchFlow.Live, ValueSome(struct (owner, _, _)) when owner <> side ->
+                        assignOrganizedDefense ctx.Ctx world side
                     | _ -> assignRoles ctx.Ctx world side
+
                 team.LastRoleAssignmentTick <- tick
 
             MatchWorld.bothTeams world position

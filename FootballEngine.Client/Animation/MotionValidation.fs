@@ -41,7 +41,10 @@ module MotionValidation =
 
     let plan (value: ActorPlan) =
         let (PlayerId identity) = value.Root.Actor
-        let seed = uint64 (uint32 identity) * 0x9E3779B97F4A7C15UL + uint64 value.Root.Generation
+
+        let seed =
+            uint64 (uint32 identity) * 0x9E3779B97F4A7C15UL + uint64 value.Root.Generation
+
         MotionContract.root value.Root
         && foot value.Left
         && foot value.Right
@@ -53,4 +56,3 @@ module MotionValidation =
         && Single.IsFinite value.Gaze.Y
         && value.Tick >= 0
         && value.Seed = seed
-

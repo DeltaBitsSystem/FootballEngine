@@ -537,7 +537,10 @@ module Replay =
                       HomePlayerIds = homePlayerIds
                       AwayPlayerIds = awayPlayerIds
                       BlockOffsets = absoluteOffsets
-                      Sections = [| { Kind = 1u; Version = 1; Payload = motion.Complete() } |] }
+                      Sections =
+                        [| { Kind = 1u
+                             Version = 1
+                             Payload = motion.Complete() } |] }
 
                 completed <- Some data
                 data

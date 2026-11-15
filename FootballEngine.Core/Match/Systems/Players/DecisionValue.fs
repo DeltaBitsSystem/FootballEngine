@@ -31,10 +31,17 @@ module DecisionValue =
         (toY: float<meter>)
         : float =
         completion * threat e side toX toY
-        - (1.0 - completion) * concession e side ((fromX + toX) / 2.0) ((fromY + toY) / 2.0)
+        - (1.0 - completion)
+          * concession e side ((fromX + toX) / 2.0) ((fromY + toY) / 2.0)
 
     /// Chance a carry survives the nearest opponent, the others closing in and those standing in its path.
-    let carryKeep (e: ExpectedValueConfig) (dribbling: float) (tackling: float) (opponents: int) (blockers: int) : float =
+    let carryKeep
+        (e: ExpectedValueConfig)
+        (dribbling: float)
+        (tackling: float)
+        (opponents: int)
+        (blockers: int)
+        : float =
         MatchMath.clamp01 (
             e.CarryKeepBase + e.CarrySkillWeight * (dribbling - tackling)
             - e.CarryPressurePenalty * float opponents
@@ -136,7 +143,8 @@ module DecisionValue =
         (supported: bool)
         : float =
         let loss =
-            e.LossNear * exp (-nearestOpponent / float e.LossRange)
+            e.LossNear
+            * exp (-nearestOpponent / float e.LossRange)
             * (if supported then 1.0 - e.SupportRelief else 1.0)
 
         (1.0 - loss) * threat e side x y - loss * concession e side x y

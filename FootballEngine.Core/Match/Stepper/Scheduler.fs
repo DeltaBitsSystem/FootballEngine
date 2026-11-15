@@ -76,13 +76,15 @@ module FlowGate =
         | MatchFlow.MatchEnded -> 1 <<< 10
 
 type CompiledSystem =
-    { Name: string
-      Side: SystemSide
-      /// Keys the system's own random stream; derived from the name so adding or reordering systems does not
-      /// reassign another system's numbers.
-      StreamKey: uint64
-      Triggers: CompiledTrigger[]
-      Step: SystemStep }
+    {
+        Name: string
+        Side: SystemSide
+        /// Keys the system's own random stream; derived from the name so adding or reordering systems does not
+        /// reassign another system's numbers.
+        StreamKey: uint64
+        Triggers: CompiledTrigger[]
+        Step: SystemStep
+    }
 
 /// Per-tick values the two half loops read. One instance lives as long as the schedule so the loop closures are
 /// built once instead of every tick; the tick owner fills the fields before it runs either half. Object fields
@@ -219,7 +221,9 @@ module ScheduleCompiler =
                   Step = system.Step })
             |> Array.ofList
 
-        let cognition = compiled |> Array.filter (fun system -> system.Side = SystemSide.Cognition)
+        let cognition =
+            compiled |> Array.filter (fun system -> system.Side = SystemSide.Cognition)
+
         let body = compiled |> Array.filter (fun system -> system.Side = SystemSide.Body)
 
         { Systems = compiled

@@ -211,9 +211,17 @@ module SeasonPhase =
         |> refreshAiLineups
         |> developCoaches balance
         |> fun s ->
-            { s with Clubs = s.Clubs |> Map.map (fun _ club ->
-                    { club with CoordinationMemory =
-                                    { club.CoordinationMemory with AttackLearning = FootballEngine.Core.Match.AttackLearning.retain balance.CollectiveAttack club.CoordinationMemory.AttackLearning } }) }
+            { s with
+                Clubs =
+                    s.Clubs
+                    |> Map.map (fun _ club ->
+                        { club with
+                            CoordinationMemory =
+                                { club.CoordinationMemory with
+                                    AttackLearning =
+                                        FootballEngine.Core.Match.AttackLearning.retain
+                                            balance.CollectiveAttack
+                                            club.CoordinationMemory.AttackLearning } }) }
         |> fun s ->
             { s with
                 Season = s.Season + 1

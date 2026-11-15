@@ -104,7 +104,12 @@ module InterceptPressingTests =
               testCase "first defender presses an opponent ball carrier" (fun _ ->
                   let world, ctx = pressWorld ()
                   let carrier = ctx.AwayLineup.Profiles.[9].Id
-                  world.Home.Tactics <- { world.Home.Tactics with PressIntensity = 1.0f; PressTriggerZone = 1.0f }
+
+                  world.Home.Tactics <-
+                      { world.Home.Tactics with
+                          PressIntensity = 1.0f
+                          PressTriggerZone = 1.0f }
+
                   world.Home.Frame.PosX[9] <- -2.0f
                   world.Home.Frame.PosX[5] <- -4.0f
 
@@ -135,42 +140,78 @@ module InterceptPressingTests =
                       "the assigned first defender owns the press"
 
                   let target = TransitionGeometry.pressPoint ctx world ClubSide.Home
-                  Expect.equal world.Home.Frame.Intent.TargetX.[pressers.[0]] (float32 target.X) "the press uses the shared approach point"
+
+                  Expect.equal
+                      world.Home.Frame.Intent.TargetX.[pressers.[0]]
+                      (float32 target.X)
+                      "the press uses the shared approach point"
 
                   Expect.equal
                       world.Home.Frame.Intent.TargetY.[pressers.[0]]
                       (float32 target.Y)
                       "the press uses the shared approach point"
 
-                  let before = MatchMath.dist (MatchWorld.posX world.Home.Frame pressers[0]) (MatchWorld.posY world.Home.Frame pressers[0]) target.X target.Y
+                  let before =
+                      MatchMath.dist
+                          (MatchWorld.posX world.Home.Frame pressers[0])
+                          (MatchWorld.posY world.Home.Frame pressers[0])
+                          target.X
+                          target.Y
+
                   let movementContext = sctx ctx
                   let movementEvents = buffer ()
-                  CognitionLatch.step movementContext (Rng.ofSeed 0UL) world movementEvents |> ignore
-                  PlayerSteering.step movementContext (Rng.ofSeed 11UL) world movementEvents |> ignore
-                  ContactDynamics.step movementContext (Rng.ofSeed 11UL) world movementEvents |> ignore
+
+                  CognitionLatch.step movementContext (Rng.ofSeed 0UL) world movementEvents
+                  |> ignore
+
+                  PlayerSteering.step movementContext (Rng.ofSeed 11UL) world movementEvents
+                  |> ignore
+
+                  ContactDynamics.step movementContext (Rng.ofSeed 11UL) world movementEvents
+                  |> ignore
 
                   Expect.isLessThan
-                      (MatchMath.dist (MatchWorld.posX world.Home.Frame pressers[0]) (MatchWorld.posY world.Home.Frame pressers[0]) target.X target.Y)
+                      (MatchMath.dist
+                          (MatchWorld.posX world.Home.Frame pressers[0])
+                          (MatchWorld.posY world.Home.Frame pressers[0])
+                          target.X
+                          target.Y)
                       before
                       "the first defender physically closes down the carrier")
 
               testCase "arrival estimate includes acceleration" (fun _ ->
                   let world, ctx = pressWorld ()
-                  let time = TransitionGeometry.arrivalTime ctx world.Home.Frame 9 (Vec2.create 0.0<meter> 0.0<meter>)
-                  Expect.isGreaterThan time ((3.0<meter> - ctx.Config.Ball.FootReach) / ctx.Config.Movement.SprintSpeed) "cannot instantly sprint")
+
+                  let time =
+                      TransitionGeometry.arrivalTime ctx world.Home.Frame 9 (Vec2.create 0.0<meter> 0.0<meter>)
+
+                  Expect.isGreaterThan
+                      time
+                      ((3.0<meter> - ctx.Config.Ball.FootReach) / ctx.Config.Movement.SprintSpeed)
+                      "cannot instantly sprint")
               testCase "motion toward the contact reduces arrival time" (fun _ ->
                   let world, ctx = pressWorld ()
                   let target = Vec2.create 0.0<meter> 0.0<meter>
                   let before = TransitionGeometry.arrivalTime ctx world.Home.Frame 9 target
                   world.Home.Frame.VelX[9] <- -3.0f
-                  Expect.isLessThan (TransitionGeometry.arrivalTime ctx world.Home.Frame 9 target) before "current sporting velocity matters")
+
+                  Expect.isLessThan
+                      (TransitionGeometry.arrivalTime ctx world.Home.Frame 9 target)
+                      before
+                      "current sporting velocity matters")
               testCase "distant candidate cannot arrive within the loss window" (fun _ ->
                   let world, ctx = pressWorld ()
-                  let time = TransitionGeometry.arrivalTime ctx world.Home.Frame 2 (Vec2.create 0.0<meter> 0.0<meter>)
+
+                  let time =
+                      TransitionGeometry.arrivalTime ctx world.Home.Frame 2 (Vec2.create 0.0<meter> 0.0<meter>)
+
                   Expect.isGreaterThan time ctx.Config.DefensiveTransition.BaseArrivalWindow "finite arrival horizon")
               testCase "keeper responsibilities do not participate in outfield arrival selection" (fun _ ->
                   let world, _ = pressWorld ()
-                  Expect.isFalse (TransitionGeometry.outfielder world.Home.Frame 0) "goalkeeper excluded by sporting role")
+
+                  Expect.isFalse
+                      (TransitionGeometry.outfielder world.Home.Frame 0)
+                      "goalkeeper excluded by sporting role")
 
               testCase "GK never presses" (fun _ ->
                   let world, ctx = pressWorld ()

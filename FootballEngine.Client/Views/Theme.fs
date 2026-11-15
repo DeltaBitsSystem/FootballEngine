@@ -100,7 +100,11 @@ module Theme =
     let private retiredDefaultAccents = set [ "#00d492"; "#19d3a2" ]
 
     let paletteForSettings (settings: AppearanceSettings) : ThemePalette =
-        let configured = if isNull settings.Accent then "" else settings.Accent.Trim()
+        let configured =
+            if isNull settings.Accent then
+                ""
+            else
+                settings.Accent.Trim()
 
         let accent =
             let valid =
@@ -415,7 +419,9 @@ module Theme =
 
     let defaultTokens = tokensForSettings AppearanceSettings.defaults
     let currentTokens: ThemeTokens ref = ref defaultTokens
-    let currentPalette: ThemePalette ref = ref (paletteForSettings AppearanceSettings.defaults)
+
+    let currentPalette: ThemePalette ref =
+        ref (paletteForSettings AppearanceSettings.defaults)
 
     let colorsForSettings (settings: AppearanceSettings) = (tokensForSettings settings).Colors
     let currentColors () = currentTokens.Value.Colors
@@ -474,7 +480,8 @@ module Theme =
         usePalette (paletteForSettings settings)
         window.Background <- SolidColorBrush(Color.Parse BgMain)
 
-    let private brush (hex: string) = SolidColorBrush(Color.Parse hex) :> IBrush
+    let private brush (hex: string) =
+        SolidColorBrush(Color.Parse hex) :> IBrush
 
     let private stop (hex: string) (offset: float) = GradientStop(Color.Parse hex, offset)
 
@@ -511,8 +518,7 @@ module Theme =
         let glow = withAlpha "70" Accent
         BoxShadow.Parse $"0 8 26 0 {glow}"
 
-    let cardShadow () =
-        BoxShadow.Parse "0 10 30 0 #55000000"
+    let cardShadow () = BoxShadow.Parse "0 10 30 0 #55000000"
 
     let moraleColor morale =
         if morale > 72 then Success

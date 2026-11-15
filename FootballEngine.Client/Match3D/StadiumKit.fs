@@ -17,18 +17,22 @@ open SkiaSharp
 type KitRange = { First: uint32; Count: uint32 }
 
 type KitLod =
-    { FromDistance: float32
-      /// Depth-writing geometry, drawn by the scene pipeline and the shadow caster.
-      Opaque: KitRange
-      /// Glass, polycarbonate and nets: composited after opaque geometry and never casting shadows.
-      Blended: KitRange }
+    {
+        FromDistance: float32
+        /// Depth-writing geometry, drawn by the scene pipeline and the shadow caster.
+        Opaque: KitRange
+        /// Glass, polycarbonate and nets: composited after opaque geometry and never casting shadows.
+        Blended: KitRange
+    }
 
 type KitPiece =
-    { Id: string
-      Lods: KitLod[]
-      /// Blender piece space (z up, +y towards the pitch), the frame the layout places pieces in.
-      BoundsCentre: Vector3
-      BoundsRadius: float32 }
+    {
+        Id: string
+        Lods: KitLod[]
+        /// Blender piece space (z up, +y towards the pitch), the frame the layout places pieces in.
+        BoundsCentre: Vector3
+        BoundsRadius: float32
+    }
 
 type KitMaterial =
     | Textured of layer: int * tint: Vector3 * tintRole: bool * alphaMask: bool
@@ -36,21 +40,25 @@ type KitMaterial =
     | Led of baseColor: Vector3 * roughness: float32
 
 type StadiumKitData =
-    { Pieces: KitPiece[]
-      Vertices: GpuVertex[]
-      Indices: uint32[]
-      /// Stand, roof and glazing geometry generated at runtime shares the kit's materials.
-      Materials: IReadOnlyDictionary<string, KitMaterial> }
+    {
+        Pieces: KitPiece[]
+        Vertices: GpuVertex[]
+        Indices: uint32[]
+        /// Stand, roof and glazing geometry generated at runtime shares the kit's materials.
+        Materials: IReadOnlyDictionary<string, KitMaterial>
+    }
 
 /// Kept apart from the mesh data so the viewer can drop these ~110 MB of pixels once they are on the GPU.
 type KitTextureData =
-    { Size: int
-      Layers: int
-      Levels: int
-      /// Level-major, then layer: the order `GpuTexture.UploadLevel` consumes for a whole array level.
-      Albedo: byte[]
-      Normal: byte[]
-      Orm: byte[] }
+    {
+        Size: int
+        Layers: int
+        Levels: int
+        /// Level-major, then layer: the order `GpuTexture.UploadLevel` consumes for a whole array level.
+        Albedo: byte[]
+        Normal: byte[]
+        Orm: byte[]
+    }
 
 module KitTextureData =
     let empty =
@@ -146,7 +154,12 @@ module StadiumKit =
                             byte ((int (at 0 0 3) + int (at 1 0 3) + int (at 0 1 3) + int (at 1 1 3) + 2) / 4)
                     | NormalMap ->
                         let decode channel =
-                            (float32 (int (at 0 0 channel) + int (at 1 0 channel) + int (at 0 1 channel) + int (at 1 1 channel))
+                            (float32 (
+                                int (at 0 0 channel)
+                                + int (at 1 0 channel)
+                                + int (at 0 1 channel)
+                                + int (at 1 1 channel)
+                             )
                              / 1020.0f)
                             * 2.0f
                             - 1.0f
@@ -167,7 +180,11 @@ module StadiumKit =
                         for channel in 0..3 do
                             target[output + channel] <-
                                 byte (
-                                    (int (at 0 0 channel) + int (at 1 0 channel) + int (at 0 1 channel) + int (at 1 1 channel) + 2)
+                                    (int (at 0 0 channel)
+                                     + int (at 1 0 channel)
+                                     + int (at 0 1 channel)
+                                     + int (at 1 1 channel)
+                                     + 2)
                                     / 4
                                 )
         )
@@ -179,7 +196,9 @@ module StadiumKit =
         let bytes = File.ReadAllBytes path
 
         match expectedSha with
-        | Some sha when not (String.Equals(sha, Convert.ToHexString(SHA256.HashData bytes), StringComparison.OrdinalIgnoreCase)) ->
+        | Some sha when
+            not (String.Equals(sha, Convert.ToHexString(SHA256.HashData bytes), StringComparison.OrdinalIgnoreCase))
+            ->
             invalidData $"Kit texture '{Path.GetFileName path}' does not match kit.json."
         | _ -> ()
 
@@ -249,7 +268,14 @@ module StadiumKit =
         | Flat(_, _, _, opacity, _) -> opacity < 1.0f
         | Led _ -> false
 
-    let vertex (root: uint32) (material: KitMaterial) (screen: Vector2) (position: Vector3) (normal: Vector3) (uv: Vector2) =
+    let vertex
+        (root: uint32)
+        (material: KitMaterial)
+        (screen: Vector2)
+        (position: Vector3)
+        (normal: Vector3)
+        (uv: Vector2)
+        =
         let surface, color, joints =
             match material with
             | Textured(layer, tint, tintRole, alphaMask) ->
@@ -300,8 +326,7 @@ module StadiumKit =
             |> Array.distinct
             |> Array.sort
 
-        let layers =
-            bases |> Array.mapi (fun index name -> name, index) |> readOnlyDict
+        let layers = bases |> Array.mapi (fun index name -> name, index) |> readOnlyDict
 
         let materialTable =
             materials
@@ -412,7 +437,10 @@ module StadiumKit =
                     piece.GetProperty("screens").EnumerateArray()
                     |> Seq.tryHead
                     |> Option.map (fun screen ->
-                        Vector2(screen.GetProperty("widthMetres").GetSingle(), screen.GetProperty("heightMetres").GetSingle()))
+                        Vector2(
+                            screen.GetProperty("widthMetres").GetSingle(),
+                            screen.GetProperty("heightMetres").GetSingle()
+                        ))
                     |> Option.defaultValue Vector2.One
 
                 let lods =

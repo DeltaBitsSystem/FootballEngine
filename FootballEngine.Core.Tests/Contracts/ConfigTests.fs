@@ -143,7 +143,8 @@ module ConfigTests =
               }
 
               test "WeightMerge: partial JSON overrides exactly the named leaves" {
-                  let json = """{ "actions": { "passBaseQuality": 0.9, "CrossArrivalHeight": 0.7 } }"""
+                  let json =
+                      """{ "actions": { "passBaseQuality": 0.9, "CrossArrivalHeight": 0.7 } }"""
 
                   match WeightMerge.mergeWithDefaults json BalanceConfig.defaultConfig with
                   | Error err -> failtestf "merge failed: %s" err
@@ -197,7 +198,9 @@ module ConfigTests =
                   | Ok _ -> failtest "MaxChainLength 0 must error"
 
                   match
-                      WeightMerge.mergeWithDefaults """{ "CollectiveAttack": { "Duration": -10 } }""" BalanceConfig.defaultConfig
+                      WeightMerge.mergeWithDefaults
+                          """{ "CollectiveAttack": { "Duration": -10 } }"""
+                          BalanceConfig.defaultConfig
                   with
                   | Error msg -> Expect.stringContains msg "Duration" "error must name the invalid field"
                   | Ok _ -> failtest "negative collective Duration must error"

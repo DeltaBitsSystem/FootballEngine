@@ -111,8 +111,7 @@ module UI =
 
         match kit.Pattern with
         | Plain -> SolidColorBrush(Color.Parse p) :> IBrush
-        | Sash ->
-            bands (0.0, 0.0) (1.0, 1.0) [ p, 0.0; p, 0.40; s, 0.40; s, 0.58; p, 0.58; p, 1.0 ]
+        | Sash -> bands (0.0, 0.0) (1.0, 1.0) [ p, 0.0; p, 0.40; s, 0.40; s, 0.58; p, 0.58; p, 1.0 ]
         | Stripes -> bands (0.0, 0.5) (1.0, 0.5) (alternating 5)
         | Hoops -> bands (0.5, 0.0) (0.5, 1.0) (alternating 5)
         | Band -> bands (0.5, 0.0) (0.5, 1.0) [ p, 0.0; p, 0.38; s, 0.38; s, 0.6; p, 0.6; p, 1.0 ]
@@ -851,9 +850,7 @@ module UI =
             [ StackPanel.orientation Orientation.Horizontal
               StackPanel.spacing 8.0
               StackPanel.margin (0.0, 0.0, 0.0, 10.0)
-              StackPanel.children
-                  [ Icons.iconSm iconKind Theme.Accent
-                    display label 22.0 Theme.TextMain ] ]
+              StackPanel.children [ Icons.iconSm iconKind Theme.Accent; display label 22.0 Theme.TextMain ] ]
 
     let sectionHeader (iconKind: Material.Icons.MaterialIconKind) (label: string) : IView =
         Border.create
@@ -878,7 +875,9 @@ module UI =
                         StackPanel.children
                             [ Icons.iconSm iconKind Theme.Accent
                               display label 22.0 Theme.TextMain
-                              Border.create [ Border.verticalAlignment VerticalAlignment.Center; Border.child (countBadge count) ] ] ]
+                              Border.create
+                                  [ Border.verticalAlignment VerticalAlignment.Center
+                                    Border.child (countBadge count) ] ] ]
               ) ]
         :> IView
 

@@ -94,15 +94,25 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
             -1
         else
             let mutable index = -1
+
             if previous >= 0 && overlayReferences[previous] > 0 then
                 let saved = overlays[previous]
-                if saved.TaskId = overlay.TaskId && saved.Sequence = overlay.Sequence && saved.Recovery.Start = overlay.Recovery.Start && saved.Recovery.Target = overlay.Recovery.Target then
+
+                if
+                    saved.TaskId = overlay.TaskId
+                    && saved.Sequence = overlay.Sequence
+                    && saved.Recovery.Start = overlay.Recovery.Start
+                    && saved.Recovery.Target = overlay.Recovery.Target
+                then
                     index <- previous
 
             if index < 0 then
                 let mutable scan = 0
+
                 while scan < overlayReferences.Length && index < 0 do
-                    if overlayReferences[scan] = 0 then index <- scan
+                    if overlayReferences[scan] = 0 then
+                        index <- scan
+
                     scan <- scan + 1
 
                 if index < 0 then
@@ -117,17 +127,29 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
             index
 
     let releaseOverlay index =
-        if index >= 0 then overlayReferences[index] <- overlayReferences[index] - 1
+        if index >= 0 then
+            overlayReferences[index] <- overlayReferences[index] - 1
 
     let expand tick (plan: RetainedPlan) : ActorPlan =
         let (PlayerId identity) = plan.Root.Actor
-        let seed = uint64 (uint32 identity) * 0x9E3779B97F4A7C15UL + uint64 plan.Root.Generation
+
+        let seed =
+            uint64 (uint32 identity) * 0x9E3779B97F4A7C15UL + uint64 plan.Root.Generation
+
         { Root = plan.Root
           Tick = tick
           Left = plan.Left
           Right = plan.Right
-          LeftOverlay = if plan.LeftOverlay < 0s then FootOverlay.empty else overlays[int plan.LeftOverlay]
-          RightOverlay = if plan.RightOverlay < 0s then FootOverlay.empty else overlays[int plan.RightOverlay]
+          LeftOverlay =
+            if plan.LeftOverlay < 0s then
+                FootOverlay.empty
+            else
+                overlays[int plan.LeftOverlay]
+          RightOverlay =
+            if plan.RightOverlay < 0s then
+                FootOverlay.empty
+            else
+                overlays[int plan.RightOverlay]
           Acceleration = plan.Acceleration
           Lean = plan.Lean
           Gaze = plan.Gaze
@@ -135,9 +157,14 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
 
     let store slot actor (plan: ActorPlan) left right =
         plans[slot * config.MaxActors + actor] <-
-            { Root = plan.Root; Left = plan.Left; Right = plan.Right
-              LeftOverlay = int16 left; RightOverlay = int16 right; Acceleration = plan.Acceleration
-              Lean = plan.Lean; Gaze = plan.Gaze }
+            { Root = plan.Root
+              Left = plan.Left
+              Right = plan.Right
+              LeftOverlay = int16 left
+              RightOverlay = int16 right
+              Acceleration = plan.Acceleration
+              Lean = plan.Lean
+              Gaze = plan.Gaze }
 
     let mutable actorCount = 0
     let mutable frontier = -1
@@ -257,7 +284,11 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
                 else
                     SupportPlanner.advance config tick root previous
 
-            if previousIndex >= 0 && previous.Root.Generation = root.Generation && previous.Root.Active = root.Active then
+            if
+                previousIndex >= 0
+                && previous.Root.Generation = root.Generation
+                && previous.Root.Active = root.Active
+            then
                 currentLeft[actor] <- previousLeft[previousIndex]
                 currentRight[actor] <- previousRight[previousIndex]
             else
@@ -287,12 +318,34 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
         for actor = 0 to actorCount - 1 do
             let plan = current[actor]
             let offset = actor * config.TasksPerActor
+
             current[actor] <-
                 { plan with
-                    LeftOverlay = TaskPlanner.sealFoot config tick plan.Root tasks offset config.TasksPerActor MotionEffector.LeftFoot plan.Left plan.LeftOverlay
-                    RightOverlay = TaskPlanner.sealFoot config tick plan.Root tasks offset config.TasksPerActor MotionEffector.RightFoot plan.Right plan.RightOverlay }
+                    LeftOverlay =
+                        TaskPlanner.sealFoot
+                            config
+                            tick
+                            plan.Root
+                            tasks
+                            offset
+                            config.TasksPerActor
+                            MotionEffector.LeftFoot
+                            plan.Left
+                            plan.LeftOverlay
+                    RightOverlay =
+                        TaskPlanner.sealFoot
+                            config
+                            tick
+                            plan.Root
+                            tasks
+                            offset
+                            config.TasksPerActor
+                            MotionEffector.RightFoot
+                            plan.Right
+                            plan.RightOverlay }
 
         let slot = tick % windowTicks
+
         if ticks[slot] >= 0 then
             for actor = 0 to counts[slot] - 1 do
                 let old = plans[slot * config.MaxActors + actor]
@@ -304,6 +357,7 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
             currentLeft[actor] <- retainOverlay plan.LeftOverlay currentLeft[actor]
             currentRight[actor] <- retainOverlay plan.RightOverlay currentRight[actor]
             store slot actor plan currentLeft[actor] currentRight[actor]
+
         ticks[slot] <- tick
         counts[slot] <- actorCount
         frontier <- tick
@@ -369,6 +423,7 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
                 let slot = frontier % windowTicks
                 ticks[slot] <- frontier
                 counts[slot] <- actorCount
+
                 for actor = 0 to actorCount - 1 do
                     let plan = current[actor]
                     currentLeft[actor] <- retainOverlay plan.LeftOverlay -1

@@ -54,11 +54,15 @@ type private ProbePitch() =
         Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CAMERA_SCENE")
 
     let isolatedMotion = cameraScenario = "motion"
+
     let motionPace =
         match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_GAIT") with
         | "run" -> 2.25
         | _ -> 1.0
-    let curvedMotion = Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CURVE") = "1"
+
+    let curvedMotion =
+        Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_CURVE") = "1"
+
     let motionAxis =
         match Environment.GetEnvironmentVariable("MATCHVIEWER_PROBE_AXIS") with
         | "front" -> -Math.PI * 0.5
@@ -190,7 +194,9 @@ type private ProbePitch() =
             let cruise = Math.Clamp(t - 3.0, 0.0, 3.0)
             let brake = Math.Clamp(t - 6.0, 0.0, 2.0)
             let pace = if isolatedMotion then 3.0 else 1.0
-            let distance = pace * (0.4 * ramp * ramp + 1.6 * cruise + 1.6 * brake - 0.4 * brake * brake)
+
+            let distance =
+                pace * (0.4 * ramp * ramp + 1.6 * cruise + 1.6 * brake - 0.4 * brake * brake)
 
             let speed =
                 if t < 3.0 then pace * 0.8 * ramp
@@ -205,23 +211,39 @@ type private ProbePitch() =
                 let ramp = Math.Clamp(at - 0.75, 0.0, 1.0)
                 let cruise = Math.Clamp(at - 1.75, 0.0, 1.0)
                 let brake = Math.Clamp(at - 2.75, 0.0, 0.75)
-                let distance = motionPace * (1.2 * ramp * ramp + 2.4 * cruise + 2.4 * brake - 1.6 * brake * brake)
+
+                let distance =
+                    motionPace
+                    * (1.2 * ramp * ramp + 2.4 * cruise + 2.4 * brake - 1.6 * brake * brake)
+
                 let unscaledSpeed =
                     if at < 1.75 then 2.4 * ramp
                     elif at < 2.75 then 2.4
                     elif at < 3.5 then 2.4 - 3.2 * brake
                     else 0.0
+
                 let speed = motionPace * unscaledSpeed
                 let curvature = if curvedMotion then 0.12 else 0.0
                 let travelAngle = motionAxis + curvature * distance
+
                 let position =
                     if curvedMotion then
-                        Vector2.create ((sin travelAngle - sin motionAxis) / curvature) ((cos motionAxis - cos travelAngle) / curvature)
+                        Vector2.create
+                            ((sin travelAngle - sin motionAxis) / curvature)
+                            ((cos motionAxis - cos travelAngle) / curvature)
                     else
                         Vector2.create (cos motionAxis * distance) (sin motionAxis * distance)
+
                 let turn = Math.Clamp(at - 4.1, 0.0, 1.0)
                 let angle = travelAngle + turn * turn * (3.0 - 2.0 * turn) * Math.PI * 0.5
-                let angular = curvature * speed + (if turn > 0.0 && turn < 1.0 then 6.0 * turn * (1.0 - turn) * Math.PI * 0.5 else 0.0)
+
+                let angular =
+                    curvature * speed
+                    + (if turn > 0.0 && turn < 1.0 then
+                           6.0 * turn * (1.0 - turn) * Math.PI * 0.5
+                       else
+                           0.0)
+
                 { player with
                     Position = position
                     Velocity = Vector2.create (cos travelAngle * speed) (sin travelAngle * speed)
@@ -251,7 +273,10 @@ type private ProbePitch() =
         let cx, cy = cos commitCarrier.BodyFacing, sin commitCarrier.BodyFacing
         let lateral = if contactFoot = "left" then 0.10 else -0.10
         let travel = if at < 3.5 then 3.5 - at else 3.0 * (at - 3.5)
-        Vector2.create (commitCarrier.Position.X + cx * (0.31 + travel) - cy * lateral) (commitCarrier.Position.Y + cy * (0.31 + travel) + cx * lateral)
+
+        Vector2.create
+            (commitCarrier.Position.X + cx * (0.31 + travel) - cy * lateral)
+            (commitCarrier.Position.Y + cy * (0.31 + travel) + cx * lateral)
 
     let motionConfig = AnimationConfig.defaultConfig
 
@@ -272,9 +297,15 @@ type private ProbePitch() =
 
              match CharacterAsset.load path with
              | Ok character ->
-                 let database = IO.Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "motion-db.bin")
+                 let database =
+                     IO.Path.Combine(AppContext.BaseDirectory, "Assets", "MatchViewer", "motion-db.bin")
 
-                 match MotionDatabase.load database |> Result.mapError string |> Result.bind (fun db -> MotionMatcher.Create(db, character.Rig, motionConfig, MatchingConfig.defaultConfig)) with
+                 match
+                     MotionDatabase.load database
+                     |> Result.mapError string
+                     |> Result.bind (fun db ->
+                         MotionMatcher.Create(db, character.Rig, motionConfig, MatchingConfig.defaultConfig))
+                 with
                  | Ok matcher -> MotionPaletteEvaluator(character.Rig, motionConfig, Some matcher)
                  | Error message -> invalidOp message
              | Error message -> invalidOp message)
@@ -297,7 +328,12 @@ type private ProbePitch() =
             let roots =
                 samplePlayers (float tick * float motionConfig.TickSeconds)
                 |> Array.map (fun player ->
-                    let ball = if isolatedMotion && (contactFoot = "left" || contactFoot = "right") then isolatedBall (float tick * float motionConfig.TickSeconds) else frame.Ball.Position
+                    let ball =
+                        if isolatedMotion && (contactFoot = "left" || contactFoot = "right") then
+                            isolatedBall (float tick * float motionConfig.TickSeconds)
+                        else
+                            frame.Ball.Position
+
                     { Actor = PlayerId player.Id
                       Generation = 1
                       Position =
@@ -328,21 +364,49 @@ type private ProbePitch() =
                       Active = true })
 
             let evidence =
-                if isolatedMotion && (contactFoot = "left" || contactFoot = "right") && (tick = 112 || tick = 139) then
-                    let carrier = samplePlayers (140.0 * float motionConfig.TickSeconds) |> Array.find _.HasBall
+                if
+                    isolatedMotion
+                    && (contactFoot = "left" || contactFoot = "right")
+                    && (tick = 112 || tick = 139)
+                then
+                    let carrier =
+                        samplePlayers (140.0 * float motionConfig.TickSeconds) |> Array.find _.HasBall
+
                     let dx, dy = cos carrier.BodyFacing, sin carrier.BodyFacing
                     let lateral = if contactFoot = "left" then 0.10 else -0.10
-                    let point = System.Numerics.Vector3(float32 (carrier.Position.X + dx * 0.20 - dy * lateral), float32 (carrier.Position.Y + dy * 0.20 + dx * lateral), 0.07f)
+
+                    let point =
+                        System.Numerics.Vector3(
+                            float32 (carrier.Position.X + dx * 0.20 - dy * lateral),
+                            float32 (carrier.Position.Y + dy * 0.20 + dx * lateral),
+                            0.07f
+                        )
+
                     [| { Sequence = if tick = 112 then 1UL else 2UL
-                         TaskId = 1UL; Actor = PlayerId carrier.Id; Generation = 1
+                         TaskId = 1UL
+                         Actor = PlayerId carrier.Id
+                         Generation = 1
                          Family = MotionFamily.FootStrike
-                         Effector = if contactFoot = "left" then MotionEffector.LeftFoot else MotionEffector.RightFoot
-                         Phase = if tick = 112 then MotionEvidencePhase.Prepared else MotionEvidencePhase.Confirmed
-                         OccurredAt = tick * 1<subtick>; AvailableAt = tick * 1<subtick>
-                         StartedAt = 112<subtick>; CommitAt = 140<subtick>; EndsAt = 152<subtick>
-                         PredictedPoint = point; ConfirmedPoint = if tick = 139 then ValueSome point else ValueNone
+                         Effector =
+                           if contactFoot = "left" then
+                               MotionEffector.LeftFoot
+                           else
+                               MotionEffector.RightFoot
+                         Phase =
+                           if tick = 112 then
+                               MotionEvidencePhase.Prepared
+                           else
+                               MotionEvidencePhase.Confirmed
+                         OccurredAt = tick * 1<subtick>
+                         AvailableAt = tick * 1<subtick>
+                         StartedAt = 112<subtick>
+                         CommitAt = 140<subtick>
+                         EndsAt = 152<subtick>
+                         PredictedPoint = point
+                         ConfirmedPoint = if tick = 139 then ValueSome point else ValueNone
                          BallCenter = point + System.Numerics.Vector3(float32 dx * 0.11f, float32 dy * 0.11f, 0.04f)
-                         IncomingVelocity = ValueNone; OutgoingVelocity = ValueNone } |]
+                         IncomingVelocity = ValueNone
+                         OutgoingVelocity = ValueNone } |]
                 else
                     [||]
 
@@ -389,8 +453,10 @@ type private ProbePitch() =
                     else 0
 
                 let tick =
-                    if isolatedMotion then int (round ((baseTime + 3.5) * 40.0))
-                    else int (round (timeSeconds * 40.0)) + phaseOffset
+                    if isolatedMotion then
+                        int (round ((baseTime + 3.5) * 40.0))
+                    else
+                        int (round (timeSeconds * 40.0)) + phaseOffset
 
                 Some
                     { Actor = FootballEngine.Core.Match.PlayerId carrier.Id
@@ -528,7 +594,9 @@ type private ProbePitch() =
                 info.ArgumentList.Add(path)
                 use capture = Diagnostics.Process.Start(info)
                 capture.WaitForExit()
-                if capture.ExitCode <> 0 then invalidOp "Native sequence capture failed."
+
+                if capture.ExitCode <> 0 then
+                    invalidOp "Native sequence capture failed."
 
             if frameLimit > 0 && renderedFrames >= frameLimit then
                 if timings.Count > 0 then
@@ -603,7 +671,9 @@ type private ProbePitch() =
                     | "close-up" -> ViewerCamera.CloseUp
                     | value -> invalidArg "MATCHVIEWER_PROBE_VIEW" $"Unknown viewer camera: {value}"
 
-                let active = new WebGpuStadiumRenderer(parent, bounds, asset, camera = camera, ?exposureStops = exposure)
+                let active =
+                    new WebGpuStadiumRenderer(parent, bounds, asset, camera = camera, ?exposureStops = exposure)
+
                 renderer <- Some active
                 ProbeLifecycle.attachedOnce ()
                 active

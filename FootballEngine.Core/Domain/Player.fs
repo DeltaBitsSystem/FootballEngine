@@ -66,39 +66,41 @@ type GoalkeeperStats =
       AerialReach: int }
 
 type Player =
-    { Id: PlayerId
-      Name: string
-      Birthday: DateTime
-      Nationality: CountryCode
-      Position: Position
-      PreferredFoot: PreferredFoot
-      Height: int
-      Weight: int
-      Physical: PhysicalStats
-      Technical: TechnicalStats
-      Mental: MentalStats
-      Goalkeeping: GoalkeeperStats
-      Condition: int
-      Fatigue: int
-      MatchFitness: int
-      RecentLoad: int
-      Morale: int
-      Status: PlayerStatus
-      CurrentSkill: int
-      PotentialSkill: int
-      Reputation: int
-      Affiliation: PlayerAffiliation
-      TrainingPlan: IndividualPlan
-      ExperienceModifiers: ExperienceModifiers
-      Unrest: UnrestReason option
-      /// Consecutive weeks out of the starting XI while a regular; drives LackOfMinutes unrest.
-      BenchWeeks: int
-      /// Consecutive weeks with unrest; drives the transfer request.
-      UnrestWeeks: int
-      /// The player asked to leave: AI clubs treat him as available to anyone.
-      TransferListed: bool
-      /// Skill when the season started; the baseline for breakout detection.
-      SeasonStartSkill: int }
+    {
+        Id: PlayerId
+        Name: string
+        Birthday: DateTime
+        Nationality: CountryCode
+        Position: Position
+        PreferredFoot: PreferredFoot
+        Height: int
+        Weight: int
+        Physical: PhysicalStats
+        Technical: TechnicalStats
+        Mental: MentalStats
+        Goalkeeping: GoalkeeperStats
+        Condition: int
+        Fatigue: int
+        MatchFitness: int
+        RecentLoad: int
+        Morale: int
+        Status: PlayerStatus
+        CurrentSkill: int
+        PotentialSkill: int
+        Reputation: int
+        Affiliation: PlayerAffiliation
+        TrainingPlan: IndividualPlan
+        ExperienceModifiers: ExperienceModifiers
+        Unrest: UnrestReason option
+        /// Consecutive weeks out of the starting XI while a regular; drives LackOfMinutes unrest.
+        BenchWeeks: int
+        /// Consecutive weeks with unrest; drives the transfer request.
+        UnrestWeeks: int
+        /// The player asked to leave: AI clubs treat him as available to anyone.
+        TransferListed: bool
+        /// Skill when the season started; the baseline for breakout detection.
+        SeasonStartSkill: int
+    }
 
 module PlayerHealth =
 

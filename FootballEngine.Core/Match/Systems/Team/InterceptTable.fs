@@ -10,16 +10,18 @@ module InterceptTable =
 
     [<Struct>]
     type InterceptParams =
-        { Ball: BallConfig
-          PlayerSpeedPerSecond: float<meterPerSecond>
-          /// The body's acceleration limit: a race from a standstill is not run at top speed from the first step.
-          PlayerAcceleration: float<meterPerSecondSquared>
-          ControlRadius: float<meter> // kickable area
-          MaxSteps: int // horizon cap: beyond this many ticks the ball is treated as unreachable
-          /// Grid step of the tabulated roll in launch speed; see `RollTable`.
-          RollTableResolution: float<meterPerSecond>
-          /// Fastest launch speed the table covers; zero disables the table and rolls every ball step by step.
-          RollTableMaxSpeed: float<meterPerSecond> }
+        {
+            Ball: BallConfig
+            PlayerSpeedPerSecond: float<meterPerSecond>
+            /// The body's acceleration limit: a race from a standstill is not run at top speed from the first step.
+            PlayerAcceleration: float<meterPerSecondSquared>
+            ControlRadius: float<meter> // kickable area
+            MaxSteps: int // horizon cap: beyond this many ticks the ball is treated as unreachable
+            /// Grid step of the tabulated roll in launch speed; see `RollTable`.
+            RollTableResolution: float<meterPerSecond>
+            /// Fastest launch speed the table covers; zero disables the table and rolls every ball step by step.
+            RollTableMaxSpeed: float<meterPerSecond>
+        }
 
     /// The race step, shared with the planner so both integrate the same roll.
     let dt = 1.0<second> / 40.0
@@ -57,7 +59,9 @@ module InterceptTable =
     /// Ground speed after one prediction step: turf resistance plus air drag, as BallDynamics rolls the ball.
     let private nextGroundSpeed (p: InterceptParams) speed =
         let loss =
-            (p.Ball.RollingResistance * float p.Ball.Gravity + BallAero.dragDeceleration p.Ball speed) * float dt
+            (p.Ball.RollingResistance * float p.Ball.Gravity
+             + BallAero.dragDeceleration p.Ball speed)
+            * float dt
 
         max 0.0 (speed - loss)
 
@@ -134,13 +138,17 @@ module InterceptTable =
                 let mutable v = float j * resolution
                 let mutable s = 0.0
                 let row = j * width
-                if v <= 1e-9 then stop[j] <- 0
+
+                if v <= 1e-9 then
+                    stop[j] <- 0
 
                 for n in 1..steps do
                     v <- stepSpeed p v
                     s <- s + v * float dt
                     distance[row + n] <- s
-                    if v <= 1e-9 && stop[j] < 0 then stop[j] <- n
+
+                    if v <= 1e-9 && stop[j] < 0 then
+                        stop[j] <- n
 
         /// The cell holding this launch speed, or -1 when it must be rolled step by step: at rest, past the table, or
         /// in a cell where either node stops inside the horizon.
@@ -149,7 +157,11 @@ module InterceptTable =
                 -1
             else
                 let j = int (v0 / resolution)
-                if j + 1 >= nodes || stop[j] >= 0 || stop[j + 1] >= 0 then -1 else j
+
+                if j + 1 >= nodes || stop[j] >= 0 || stop[j + 1] >= 0 then
+                    -1
+                else
+                    j
 
         member _.At(cell: int, v0: float, n: int) : float =
             let f = (v0 - float cell * resolution) / resolution
@@ -250,8 +262,7 @@ module InterceptTable =
     /// matches with different configs in parallel, and a single mutable slot would make them evict each other.
     [<AbstractClass; Sealed>]
     type private ReachTables =
-        static let tables =
-            System.Collections.Concurrent.ConcurrentDictionary<ReachKey, float[]>()
+        static let tables = System.Collections.Concurrent.ConcurrentDictionary<ReachKey, float[]>()
 
         // The last table a thread used: a match keeps one parameter set, so the dictionary is rarely consulted.
         [<System.ThreadStatic; DefaultValue>]
@@ -341,7 +352,12 @@ module InterceptTable =
         /// Whether the body is too far from the whole roll to reach it at any scanned step.
         let outOfRange (playerX: float) (playerY: float) =
             let along = (playerX - startX) * dirX + (playerY - startY) * dirY
-            let t = if along < 0.0 then 0.0 elif along > pathLength then pathLength else along
+
+            let t =
+                if along < 0.0 then 0.0
+                elif along > pathLength then pathLength
+                else along
+
             let dx = playerX - (startX + dirX * t)
             let dy = playerY - (startY + dirY * t)
             sqrt (dx * dx + dy * dy) > cutoff
@@ -401,7 +417,9 @@ module InterceptTable =
                 let mutable reached = false
 
                 while not reached && n <= last do
-                    if n > filled then fillTo n
+                    if n > filled then
+                        fillTo n
+
                     let dx = playerX - xs[n]
                     let dy = playerY - ys[n]
                     let reach = reaches[n]
@@ -425,7 +443,9 @@ module InterceptTable =
                 let mutable reached = false
 
                 while not reached && n <= p.MaxSteps do
-                    if n > filled then fillTo n
+                    if n > filled then
+                        fillTo n
+
                     let dx = playerX - xs[n]
                     let dy = playerY - ys[n]
                     let reach = reaches[n]
@@ -459,7 +479,9 @@ module InterceptTable =
                 let mutable found = false
 
                 while not found && remaining > 0 && n <= horizon do
-                    if n > filled then fillTo n
+                    if n > filled then
+                        fillTo n
+
                     let rollX = xs[n]
                     let rollY = ys[n]
                     let reach = reaches[n]

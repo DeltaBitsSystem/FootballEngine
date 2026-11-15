@@ -191,63 +191,65 @@ type ActiveSlotsCache() =
 
 [<Struct>]
 type TeamFrame =
-    { mutable PosX: float32[]
-      mutable PosY: float32[]
-      mutable VelX: float32[]
-      mutable VelY: float32[]
-      mutable PosZ: float32[]
-      mutable VelZ: float32[]
-      mutable TargetVelX: float32[]
-      mutable TargetVelY: float32[]
-      mutable TargetFacing: float32[]
-      mutable JumpRequested: bool[]
-      mutable JumpSequence: uint64[]
-      mutable BodyFacing: float32[]
-      mutable BodyAngularVelocity: float32[]
-      mutable BodyAngularAcceleration: float32[]
-      mutable BodyTravelDistance: float32[]
-      /// Stride cycle in [0, 1): the first half has the left foot in support, the second the right.
-      mutable GaitPhase: float32[]
-      mutable ContactGeneration: int[]
-      mutable ContactState: BodyContactState[]
-      mutable ContactActions: ContactAction option[]
-      mutable Condition: float32[]
-      mutable Mental: MentalFrame
-      mutable Intent: IntentFrame
-      /// The intentions and shape as cognition left them on the previous tick: what the body steers by. The
-      /// reflex works on the current tick, the decision it follows was taken one tick before.
-      mutable SteerIntent: IntentFrame
-      mutable SteerShapeX: float32[]
-      mutable SteerShapeY: float32[]
-      /// How the body ended the intention it steered by (ExitTrigger codes). Written by the body, handed back to
-      /// cognition by the next latch, so the body never writes an intention cognition is still deciding.
-      mutable SteerExit: byte[]
-      /// Cognitive vitality as the previous tick left it, for actions the body executes.
-      mutable SteerCognitive: float32[]
-      mutable Occupancy: OccupancyKind[]
-      mutable SlotRoles: SlotRole[]
-      mutable DefensiveRoles: DefensiveRole[]
-      mutable CollectiveIntents: CollectiveIntent[]
-      mutable SupportX: float32[]
-      mutable SupportY: float32[]
-      mutable VisibilityTm: bool[]
-      mutable VisibilityOpp: bool[]
-      // R3 — cognitive perception, built once per team/tick by PlayerPerception.
-      mutable OppsNear: int[] // opponents within 7 m of the slot
-      mutable PressCount: int[] // opponents pressing the slot
-      // R3 — channel geometry. laneClear[i] = no blocker on carrier→i segment;
-      // faceCone[i] = teammate i faces the carrier (a receiver that can't see
-      // the ball is not a target). Only meaningful while a carrier exists.
-      mutable LaneClear: bool[]
-      mutable FaceCone: bool[]
-      // R5 — cognitive vitality, sigmoid(condition), refreshed in batch.
-      mutable Cognitive: float32[]
-      // R7 — collective role bias, reassigned only on directive change.
-      mutable RoleBias: float32[]
-      mutable RunLookup: System.Collections.Generic.Dictionary<int, RunAssignment>
-      mutable ActiveCount: int
-      SlotCount: int
-      mutable ActiveCache: ActiveSlotsCache }
+    {
+        mutable PosX: float32[]
+        mutable PosY: float32[]
+        mutable VelX: float32[]
+        mutable VelY: float32[]
+        mutable PosZ: float32[]
+        mutable VelZ: float32[]
+        mutable TargetVelX: float32[]
+        mutable TargetVelY: float32[]
+        mutable TargetFacing: float32[]
+        mutable JumpRequested: bool[]
+        mutable JumpSequence: uint64[]
+        mutable BodyFacing: float32[]
+        mutable BodyAngularVelocity: float32[]
+        mutable BodyAngularAcceleration: float32[]
+        mutable BodyTravelDistance: float32[]
+        /// Stride cycle in [0, 1): the first half has the left foot in support, the second the right.
+        mutable GaitPhase: float32[]
+        mutable ContactGeneration: int[]
+        mutable ContactState: BodyContactState[]
+        mutable ContactActions: ContactAction option[]
+        mutable Condition: float32[]
+        mutable Mental: MentalFrame
+        mutable Intent: IntentFrame
+        /// The intentions and shape as cognition left them on the previous tick: what the body steers by. The
+        /// reflex works on the current tick, the decision it follows was taken one tick before.
+        mutable SteerIntent: IntentFrame
+        mutable SteerShapeX: float32[]
+        mutable SteerShapeY: float32[]
+        /// How the body ended the intention it steered by (ExitTrigger codes). Written by the body, handed back to
+        /// cognition by the next latch, so the body never writes an intention cognition is still deciding.
+        mutable SteerExit: byte[]
+        /// Cognitive vitality as the previous tick left it, for actions the body executes.
+        mutable SteerCognitive: float32[]
+        mutable Occupancy: OccupancyKind[]
+        mutable SlotRoles: SlotRole[]
+        mutable DefensiveRoles: DefensiveRole[]
+        mutable CollectiveIntents: CollectiveIntent[]
+        mutable SupportX: float32[]
+        mutable SupportY: float32[]
+        mutable VisibilityTm: bool[]
+        mutable VisibilityOpp: bool[]
+        // R3 — cognitive perception, built once per team/tick by PlayerPerception.
+        mutable OppsNear: int[] // opponents within 7 m of the slot
+        mutable PressCount: int[] // opponents pressing the slot
+        // R3 — channel geometry. laneClear[i] = no blocker on carrier→i segment;
+        // faceCone[i] = teammate i faces the carrier (a receiver that can't see
+        // the ball is not a target). Only meaningful while a carrier exists.
+        mutable LaneClear: bool[]
+        mutable FaceCone: bool[]
+        // R5 — cognitive vitality, sigmoid(condition), refreshed in batch.
+        mutable Cognitive: float32[]
+        // R7 — collective role bias, reassigned only on directive change.
+        mutable RoleBias: float32[]
+        mutable RunLookup: System.Collections.Generic.Dictionary<int, RunAssignment>
+        mutable ActiveCount: int
+        SlotCount: int
+        mutable ActiveCache: ActiveSlotsCache
+    }
 
 [<Struct>]
 type PlayerMemory =

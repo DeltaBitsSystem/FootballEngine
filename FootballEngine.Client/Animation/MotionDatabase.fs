@@ -18,17 +18,19 @@ type MotionClip =
 /// are in the rig's Y-up space: ground point (X, Z), yaw about +Y, and the pelvis offset expressed in the yaw frame.
 /// Rotations are joint locals in parent space, one row of DrivenJoints per frame; undriven joints keep their bind.
 type MotionDatabase =
-    { RateHz: int
-      DrivenJoints: string[]
-      Clips: MotionClip[]
-      GroundX: float32[]
-      GroundZ: float32[]
-      Yaw: float32[]
-      Pelvis: Vector3[]
-      /// Bit 0 left foot planted, bit 1 right foot planted.
-      Contacts: byte[]
-      Rotations: Quaternion[]
-      Sha256: string }
+    {
+        RateHz: int
+        DrivenJoints: string[]
+        Clips: MotionClip[]
+        GroundX: float32[]
+        GroundZ: float32[]
+        Yaw: float32[]
+        Pelvis: Vector3[]
+        /// Bit 0 left foot planted, bit 1 right foot planted.
+        Contacts: byte[]
+        Rotations: Quaternion[]
+        Sha256: string
+    }
 
     member this.FrameCount = this.Yaw.Length
 
@@ -74,11 +76,14 @@ module MotionDatabase =
         member this.Single() =
             this.Take 4 |> Result.map (fun at -> BitConverter.ToSingle(data, at))
 
-        member this.Byte() = this.Take 1 |> Result.map (fun at -> data[at])
+        member this.Byte() =
+            this.Take 1 |> Result.map (fun at -> data[at])
 
         member this.String() =
             this.UInt16()
-            |> Result.bind (fun length -> this.Take length |> Result.map (fun at -> Encoding.UTF8.GetString(data, at, length)))
+            |> Result.bind (fun length ->
+                this.Take length
+                |> Result.map (fun at -> Encoding.UTF8.GetString(data, at, length)))
 
     let private sequence (items: (unit -> Result<'T, MotionDatabaseError>) seq) =
         let output = ResizeArray<'T>()
@@ -163,7 +168,8 @@ module MotionDatabase =
 
                 match names with
                 | Error error -> Error error
-                | Ok names when (Array.distinct names).Length <> names.Length -> Error(InvalidHeader "duplicate driven joint")
+                | Ok names when (Array.distinct names).Length <> names.Length ->
+                    Error(InvalidHeader "duplicate driven joint")
                 | Ok names ->
                     match reader.UInt32() with
                     | Error error -> Error error
@@ -189,7 +195,9 @@ module MotionDatabase =
                                 reader.Take(jointCount * 8)
                                 |> Result.map (fun at ->
                                     let scale = 1.0f / 32767.0f
-                                    let quaternionPart index = float32 (BitConverter.ToInt16(data, at + index * 2)) * scale
+
+                                    let quaternionPart index =
+                                        float32 (BitConverter.ToInt16(data, at + index * 2)) * scale
 
                                     for joint = 0 to jointCount - 1 do
                                         let first = joint * 4
@@ -243,7 +251,13 @@ module MotionDatabase =
                                   Rotations = rotations.ToArray()
                                   Sha256 = Convert.ToHexString(SHA256.HashData data).ToLowerInvariant() }
 
-                            match clips |> Array.tryPick (fun clip -> match validateClip db clip with Error e -> Some e | Ok() -> None) with
+                            match
+                                clips
+                                |> Array.tryPick (fun clip ->
+                                    match validateClip db clip with
+                                    | Error e -> Some e
+                                    | Ok() -> None)
+                            with
                             | Some error -> Error error
                             | None ->
                                 for index = 0 to db.Rotations.Length - 1 do

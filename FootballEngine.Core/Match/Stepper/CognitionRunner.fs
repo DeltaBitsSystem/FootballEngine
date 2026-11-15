@@ -9,7 +9,10 @@ type CognitionThread(spinIterations: int) =
     let ready = new ManualResetEventSlim(false, 0)
     let finished = new ManualResetEventSlim(false, 0)
     let mutable work: unit -> unit = ignore
-    let mutable failure: System.Runtime.ExceptionServices.ExceptionDispatchInfo option = None
+
+    let mutable failure: System.Runtime.ExceptionServices.ExceptionDispatchInfo option =
+        None
+
     let mutable stopping = false
     // 0 idle, 1 work posted, 2 work done; the handoff itself never needs the events.
     let mutable phase = 0

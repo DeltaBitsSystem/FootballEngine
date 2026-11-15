@@ -53,7 +53,8 @@ module TransferNegotiation =
 
         // A player who asked to leave is on the market for anyone: the seller no longer shields him from smaller clubs.
         let buyerReputationOk =
-            p.TransferListed || buyer.Reputation >= seller.Reputation - reputationGapThreshold
+            p.TransferListed
+            || buyer.Reputation >= seller.Reputation - reputationGapThreshold
 
         if isEnoughFee && buyerReputationOk then
             AcceptedByClub

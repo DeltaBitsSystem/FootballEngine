@@ -37,7 +37,8 @@ module Overrides =
                             | :? float32 -> Ok(box (System.Single.Parse(text, invariant)))
                             | :? int -> Ok(box (System.Int32.Parse(text, invariant)))
                             | :? bool -> Ok(box (System.Boolean.Parse text))
-                            | other -> Error $"{field} is a {other.GetType().Name}; only numbers and booleans can be set"
+                            | other ->
+                                Error $"{field} is a {other.GetType().Name}; only numbers and booleans can be set"
                         | _ -> setPath current rest text
 
                     updated

@@ -171,4 +171,12 @@ module ViewerSystems =
     let encode (api: WebGPU) (pass: nativeptr<RenderPassEncoder>) (draw: Draw<GpuMesh>) =
         api.RenderPassEncoderSetVertexBuffer(pass, 0u, draw.Mesh.Vertices.Handle, 0UL, UInt64.MaxValue)
         api.RenderPassEncoderSetIndexBuffer(pass, draw.Mesh.Indices.Handle, IndexFormat.Uint32, 0UL, UInt64.MaxValue)
-        api.RenderPassEncoderDrawIndexed(pass, draw.IndexCount, draw.InstanceCount, draw.FirstIndex, 0, draw.FirstInstance)
+
+        api.RenderPassEncoderDrawIndexed(
+            pass,
+            draw.IndexCount,
+            draw.InstanceCount,
+            draw.FirstIndex,
+            0,
+            draw.FirstInstance
+        )

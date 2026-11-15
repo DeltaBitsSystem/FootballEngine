@@ -10,20 +10,48 @@ module ClubIdentity =
     type Kit = ClubKit
 
     let private kits =
-        [| { Primary = "#FFFFFF"; Secondary = "#E2353B"; Pattern = Sash }
-           { Primary = "#1C3F94"; Secondary = "#FFD200"; Pattern = Hoops }
-           { Primary = "#6CABDD"; Secondary = "#FFFFFF"; Pattern = Stripes }
-           { Primary = "#E2353B"; Secondary = "#FFFFFF"; Pattern = Plain }
-           { Primary = "#0B6E3F"; Secondary = "#FFFFFF"; Pattern = Halves }
-           { Primary = "#111111"; Secondary = "#FFFFFF"; Pattern = Stripes }
-           { Primary = "#7A1F3D"; Secondary = "#4DA3FF"; Pattern = Plain }
-           { Primary = "#F28C28"; Secondary = "#111111"; Pattern = Plain }
-           { Primary = "#FFFFFF"; Secondary = "#1C3F94"; Pattern = Hoops }
-           { Primary = "#B3121B"; Secondary = "#111111"; Pattern = Stripes }
-           { Primary = "#1F7AE0"; Secondary = "#FFFFFF"; Pattern = Sash }
-           { Primary = "#5B2A86"; Secondary = "#FFFFFF"; Pattern = Halves }
-           { Primary = "#FFD200"; Secondary = "#0B4F9C"; Pattern = Plain }
-           { Primary = "#0E7C86"; Secondary = "#F2F2F2"; Pattern = Stripes } |]
+        [| { Primary = "#FFFFFF"
+             Secondary = "#E2353B"
+             Pattern = Sash }
+           { Primary = "#1C3F94"
+             Secondary = "#FFD200"
+             Pattern = Hoops }
+           { Primary = "#6CABDD"
+             Secondary = "#FFFFFF"
+             Pattern = Stripes }
+           { Primary = "#E2353B"
+             Secondary = "#FFFFFF"
+             Pattern = Plain }
+           { Primary = "#0B6E3F"
+             Secondary = "#FFFFFF"
+             Pattern = Halves }
+           { Primary = "#111111"
+             Secondary = "#FFFFFF"
+             Pattern = Stripes }
+           { Primary = "#7A1F3D"
+             Secondary = "#4DA3FF"
+             Pattern = Plain }
+           { Primary = "#F28C28"
+             Secondary = "#111111"
+             Pattern = Plain }
+           { Primary = "#FFFFFF"
+             Secondary = "#1C3F94"
+             Pattern = Hoops }
+           { Primary = "#B3121B"
+             Secondary = "#111111"
+             Pattern = Stripes }
+           { Primary = "#1F7AE0"
+             Secondary = "#FFFFFF"
+             Pattern = Sash }
+           { Primary = "#5B2A86"
+             Secondary = "#FFFFFF"
+             Pattern = Halves }
+           { Primary = "#FFD200"
+             Secondary = "#0B4F9C"
+             Pattern = Plain }
+           { Primary = "#0E7C86"
+             Secondary = "#F2F2F2"
+             Pattern = Stripes } |]
 
     let private stableHash (text: string) =
         let mutable hash = 2166136261u

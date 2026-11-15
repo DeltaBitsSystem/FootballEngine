@@ -40,14 +40,23 @@ module MatchBallMesh =
 
     let create (radius: float32) : DynamicMeshBatchData =
         let latitudeCount, longitudeCount = 24, 48
+
         let vertices =
-            [| for latitude in 0 .. latitudeCount do
+            [| for latitude in 0..latitudeCount do
                    let v = float32 latitude / float32 latitudeCount
                    let theta = v * MathF.PI
-                   for longitude in 0 .. longitudeCount do
+
+                   for longitude in 0..longitudeCount do
                        let u = float32 longitude / float32 longitudeCount
                        let phi = u * MathF.PI * 2.0f
-                       let normal = Vector3(MathF.Sin(theta) * MathF.Cos(phi), MathF.Cos(theta), MathF.Sin(theta) * MathF.Sin(phi))
+
+                       let normal =
+                           Vector3(
+                               MathF.Sin(theta) * MathF.Cos(phi),
+                               MathF.Cos(theta),
+                               MathF.Sin(theta) * MathF.Sin(phi)
+                           )
+
                        yield
                            { Position = normal * radius
                              Normal = normal
@@ -57,13 +66,19 @@ module MatchBallMesh =
                              Joints = Vector4.Zero
                              Weights = Vector4.Zero
                              Surface = uint32 StadiumSurface.MatchBall } |]
+
         let indices =
             [| for latitude in 0 .. latitudeCount - 1 do
                    for longitude in 0 .. longitudeCount - 1 do
                        let a = uint32 (latitude * (longitudeCount + 1) + longitude)
                        let b = a + uint32 (longitudeCount + 1)
-                       if latitude > 0 then yield! [| a; b; a + 1u |]
-                       if latitude < latitudeCount - 1 then yield! [| a + 1u; b; b + 1u |] |]
+
+                       if latitude > 0 then
+                           yield! [| a; b; a + 1u |]
+
+                       if latitude < latitudeCount - 1 then
+                           yield! [| a + 1u; b; b + 1u |] |]
+
         { MaterialName = "FE match ball | procedural panel leather"
           Vertices = vertices
           Indices = indices }

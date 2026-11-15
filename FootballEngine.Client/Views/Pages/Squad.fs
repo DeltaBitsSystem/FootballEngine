@@ -86,7 +86,9 @@ module Squad =
     let private tr key = Localization.resolve key []
 
     let private sortPill (label: string) (isActive: bool) onClick : IView =
-        Border.create [ Border.margin (0.0, 0.0, 8.0, 8.0); Border.child (UI.tabButton label isActive onClick) ]
+        Border.create
+            [ Border.margin (0.0, 0.0, 8.0, 8.0)
+              Border.child (UI.tabButton label isActive onClick) ]
         :> IView
 
     let private lineHeader (label: string) : IView =
@@ -100,12 +102,16 @@ module Squad =
         | InGame(gs, _) ->
             let squad = GameState.getSquad gs.UserClubId gs
             let stats = SquadPresenter.getTeamStats squad
-            let groups = SquadPresenter.getGroupedPlayers squad gs.CurrentDate state.Squad.SortBy
+
+            let groups =
+                SquadPresenter.getGroupedPlayers squad gs.CurrentDate state.Squad.SortBy
 
             let clubKit = ClubIdentity.kitOf gs gs.UserClubId
 
             let sort = state.Squad.SortBy
-            let setSort field = fun _ -> dispatch (SquadMsg(SquadMsg.SetSort field))
+
+            let setSort field =
+                fun _ -> dispatch (SquadMsg(SquadMsg.SetSort field))
 
             let header =
                 DockPanel.create
@@ -163,7 +169,8 @@ module Squad =
                       ) ]
 
             let selected =
-                state.Squad.SelectedPlayer |> Option.bind (fun id -> gs.Players |> Map.tryFind id)
+                state.Squad.SelectedPlayer
+                |> Option.bind (fun id -> gs.Players |> Map.tryFind id)
 
             Grid.create
                 [ Grid.columnDefinitions "*, 24, 420"

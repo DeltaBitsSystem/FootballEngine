@@ -7,17 +7,19 @@ open System.Threading.Tasks
 
 /// CPU-side packages the viewer needs before touching the GPU, already validated.
 type ViewerAssets =
-    { Kit: StadiumKitData
-      /// Dropped by the renderer once uploaded; the GPU copy is the only one the viewer needs.
-      KitTextures: KitTextureData
-      Character: CharacterAssetData
-      Motion: FootballEngine.Client.Animation.MotionDatabase
-      Environment: HdrEnvironmentData
-      Surfaces: SurfaceTexturePack
-      Lighting: HdrLightingSettings
-      Shadow: DirectionalShadowSettings
-      Sun: SunState
-      LightViewProjection: Matrix4x4 }
+    {
+        Kit: StadiumKitData
+        /// Dropped by the renderer once uploaded; the GPU copy is the only one the viewer needs.
+        KitTextures: KitTextureData
+        Character: CharacterAssetData
+        Motion: FootballEngine.Client.Animation.MotionDatabase
+        Environment: HdrEnvironmentData
+        Surfaces: SurfaceTexturePack
+        Lighting: HdrLightingSettings
+        Shadow: DirectionalShadowSettings
+        Sun: SunState
+        LightViewProjection: Matrix4x4
+    }
 
 module ViewerAssets =
     let private timed name load =
@@ -34,7 +36,9 @@ module ViewerAssets =
             Task.Run(fun () -> timed "character" (fun () -> CharacterAsset.load (assetFile "player.glb")))
 
         let motion =
-            Task.Run(fun () -> timed "motion database" (fun () -> FootballEngine.Client.Animation.MotionDatabase.load (assetFile "motion-db.bin")))
+            Task.Run(fun () ->
+                timed "motion database" (fun () ->
+                    FootballEngine.Client.Animation.MotionDatabase.load (assetFile "motion-db.bin")))
 
         let kit =
             Task.Run(fun () -> timed "stadium kit" (fun () -> StadiumKit.load (assetFile "StadiumKit")))

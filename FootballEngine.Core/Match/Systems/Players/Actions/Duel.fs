@@ -13,6 +13,7 @@ module Duel =
         : Rng =
         let tick = world.State.Tick
         let p = MatchWorld.profileOf ctx.Ctx side slot
+
         let carrierAvailable =
             match MatchWorld.ballCarrier ctx.Ctx world with
             | ValueSome(struct (owner, carrierSlot, _)) when owner = side && carrierSlot = slot ->
@@ -22,6 +23,7 @@ module Duel =
         if not carrierAvailable then
             world.Observation.RejectAction(tick, p.Id, DuelCarrierUnavailable) |> ignore
         else
-            ContactActionPlanner.prepare ctx world side slot ContactActionKind.ContactShield None |> ignore
+            ContactActionPlanner.prepare ctx world side slot ContactActionKind.ContactShield None
+            |> ignore
 
         rng

@@ -70,8 +70,10 @@ module PlannerEvaluatorTests =
 
               testCase "mirrored teams value the same football advantage equally" (fun _ ->
                   let home = state 25.0 [ 5, 25.0, 0.0; 7, 28.0, 4.0 ] farOpps
+
                   let mirror positions =
                       positions |> Array.map (fun struct (slot, x, y) -> struct (slot, -x, y))
+
                   let away =
                       { home with
                           BallX = -home.BallX
@@ -80,15 +82,29 @@ module PlannerEvaluatorTests =
                           OffsideLine = -home.OffsideLine
                           OurPos = mirror home.OurPos
                           OppPos = mirror home.OppPos }
-                  Expect.floatClose Accuracy.high (Planner.value weights home) (Planner.value weights away) "advantage is team-local, not a pitch-direction bonus")
+
+                  Expect.floatClose
+                      Accuracy.high
+                      (Planner.value weights home)
+                      (Planner.value weights away)
+                      "advantage is team-local, not a pitch-direction bonus")
 
               testCase "an isolated carrier cannot count himself as supporting cover" (fun _ ->
                   let marker = [ 1, 22.0, 0.0 ]
                   let alone = state 20.0 [] marker
                   let isolated = state 20.0 [ 5, 20.0, 0.0 ] marker
                   let supported = state 20.0 [ 5, 20.0, 0.0; 7, 18.0, 3.0 ] marker
-                  Expect.floatClose Accuracy.high (Planner.value weights isolated) (Planner.value weights alone) "the carrier is no cover for himself"
-                  Expect.isGreaterThan (Planner.value weights supported) (Planner.value weights isolated) "a teammate in support makes the ball safer")
+
+                  Expect.floatClose
+                      Accuracy.high
+                      (Planner.value weights isolated)
+                      (Planner.value weights alone)
+                      "the carrier is no cover for himself"
+
+                  Expect.isGreaterThan
+                      (Planner.value weights supported)
+                      (Planner.value weights isolated)
+                      "a teammate in support makes the ball safer")
 
               testCase "value is finite for on-pitch states" (fun _ ->
                   let states =

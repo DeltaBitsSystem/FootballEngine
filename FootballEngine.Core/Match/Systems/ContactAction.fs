@@ -47,11 +47,7 @@ module ContactActionPlanner =
               PredictedPoint = motionPoint action
               ConfirmedPoint = confirmedPoint
               BallCenter =
-                Vector3(
-                    float32 ball.Position.X,
-                    float32 ball.Position.Y,
-                    float32 (ball.Position.Z + ball.Radius)
-                )
+                Vector3(float32 ball.Position.X, float32 ball.Position.Y, float32 (ball.Position.Z + ball.Radius))
               IncomingVelocity = ValueNone
               OutgoingVelocity = ValueNone }
         |> ignore
@@ -70,10 +66,11 @@ module ContactActionPlanner =
         if
             world.State.Flow <> MatchFlow.Live
             || not (MatchWorld.isActiveSlot frame.Occupancy[slot])
-             || frame.ContactActions[slot] |> Option.exists (fun action ->
-                 action.Generation = frame.ContactGeneration[slot]
-                && action.EndsAt > world.State.Tick
-                 && action.Phase <> ContactActionPhase.ContactActionCancelled)
+            || frame.ContactActions[slot]
+               |> Option.exists (fun action ->
+                   action.Generation = frame.ContactGeneration[slot]
+                   && action.EndsAt > world.State.Tick
+                   && action.Phase <> ContactActionPhase.ContactActionCancelled)
         then
             None
         else
@@ -86,14 +83,15 @@ module ContactActionPlanner =
             let ball = world.State.Ball
             let predictedX = float ball.Position.X + float ball.Position.Vx * seconds
             let predictedY = float ball.Position.Y + float ball.Position.Vy * seconds
+
             let predictedZ =
-                max 0.0 (
-                    float ball.Position.Z
-                    + float ball.Position.Vz * seconds
-                    - 0.5 * float ctx.Ctx.Config.Ball.Gravity * seconds * seconds
-                )
+                max
+                    0.0
+                    (float ball.Position.Z + float ball.Position.Vz * seconds
+                     - 0.5 * float ctx.Ctx.Config.Ball.Gravity * seconds * seconds)
 
             let id = ActionId(0x8000000000000000UL ||| world.Motion.NextSequence)
+
             let action =
                 { Id = id
                   Actor = profile.Id
@@ -134,11 +132,7 @@ module ContactActionPlanner =
                   PredictedPoint = motionPoint action
                   ConfirmedPoint = ValueNone
                   BallCenter =
-                    Vector3(
-                        float32 ball.Position.X,
-                        float32 ball.Position.Y,
-                        float32 (ball.Position.Z + ball.Radius)
-                    )
+                    Vector3(float32 ball.Position.X, float32 ball.Position.Y, float32 (ball.Position.Z + ball.Radius))
                   IncomingVelocity = ValueNone
                   OutgoingVelocity = ValueNone }
             |> ignore

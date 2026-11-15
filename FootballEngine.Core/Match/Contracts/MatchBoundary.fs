@@ -52,6 +52,7 @@ module MatchInput =
             else
                 if lineup.Profiles |> Array.distinctBy _.Id |> Array.length <> lineup.SlotCount then
                     errors.Add(sprintf "%s lineup contains duplicate sporting player identities." label)
+
                 if lineup.Profiles |> Array.exists (fun p -> let (PlayerId id) = p.Id in id <= 0) then
                     errors.Add(sprintf "%s lineup contains nonpositive sporting player identities." label)
 
@@ -76,10 +77,18 @@ module MatchInput =
             errors.Add "Home and away clubs must have distinct identities."
 
         for club in [ context.HomeClub; context.AwayClub ] do
-            if club.AttackPrior.Count > 24 then errors.Add "Attack priors exceed the fixed contextual bound."
+            if club.AttackPrior.Count > 24 then
+                errors.Add "Attack priors exceed the fixed contextual bound."
+
             for KeyValue(key, estimate) in club.AttackPrior do
-                if key < 0 || key >= 24 || not (Double.IsFinite estimate.Samples && Double.IsFinite estimate.RewardSum)
-                   || estimate.Samples < 0.0 || estimate.Samples > context.Config.CollectiveAttack.EvidenceCap || abs estimate.RewardSum > estimate.Samples then
+                if
+                    key < 0
+                    || key >= 24
+                    || not (Double.IsFinite estimate.Samples && Double.IsFinite estimate.RewardSum)
+                    || estimate.Samples < 0.0
+                    || estimate.Samples > context.Config.CollectiveAttack.EvidenceCap
+                    || abs estimate.RewardSum > estimate.Samples
+                then
                     errors.Add "Attack priors contain an invalid contextual estimate."
 
         validateLineup "Home" context.HomeLineup

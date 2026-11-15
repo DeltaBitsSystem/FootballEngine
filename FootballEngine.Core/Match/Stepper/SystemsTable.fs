@@ -13,17 +13,33 @@ module Scheduler =
             (EventFlags.union (EventFlags.ofKind EventKind.SetPieceAwarded) (EventFlags.ofKind EventKind.Corner))
             (EventFlags.union
                 (EventFlags.ofKind EventKind.GoalKick)
-                 (EventFlags.union (EventFlags.ofKind EventKind.ThrowIn) (EventFlags.ofKind EventKind.KickOff)))
+                (EventFlags.union (EventFlags.ofKind EventKind.ThrowIn) (EventFlags.ofKind EventKind.KickOff)))
 
     let private transitionFlags =
-         [ EventKind.PossessionGained; EventKind.BallLoose; EventKind.PassLaunched; EventKind.Interception; EventKind.ShotLaunched
-           EventKind.RedCard; EventKind.Injury; EventKind.Substitution; EventKind.SubstitutionApplied
-           EventKind.Goal; EventKind.HalfTime; EventKind.FullTime; EventKind.SetPieceAwarded; EventKind.TeamInstruction ]
+        [ EventKind.PossessionGained
+          EventKind.BallLoose
+          EventKind.PassLaunched
+          EventKind.Interception
+          EventKind.ShotLaunched
+          EventKind.RedCard
+          EventKind.Injury
+          EventKind.Substitution
+          EventKind.SubstitutionApplied
+          EventKind.Goal
+          EventKind.HalfTime
+          EventKind.FullTime
+          EventKind.SetPieceAwarded
+          EventKind.TeamInstruction ]
         |> List.fold (fun flags kind -> EventFlags.union flags (EventFlags.ofKind kind)) setPieceFlags
 
     let private decisionFlags =
-        [ EventKind.PossessionGained; EventKind.BallLoose; EventKind.Interception
-          EventKind.RedCard; EventKind.Injury; EventKind.Substitution; EventKind.SubstitutionApplied
+        [ EventKind.PossessionGained
+          EventKind.BallLoose
+          EventKind.Interception
+          EventKind.RedCard
+          EventKind.Injury
+          EventKind.Substitution
+          EventKind.SubstitutionApplied
           EventKind.TeamInstruction ]
         |> List.fold (fun flags kind -> EventFlags.union flags (EventFlags.ofKind kind)) setPieceFlags
 

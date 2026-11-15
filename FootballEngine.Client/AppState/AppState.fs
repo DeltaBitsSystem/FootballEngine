@@ -104,7 +104,7 @@ module AppState =
 
         // why sync Theme here: ensures currentPalette matches preloaded Appearance before first view renders
         try
-            Theme.usePalette(Theme.paletteForSettings preloaded.Appearance)
+            Theme.usePalette (Theme.paletteForSettings preloaded.Appearance)
         with _ ->
             ()
 
@@ -532,7 +532,10 @@ module AppState =
                                           Data =
                                               { data with
                                                   ActiveMods =
-                                                      (if data.ActiveMods.IsEmpty then installed else data.ActiveMods)
+                                                      (if data.ActiveMods.IsEmpty then
+                                                           installed
+                                                       else
+                                                           data.ActiveMods)
                                                       @ [ modId ]
                                                       |> List.distinct
                                                   ModOrder =
@@ -573,7 +576,10 @@ module AppState =
                 Calendar = CalendarSlice.update m state.Calendar },
             Cmd.none
 
-        | NewsMsg(SetNewsFilter filter) -> { state with News = { Filter = filter } }, Cmd.none
+        | NewsMsg(SetNewsFilter filter) ->
+            { state with
+                News = { Filter = filter } },
+            Cmd.none
 
         | CareerMsg msg ->
             match state.Mode, msg with
@@ -608,7 +614,8 @@ module AppState =
                         (Localization.resolve TranslationKey.JobAcceptedTitle [ "club", clubName ])
                         (Localization.resolve TranslationKey.JobAcceptedBody [ "club", clubName ]),
                     Cmd.none
-                | Error error -> state |> pushNotification FootballEngine.Icons.NotificationIcons.error error "", Cmd.none
+                | Error error ->
+                    state |> pushNotification FootballEngine.Icons.NotificationIcons.error error "", Cmd.none
             | _ -> state, Cmd.none
 
         | NotificationMsg nm ->
@@ -764,7 +771,10 @@ module AppState =
         | TacticsMsg TacticsMsg.QuickPick ->
             withGame (fun gs ->
                 let state = pushTacticsHistory gs state
-                let squad = GameState.getSquad gs.UserClubId gs |> List.filter (fun player -> player.Status = Available)
+
+                let squad =
+                    GameState.getSquad gs.UserClubId gs
+                    |> List.filter (fun player -> player.Status = Available)
 
                 let formation =
                     headCoach gs.UserClubId gs
@@ -976,7 +986,8 @@ module AppState =
                             drain
                                 (budget - 1)
                                 { state with
-                                    Match = MatchSlice.update (LiveMsg.CommandRejected(commandId, rejection)) state.Match }
+                                    Match =
+                                        MatchSlice.update (LiveMsg.CommandRejected(commandId, rejection)) state.Match }
                                 commands
                         | MatchRuntimePublication.StatusChanged status ->
                             let nextState =
@@ -992,7 +1003,11 @@ module AppState =
 
                             drain (budget - 1) nextState (pause :: commands)
                         | MatchRuntimePublication.Semantic semantic ->
-                            drain (budget - 1) { state with Match = MatchSlice.applySemantic semantic state.Match } commands
+                            drain
+                                (budget - 1)
+                                { state with
+                                    Match = MatchSlice.applySemantic semantic state.Match }
+                                commands
                         | MatchRuntimePublication.Failed error ->
                             MatchRuntime.close runtimeId
 
@@ -1154,7 +1169,7 @@ module AppState =
                 let next = SettingsSlice.updateGlobal f state.Settings
                 // why sync palette: theme changes without restart via paletteForSettings
                 try
-                    Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
+                    Theme.usePalette (Theme.paletteForSettings next.Global.Appearance)
                 with _ ->
                     ()
 
@@ -1196,7 +1211,7 @@ module AppState =
                 let next = SettingsSlice.resetCategory cat state.Settings
                 // why sync palette: reset may affect Appearance, so palette must follow
                 try
-                    Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
+                    Theme.usePalette (Theme.paletteForSettings next.Global.Appearance)
                 with _ ->
                     ()
 
@@ -1213,7 +1228,7 @@ module AppState =
                 let next = SettingsSlice.resetAll state.Settings
                 // why sync palette: ResetAll restores default Appearance, so theme must reset without restart
                 try
-                    Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
+                    Theme.usePalette (Theme.paletteForSettings next.Global.Appearance)
                 with _ ->
                     ()
 
@@ -1242,7 +1257,7 @@ module AppState =
                 let next = SettingsSlice.undo state.Settings
                 // why sync palette: undo may revert Appearance change
                 try
-                    Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
+                    Theme.usePalette (Theme.paletteForSettings next.Global.Appearance)
                 with _ ->
                     ()
 
@@ -1251,7 +1266,7 @@ module AppState =
                 let next = SettingsSlice.redo state.Settings
                 // why sync palette: redo may reapply Appearance change
                 try
-                    Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
+                    Theme.usePalette (Theme.paletteForSettings next.Global.Appearance)
                 with _ ->
                     ()
 
@@ -1261,7 +1276,7 @@ module AppState =
                 | Ok next ->
                     // why sync palette: imported Appearance may differ, theme must update without restart
                     try
-                        Theme.usePalette(Theme.paletteForSettings next.Global.Appearance)
+                        Theme.usePalette (Theme.paletteForSettings next.Global.Appearance)
                     with _ ->
                         ()
 

@@ -323,7 +323,10 @@ module ModEditor =
               ) ]
 
     let private count (n: int) (singularEs: string) (pluralEs: string) (singularEn: string) (pluralEn: string) =
-        if n = 1 then t $"1 {singularEs}" $"1 {singularEn}" else t $"{n} {pluralEs}" $"{n} {pluralEn}"
+        if n = 1 then
+            t $"1 {singularEs}" $"1 {singularEn}"
+        else
+            t $"{n} {pluralEs}" $"{n} {pluralEn}"
 
     let private isHexColor (value: string) =
         not (isNull value) && Regex.IsMatch(value, "^#[0-9A-Fa-f]{6}$")
@@ -719,7 +722,9 @@ module ModEditor =
                                     TextBlock.create
                                         [ TextBlock.text label
                                           TextBlock.fontSize 13.0
-                                          TextBlock.fontWeight (if isActive then FontWeight.SemiBold else FontWeight.Normal)
+                                          TextBlock.fontWeight (
+                                              if isActive then FontWeight.SemiBold else FontWeight.Normal
+                                          )
                                           TextBlock.foreground (if isActive then Theme.Accent else Theme.TextMain) ] ] ] ] ])
             onClick
 
@@ -810,7 +815,10 @@ module ModEditor =
                                           [ StackPanel.spacing 1.0
                                             StackPanel.children
                                                 [ section Clubs (t "Clubes" "Clubs") (string country.Clubs.Length)
-                                                  section Leagues (t "Ligas" "Leagues") (string country.LeagueNames.Length)
+                                                  section
+                                                      Leagues
+                                                      (t "Ligas" "Leagues")
+                                                      (string country.LeagueNames.Length)
                                                   section Cups (t "Copas" "Cups") (string country.Cups.Length)
                                                   section NamePool (t "Nombres" "Names") ""
                                                   section General (t "País" "Country") "" ] ]
@@ -1132,7 +1140,9 @@ module ModEditor =
                                             [ Border.width 30.0
                                               Border.height 30.0
                                               Border.cornerRadius Theme.RadiusPill
-                                              Border.background (if index = 0 then Theme.AccentLight else Theme.BgElevated)
+                                              Border.background (
+                                                  if index = 0 then Theme.AccentLight else Theme.BgElevated
+                                              )
                                               Border.horizontalAlignment HorizontalAlignment.Left
                                               Border.child (
                                                   TextBlock.create
@@ -1153,7 +1163,10 @@ module ModEditor =
                                         compactIntInput rule.PointsForWin 0 10 (fun value ->
                                             edit index "win" (setRule index (fun r -> { r with PointsForWin = value })))
                                         compactIntInput rule.PointsForDraw 0 10 (fun value ->
-                                            edit index "draw" (setRule index (fun r -> { r with PointsForDraw = value })))
+                                            edit
+                                                index
+                                                "draw"
+                                                (setRule index (fun r -> { r with PointsForDraw = value })))
                                         TextBlock.create
                                             [ TextBlock.text (string clubs)
                                               TextBlock.fontSize 15.0
@@ -1222,7 +1235,10 @@ module ModEditor =
                                             [ TextBlock.text club.Name
                                               TextBlock.fontSize 13.0
                                               TextBlock.fontWeight (
-                                                  if isSelected then FontWeight.SemiBold else FontWeight.Normal
+                                                  if isSelected then
+                                                      FontWeight.SemiBold
+                                                  else
+                                                      FontWeight.Normal
                                               )
                                               TextBlock.foreground (if isSelected then Theme.Accent else Theme.TextMain)
                                               TextBlock.textTrimming TextTrimming.CharacterEllipsis
@@ -1269,7 +1285,8 @@ module ModEditor =
                                                             |> List.indexed
                                                             |> List.filter (fun (_, club) ->
                                                                 club.LeagueLevel = level
-                                                                && (query = "" || club.Name.ToLowerInvariant().Contains query))
+                                                                && (query = ""
+                                                                    || club.Name.ToLowerInvariant().Contains query))
 
                                                         groupCaption
                                                             $"{leagueName country level} · {clubs.Length}"
@@ -1284,7 +1301,9 @@ module ModEditor =
                                                         if clubs.IsEmpty && query = "" then
                                                             TextBlock.create
                                                                 [ TextBlock.text (
-                                                                      t "Sin clubes: agregá con +" "No clubs: add with +"
+                                                                      t
+                                                                          "Sin clubes: agregá con +"
+                                                                          "No clubs: add with +"
                                                                   )
                                                                   TextBlock.fontSize 11.0
                                                                   TextBlock.foreground Theme.TextFaint
@@ -1325,8 +1344,10 @@ module ModEditor =
                             [ StackPanel.orientation Orientation.Horizontal
                               StackPanel.children
                                   [ for swatch in swatches do
-                                        swatchButton swatch (String.Equals(swatch, value, StringComparison.OrdinalIgnoreCase)) (fun _ ->
-                                            setKit fieldName (apply swatch))
+                                        swatchButton
+                                            swatch
+                                            (String.Equals(swatch, value, StringComparison.OrdinalIgnoreCase))
+                                            (fun _ -> setKit fieldName (apply swatch))
                                     TextBox.create
                                         [ TextBox.onTextChanged (
                                               (fun text ->
@@ -1395,7 +1416,9 @@ module ModEditor =
                               [ caption (t "Diseño" "Pattern")
                                 StackPanel.create
                                     [ StackPanel.orientation Orientation.Horizontal
-                                      StackPanel.children [ for option in patterns () do patternButton option ] ] ] ] ] ]
+                                      StackPanel.children
+                                          [ for option in patterns () do
+                                                patternButton option ] ] ] ] ] ]
 
     let private lineBadge (position: string) : IView =
         let label, color = lines () |> List.item (lineOf position)
@@ -1517,7 +1540,9 @@ module ModEditor =
         let lineCounts =
             lines ()
             |> List.mapi (fun line (label, color) ->
-                let count = club.Players |> List.filter (fun p -> lineOf p.Position = line) |> List.length
+                let count =
+                    club.Players |> List.filter (fun p -> lineOf p.Position = line) |> List.length
+
                 chip $"{label} {count}" (if count = 0 then Theme.TextFaint else color))
 
         StackPanel.create
@@ -1624,8 +1649,12 @@ module ModEditor =
                                               [ StackPanel.orientation Orientation.Horizontal
                                                 StackPanel.spacing 10.0
                                                 StackPanel.children
-                                                    [ actionButton true (t "Agregar al plantel" "Add to squad") (Some IconName.add) (fun _ ->
-                                                          dispatch (ModEditorMsg(ImportSquad(code, clubIndex))))
+                                                    [ actionButton
+                                                          true
+                                                          (t "Agregar al plantel" "Add to squad")
+                                                          (Some IconName.add)
+                                                          (fun _ ->
+                                                              dispatch (ModEditorMsg(ImportSquad(code, clubIndex))))
                                                       match state.SquadPasteReport with
                                                       | Some report ->
                                                           TextBlock.create
@@ -1729,11 +1758,15 @@ module ModEditor =
                                                                 TextBox.fontWeight FontWeight.Bold ])
                                                       field
                                                           (t "División" "Division")
-                                                          (select divisions (leagueName country club.LeagueLevel) (fun value ->
-                                                              match divisions |> List.tryFindIndex ((=) value) with
-                                                              | Some level ->
-                                                                  edit "division" (fun c -> { c with LeagueLevel = level })
-                                                              | None -> ())) ]
+                                                          (select
+                                                              divisions
+                                                              (leagueName country club.LeagueLevel)
+                                                              (fun value ->
+                                                                  match divisions |> List.tryFindIndex ((=) value) with
+                                                                  | Some level ->
+                                                                      edit "division" (fun c ->
+                                                                          { c with LeagueLevel = level })
+                                                                  | None -> ())) ]
                                                 StackPanel.create
                                                     [ StackPanel.spacing 6.0
                                                       StackPanel.children
@@ -1944,9 +1977,19 @@ module ModEditor =
                                                             TextBlock.fontSize 18.0
                                                             TextBlock.foreground Theme.TextFaint ] ] ]
                                           hint (
-                                              [ count country.LeagueNames.Length "división" "divisiones" "division" "divisions"
+                                              [ count
+                                                    country.LeagueNames.Length
+                                                    "división"
+                                                    "divisiones"
+                                                    "division"
+                                                    "divisions"
                                                 count country.Clubs.Length "club" "clubes" "club" "clubs"
-                                                count players "jugador definido" "jugadores definidos" "defined player" "defined players"
+                                                count
+                                                    players
+                                                    "jugador definido"
+                                                    "jugadores definidos"
+                                                    "defined player"
+                                                    "defined players"
                                                 count country.Cups.Length "copa" "copas" "cup" "cups" ]
                                               |> String.concat " · "
                                           ) ] ] ] ]
@@ -2137,7 +2180,12 @@ module ModEditor =
                                                     TextBlock.foreground Theme.TextDim ] ] ] ] ]
               ) ]
 
-    let private checkRow (icon: Material.Icons.MaterialIconKind) (color: string) (title: string) (detail: string) : IView =
+    let private checkRow
+        (icon: Material.Icons.MaterialIconKind)
+        (color: string)
+        (title: string)
+        (detail: string)
+        : IView =
         DockPanel.create
             [ DockPanel.margin (0.0, 4.0)
               DockPanel.children
@@ -2208,7 +2256,12 @@ module ModEditor =
                       elif isPrimary then Theme.Accent
                       else "Transparent"
                   )
-                  Button.borderBrush (if isPrimary && canPublish then Theme.Accent else Theme.Border)
+                  Button.borderBrush (
+                      if isPrimary && canPublish then
+                          Theme.Accent
+                      else
+                          Theme.Border
+                  )
                   Button.borderThickness 1.0
                   Button.foreground (
                       if not canPublish then Theme.TextDim
@@ -2262,8 +2315,18 @@ module ModEditor =
                                         ([ count document.Countries.Count "país" "países" "country" "countries"
                                            count clubs "club" "clubes" "club" "clubs"
                                            count players "jugador" "jugadores" "player" "players"
-                                           count document.InternationalComps.Length "competición" "competiciones" "competition" "competitions"
-                                           count overrides "copia del mundo base" "copias del mundo base" "base-world copy" "base-world copies" ]
+                                           count
+                                               document.InternationalComps.Length
+                                               "competición"
+                                               "competiciones"
+                                               "competition"
+                                               "competitions"
+                                           count
+                                               overrides
+                                               "copia del mundo base"
+                                               "copias del mundo base"
+                                               "base-world copy"
+                                               "base-world copies" ]
                                          |> String.concat " · ")
                                     if not state.Validated then
                                         checkRow

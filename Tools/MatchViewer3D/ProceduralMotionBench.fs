@@ -71,6 +71,7 @@ module ProceduralMotionBench =
 
         let mutable position = 0.0f
         let mutable sequence = 0UL
+
         let samples =
             Array.init 2305 (fun tick ->
                 let phase = tick % 320
@@ -81,25 +82,42 @@ module ProceduralMotionBench =
                     elif phase < 280 then float32 (280 - phase) * 0.08f
                     else 0.0f
 
-                if tick > 0 then position <- position + speed * config.TickSeconds
+                if tick > 0 then
+                    position <- position + speed * config.TickSeconds
 
                 let taskPhase = tick % 160
+
                 let evidence =
                     if taskPhase = 60 || taskPhase = 64 then
                         Array.init 22 (fun actor ->
                             sequence <- sequence + 1UL
                             let target = Vector3(position + 0.25f, float32 actor * 2.0f, 0.11f)
-                            { Sequence = sequence; TaskId = uint64 (tick / 160 * 22 + actor + 1)
-                              Actor = PlayerId(actor + 1); Generation = 1; Family = MotionFamily.FootStrike
-                              Effector = if actor % 2 = 0 then MotionEffector.LeftFoot else MotionEffector.RightFoot
-                              Phase = if taskPhase = 60 then MotionEvidencePhase.Prepared else MotionEvidencePhase.Confirmed
-                              OccurredAt = tick * 1<subtick>; AvailableAt = tick * 1<subtick>
+
+                            { Sequence = sequence
+                              TaskId = uint64 (tick / 160 * 22 + actor + 1)
+                              Actor = PlayerId(actor + 1)
+                              Generation = 1
+                              Family = MotionFamily.FootStrike
+                              Effector =
+                                if actor % 2 = 0 then
+                                    MotionEffector.LeftFoot
+                                else
+                                    MotionEffector.RightFoot
+                              Phase =
+                                if taskPhase = 60 then
+                                    MotionEvidencePhase.Prepared
+                                else
+                                    MotionEvidencePhase.Confirmed
+                              OccurredAt = tick * 1<subtick>
+                              AvailableAt = tick * 1<subtick>
                               StartedAt = (tick / 160 * 160 + 60) * 1<subtick>
                               CommitAt = (tick / 160 * 160 + 68) * 1<subtick>
                               EndsAt = (tick / 160 * 160 + 80) * 1<subtick>
-                              PredictedPoint = target; ConfirmedPoint = if taskPhase = 64 then ValueSome target else ValueNone
+                              PredictedPoint = target
+                              ConfirmedPoint = if taskPhase = 64 then ValueSome target else ValueNone
                               BallCenter = target + Vector3(0.11f, 0.0f, 0.0f)
-                              IncomingVelocity = ValueNone; OutgoingVelocity = ValueNone })
+                              IncomingVelocity = ValueNone
+                              OutgoingVelocity = ValueNone })
                     else
                         [||]
 
@@ -233,67 +251,185 @@ module ProceduralMotionBench =
         let mutable contactSamples = 0
         let supportBySpeed = Array.zeroCreate<int> 4
         let unreachableBySpeed = Array.zeroCreate<int> 4
+
         let soles =
             character.Batches[0].Vertices
-            |> Array.filter (fun vertex -> abs (vertex.Position.Y - 0.005f) < 0.00001f && abs vertex.Position.X > 0.04f && abs vertex.Position.X < 0.17f)
+            |> Array.filter (fun vertex ->
+                abs (vertex.Position.Y - 0.005f) < 0.00001f
+                && abs vertex.Position.X > 0.04f
+                && abs vertex.Position.X < 0.17f)
 
         for tick = 0 to 511 do
             quality.Ingest samples[tick] |> require
             let time = { Tick = tick; Fraction = 0.0f }
+
             for actor = 0 to 21 do
                 let plan = quality.TryPlan(PlayerId(actor + 1), time) |> require |> ValueOption.get
                 let rootPosition = MotionInput.vector plan.Root.Position
                 let yaw = MotionInput.facing plan.Root.Facing
                 let rotation = Matrix4x4.CreateRotationY yaw
                 let mutable previousSnapshot = plan
+
                 let previousAnkle =
                     if tick > 0 then
-                        let previous = quality.TryPlan(plan.Root.Actor, { Tick = tick - 1; Fraction = 0.0f }) |> require |> ValueOption.get
+                        let previous =
+                            quality.TryPlan(plan.Root.Actor, { Tick = tick - 1; Fraction = 0.0f })
+                            |> require
+                            |> ValueOption.get
+
                         previousSnapshot <- previous
-                        PoseEvaluation.evaluateInto (config, rig, previous, time, rootPosition, yaw, qualityScratch, qualityPalette, 0) |> ignore
-                        struct (qualityScratch.World[rig.LeftLeg.End].Translation, qualityScratch.World[rig.RightLeg.End].Translation)
-                    else struct (Vector3.Zero, Vector3.Zero)
-                let struct (leftResidual, rightResidual) = PoseEvaluation.evaluateInto (config, rig, plan, time, rootPosition, yaw, qualityScratch, qualityPalette, 0)
+
+                        PoseEvaluation.evaluateInto (
+                            config,
+                            rig,
+                            previous,
+                            time,
+                            rootPosition,
+                            yaw,
+                            qualityScratch,
+                            qualityPalette,
+                            0
+                        )
+                        |> ignore
+
+                        struct (qualityScratch.World[rig.LeftLeg.End].Translation,
+                                qualityScratch.World[rig.RightLeg.End].Translation)
+                    else
+                        struct (Vector3.Zero, Vector3.Zero)
+
+                let struct (leftResidual, rightResidual) =
+                    PoseEvaluation.evaluateInto (
+                        config,
+                        rig,
+                        plan,
+                        time,
+                        rootPosition,
+                        yaw,
+                        qualityScratch,
+                        qualityPalette,
+                        0
+                    )
+
                 if tick > 0 then
                     let struct (left, right) = previousAnkle
-                    let jump = max (Vector3.Distance(left, qualityScratch.World[rig.LeftLeg.End].Translation)) (Vector3.Distance(right, qualityScratch.World[rig.RightLeg.End].Translation))
+
+                    let jump =
+                        max
+                            (Vector3.Distance(left, qualityScratch.World[rig.LeftLeg.End].Translation))
+                            (Vector3.Distance(right, qualityScratch.World[rig.RightLeg.End].Translation))
+
                     if jump > maxBoundaryAnkleJump then
                         maxBoundaryAnkleJump <- jump
-                        boundaryContext <- sprintf "tick=%d actor=%d speed=%f left=%A->%A right=%A->%A tasks=%b/%b acceleration=%A->%A lean=%A->%A" tick (actor + 1) (Vector2(plan.Root.Velocity.X, plan.Root.Velocity.Y).Length()) previousSnapshot.Left.Phase plan.Left.Phase previousSnapshot.Right.Phase plan.Right.Phase plan.LeftOverlay.Active plan.RightOverlay.Active previousSnapshot.Acceleration plan.Acceleration previousSnapshot.Lean plan.Lean
-                for chain, foot, overlay, residual in [| rig.LeftLeg, plan.Left, plan.LeftOverlay, leftResidual; rig.RightLeg, plan.Right, plan.RightOverlay, rightResidual |] do
-                    let worldPoint socket = Vector3.Transform(Vector3.Transform(socket, qualityScratch.World[chain.End]), rotation) + rootPosition
+
+                        boundaryContext <-
+                            sprintf
+                                "tick=%d actor=%d speed=%f left=%A->%A right=%A->%A tasks=%b/%b acceleration=%A->%A lean=%A->%A"
+                                tick
+                                (actor + 1)
+                                (Vector2(plan.Root.Velocity.X, plan.Root.Velocity.Y).Length())
+                                previousSnapshot.Left.Phase
+                                plan.Left.Phase
+                                previousSnapshot.Right.Phase
+                                plan.Right.Phase
+                                plan.LeftOverlay.Active
+                                plan.RightOverlay.Active
+                                previousSnapshot.Acceleration
+                                plan.Acceleration
+                                previousSnapshot.Lean
+                                plan.Lean
+
+                for chain, foot, overlay, residual in
+                    [| rig.LeftLeg, plan.Left, plan.LeftOverlay, leftResidual
+                       rig.RightLeg, plan.Right, plan.RightOverlay, rightResidual |] do
+                    let worldPoint socket =
+                        Vector3.Transform(Vector3.Transform(socket, qualityScratch.World[chain.End]), rotation)
+                        + rootPosition
+
                     if foot.Phase = SupportPhase.Support && not overlay.Active then
                         let speed = Vector2(plan.Root.Velocity.X, plan.Root.Velocity.Y).Length()
-                        let bucket = if speed < 0.1f then 0 elif speed < 2.0f then 1 elif speed < 4.0f then 2 else 3
+
+                        let bucket =
+                            if speed < 0.1f then 0
+                            elif speed < 2.0f then 1
+                            elif speed < 4.0f then 2
+                            else 3
+
                         supportBySpeed[bucket] <- supportBySpeed[bucket] + 1
                         let error = Vector3.Distance(worldPoint chain.Socket, foot.Anchor)
+
                         if error > maxSupportError then
                             maxSupportError <- error
-                            supportContext <- sprintf "tick=%d actor=%d speed=%f foot=%A other=%A anchor=%A root=%A residual=%A" tick (actor + 1) speed foot.Phase (if chain.Upper = rig.LeftLeg.Upper then plan.Right.Phase else plan.Left.Phase) foot.Anchor plan.Root.Position residual
+
+                            supportContext <-
+                                sprintf
+                                    "tick=%d actor=%d speed=%f foot=%A other=%A anchor=%A root=%A residual=%A"
+                                    tick
+                                    (actor + 1)
+                                    speed
+                                    foot.Phase
+                                    (if chain.Upper = rig.LeftLeg.Upper then
+                                         plan.Right.Phase
+                                     else
+                                         plan.Left.Phase)
+                                    foot.Anchor
+                                    plan.Root.Position
+                                    residual
+
                         supportSamples <- supportSamples + 1
+
                         if residual.IsSome then
                             unreachableSupports <- unreachableSupports + 1
                             unreachableBySpeed[bucket] <- unreachableBySpeed[bucket] + 1
-                        else maxReachableSupportError <- max maxReachableSupportError error
+                        else
+                            maxReachableSupportError <- max maxReachableSupportError error
+
                     if overlay.Active && abs (float32 tick - overlay.Preparation.Finish) < 0.0001f then
-                        let error = Vector3.Distance(worldPoint chain.BallSocket, overlay.Preparation.Target)
+                        let error =
+                            Vector3.Distance(worldPoint chain.BallSocket, overlay.Preparation.Target)
+
                         maxContactError <- max maxContactError error
                         contactSamples <- contactSamples + 1
+
                 for vertex in soles do
                     let joints, weights = vertex.Joints, vertex.Weights
+
                     let position =
                         Vector3.Transform(vertex.Position, qualityPalette[int joints.X]) * weights.X
                         + Vector3.Transform(vertex.Position, qualityPalette[int joints.Y]) * weights.Y
                         + Vector3.Transform(vertex.Position, qualityPalette[int joints.Z]) * weights.Z
                         + Vector3.Transform(vertex.Position, qualityPalette[int joints.W]) * weights.W
+
                     let penetration = max 0.0f -position.Y
+
                     if penetration > maxPenetration then
                         maxPenetration <- penetration
                         penetrationTick <- tick
                         penetrationActor <- actor + 1
-                        penetrationContext <- sprintf "vertex=%A posed=%A left=%A right=%A leftTask=%b rightTask=%b root=%A residuals=%A/%A" vertex.Position position plan.Left.Phase plan.Right.Phase plan.LeftOverlay.Active plan.RightOverlay.Active plan.Root.Position leftResidual rightResidual
+
+                        penetrationContext <-
+                            sprintf
+                                "vertex=%A posed=%A left=%A right=%A leftTask=%b rightTask=%b root=%A residuals=%A/%A"
+                                vertex.Position
+                                position
+                                plan.Left.Phase
+                                plan.Right.Phase
+                                plan.LeftOverlay.Active
+                                plan.RightOverlay.Active
+                                plan.Root.Position
+                                leftResidual
+                                rightResidual
+
                 for matrix in qualityPalette do
-                    if not (Single.IsFinite matrix.M11 && Single.IsFinite matrix.M22 && Single.IsFinite matrix.M33 && Single.IsFinite matrix.M41 && Single.IsFinite matrix.M42 && Single.IsFinite matrix.M43) then
+                    if
+                        not (
+                            Single.IsFinite matrix.M11
+                            && Single.IsFinite matrix.M22
+                            && Single.IsFinite matrix.M33
+                            && Single.IsFinite matrix.M41
+                            && Single.IsFinite matrix.M42
+                            && Single.IsFinite matrix.M43
+                        )
+                    then
                         nonfiniteMatrices <- nonfiniteMatrices + 1
 
         let report =
@@ -303,7 +439,8 @@ module ProceduralMotionBench =
                Cpu =
                 File.ReadLines("/proc/cpuinfo")
                 |> Seq.find (fun line -> line.StartsWith("model name"))
-               Configuration = "Release, 22 kinematically integrated synthetic roots with prepared and confirmed foot tasks; CPU only"
+               Configuration =
+                "Release, 22 kinematically integrated synthetic roots with prepared and confirmed foot tasks; CPU only"
                Actors = 22
                JointsPerActor = rig.JointNodes.Length
                WarmupBoundaries = 257
@@ -317,12 +454,23 @@ module ProceduralMotionBench =
                Ingest = ingest
                Pose = pose
                EndToEnd = endToEnd
-               Quality = {| SupportSamples = supportSamples; UnreachableSupports = unreachableSupports
-                            MaxSupportErrorMetres = maxSupportError; SupportContext = supportContext; MaxReachableSupportErrorMetres = maxReachableSupportError
-                            MaxSolePenetrationMetres = maxPenetration; MaxBoundaryAnkleJumpMetres = maxBoundaryAnkleJump; BoundaryContext = boundaryContext
-                            PenetrationTick = penetrationTick; PenetrationActor = penetrationActor; PenetrationContext = penetrationContext
-                            ContactSamples = contactSamples; MaxContactErrorMetres = maxContactError; NonfiniteMatrices = nonfiniteMatrices
-                            SupportBySpeed = supportBySpeed; UnreachableBySpeed = unreachableBySpeed |}
+               Quality =
+                {| SupportSamples = supportSamples
+                   UnreachableSupports = unreachableSupports
+                   MaxSupportErrorMetres = maxSupportError
+                   SupportContext = supportContext
+                   MaxReachableSupportErrorMetres = maxReachableSupportError
+                   MaxSolePenetrationMetres = maxPenetration
+                   MaxBoundaryAnkleJumpMetres = maxBoundaryAnkleJump
+                   BoundaryContext = boundaryContext
+                   PenetrationTick = penetrationTick
+                   PenetrationActor = penetrationActor
+                   PenetrationContext = penetrationContext
+                   ContactSamples = contactSamples
+                   MaxContactErrorMetres = maxContactError
+                   NonfiniteMatrices = nonfiniteMatrices
+                   SupportBySpeed = supportBySpeed
+                   UnreachableBySpeed = unreachableBySpeed |}
                Seek127Boundaries = seek |}
 
         let json =

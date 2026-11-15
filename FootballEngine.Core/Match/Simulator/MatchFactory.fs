@@ -145,8 +145,17 @@ module MatchFactory =
           Participation = participation
           Proposals = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
           PendingActions = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
-          Latched = { OurPhase = PhaseKind.Defending; InTransition = false; PendingSlots = 0UL }
-          Attack = CollectiveAttackState.create (if side = ClubSide.Home then ctx.HomeClub.AttackPrior else ctx.AwayClub.AttackPrior)
+          Latched =
+            { OurPhase = PhaseKind.Defending
+              InTransition = false
+              PendingSlots = 0UL }
+          Attack =
+            CollectiveAttackState.create (
+                if side = ClubSide.Home then
+                    ctx.HomeClub.AttackPrior
+                else
+                    ctx.AwayClub.AttackPrior
+            )
           LastCarrierSlot = -1
           LastRoleAssignmentTick = -1<subtick>
           Dive = ValueNone

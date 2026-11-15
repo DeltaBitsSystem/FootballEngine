@@ -9,7 +9,10 @@ open FootballEngine.Core.Tests.Infrastructure
 /// is nothing. A slide buys reach by putting the tackler on the ground.
 module TackleFoulTests =
     let private ctx = TestBuilders.formationCtx ()
-    let private system = { Ctx = ctx; Clock = SimulationClock.defaultClock }
+
+    let private system =
+        { Ctx = ctx
+          Clock = SimulationClock.defaultClock }
 
     let private buffer () : EventBuffer =
         { Events = ResizeArray()
@@ -18,7 +21,12 @@ module TackleFoulTests =
 
     /// Home slot 5 carries at the origin; away slot 5 challenges from +x. Everyone else is far away, and the ball is
     /// placed ahead of the carrier where no boot can reach it.
-    let private duelWorld (tacklerX: float32) (closingSpeed: float32) (phase: ContactActionPhase) (kind: ContactActionKind) =
+    let private duelWorld
+        (tacklerX: float32)
+        (closingSpeed: float32)
+        (phase: ContactActionPhase)
+        (kind: ContactActionKind)
+        =
         let world = MatchFactory.create ctx
 
         for side in [ ClubSide.Home; ClubSide.Away ] do
@@ -44,7 +52,9 @@ module TackleFoulTests =
                 Flow = MatchFlow.Live
                 Ball =
                     { TestBuilders.emptyBall with
-                        Position = { TestBuilders.emptyBall.Position with X = -6.0<meter> }
+                        Position =
+                            { TestBuilders.emptyBall.Position with
+                                X = -6.0<meter> }
                         Control = BallControl.Controlled(ClubSide.Home, carrier) } }
 
         away.ContactActions[5] <-
@@ -93,7 +103,13 @@ module TackleFoulTests =
             "TackleFoul"
             [ testCase "a tackle that meets the legs without the ball is a foul even at walking speed" (fun _ ->
                   // 1 m/s closing is below the careless body-charge speed: only the trip rule can whistle this.
-                  let world = duelWorld 0.75f 1.0f ContactActionPhase.ContactActionCommitted ContactActionKind.ContactStandingTackle
+                  let world =
+                      duelWorld
+                          0.75f
+                          1.0f
+                          ContactActionPhase.ContactActionCommitted
+                          ContactActionKind.ContactStandingTackle
+
                   let events = run world
 
                   match legContact events with
@@ -110,11 +126,18 @@ module TackleFoulTests =
                       "a slow trip is a careless foul by the tackler"
 
                   match world.Away.Frame.ContactActions[5] with
-                  | Some action -> Expect.equal action.Phase ContactActionPhase.ContactActionRecovering "the boot is spent"
+                  | Some action ->
+                      Expect.equal action.Phase ContactActionPhase.ContactActionRecovering "the boot is spent"
                   | None -> failtest "the spent challenge must still be recovering")
 
               testCase "the same leg contact after playing the ball is a fair challenge" (fun _ ->
-                  let world = duelWorld 0.75f 1.0f ContactActionPhase.ContactActionCompleted ContactActionKind.ContactStandingTackle
+                  let world =
+                      duelWorld
+                          0.75f
+                          1.0f
+                          ContactActionPhase.ContactActionCompleted
+                          ContactActionKind.ContactStandingTackle
+
                   let events = run world
 
                   Expect.isSome (legContact events) "the follow-through still meets the legs"
@@ -122,7 +145,14 @@ module TackleFoulTests =
 
               testCase "a dangerous follow-through after the ball is still a foul" (fun _ ->
                   let speed = float32 ctx.Config.ContactAction.DangerousBallFirstSpeed + 1.0f
-                  let world = duelWorld 0.75f speed ContactActionPhase.ContactActionCompleted ContactActionKind.ContactStandingTackle
+
+                  let world =
+                      duelWorld
+                          0.75f
+                          speed
+                          ContactActionPhase.ContactActionCompleted
+                          ContactActionKind.ContactStandingTackle
+
                   let events = run world
 
                   match fouls events with
@@ -133,7 +163,13 @@ module TackleFoulTests =
 
               testCase "a boot that stays clear of the legs is neither a contact nor a foul" (fun _ ->
                   // Negative control: same challenge, launched from beyond any reach and not closing.
-                  let world = duelWorld 3.0f 0.0f ContactActionPhase.ContactActionCommitted ContactActionKind.ContactStandingTackle
+                  let world =
+                      duelWorld
+                          3.0f
+                          0.0f
+                          ContactActionPhase.ContactActionCommitted
+                          ContactActionKind.ContactStandingTackle
+
                   let events = run world
 
                   Expect.isNone (legContact events) "no leg within reach"
@@ -141,10 +177,22 @@ module TackleFoulTests =
 
               testCase "a sliding tackle reaches further than a standing one and puts the tackler down" (fun _ ->
                   // 1.3 m is beyond a standing lunge but inside a slide's reach.
-                  let standing = duelWorld 1.3f 1.0f ContactActionPhase.ContactActionCommitted ContactActionKind.ContactStandingTackle
+                  let standing =
+                      duelWorld
+                          1.3f
+                          1.0f
+                          ContactActionPhase.ContactActionCommitted
+                          ContactActionKind.ContactStandingTackle
+
                   Expect.isNone (legContact (run standing)) "a standing boot cannot reach 1.3 m"
 
-                  let world = duelWorld 1.3f 1.0f ContactActionPhase.ContactActionPreparing ContactActionKind.ContactSlidingTackle
+                  let world =
+                      duelWorld
+                          1.3f
+                          1.0f
+                          ContactActionPhase.ContactActionPreparing
+                          ContactActionKind.ContactSlidingTackle
+
                   let events = run world
 
                   Expect.equal
@@ -216,6 +264,17 @@ module TackleFoulTests =
 
                   let ball = world.State.Ball
                   let radius = float ball.Radius
-                  Expect.floatClose Accuracy.medium (float ball.Spin.X) (-float ball.Position.Vy / radius) "rolls about x"
-                  Expect.floatClose Accuracy.medium (float ball.Spin.Y) (float ball.Position.Vx / radius) "rolls about y"
+
+                  Expect.floatClose
+                      Accuracy.medium
+                      (float ball.Spin.X)
+                      (-float ball.Position.Vy / radius)
+                      "rolls about x"
+
+                  Expect.floatClose
+                      Accuracy.medium
+                      (float ball.Spin.Y)
+                      (float ball.Position.Vx / radius)
+                      "rolls about y"
+
                   Expect.floatClose Accuracy.medium (float ball.Spin.Z) 0.0 "no spin about the vertical survives") ]

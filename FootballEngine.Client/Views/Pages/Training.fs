@@ -271,7 +271,10 @@ module Training =
                                     StackPanel.verticalAlignment VerticalAlignment.Center
                                     StackPanel.children
                                         [ TextBlock.create
-                                              [ TextBlock.text ((Localization.resolve TranslationKey.TrainingEmphasis []).ToUpperInvariant())
+                                              [ TextBlock.text (
+                                                    (Localization.resolve TranslationKey.TrainingEmphasis [])
+                                                        .ToUpperInvariant()
+                                                )
                                                 TextBlock.fontSize 14.0
                                                 TextBlock.fontWeight FontWeight.Bold
                                                 TextBlock.foreground Theme.TextMain
@@ -737,7 +740,10 @@ module Training =
                                             [ StackPanel.spacing 10.0
                                               StackPanel.children
                                                   [ TextBlock.create
-                                                        [ TextBlock.text ((Localization.resolve TranslationKey.TrainingThisWeek []).ToUpperInvariant())
+                                                        [ TextBlock.text (
+                                                              (Localization.resolve TranslationKey.TrainingThisWeek [])
+                                                                  .ToUpperInvariant()
+                                                          )
                                                           TextBlock.fontSize 12.0
                                                           TextBlock.fontWeight FontWeight.Black
                                                           TextBlock.foreground Theme.TextDim ]

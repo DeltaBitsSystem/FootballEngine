@@ -118,7 +118,12 @@ module Tactics =
                       Secondary = "#33FFFFFF"
                       Pattern = Plain }
 
-            UI.shirt kit jerseyNumber 58.0 (if isSelected then Theme.Accent else "#0A1020") (if isSelected then 3.0 else 1.5)
+            UI.shirt
+                kit
+                jerseyNumber
+                58.0
+                (if isSelected then Theme.Accent else "#0A1020")
+                (if isSelected then 3.0 else 1.5)
 
         // Name
         let nameLabel =
@@ -279,8 +284,7 @@ module Tactics =
                   StackPanel.create
                       [ StackPanel.orientation Orientation.Horizontal
                         StackPanel.spacing 8.0
-                        StackPanel.children
-                            [ Icons.icon icon 18.0 color; UI.display label 22.0 Theme.TextMain ] ]
+                        StackPanel.children [ Icons.icon icon 18.0 color; UI.display label 22.0 Theme.TextMain ] ]
               ) ]
         :> IView
 
@@ -289,8 +293,12 @@ module Tactics =
     /// "F4231" reads as "4-2-3-1": the shape a manager says out loud.
     let private formationLabel (formation: Formation) =
         let raw = (sprintf "%A" formation).TrimStart('F')
-        let digits = raw |> Seq.takeWhile System.Char.IsDigit |> Seq.map string |> String.concat "-"
-        let suffix = raw |> Seq.skipWhile System.Char.IsDigit |> Seq.toArray |> System.String
+
+        let digits =
+            raw |> Seq.takeWhile System.Char.IsDigit |> Seq.map string |> String.concat "-"
+
+        let suffix =
+            raw |> Seq.skipWhile System.Char.IsDigit |> Seq.toArray |> System.String
 
         if suffix = "" then digits else $"{digits} {suffix}"
 
@@ -348,7 +356,10 @@ module Tactics =
                                                   [ DockPanel.dock Dock.Right
                                                     Button.content (
                                                         Localization.resolve
-                                                            (if changed then TranslationKey.TacticsApply else TranslationKey.TacticsActive)
+                                                            (if changed then
+                                                                 TranslationKey.TacticsApply
+                                                             else
+                                                                 TranslationKey.TacticsActive)
                                                             []
                                                     )
                                                     Button.isEnabled changed
@@ -379,17 +390,27 @@ module Tactics =
                                         TextBlock.foreground Theme.TextDim
                                         TextBlock.textWrapping TextWrapping.Wrap ]
                                   TextBlock.create
-                                      [ TextBlock.text (Localization.resolve TranslationKey.PlaybookEffects [ "text", effectsText ])
+                                      [ TextBlock.text (
+                                            Localization.resolve TranslationKey.PlaybookEffects [ "text", effectsText ]
+                                        )
                                         TextBlock.fontSize 9.0
                                         TextBlock.foreground Theme.Success
                                         TextBlock.textWrapping TextWrapping.Wrap ]
                                   TextBlock.create
-                                      [ TextBlock.text (Localization.resolve TranslationKey.PlaybookCommitments [ "text", commitmentsText ])
+                                      [ TextBlock.text (
+                                            Localization.resolve
+                                                TranslationKey.PlaybookCommitments
+                                                [ "text", commitmentsText ]
+                                        )
                                         TextBlock.fontSize 9.0
                                         TextBlock.foreground Theme.Warning
                                         TextBlock.textWrapping TextWrapping.Wrap ]
                                   TextBlock.create
-                                      [ TextBlock.text (Localization.resolve TranslationKey.PlaybookBasis [ "text", playbook.RecommendationBasis ])
+                                      [ TextBlock.text (
+                                            Localization.resolve
+                                                TranslationKey.PlaybookBasis
+                                                [ "text", playbook.RecommendationBasis ]
+                                        )
                                         TextBlock.fontSize 9.0
                                         TextBlock.foreground Theme.TextMuted
                                         TextBlock.textWrapping TextWrapping.Wrap ] ] ]
@@ -465,7 +486,9 @@ module Tactics =
                                       TextBlock.fontSize 14.0
                                       TextBlock.fontWeight FontWeight.SemiBold
                                       TextBlock.foreground Theme.TextMain ] ] ]
-                    Grid.create [ Grid.columnDefinitions "*, *, *, *, *"; Grid.children [ for level in 0..4 -> step level ] ]
+                    Grid.create
+                        [ Grid.columnDefinitions "*, *, *, *, *"
+                          Grid.children [ for level in 0..4 -> step level ] ]
                     if desc <> "" then
                         TextBlock.create
                             [ TextBlock.text desc
@@ -475,12 +498,18 @@ module Tactics =
 
     /// Names the idea behind the five dials, the way a commentator would.
     let private styleName (i: TacticalInstructions) =
-        if i.PressingIntensity >= 3 && i.DefensiveLine >= 3 then TranslationKey.StyleTotalPress
-        elif i.PressingIntensity >= 3 && i.Tempo >= 3 then TranslationKey.StyleHuntBall
-        elif i.Mentality <= 1 && i.DefensiveLine <= 1 then TranslationKey.StyleLowBlock
-        elif i.Tempo <= 1 then TranslationKey.StylePatient
-        elif i.Width >= 3 then TranslationKey.StyleWideGame
-        else TranslationKey.StyleBalanced
+        if i.PressingIntensity >= 3 && i.DefensiveLine >= 3 then
+            TranslationKey.StyleTotalPress
+        elif i.PressingIntensity >= 3 && i.Tempo >= 3 then
+            TranslationKey.StyleHuntBall
+        elif i.Mentality <= 1 && i.DefensiveLine <= 1 then
+            TranslationKey.StyleLowBlock
+        elif i.Tempo <= 1 then
+            TranslationKey.StylePatient
+        elif i.Width >= 3 then
+            TranslationKey.StyleWideGame
+        else
+            TranslationKey.StyleBalanced
 
     let private instructionsPanel (currentLineup: Lineup option) dispatch =
         let instructions =
@@ -503,12 +532,17 @@ module Tactics =
                               Border.padding (12.0, 5.0)
                               Border.child (
                                   TextBlock.create
-                                      [ TextBlock.text ((Localization.resolve (styleName instructions) []).ToUpperInvariant())
+                                      [ TextBlock.text (
+                                            (Localization.resolve (styleName instructions) []).ToUpperInvariant()
+                                        )
                                         TextBlock.fontSize 13.0
                                         TextBlock.fontWeight FontWeight.Bold
                                         TextBlock.foreground Theme.Accent ]
                               ) ]
-                        sectionHeader IconName.tactics Theme.Accent (Localization.resolve TranslationKey.TacticsHowWePlay []) ] ]
+                        sectionHeader
+                            IconName.tactics
+                            Theme.Accent
+                            (Localization.resolve TranslationKey.TacticsHowWePlay []) ] ]
             :> IView
 
         let body =
@@ -599,11 +633,7 @@ module Tactics =
                 let theirsText = sprintf "%.1f" theirs
                 $"{last p.Name} looks off at {role} ({mineText}★)", $"Try {last q.Name} ({theirsText}★)")
 
-    let private selectionInfoRow
-        (p: Player)
-        (slotRole: Position option)
-        (dispatch: AppMsgs.Msg -> unit)
-        =
+    let private selectionInfoRow (p: Player) (slotRole: Position option) (dispatch: AppMsgs.Msg -> unit) =
         let col = Theme.positionColor p.Position
         let fitCol = PlayerPresenter.fitnessColor p.MatchFitness
 
@@ -744,7 +774,10 @@ module Tactics =
                             StackPanel.spacing 10.0
                             StackPanel.children
                                 [ Icons.icon IconName.squad 18.0 Theme.Accent
-                                  UI.display (Localization.resolve TranslationKey.TacticsSelection []) 22.0 Theme.TextMain
+                                  UI.display
+                                      (Localization.resolve TranslationKey.TacticsSelection [])
+                                      22.0
+                                      Theme.TextMain
                                   UI.countBadge (starterIds.Count + benchPlayers.Length) ] ]
                   ) ]
 
@@ -760,26 +793,34 @@ module Tactics =
                             Grid.children
                                 [ TextBlock.create
                                       [ Grid.column 0
-                                        TextBlock.text ((Localization.resolve TranslationKey.ColPosition []).ToUpperInvariant())
+                                        TextBlock.text (
+                                            (Localization.resolve TranslationKey.ColPosition []).ToUpperInvariant()
+                                        )
                                         TextBlock.fontSize 8.0
                                         TextBlock.fontWeight FontWeight.Black
                                         TextBlock.foreground Theme.TextDim ]
                                   TextBlock.create
                                       [ Grid.column 1
-                                        TextBlock.text ((Localization.resolve TranslationKey.ColPlayer []).ToUpperInvariant())
+                                        TextBlock.text (
+                                            (Localization.resolve TranslationKey.ColPlayer []).ToUpperInvariant()
+                                        )
                                         TextBlock.fontSize 8.0
                                         TextBlock.fontWeight FontWeight.Black
                                         TextBlock.foreground Theme.TextDim ]
                                   TextBlock.create
                                       [ Grid.column 2
-                                        TextBlock.text ((Localization.resolve TranslationKey.ColSuitability []).ToUpperInvariant())
+                                        TextBlock.text (
+                                            (Localization.resolve TranslationKey.ColSuitability []).ToUpperInvariant()
+                                        )
                                         TextBlock.fontSize 8.0
                                         TextBlock.fontWeight FontWeight.Black
                                         TextBlock.foreground Theme.TextDim
                                         TextBlock.margin (6.0, 0.0) ]
                                   TextBlock.create
                                       [ Grid.column 3
-                                        TextBlock.text ((Localization.resolve TranslationKey.ColFitness []).ToUpperInvariant())
+                                        TextBlock.text (
+                                            (Localization.resolve TranslationKey.ColFitness []).ToUpperInvariant()
+                                        )
                                         TextBlock.fontSize 8.0
                                         TextBlock.fontWeight FontWeight.Black
                                         TextBlock.foreground Theme.TextDim ] ] ]
@@ -875,7 +916,10 @@ module Tactics =
                                     StackPanel.margin (0.0, 0.0, 8.0, 0.0)
                                     StackPanel.children
                                         [ TextBlock.create
-                                              [ TextBlock.text ((Localization.resolve TranslationKey.Substitutes []).ToUpperInvariant())
+                                              [ TextBlock.text (
+                                                    (Localization.resolve TranslationKey.Substitutes [])
+                                                        .ToUpperInvariant()
+                                                )
                                                 TextBlock.fontSize 13.0
                                                 TextBlock.fontWeight FontWeight.Bold
                                                 TextBlock.foreground Theme.TextMain ]

@@ -5,14 +5,32 @@ open System.Numerics
 
 module BodyPose =
     /// Gaze is layered on whatever body pose is underneath: the neck takes its share, the head the remainder.
-    let applyGaze (config: AnimationConfig) (rig: RigDefinition) (plan: ActorPlan) (torsoYaw: float32) (leanPitch: float32) (local: RigLocalPose[]) =
+    let applyGaze
+        (config: AnimationConfig)
+        (rig: RigDefinition)
+        (plan: ActorPlan)
+        (torsoYaw: float32)
+        (leanPitch: float32)
+        (local: RigLocalPose[])
+        =
         let yaw = Math.Clamp(plan.Gaze.X - torsoYaw, -config.MaxGazeYaw, config.MaxGazeYaw)
-        let pitch = Math.Clamp(plan.Gaze.Y - leanPitch, -config.MaxGazePitch, config.MaxGazePitch)
-        let neckYaw = Math.Clamp(yaw * config.NeckShare, -config.MaxNeckYaw, config.MaxNeckYaw)
-        let neckPitch = Math.Clamp(pitch * config.NeckShare, -config.MaxNeckPitch, config.MaxNeckPitch)
+
+        let pitch =
+            Math.Clamp(plan.Gaze.Y - leanPitch, -config.MaxGazePitch, config.MaxGazePitch)
+
+        let neckYaw =
+            Math.Clamp(yaw * config.NeckShare, -config.MaxNeckYaw, config.MaxNeckYaw)
+
+        let neckPitch =
+            Math.Clamp(pitch * config.NeckShare, -config.MaxNeckPitch, config.MaxNeckPitch)
+
         let neck = local[rig.Neck]
+
         local[rig.Neck] <-
-            { neck with Rotation = Quaternion.Normalize(neck.Rotation * Quaternion.CreateFromYawPitchRoll(neckYaw, neckPitch, 0.0f)) }
+            { neck with
+                Rotation =
+                    Quaternion.Normalize(neck.Rotation * Quaternion.CreateFromYawPitchRoll(neckYaw, neckPitch, 0.0f)) }
+
         let head = local[rig.Head]
 
         local[rig.Head] <-

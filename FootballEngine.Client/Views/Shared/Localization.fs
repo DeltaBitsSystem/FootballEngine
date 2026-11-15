@@ -484,13 +484,19 @@ module Localization =
           TranslationKey.NewsFilterLeague, "Mi liga", "My league"
           TranslationKey.NewsFilterWorld, "Mundo", "World"
           TranslationKey.NewsFilterAll, "Todo", "All"
-          TranslationKey.NewsSubtitle, "Lo que se cuenta en el club, en tu liga y en el resto del mundo.", "What is being said at your club, in your league and around the world."
+          TranslationKey.NewsSubtitle,
+          "Lo que se cuenta en el club, en tu liga y en el resto del mundo.",
+          "What is being said at your club, in your league and around the world."
           TranslationKey.NewsEmptyTitle, "Todavía no hay noticias", "No news yet"
-          TranslationKey.NewsEmptySub, "Cuando pasen cosas (goleadas, rachas, despidos, fichajes) las vas a ver acá.", "When things happen (big wins, streaks, sackings, transfers) they will show up here."
+          TranslationKey.NewsEmptySub,
+          "Cuando pasen cosas (goleadas, rachas, despidos, fichajes) las vas a ver acá.",
+          "When things happen (big wins, streaks, sackings, transfers) they will show up here."
           TranslationKey.WorldAroundTitle, "Lo que pasa en el mundo", "Around the world"
           TranslationKey.WorldAroundSeeAll, "Ver todas las noticias", "See all news"
           TranslationKey.WorldAroundQuiet, "Sin novedades por ahora.", "Nothing to report yet."
-          TranslationKey.BoardSubtitle, "Cómo te ve la directiva y cómo se siente la hinchada con tu gestión.", "How the board sees you and how supporters feel about your work."
+          TranslationKey.BoardSubtitle,
+          "Cómo te ve la directiva y cómo se siente la hinchada con tu gestión.",
+          "How the board sees you and how supporters feel about your work."
           TranslationKey.BoardConfidenceTitle, "Confianza de la directiva", "Board confidence"
           TranslationKey.BoardFansTitle, "Humor de la hinchada", "Supporters' mood"
           TranslationKey.BoardZoneSafe, "Respaldo firme", "Firm backing"
@@ -502,9 +508,13 @@ module Localization =
           TranslationKey.FansBandEuphoric, "Eufórica", "Euphoric"
           TranslationKey.BoardObjectiveTitle, "Objetivo de la temporada", "Season objective"
           TranslationKey.BoardRecentForm, "Últimos resultados", "Recent results"
-          TranslationKey.BoardNoResults, "Todavía no jugaste partidos esta temporada.", "No matches played yet this season."
+          TranslationKey.BoardNoResults,
+          "Todavía no jugaste partidos esta temporada.",
+          "No matches played yet this season."
           TranslationKey.BoardPressureNews, "Novedades de presión", "Pressure news"
-          TranslationKey.BoardNoPressure, "La directiva y la hinchada no dijeron nada por ahora.", "The board and supporters have said nothing so far."
+          TranslationKey.BoardNoPressure,
+          "La directiva y la hinchada no dijeron nada por ahora.",
+          "The board and supporters have said nothing so far."
           TranslationKey.ResultLetterWin, "G", "W"
           TranslationKey.ResultLetterDraw, "E", "D"
           TranslationKey.ResultLetterLoss, "P", "L"
@@ -519,12 +529,20 @@ module Localization =
           TranslationKey.ObjectivePromotion, "Conseguir el ascenso", "Win promotion"
           TranslationKey.ObjectiveRelegation, "Evitar el descenso de categoría", "Avoid dropping a division"
           TranslationKey.JobsTitle, "Sin club", "Out of work"
-          TranslationKey.JobsSubtitle, "{club} prescindió de tus servicios. Las directivas en crisis buscan técnico: elegí tu próximo desafío.", "{club} has dispensed with your services. Boards in crisis are looking for a manager: choose your next challenge."
+          TranslationKey.JobsSubtitle,
+          "{club} prescindió de tus servicios. Las directivas en crisis buscan técnico: elegí tu próximo desafío.",
+          "{club} has dispensed with your services. Boards in crisis are looking for a manager: choose your next challenge."
           TranslationKey.JobsOffersTitle, "Ofertas de trabajo", "Job offers"
           TranslationKey.JobsNoOffersTitle, "Todavía nadie llamó", "No calls yet"
-          TranslationKey.JobsNoOffersSub, "Seguí avanzando: cada semana los clubes en crisis revisan el mercado de técnicos.", "Keep advancing: every week clubs in crisis look at the managers available."
-          TranslationKey.JobsBoardMood, "Confianza de su directiva en el técnico actual: {value}", "Their board's confidence in the current manager: {value}"
-          TranslationKey.JobsTerms, "{salary} por año · contrato de {years} años", "{salary} a year · {years}-year contract"
+          TranslationKey.JobsNoOffersSub,
+          "Seguí avanzando: cada semana los clubes en crisis revisan el mercado de técnicos.",
+          "Keep advancing: every week clubs in crisis look at the managers available."
+          TranslationKey.JobsBoardMood,
+          "Confianza de su directiva en el técnico actual: {value}",
+          "Their board's confidence in the current manager: {value}"
+          TranslationKey.JobsTerms,
+          "{salary} por año · contrato de {years} años",
+          "{salary} a year · {years}-year contract"
           TranslationKey.JobsExpires, "La oferta vence en {days} días", "The offer expires in {days} days"
           TranslationKey.JobsAccept, "Aceptar", "Accept"
           TranslationKey.JobsDecline, "Rechazar", "Decline"
@@ -538,9 +556,13 @@ module Localization =
           TranslationKey.NoClub, "Sin club", "No club"
           TranslationKey.FormerClub, "Último club: {club}", "Last club: {club}"
           TranslationKey.JobAcceptedTitle, "Nuevo club: {club}", "New club: {club}"
-          TranslationKey.JobAcceptedBody, "La directiva de {club} te presentó como nuevo técnico. Arranca la luna de miel.", "The {club} board has presented you as the new manager. The honeymoon begins."
+          TranslationKey.JobAcceptedBody,
+          "La directiva de {club} te presentó como nuevo técnico. Arranca la luna de miel.",
+          "The {club} board has presented you as the new manager. The honeymoon begins."
           TranslationKey.TransfersTitle, "Mercado", "Transfers"
-          TranslationKey.TransfersSubtitle, "Buscá, negociá y armá tu plantel", "Recruit, negotiate and build your squad"
+          TranslationKey.TransfersSubtitle,
+          "Buscá, negociá y armá tu plantel",
+          "Recruit, negotiate and build your squad"
           TranslationKey.InboxTitle, "Bandeja", "Inbox"
           TranslationKey.TrainingEmphasis, "Énfasis del equipo", "Team emphasis"
           TranslationKey.TrainingThisWeek, "Esta semana", "This week"
@@ -549,7 +571,9 @@ module Localization =
           TranslationKey.ColStatus, "Estado", "Status"
           TranslationKey.TransfersBudget, "Presupuesto", "Budget"
           TranslationKey.FinanceTitle, "Finanzas", "Finances"
-          TranslationKey.FinanceSubtitle, "Caja, autorizaciones y compromisos confirmados", "Cash, authorisations and confirmed commitments"
+          TranslationKey.FinanceSubtitle,
+          "Caja, autorizaciones y compromisos confirmados",
+          "Cash, authorisations and confirmed commitments"
           TranslationKey.FinanceCash, "Caja", "Cash"
           TranslationKey.FinanceCashSub, "Disponible hoy", "Available today"
           TranslationKey.FinanceTransfers, "Fichajes", "Transfers"
@@ -562,7 +586,9 @@ module Localization =
           TranslationKey.FinanceObligations, "Obligaciones pendientes", "Pending obligations"
           TranslationKey.FinanceDebt, "Deuda", "Debt"
           TranslationKey.FinanceLedger, "Últimas operaciones", "Recent operations"
-          TranslationKey.FinanceLedgerEmpty, "Todavía no hubo movimientos de caja esta temporada.", "No cash movements yet this season."
+          TranslationKey.FinanceLedgerEmpty,
+          "Todavía no hubo movimientos de caja esta temporada.",
+          "No cash movements yet this season."
           TranslationKey.LedgerIncome, "Ingreso", "Income"
           TranslationKey.LedgerExpense, "Egreso", "Expense"
           TranslationKey.LedgerCommitment, "Compromiso", "Commitment"
@@ -641,7 +667,9 @@ module Localization =
           TranslationKey.AttrOneOnOne, "Mano a mano", "One on one"
           TranslationKey.AttrAerialReach, "Juego aéreo", "Aerial reach"
           TranslationKey.SquadTitle, "Plantel", "Squad"
-          TranslationKey.SquadSummary, "{count} jugadores · valor {value} · masa salarial {wages} por semana", "{count} players · value {value} · wage bill {wages} per week"
+          TranslationKey.SquadSummary,
+          "{count} jugadores · valor {value} · masa salarial {wages} por semana",
+          "{count} players · value {value} · wage bill {wages} per week"
           TranslationKey.SortByLine, "Por línea", "By line"
           TranslationKey.SortBySkill, "Nivel", "Level"
           TranslationKey.SortByAge, "Edad", "Age"
@@ -695,9 +723,13 @@ module Localization =
           TranslationKey.VenueAway, "De visitante", "Away"
           TranslationKey.Versus, "vs", "vs"
           TranslationKey.RivalStudiedTitle, "El rival te estudió", "Your rival has studied you"
-          TranslationKey.RivalStudiedBody, "Vio {count} de tus partidos y espera que ataques sobre todo por {corridor}.", "They have watched {count} of your matches and expect you to attack mostly down {corridor}."
+          TranslationKey.RivalStudiedBody,
+          "Vio {count} de tus partidos y espera que ataques sobre todo por {corridor}.",
+          "They have watched {count} of your matches and expect you to attack mostly down {corridor}."
           TranslationKey.RivalUnknownTitle, "El rival todavía no te conoce", "Your rival hasn't studied you yet"
-          TranslationKey.RivalUnknownBody, "Es el primer cruce: no tiene informes de tu equipo.", "First meeting: they have no reports on your side."
+          TranslationKey.RivalUnknownBody,
+          "Es el primer cruce: no tiene informes de tu equipo.",
+          "First meeting: they have no reports on your side."
           TranslationKey.CorridorLeft, "la izquierda", "the left"
           TranslationKey.CorridorCenter, "el centro", "the middle"
           TranslationKey.CorridorRight, "la derecha", "the right"
@@ -709,8 +741,12 @@ module Localization =
           TranslationKey.AdjustTactics, "Ajustar la táctica", "Adjust tactics"
           TranslationKey.InboxImportantTitle, "Bandeja — lo importante", "Inbox — what matters"
           TranslationKey.InboxSeeAll, "Ver los {count} mensajes", "See all {count} messages"
-          TranslationKey.InboxRoutineHint, "Los otros {count} son de rutina: el juego los resume y no hace falta abrirlos.", "The other {count} are routine: the game sums them up, no need to open them."
-          TranslationKey.InboxAllClear, "Nada urgente: la bandeja está al día.", "Nothing urgent: your inbox is up to date."
+          TranslationKey.InboxRoutineHint,
+          "Los otros {count} son de rutina: el juego los resume y no hace falta abrirlos.",
+          "The other {count} are routine: the game sums them up, no need to open them."
+          TranslationKey.InboxAllClear,
+          "Nada urgente: la bandeja está al día.",
+          "Nothing urgent: your inbox is up to date."
           TranslationKey.InboxOpen, "Abrir", "Open"
           TranslationKey.InboxLater, "Después", "Later"
           TranslationKey.CategoryDevelopment, "Desarrollo", "Development"
@@ -790,19 +826,37 @@ module Localization =
           "Registra el resultado antes de guardar la carrera. El partido en curso solo se conserva durante esta sesión.",
           "Record the result before saving the career. The active match is only retained during this session."
           TranslationKey.TransferMarket, "Mercado de fichajes", "Transfer market"
-          TranslationKey.LeaveMatchWarning, "El partido en curso o su resultado pendiente no están guardados. Si sales, perderás este partido; tu último guardado se conserva.", "The active match or its pending result is not saved. Leaving loses this match; your last save is retained."
+          TranslationKey.LeaveMatchWarning,
+          "El partido en curso o su resultado pendiente no están guardados. Si sales, perderás este partido; tu último guardado se conserva.",
+          "The active match or its pending result is not saved. Leaving loses this match; your last save is retained."
           TranslationKey.LeaveMatch, "Salir sin guardar el partido", "Leave without saving the match"
           TranslationKey.KeepPlaying, "Seguir jugando", "Keep playing"
           TranslationKey.MatchEvidence, "Evidencia", "Evidence"
           TranslationKey.MatchChangeQueued, "Enviada", "Sent"
-          TranslationKey.MatchChangeAccepted, "Aceptada; espera el momento de aplicación", "Accepted; waiting for the application point"
-          TranslationKey.MatchChangeApplied, "Aplicada por el motor · revisión {revision}", "Applied by the engine · revision {revision}"
-          TranslationKey.MatchChangeRejected, "No aplicada: {reason}. Revisa el estado y vuelve a intentarlo.", "Not applied: {reason}. Check the current state and try again."
-          TranslationKey.MatchChangeHint, "Aplicada confirma la orden, no su eficacia. Contrasta las jugadas y estadísticas posteriores en Evidencia.", "Applied confirms the instruction, not its effectiveness. Compare later play and statistics in Evidence."
-          TranslationKey.MatchMentalityHint, "Una mentalidad más ofensiva aumenta el riesgo; no garantiza ocasiones ni goles.", "A more attacking mentality increases risk; it does not guarantee chances or goals."
-          TranslationKey.MatchPauseOnLeave, "Vuelve a Hoy y pausa el partido sin descartarlo. Retómalo con Continuar.", "Return home and pause without discarding the match. Resume it with Continue."
-          TranslationKey.MatchSessionHint, "Hay un partido en curso. Se pausa al salir de su pantalla; vuelve al partido para gestionar cambios. Los cambios en Táctica de carrera se usarán en el próximo partido, no en el actual.", "A match is in progress. It pauses when you leave its screen; return to the match to manage changes. Career Tactics edits apply to the next match, not the current one."
-          TranslationKey.AdvanceFailed, "El avance se detuvo. No se aplicó el paso fallido. Puedes volver a intentar desde la fecha actual. Detalle: {error}", "Progress stopped. The failed step was not applied. You can retry from the current date. Detail: {error}" ]
+          TranslationKey.MatchChangeAccepted,
+          "Aceptada; espera el momento de aplicación",
+          "Accepted; waiting for the application point"
+          TranslationKey.MatchChangeApplied,
+          "Aplicada por el motor · revisión {revision}",
+          "Applied by the engine · revision {revision}"
+          TranslationKey.MatchChangeRejected,
+          "No aplicada: {reason}. Revisa el estado y vuelve a intentarlo.",
+          "Not applied: {reason}. Check the current state and try again."
+          TranslationKey.MatchChangeHint,
+          "Aplicada confirma la orden, no su eficacia. Contrasta las jugadas y estadísticas posteriores en Evidencia.",
+          "Applied confirms the instruction, not its effectiveness. Compare later play and statistics in Evidence."
+          TranslationKey.MatchMentalityHint,
+          "Una mentalidad más ofensiva aumenta el riesgo; no garantiza ocasiones ni goles.",
+          "A more attacking mentality increases risk; it does not guarantee chances or goals."
+          TranslationKey.MatchPauseOnLeave,
+          "Vuelve a Hoy y pausa el partido sin descartarlo. Retómalo con Continuar.",
+          "Return home and pause without discarding the match. Resume it with Continue."
+          TranslationKey.MatchSessionHint,
+          "Hay un partido en curso. Se pausa al salir de su pantalla; vuelve al partido para gestionar cambios. Los cambios en Táctica de carrera se usarán en el próximo partido, no en el actual.",
+          "A match is in progress. It pauses when you leave its screen; return to the match to manage changes. Career Tactics edits apply to the next match, not the current one."
+          TranslationKey.AdvanceFailed,
+          "El avance se detuvo. No se aplicó el paso fallido. Puedes volver a intentar desde la fecha actual. Detalle: {error}",
+          "Progress stopped. The failed step was not applied. You can retry from the current date. Detail: {error}" ]
 
     let catalog: TranslationCatalog =
         { Es = entries |> List.map (fun (key, es, _) -> key, es) |> Map.ofList

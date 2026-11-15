@@ -18,11 +18,22 @@ module QuickFit =
                 lineup.Profiles
                 |> Array.map (fun p ->
                     { p with
-                        Pace = s p.Pace; Strength = s p.Strength; Stamina = s p.Stamina; Agility = s p.Agility
-                        Vision = s p.Vision; Passing = s p.Passing; Finishing = s p.Finishing; Crossing = s p.Crossing
-                        Dribbling = s p.Dribbling; Tackling = s p.Tackling; Marking = s p.Marking
-                        Positioning = s p.Positioning; Anticipation = s p.Anticipation; Composure = s p.Composure
-                        Teamwork = s p.Teamwork; DecisionMaking = s p.DecisionMaking }) }
+                        Pace = s p.Pace
+                        Strength = s p.Strength
+                        Stamina = s p.Stamina
+                        Agility = s p.Agility
+                        Vision = s p.Vision
+                        Passing = s p.Passing
+                        Finishing = s p.Finishing
+                        Crossing = s p.Crossing
+                        Dribbling = s p.Dribbling
+                        Tackling = s p.Tackling
+                        Marking = s p.Marking
+                        Positioning = s p.Positioning
+                        Anticipation = s p.Anticipation
+                        Composure = s p.Composure
+                        Teamwork = s p.Teamwork
+                        DecisionMaking = s p.DecisionMaking }) }
 
     /// Real fixtures of a generated world, each played under every shift pair: the generated squads give the
     /// fit real formations and real quality gaps, the shifts widen the gaps beyond one small league's.
@@ -46,19 +57,23 @@ module QuickFit =
                                    HomeLineup = shift h base'.HomeLineup
                                    AwayLineup = shift a base'.AwayLineup }
 
-                           (ctx, (h, a)), seedBase + uint64 (f * 1000003 + k * 7919 + int (h * 13.0f) * 31 + int (a * 17.0f)) |]
+                           (ctx, (h, a)),
+                           seedBase
+                           + uint64 (f * 1000003 + k * 7919 + int (h * 13.0f) * 31 + int (a * 17.0f)) |]
 
     type private Sample =
-        { Gap: float
-          HomeGoals: int
-          AwayGoals: int
-          /// Per side: yellows, reds, fouls, injuries, substitutions.
-          Counts: float[]
-          SubMinutes: int list
-          ScorerRoles: SlotRole list
-          AssistRoles: SlotRole list
-          Assisted: int
-          GoalEvents: int }
+        {
+            Gap: float
+            HomeGoals: int
+            AwayGoals: int
+            /// Per side: yellows, reds, fouls, injuries, substitutions.
+            Counts: float[]
+            SubMinutes: int list
+            ScorerRoles: SlotRole list
+            AssistRoles: SlotRole list
+            Assisted: int
+            GoalEvents: int
+        }
 
     let private roleOf (ctx: MatchContext) (player: PlayerId) =
         Array.append ctx.HomeLineup.Profiles ctx.AwayLineup.Profiles
@@ -119,7 +134,7 @@ module QuickFit =
         let mean = rows |> Array.averageBy fst
         let beta = [| log (max mean 0.1); 0.0; 0.0 |]
 
-        for _ in 1 .. 25 do
+        for _ in 1..25 do
             let gradient = Array.zeroCreate<float> 3
             let hessian = Array2D.zeroCreate<float> 3 3
 
@@ -144,7 +159,7 @@ module QuickFit =
 
             let step = Array.zeroCreate<float> 3
 
-            for r in 2 .. -1 .. 0 do
+            for r in 2..-1..0 do
                 let tail = Seq.sum (seq { for k in r + 1 .. 2 -> m[r, k] * step[k] })
                 step[r] <- (m[r, 3] - tail) / m[r, r]
 
@@ -178,15 +193,24 @@ module QuickFit =
                 for p in lineup.Profiles |> Array.truncate lineup.StarterCount do
                     exposed[roleIndex p.Role] <- exposed[roleIndex p.Role] + exposure p
 
-        let raw = Array.init 8 (fun i -> if exposed[i] > 0.0 then found[i] / exposed[i] else 0.0)
+        let raw =
+            Array.init 8 (fun i -> if exposed[i] > 0.0 then found[i] / exposed[i] else 0.0)
+
         let top = max 1e-9 (Array.max raw)
         let w = raw |> Array.map (fun v -> v / top)
 
-        { Keeper = w[0]; CentreBack = w[1]; Fullback = w[2]; Holding = w[3]; Central = w[4]; Playmaker = w[5]
-          Wide = w[6]; Forward = w[7] }
+        { Keeper = w[0]
+          CentreBack = w[1]
+          Fullback = w[2]
+          Holding = w[3]
+          Central = w[4]
+          Playmaker = w[5]
+          Wide = w[6]
+          Forward = w[7] }
 
     let private engine (pairs: ((MatchContext * (float32 * float32)) * uint64)[]) =
-        pairs |> Array.Parallel.map (fun ((ctx, _), seed) -> sample ctx (SimulatorRunner.runContext ctx seed))
+        pairs
+        |> Array.Parallel.map (fun ((ctx, _), seed) -> sample ctx (SimulatorRunner.runContext ctx seed))
 
     let fit (cfg: BalanceConfig) (seedsPerPair: int) : QuickMatchConfig =
         let pairs = contexts cfg seedsPerPair 1UL
@@ -202,10 +226,18 @@ module QuickFit =
                     |> Array.map snd
 
                 if group.Length > 0 then
-                    printfn "  %+5.0f %+5.0f: %.2f - %.2f" h a (group |> Array.averageBy (fun s -> float s.HomeGoals)) (group |> Array.averageBy (fun s -> float s.AwayGoals))
+                    printfn
+                        "  %+5.0f %+5.0f: %.2f - %.2f"
+                        h
+                        a
+                        (group |> Array.averageBy (fun s -> float s.HomeGoals))
+                        (group |> Array.averageBy (fun s -> float s.AwayGoals))
 
         let goals, home, sensitivity = fitRates samples
-        let perTeam index = samples |> Array.averageBy (fun s -> s.Counts[index])
+
+        let perTeam index =
+            samples |> Array.averageBy (fun s -> s.Counts[index])
+
         let ctxs = pairs |> Array.map (fst >> fst)
         let allGoals = samples |> Array.sumBy _.GoalEvents
         let subMinutes = samples |> Array.collect (fun s -> Array.ofList s.SubMinutes)
@@ -215,9 +247,12 @@ module QuickFit =
             HomeAdvantage = home
             StrengthSensitivity = sensitivity
             AssistedShare = float (samples |> Array.sumBy _.Assisted) / float (max 1 allGoals)
-            ScorerByRole = roleWeights ctxs (samples |> Seq.collect _.ScorerRoles |> List.ofSeq) (fun p -> float p.Finishing / 100.0)
+            ScorerByRole =
+                roleWeights ctxs (samples |> Seq.collect _.ScorerRoles |> List.ofSeq) (fun p ->
+                    float p.Finishing / 100.0)
             AssistByRole =
-              roleWeights ctxs (samples |> Seq.collect _.AssistRoles |> List.ofSeq) (fun p -> float (p.Passing + p.Vision) / 200.0)
+                roleWeights ctxs (samples |> Seq.collect _.AssistRoles |> List.ofSeq) (fun p ->
+                    float (p.Passing + p.Vision) / 200.0)
             YellowsPerTeam = perTeam 0
             RedsPerTeam = perTeam 1
             FoulsPerTeam = perTeam 2
@@ -225,15 +260,23 @@ module QuickFit =
             SubstitutionsPerTeam = perTeam 4
             // The quick model draws substitution minutes uniformly from here to 89, so the engine's mean minute fixes it.
             FirstSubstitutionMinute =
-              if subMinutes.Length = 0 then cfg.QuickMatch.FirstSubstitutionMinute
-              else max 1 (min 89 (2 * int (Array.averageBy float subMinutes) - 89)) }
+                if subMinutes.Length = 0 then
+                    cfg.QuickMatch.FirstSubstitutionMinute
+                else
+                    max 1 (min 89 (2 * int (Array.averageBy float subMinutes) - 89)) }
 
     type private Summary =
-        { Goals: float; HomeWins: float; Draws: float; AwayWins: float; Margin: float }
+        { Goals: float
+          HomeWins: float
+          Draws: float
+          AwayWins: float
+          Margin: float }
 
     let private summarize (results: (int * int)[]) =
         let n = float results.Length
-        let count f = float (results |> Array.filter f |> Array.length) / n
+
+        let count f =
+            float (results |> Array.filter f |> Array.length) / n
 
         { Goals = results |> Array.averageBy (fun (h, a) -> float (h + a))
           HomeWins = count (fun (h, a) -> h > a)
@@ -245,7 +288,10 @@ module QuickFit =
     let validate (cfg: BalanceConfig) (seedsPerPair: int) =
         let pairs = contexts cfg seedsPerPair 900001UL
         let samples = engine pairs
-        let quick = pairs |> Array.map (fun ((ctx, _), seed) -> QuickMatch.simulate ctx (seed ^^^ 0x9E3779B97F4A7C15UL))
+
+        let quick =
+            pairs
+            |> Array.map (fun ((ctx, _), seed) -> QuickMatch.simulate ctx (seed ^^^ 0x9E3779B97F4A7C15UL))
 
         printfn "gap     n   | engine goals  H/D/A        margin | quick goals  H/D/A        margin"
 
@@ -260,34 +306,68 @@ module QuickFit =
 
             printfn
                 "%+5.0f %5d   | %5.2f  %3.0f/%3.0f/%3.0f%%  %+5.2f | %5.2f  %3.0f/%3.0f/%3.0f%%  %+5.2f"
-                gap group.Length e.Goals (100.0 * e.HomeWins) (100.0 * e.Draws) (100.0 * e.AwayWins) e.Margin
-                q.Goals (100.0 * q.HomeWins) (100.0 * q.Draws) (100.0 * q.AwayWins) q.Margin
+                gap
+                group.Length
+                e.Goals
+                (100.0 * e.HomeWins)
+                (100.0 * e.Draws)
+                (100.0 * e.AwayWins)
+                e.Margin
+                q.Goals
+                (100.0 * q.HomeWins)
+                (100.0 * q.Draws)
+                (100.0 * q.AwayWins)
+                q.Margin
 
         let e = summarize (samples |> Array.map (fun s -> s.HomeGoals, s.AwayGoals))
         let q = summarize (quick |> Array.map (fun p -> p.HomeScore, p.AwayScore))
-        printfn "all %7d   | %5.2f  %3.0f/%3.0f/%3.0f%%  %+5.2f | %5.2f  %3.0f/%3.0f/%3.0f%%  %+5.2f" samples.Length e.Goals (100.0 * e.HomeWins) (100.0 * e.Draws) (100.0 * e.AwayWins) e.Margin q.Goals (100.0 * q.HomeWins) (100.0 * q.Draws) (100.0 * q.AwayWins) q.Margin
+
+        printfn
+            "all %7d   | %5.2f  %3.0f/%3.0f/%3.0f%%  %+5.2f | %5.2f  %3.0f/%3.0f/%3.0f%%  %+5.2f"
+            samples.Length
+            e.Goals
+            (100.0 * e.HomeWins)
+            (100.0 * e.Draws)
+            (100.0 * e.AwayWins)
+            e.Margin
+            q.Goals
+            (100.0 * q.HomeWins)
+            (100.0 * q.Draws)
+            (100.0 * q.AwayWins)
+            q.Margin
 
         let stopwatch = System.Diagnostics.Stopwatch.StartNew()
         let (ctx, _), seed = pairs[0]
 
-        for k in 1 .. 10000 do
+        for k in 1..10000 do
             QuickMatch.simulate ctx (seed + uint64 k) |> ignore
 
         printfn "quick model: %.1f us per match" (stopwatch.Elapsed.TotalMilliseconds * 1000.0 / 10000.0)
 
     /// Every goal of a few real fixtures with who scored it, from which side and where the ball was.
     let traceGoals (cfg: BalanceConfig) (matches: int) =
-        for ((ctx, _), seed) in contexts cfg 1 77UL |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f)) |> Array.truncate matches do
+        for ((ctx, _), seed) in
+            contexts cfg 1 77UL
+            |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f))
+            |> Array.truncate matches do
             let outcome = SimulatorRunner.runContext ctx seed
+
             let sideOf player =
-                if ctx.HomeLineup.Profiles |> Array.exists (fun p -> p.Id = player) then "home" else "away"
+                if ctx.HomeLineup.Profiles |> Array.exists (fun p -> p.Id = player) then
+                    "home"
+                else
+                    "away"
 
             printfn "match %d: %d - %d" seed outcome.Final.State.HomeScore outcome.Final.State.AwayScore
 
             for event in outcome.Events do
                 match event.Data with
                 | EventData.Goal(side, scorer, _, _) ->
-                    let who = scorer |> Option.map (fun p -> $"{roleOf ctx p} ({sideOf p})") |> Option.defaultValue "none"
+                    let who =
+                        scorer
+                        |> Option.map (fun p -> $"{roleOf ctx p} ({sideOf p})")
+                        |> Option.defaultValue "none"
+
                     printfn "  t=%d goal for %A by %s" (int event.Tick) side who
                 | EventData.RedCardIssued p -> printfn "  t=%d red %s" (int event.Tick) (sideOf p)
                 | _ -> ()
@@ -299,7 +379,9 @@ module QuickFit =
             |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f))
             |> Array.truncate matches
             |> Array.map (fun ((ctx, s), seed) -> (transform ctx, s), seed)
-        let counts = System.Collections.Concurrent.ConcurrentDictionary<string * string, int>()
+
+        let counts =
+            System.Collections.Concurrent.ConcurrentDictionary<string * string, int>()
 
         pairs
         |> Array.Parallel.iter (fun ((ctx, _), seed) ->
@@ -307,7 +389,8 @@ module QuickFit =
             let home = ctx.HomeLineup.Profiles |> Array.map _.Id |> Set.ofArray
 
             for event in outcome.Events do
-                let case, fields = Microsoft.FSharp.Reflection.FSharpValue.GetUnionFields(event.Data, typeof<EventData>)
+                let case, fields =
+                    Microsoft.FSharp.Reflection.FSharpValue.GetUnionFields(event.Data, typeof<EventData>)
 
                 let side =
                     fields
@@ -324,7 +407,11 @@ module QuickFit =
         printfn "%-28s %9s %9s" "per match" "home" "away"
 
         for name in counts.Keys |> Seq.map fst |> Seq.distinct |> Seq.sort do
-            let get s = match counts.TryGetValue((name, s)) with | true, v -> float v / n | _ -> 0.0
+            let get s =
+                match counts.TryGetValue((name, s)) with
+                | true, v -> float v / n
+                | _ -> 0.0
+
             printfn "%-28s %9.2f %9.2f" name (get "home") (get "away")
 
     /// Where each side has the ball and shoots from, in its own attacking direction.
@@ -334,6 +421,7 @@ module QuickFit =
             |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f))
             |> Array.truncate matches
             |> Array.map (fun ((ctx, s), seed) -> (transform ctx, s), seed)
+
         let lockObj = obj ()
         // Per side: ticks controlled in each attacking-depth band (own third, middle, final third), shots, shot distance sum, xG sum.
         let acc = Array2D.zeroCreate<float> 2 6
@@ -347,8 +435,15 @@ module QuickFit =
                 match world.State.Ball.Control with
                 | BallControl.Controlled(side, _) ->
                     let i = if side = ClubSide.Home then 0 else 1
-                    let depth = float world.State.Ball.Position.X * (if side = ClubSide.Home then 1.0 else -1.0)
-                    let band = if depth < -17.5 then 0 elif depth < 17.5 then 1 else 2
+
+                    let depth =
+                        float world.State.Ball.Position.X * (if side = ClubSide.Home then 1.0 else -1.0)
+
+                    let band =
+                        if depth < -17.5 then 0
+                        elif depth < 17.5 then 1
+                        else 2
+
                     local[i, band] <- local[i, band] + 1.0
                 | _ -> ()
 
@@ -370,104 +465,226 @@ module QuickFit =
 
         for i, name in [ 0, "home"; 1, "away" ] do
             let controlled = acc[i, 0] + acc[i, 1] + acc[i, 2]
+
             printfn
                 "%s: control %.0f ticks/match, own/mid/final %.0f/%.0f/%.0f%%, shots %.1f, mean distance %.1f m, xG %.2f"
-                name (controlled / float pairs.Length) (100.0 * acc[i, 0] / controlled) (100.0 * acc[i, 1] / controlled)
-                (100.0 * acc[i, 2] / controlled) (acc[i, 3] / float pairs.Length) (acc[i, 4] / max 1.0 acc[i, 3])
+                name
+                (controlled / float pairs.Length)
+                (100.0 * acc[i, 0] / controlled)
+                (100.0 * acc[i, 1] / controlled)
+                (100.0 * acc[i, 2] / controlled)
+                (acc[i, 3] / float pairs.Length)
+                (acc[i, 4] / max 1.0 acc[i, 3])
                 (acc[i, 5] / float pairs.Length)
 
     /// One lineup lifted and the other lowered by `delta` on every attribute, then the reverse: a quality-blind
     /// engine shows the same score both ways.
     let contrast (cfg: BalanceConfig) (delta: float32) (matches: int) =
-        let fixtures = contexts cfg ((matches + 11) / 12) 4242UL |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f)) |> Array.truncate matches
+        let fixtures =
+            contexts cfg ((matches + 11) / 12) 4242UL
+            |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f))
+            |> Array.truncate matches
 
         let play h a =
             fixtures
             |> Array.Parallel.map (fun ((ctx, _), seed) ->
-                let ctx = { ctx with HomeLineup = shift h ctx.HomeLineup; AwayLineup = shift a ctx.AwayLineup }
+                let ctx =
+                    { ctx with
+                        HomeLineup = shift h ctx.HomeLineup
+                        AwayLineup = shift a ctx.AwayLineup }
+
                 let outcome = SimulatorRunner.runContext ctx seed
-                let shots side = outcome.Events |> List.filter (fun e -> match e.Data with EventData.Shot(p, _, _, _, _, _) -> MatchWorld.sideOfPlayer ctx p = ValueSome side | _ -> false) |> List.length
-                float outcome.Final.State.HomeScore, float outcome.Final.State.AwayScore, float (shots ClubSide.Home), float (shots ClubSide.Away))
+
+                let shots side =
+                    outcome.Events
+                    |> List.filter (fun e ->
+                        match e.Data with
+                        | EventData.Shot(p, _, _, _, _, _) -> MatchWorld.sideOfPlayer ctx p = ValueSome side
+                        | _ -> false)
+                    |> List.length
+
+                float outcome.Final.State.HomeScore,
+                float outcome.Final.State.AwayScore,
+                float (shots ClubSide.Home),
+                float (shots ClubSide.Away))
 
         for h, a in [ delta, -delta; 0.0f, 0.0f; -delta, delta ] do
             let r = play h a
             let mean f = r |> Array.averageBy f
-            printfn "home %+3.0f away %+3.0f: goals %.2f - %.2f, shots %.1f - %.1f" h a (mean (fun (x, _, _, _) -> x)) (mean (fun (_, x, _, _) -> x)) (mean (fun (_, _, x, _) -> x)) (mean (fun (_, _, _, x) -> x))
+
+            printfn
+                "home %+3.0f away %+3.0f: goals %.2f - %.2f, shots %.1f - %.1f"
+                h
+                a
+                (mean (fun (x, _, _, _) -> x))
+                (mean (fun (_, x, _, _) -> x))
+                (mean (fun (_, _, x, _) -> x))
+                (mean (fun (_, _, _, x) -> x))
 
     /// The contrast with only one attribute group moved, to find the group whose effect has the wrong sign.
     let contrastGroups (cfg: BalanceConfig) (delta: float32) (matches: int) =
-        let fixtures = contexts cfg ((matches + 11) / 12) 4242UL |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f)) |> Array.truncate matches
+        let fixtures =
+            contexts cfg ((matches + 11) / 12) 4242UL
+            |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f))
+            |> Array.truncate matches
+
         let s d v = max 5.0f (min 100.0f (v + d))
 
         let groups: (string * (float32 -> PlayerProfile -> PlayerProfile)) list =
-            [ "physical", fun d p -> { p with Pace = s d p.Pace; Strength = s d p.Strength; Stamina = s d p.Stamina; Agility = s d p.Agility }
-              "technical", fun d p -> { p with Passing = s d p.Passing; Finishing = s d p.Finishing; Crossing = s d p.Crossing; Dribbling = s d p.Dribbling; Vision = s d p.Vision }
-              "defending", fun d p -> { p with Tackling = s d p.Tackling; Marking = s d p.Marking; Positioning = s d p.Positioning; Anticipation = s d p.Anticipation }
-              "mental", fun d p -> { p with Composure = s d p.Composure; Teamwork = s d p.Teamwork; DecisionMaking = s d p.DecisionMaking } ]
+            [ "physical",
+              fun d p ->
+                  { p with
+                      Pace = s d p.Pace
+                      Strength = s d p.Strength
+                      Stamina = s d p.Stamina
+                      Agility = s d p.Agility }
+              "technical",
+              fun d p ->
+                  { p with
+                      Passing = s d p.Passing
+                      Finishing = s d p.Finishing
+                      Crossing = s d p.Crossing
+                      Dribbling = s d p.Dribbling
+                      Vision = s d p.Vision }
+              "defending",
+              fun d p ->
+                  { p with
+                      Tackling = s d p.Tackling
+                      Marking = s d p.Marking
+                      Positioning = s d p.Positioning
+                      Anticipation = s d p.Anticipation }
+              "mental",
+              fun d p ->
+                  { p with
+                      Composure = s d p.Composure
+                      Teamwork = s d p.Teamwork
+                      DecisionMaking = s d p.DecisionMaking } ]
 
         for name, f in groups do
             let r =
                 fixtures
                 |> Array.Parallel.map (fun ((ctx, _), seed) ->
-                    let lift d (l: Lineup) = { l with Profiles = l.Profiles |> Array.map (f d) }
-                    let ctx = { ctx with HomeLineup = lift delta ctx.HomeLineup; AwayLineup = lift -delta ctx.AwayLineup }
+                    let lift d (l: Lineup) =
+                        { l with
+                            Profiles = l.Profiles |> Array.map (f d) }
+
+                    let ctx =
+                        { ctx with
+                            HomeLineup = lift delta ctx.HomeLineup
+                            AwayLineup = lift -delta ctx.AwayLineup }
+
                     let outcome = SimulatorRunner.runContext ctx seed
-                    let isHome p = MatchWorld.sideOfPlayer ctx p = ValueSome ClubSide.Home
+
+                    let isHome p =
+                        MatchWorld.sideOfPlayer ctx p = ValueSome ClubSide.Home
                     // Per side: shots, passes, completed passes, passes intercepted, passes from the own third.
                     let c = Array2D.zeroCreate<float> 2 5
-                    let bump p k = let i = if isHome p then 0 else 1 in c[i, k] <- c[i, k] + 1.0
+
+                    let bump p k =
+                        let i = if isHome p then 0 else 1 in c[i, k] <- c[i, k] + 1.0
 
                     for e in outcome.Events do
                         match e.Data with
                         | EventData.Shot(p, _, _, _, _, _) -> bump p 0
                         | EventData.Pass(p, _, _, _, completed, fromX, _, _, _) ->
                             bump p 1
-                            if completed then bump p 2
-                            if float fromX * MatchMath.goalDirection (if isHome p then ClubSide.Home else ClubSide.Away) < -17.5 then bump p 4
+
+                            if completed then
+                                bump p 2
+
+                            if
+                                float fromX
+                                * MatchMath.goalDirection (if isHome p then ClubSide.Home else ClubSide.Away) < -17.5
+                            then
+                                bump p 4
                         | EventData.Interception(_, passer) -> bump passer 3
                         | _ -> ()
 
                     float outcome.Final.State.HomeScore, float outcome.Final.State.AwayScore, c)
 
             let mean f = r |> Array.averageBy f
-            let m i k = mean (fun (_, _, c: float[,]) -> c[i, k])
-            printfn "%-10s stronger home: goals %.2f - %.2f, shots %.1f - %.1f, passes %.0f - %.0f, completed %.0f%% - %.0f%%, intercepted %.1f - %.1f, own third %.0f%% - %.0f%%"
-                name (mean (fun (x, _, _) -> x)) (mean (fun (_, x, _) -> x)) (m 0 0) (m 1 0) (m 0 1) (m 1 1)
-                (100.0 * m 0 2 / m 0 1) (100.0 * m 1 2 / m 1 1) (m 0 3) (m 1 3) (100.0 * m 0 4 / m 0 1) (100.0 * m 1 4 / m 1 1)
+
+            let m i k =
+                mean (fun (_, _, c: float[,]) -> c[i, k])
+
+            printfn
+                "%-10s stronger home: goals %.2f - %.2f, shots %.1f - %.1f, passes %.0f - %.0f, completed %.0f%% - %.0f%%, intercepted %.1f - %.1f, own third %.0f%% - %.0f%%"
+                name
+                (mean (fun (x, _, _) -> x))
+                (mean (fun (_, x, _) -> x))
+                (m 0 0)
+                (m 1 0)
+                (m 0 1)
+                (m 1 1)
+                (100.0 * m 0 2 / m 0 1)
+                (100.0 * m 1 2 / m 1 1)
+                (m 0 3)
+                (m 1 3)
+                (100.0 * m 0 4 / m 0 1)
+                (100.0 * m 1 4 / m 1 1)
 
     let sideCounts cfg matches = sideCountsWith id cfg matches
     let sideFlow cfg matches = sideFlowWith id cfg matches
 
     let private technical (delta: float32) (ctx: MatchContext) =
         let s d v = max 5.0f (min 100.0f (v + d))
+
         let lift d (l: Lineup) =
             { l with
                 Profiles =
                     l.Profiles
                     |> Array.map (fun p ->
-                        { p with Passing = s d p.Passing; Finishing = s d p.Finishing; Crossing = s d p.Crossing; Dribbling = s d p.Dribbling; Vision = s d p.Vision }) }
-        { ctx with HomeLineup = lift delta ctx.HomeLineup; AwayLineup = lift -delta ctx.AwayLineup }
+                        { p with
+                            Passing = s d p.Passing
+                            Finishing = s d p.Finishing
+                            Crossing = s d p.Crossing
+                            Dribbling = s d p.Dribbling
+                            Vision = s d p.Vision }) }
 
-    let technicalFlow cfg delta matches = sideFlowWith (technical delta) cfg matches
+        { ctx with
+            HomeLineup = lift delta ctx.HomeLineup
+            AwayLineup = lift -delta ctx.AwayLineup }
+
+    let technicalFlow cfg delta matches =
+        sideFlowWith (technical delta) cfg matches
 
     /// Event counts with the home side's technique lifted and the away side's lowered.
     let technicalCounts (cfg: BalanceConfig) (delta: float32) (matches: int) =
         let s d v = max 5.0f (min 100.0f (v + d))
+
         let lift d (l: Lineup) =
             { l with
                 Profiles =
                     l.Profiles
                     |> Array.map (fun p ->
-                        { p with Passing = s d p.Passing; Finishing = s d p.Finishing; Crossing = s d p.Crossing; Dribbling = s d p.Dribbling; Vision = s d p.Vision }) }
-        sideCountsWith (fun ctx -> { ctx with HomeLineup = lift delta ctx.HomeLineup; AwayLineup = lift -delta ctx.AwayLineup }) cfg matches
+                        { p with
+                            Passing = s d p.Passing
+                            Finishing = s d p.Finishing
+                            Crossing = s d p.Crossing
+                            Dribbling = s d p.Dribbling
+                            Vision = s d p.Vision }) }
+
+        sideCountsWith
+            (fun ctx ->
+                { ctx with
+                    HomeLineup = lift delta ctx.HomeLineup
+                    AwayLineup = lift -delta ctx.AwayLineup })
+            cfg
+            matches
 
     /// The contrast moving one named attribute only.
     let contrastAttributes (cfg: BalanceConfig) (delta: float32) (matches: int) (names: string list) =
-        let fixtures = contexts cfg ((matches + 11) / 12) 4242UL |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f)) |> Array.truncate matches
-        let fields = Microsoft.FSharp.Reflection.FSharpType.GetRecordFields typeof<PlayerProfile>
+        let fixtures =
+            contexts cfg ((matches + 11) / 12) 4242UL
+            |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f))
+            |> Array.truncate matches
+
+        let fields =
+            Microsoft.FSharp.Reflection.FSharpType.GetRecordFields typeof<PlayerProfile>
 
         for name in names do
             let index = fields |> Array.findIndex (fun f -> f.Name = name)
+
             let lift d (l: Lineup) =
                 { l with
                     Profiles =
@@ -475,27 +692,64 @@ module QuickFit =
                         |> Array.map (fun p ->
                             let values = Microsoft.FSharp.Reflection.FSharpValue.GetRecordFields p
                             values[index] <- box (max 5.0f (min 100.0f (unbox<float32> values[index] + d)))
-                            Microsoft.FSharp.Reflection.FSharpValue.MakeRecord(typeof<PlayerProfile>, values) :?> PlayerProfile) }
+
+                            Microsoft.FSharp.Reflection.FSharpValue.MakeRecord(typeof<PlayerProfile>, values)
+                            :?> PlayerProfile) }
 
             let r =
                 fixtures
                 |> Array.Parallel.map (fun ((ctx, _), seed) ->
-                    let ctx = { ctx with HomeLineup = lift delta ctx.HomeLineup; AwayLineup = lift -delta ctx.AwayLineup }
+                    let ctx =
+                        { ctx with
+                            HomeLineup = lift delta ctx.HomeLineup
+                            AwayLineup = lift -delta ctx.AwayLineup }
+
                     let o = SimulatorRunner.runContext ctx seed
-                    let passes side = o.Events |> List.filter (fun e -> match e.Data with EventData.Pass(p, _, _, _, _, _, _, _, _) -> MatchWorld.sideOfPlayer ctx p = ValueSome side | _ -> false) |> List.length
-                    float o.Final.State.HomeScore, float o.Final.State.AwayScore, float (passes ClubSide.Home), float (passes ClubSide.Away))
+
+                    let passes side =
+                        o.Events
+                        |> List.filter (fun e ->
+                            match e.Data with
+                            | EventData.Pass(p, _, _, _, _, _, _, _, _) ->
+                                MatchWorld.sideOfPlayer ctx p = ValueSome side
+                            | _ -> false)
+                        |> List.length
+
+                    float o.Final.State.HomeScore,
+                    float o.Final.State.AwayScore,
+                    float (passes ClubSide.Home),
+                    float (passes ClubSide.Away))
 
             let mean f = r |> Array.averageBy f
-            printfn "%-14s stronger home: goals %.2f - %.2f, passes %.0f - %.0f" name (mean (fun (a, _, _, _) -> a)) (mean (fun (_, b, _, _) -> b)) (mean (fun (_, _, c, _) -> c)) (mean (fun (_, _, _, d) -> d))
+
+            printfn
+                "%-14s stronger home: goals %.2f - %.2f, passes %.0f - %.0f"
+                name
+                (mean (fun (a, _, _, _) -> a))
+                (mean (fun (_, b, _, _) -> b))
+                (mean (fun (_, _, c, _) -> c))
+                (mean (fun (_, _, _, d) -> d))
 
     let contrastFlow cfg (delta: float32) matches =
-        sideFlowWith (fun ctx -> { ctx with HomeLineup = shift delta ctx.HomeLineup; AwayLineup = shift -delta ctx.AwayLineup }) cfg matches
+        sideFlowWith
+            (fun ctx ->
+                { ctx with
+                    HomeLineup = shift delta ctx.HomeLineup
+                    AwayLineup = shift -delta ctx.AwayLineup })
+            cfg
+            matches
 
     /// Where each side wins the ball (its own attacking frame: own, middle, final third) and how many of its shots
     /// come within 10 s of winning it, with one named attribute moved +delta home / -delta away.
     let turnovers (cfg: BalanceConfig) (delta: float32) (matches: int) (name: string) =
-        let fixtures = contexts cfg ((matches + 11) / 12) 4242UL |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f)) |> Array.truncate matches
-        let fields = Microsoft.FSharp.Reflection.FSharpType.GetRecordFields typeof<PlayerProfile>
+        let fixtures =
+            contexts cfg ((matches + 11) / 12) 4242UL
+            |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f))
+            |> Array.truncate matches
+
+        let fields =
+            Microsoft.FSharp.Reflection.FSharpType.GetRecordFields typeof<PlayerProfile>
+
         let index = fields |> Array.findIndex (fun f -> f.Name = name)
 
         let lift d (l: Lineup) =
@@ -505,14 +759,20 @@ module QuickFit =
                     |> Array.map (fun p ->
                         let values = Microsoft.FSharp.Reflection.FSharpValue.GetRecordFields p
                         values[index] <- box (max 5.0f (min 100.0f (unbox<float32> values[index] + d)))
-                        Microsoft.FSharp.Reflection.FSharpValue.MakeRecord(typeof<PlayerProfile>, values) :?> PlayerProfile) }
+
+                        Microsoft.FSharp.Reflection.FSharpValue.MakeRecord(typeof<PlayerProfile>, values)
+                        :?> PlayerProfile) }
 
         let acc = Array2D.zeroCreate<float> 2 5
         let lockObj = obj ()
 
         fixtures
         |> Array.Parallel.iter (fun ((ctx, _), seed) ->
-            let ctx = { ctx with HomeLineup = lift delta ctx.HomeLineup; AwayLineup = lift -delta ctx.AwayLineup }
+            let ctx =
+                { ctx with
+                    HomeLineup = lift delta ctx.HomeLineup
+                    AwayLineup = lift -delta ctx.AwayLineup }
+
             let local = Array2D.zeroCreate<float> 2 5
             let mutable holder: ClubSide option = None
             let wonAt = [| -1000000; -1000000 |]
@@ -524,16 +784,28 @@ module QuickFit =
                         if holder.IsSome then
                             let i = if side = ClubSide.Home then 0 else 1
                             let depth = float world.State.Ball.Position.X * MatchMath.goalDirection side
-                            let band = if depth < -17.5 then 0 elif depth < 17.5 then 1 else 2
+
+                            let band =
+                                if depth < -17.5 then 0
+                                elif depth < 17.5 then 1
+                                else 2
+
                             local[i, band] <- local[i, band] + 1.0
                             wonAt[i] <- int e.Tick
 
                         holder <- Some side
                     | EventData.Possession(side, _) -> holder <- Some side
                     | EventData.Shot(p, _, _, _, _, _) ->
-                        let i = if MatchWorld.sideOfPlayer ctx p = ValueSome ClubSide.Home then 0 else 1
+                        let i =
+                            if MatchWorld.sideOfPlayer ctx p = ValueSome ClubSide.Home then
+                                0
+                            else
+                                1
+
                         local[i, 3] <- local[i, 3] + 1.0
-                        if int e.Tick - wonAt[i] < 10 * int SimulationClock.minuteSubticks / 60 then local[i, 4] <- local[i, 4] + 1.0
+
+                        if int e.Tick - wonAt[i] < 10 * int SimulationClock.minuteSubticks / 60 then
+                            local[i, 4] <- local[i, 4] + 1.0
                     | _ -> ())
             |> ignore
 
@@ -543,15 +815,30 @@ module QuickFit =
                         acc[i, j] <- acc[i, j] + local[i, j]))
 
         let n = float fixtures.Length
+
         for i, label in [ 0, "home (+)"; 1, "away (-)" ] do
-            printfn "%s %s: wins ball own/mid/final %.1f/%.1f/%.1f, shots %.1f, of which within 10 s of a win %.1f" name label (acc[i, 0] / n) (acc[i, 1] / n) (acc[i, 2] / n) (acc[i, 3] / n) (acc[i, 4] / n)
+            printfn
+                "%s %s: wins ball own/mid/final %.1f/%.1f/%.1f, shots %.1f, of which within 10 s of a win %.1f"
+                name
+                label
+                (acc[i, 0] / n)
+                (acc[i, 1] / n)
+                (acc[i, 2] / n)
+                (acc[i, 3] / n)
+                (acc[i, 4] / n)
 
     /// How possessions end: each change of side counted by the losing side's last action since it won the ball,
     /// split by whether play was live (a tackle or interception) or stopped (out of play, a foul, a goal).
     let losses (cfg: BalanceConfig) (matches: int) =
-        let fixtures = contexts cfg ((matches + 11) / 12) 4242UL |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f)) |> Array.truncate matches
+        let fixtures =
+            contexts cfg ((matches + 11) / 12) 4242UL
+            |> Array.filter (fun ((_, s), _) -> s = (0.0f, 0.0f))
+            |> Array.truncate matches
+
         let counts = System.Collections.Concurrent.ConcurrentDictionary<string, float>()
-        let add key = counts.AddOrUpdate(key, 1.0, fun _ v -> v + 1.0) |> ignore
+
+        let add key =
+            counts.AddOrUpdate(key, 1.0, fun _ v -> v + 1.0) |> ignore
 
         fixtures
         |> Array.Parallel.iter (fun ((ctx, _), seed) ->
@@ -564,10 +851,17 @@ module QuickFit =
                 match world.State.Ball.Control, holder with
                 | BallControl.Controlled(side, carrier), Some h when side = h && world.State.Flow = MatchFlow.Live ->
                     let b = world.State.Ball.Position
-                    let box = abs (float (MatchMath.goalX side) - float b.X) < 16.5 && abs (float b.Y) < 20.16
+
+                    let box =
+                        abs (float (MatchMath.goalX side) - float b.X) < 16.5 && abs (float b.Y) < 20.16
 
                     if box && not inBox then
-                        add (if lastCarrier = Some carrier then "box entries carried" else "box entries received")
+                        add (
+                            if lastCarrier = Some carrier then
+                                "box entries carried"
+                            else
+                                "box entries received"
+                        )
 
                     inBox <- box
                     lastCarrier <- Some carrier
@@ -577,7 +871,11 @@ module QuickFit =
                     match e.Data with
                     | EventData.Possession(side, _) when holder <> Some side ->
                         if holder.IsSome then
-                            add $"""{if world.State.Flow = MatchFlow.Live then "live" else "stopped"} after {last}"""
+                            add
+                                $"""{if world.State.Flow = MatchFlow.Live then
+                                         "live"
+                                     else
+                                         "stopped"} after {last}"""
 
                         holder <- Some side
                         last <- "carry"
@@ -587,10 +885,16 @@ module QuickFit =
                         | ValueSome fs ->
                             let f = (MatchWorld.team world fs).Frame
                             let slot = MatchWorld.slotOf ctx fs fouler |> ValueOption.defaultValue 0
+
                             let third =
                                 let depth = float fx * MatchMath.goalDirection fs
-                                if depth < -17.5 then "own" elif depth < 17.5 then "mid" else "final"
-                            add $"foul {severity} by {f.DefensiveRoles[slot]}/intent {f.SteerIntent.Kind[slot]} in {third}"
+
+                                if depth < -17.5 then "own"
+                                elif depth < 17.5 then "mid"
+                                else "final"
+
+                            add
+                                $"foul {severity} by {f.DefensiveRoles[slot]}/intent {f.SteerIntent.Kind[slot]} in {third}"
                         | ValueNone -> ()
                     | EventData.Pass _ -> last <- "pass"
                     | EventData.Shot _ -> last <- "shot"
@@ -600,4 +904,3 @@ module QuickFit =
 
         for KeyValue(key, value) in counts |> Seq.sortByDescending (fun kv -> kv.Value) do
             printfn "%-24s %6.1f per match" key (value / float fixtures.Length)
-

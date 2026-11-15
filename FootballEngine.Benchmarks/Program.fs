@@ -449,8 +449,7 @@ module Program =
                        for _ = 1 to options.Repetitions do
                            yield collectSample systems ctx scenario seed |]
             | None ->
-                [| for i in 0 .. options.Repetitions - 1 ->
-                       collectSample systems ctx scenario (0x1000UL + uint64 i) |]
+                [| for i in 0 .. options.Repetitions - 1 -> collectSample systems ctx scenario (0x1000UL + uint64 i) |]
 
         let deterministic =
             if options.Verify then

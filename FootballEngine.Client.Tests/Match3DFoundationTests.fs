@@ -98,7 +98,10 @@ let tests =
               Expect.equal (area rectangles) 1200 "fallback covers the full window")
           testCase "an equal key returns the first pipeline and never builds a second one" (fun _ ->
               let released = ResizeArray<int>()
-              let cache = new PipelineCache<RenderPipelineKey, int>(fun value -> released.Add value)
+
+              let cache =
+                  new PipelineCache<RenderPipelineKey, int>(fun value -> released.Add value)
+
               let builds = ref 0
 
               let build () =
@@ -153,7 +156,10 @@ let tests =
               Expect.equal retry (Ok 7) "a later attempt can succeed")
           testCase "disposing the cache releases every pipeline exactly once" (fun _ ->
               let released = ResizeArray<int>()
-              let cache = new PipelineCache<RenderPipelineKey, int>(fun value -> released.Add value)
+
+              let cache =
+                  new PipelineCache<RenderPipelineKey, int>(fun value -> released.Add value)
+
               cache.GetOrAdd(opaqueKey, fun () -> Ok 1) |> ignore
               cache.GetOrAdd({ opaqueKey with Samples = 1u }, fun () -> Ok 2) |> ignore
               (cache :> IDisposable).Dispose()

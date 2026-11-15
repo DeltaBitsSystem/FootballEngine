@@ -38,7 +38,10 @@ module BallOutcome =
 
     let private shotExitResult (ctx: SystemContext) (world: World) shooter defendingSide =
         match world.State.Ball.LastTouch with
-        | Some player when MatchWorld.sideOfPlayer ctx.Ctx player = ValueSome defendingSide && isGoalkeeper ctx.Ctx player ->
+        | Some player when
+            MatchWorld.sideOfPlayer ctx.Ctx player = ValueSome defendingSide
+            && isGoalkeeper ctx.Ctx player
+            ->
             ShotResult.OnTarget true, Some player
         | Some _ when MatchWorld.lastTouchSide ctx.Ctx world = ValueSome defendingSide -> ShotResult.Blocked, None
         | _ -> ShotResult.OffTarget, None
@@ -46,7 +49,9 @@ module BallOutcome =
     let private emitShotExit ctx world tick buffer shooter speed xG x y defendingSide =
         let result, keeper = shotExitResult ctx world shooter defendingSide
         emit world tick buffer (EventData.Shot(shooter, result, xG, speed, x, y))
-        keeper |> Option.iter (fun gk -> emit world tick buffer (EventData.Save(gk, shooter)))
+
+        keeper
+        |> Option.iter (fun gk -> emit world tick buffer (EventData.Save(gk, shooter)))
 
     let private finishBall (world: World) stopVelocity =
         MatchWorld.updateBall world (fun ball ->
@@ -126,7 +131,10 @@ module BallOutcome =
 
             match ball.Trajectory with
             | Some(TrajectoryIntent.Struck(shooter, speed, _, xG)) ->
-                let shooterSide = MatchWorld.sideOfPlayer ctx.Ctx shooter |> ValueOption.defaultValue ClubSide.Home
+                let shooterSide =
+                    MatchWorld.sideOfPlayer ctx.Ctx shooter
+                    |> ValueOption.defaultValue ClubSide.Home
+
                 emitShotExit ctx world tick buffer shooter speed xG px py (MatchWorld.oppOf shooterSide)
             | _ -> ()
 
@@ -170,7 +178,13 @@ module BallOutcome =
                     world
                     tick
                     buffer
-                    (EventData.Woodwork(contact.Goal, contact.Part, contact.Position.X, contact.Position.Y, contact.Position.Z))
+                    (EventData.Woodwork(
+                        contact.Goal,
+                        contact.Part,
+                        contact.Position.X,
+                        contact.Position.Y,
+                        contact.Position.Z
+                    ))
             | _ -> ()
 
             let dt = float (SimulationClock.dt ctx.Clock)
@@ -200,13 +214,31 @@ module BallOutcome =
                 | _ -> ()
             | None -> ()
 
-            let exited = if shotCrossed then true else handleOutOfBounds ctx world tick buffer
+            let exited =
+                if shotCrossed then
+                    true
+                else
+                    handleOutOfBounds ctx world tick buffer
 
             if not shotCrossed && not exited then
                 match world.State.Ball.Trajectory, world.State.Ball.StationarySince with
                 | Some(TrajectoryIntent.Struck(shooter, speed, _, xG)), Some _ ->
-                    let shooterSide = MatchWorld.sideOfPlayer ctx.Ctx shooter |> ValueOption.defaultValue ClubSide.Home
-                    emitShotExit ctx world tick buffer shooter speed xG world.State.Ball.Position.X world.State.Ball.Position.Y (MatchWorld.oppOf shooterSide)
+                    let shooterSide =
+                        MatchWorld.sideOfPlayer ctx.Ctx shooter
+                        |> ValueOption.defaultValue ClubSide.Home
+
+                    emitShotExit
+                        ctx
+                        world
+                        tick
+                        buffer
+                        shooter
+                        speed
+                        xG
+                        world.State.Ball.Position.X
+                        world.State.Ball.Position.Y
+                        (MatchWorld.oppOf shooterSide)
+
                     finishBall world false
                 | _ -> ()
 

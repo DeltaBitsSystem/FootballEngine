@@ -41,7 +41,21 @@ module UpdateModEditor =
           Nationality = None }
 
     let private positionCodes =
-        set [ "GK"; "DC"; "DL"; "DR"; "WBL"; "WBR"; "DM"; "MC"; "ML"; "MR"; "AML"; "AMR"; "AMC"; "ST" ]
+        set
+            [ "GK"
+              "DC"
+              "DL"
+              "DR"
+              "WBL"
+              "WBR"
+              "DM"
+              "MC"
+              "ML"
+              "MR"
+              "AML"
+              "AMR"
+              "AMC"
+              "ST" ]
 
     /// One player per line: name, position, age, rating[, potential[, foot[, nationality]]], separated by
     /// tab, semicolon or comma, so a squad copied from any spreadsheet pastes as is. A header row and
@@ -70,9 +84,17 @@ module UpdateModEditor =
                     |> Array.tryItem 5
                     |> Option.bind (fun cell ->
                         match cell.ToLowerInvariant() with
-                        | "left" | "izquierdo" | "zurdo" | "l" -> Some "Left"
-                        | "right" | "derecho" | "diestro" | "r" -> Some "Right"
-                        | "both" | "ambos" | "ambidiestro" -> Some "Both"
+                        | "left"
+                        | "izquierdo"
+                        | "zurdo"
+                        | "l" -> Some "Left"
+                        | "right"
+                        | "derecho"
+                        | "diestro"
+                        | "r" -> Some "Right"
+                        | "both"
+                        | "ambos"
+                        | "ambidiestro" -> Some "Both"
                         | _ -> None)
 
                 Some
@@ -479,7 +501,8 @@ module UpdateModEditor =
                                     country.Clubs
                                     |> List.mapi (fun index club ->
                                         if index = clubIndex then
-                                            { club with Players = club.Players @ players }
+                                            { club with
+                                                Players = club.Players @ players }
                                         else
                                             club) })
                         state

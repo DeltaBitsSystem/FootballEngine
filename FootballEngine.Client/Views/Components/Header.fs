@@ -142,7 +142,9 @@ module Header =
                                         Border.child (Icons.icon IconName.search 16.0 Theme.TextMuted) ]
                                   TextBox.create
                                       [ TextBox.text state.GlobalSearchQuery
-                                        TextBox.placeholderText (Localization.resolve TranslationKey.SearchPlaceholder [])
+                                        TextBox.placeholderText (
+                                            Localization.resolve TranslationKey.SearchPlaceholder []
+                                        )
                                         TextBox.padding (8.0, 10.0)
                                         TextBox.background "Transparent"
                                         TextBox.borderThickness 0.0

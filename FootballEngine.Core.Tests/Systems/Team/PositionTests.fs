@@ -291,19 +291,27 @@ module PositionTests =
                   let positioning = BalanceConfig.defaultConfig.Positioning
                   // Independent geometry: depth along the goal-centre-to-ball ray, capped by the maximum advance.
                   let farDistance = sqrt ((35.0 - goalX) ** 2.0 + 18.0 ** 2.0)
-                  let farDepth = min (float positioning.GkMaxAdvance) (positioning.GkDepthRatio * farDistance)
 
-                  Expect.floatClose Accuracy.medium farX (goalX + farDepth * (35.0 - goalX) / farDistance) "far ball: depth along the ray"
+                  let farDepth =
+                      min (float positioning.GkMaxAdvance) (positioning.GkDepthRatio * farDistance)
+
+                  Expect.floatClose
+                      Accuracy.medium
+                      farX
+                      (goalX + farDepth * (35.0 - goalX) / farDistance)
+                      "far ball: depth along the ray"
+
                   Expect.isGreaterThan farX nearX "keeper advances only as far as the ball's distance allows"
                   Expect.isGreaterThan farY 0.0 "keeper shades toward the ball's side to cover the angle"
                   Expect.isGreaterThan nearY 0.0 "near ball: still on the ball's side"
                   Expect.isLessThan mirroredY 0.0 "mirroring the ball mirrors the keeper"
-                  Expect.isLessThanOrEqual (abs nearY) (float Pitch.GoalHalfWidth) "keeper never leaves the goal mouth laterally"
 
                   Expect.isLessThanOrEqual
-                      (abs nearX)
-                      (float Pitch.HalfLength - 2.0)
-                      "near target respects inset")
+                      (abs nearY)
+                      (float Pitch.GoalHalfWidth)
+                      "keeper never leaves the goal mouth laterally"
+
+                  Expect.isLessThanOrEqual (abs nearX) (float Pitch.HalfLength - 2.0) "near target respects inset")
 
               testCase "expired committed run completes with an exit trigger" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
@@ -316,7 +324,12 @@ module PositionTests =
                   frame.Intent.CommittedUntil.[5] <- 10<subtick>
 
                   stepSteering world
-                  Expect.equal frame.Intent.Phase.[5] IntentPhase.Committed "the body never writes cognition's intention"
+
+                  Expect.equal
+                      frame.Intent.Phase.[5]
+                      IntentPhase.Committed
+                      "the body never writes cognition's intention"
+
                   CognitionLatch.step sctx (Rng.ofSeed 0UL) world (buffer ()) |> ignore
 
                   Expect.equal frame.Intent.Phase.[5] IntentPhase.Completed "expired run completes"

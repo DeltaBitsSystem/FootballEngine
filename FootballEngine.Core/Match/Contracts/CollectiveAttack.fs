@@ -51,9 +51,16 @@ module CollectiveAttackState =
           AvailableAt = 0<subtick> }
 
     let snapshot (state: CollectiveAttackState) =
-        { state with Episode = state.Episode |> Option.map (fun episode -> { episode with Id = episode.Id }) }
+        { state with
+            Episode = state.Episode |> Option.map (fun episode -> { episode with Id = episode.Id }) }
 
-    let patternIndex = function ThirdMan -> 0 | AttractSwitch -> 1 | ExploitDepth -> 2 | SecureProgression -> 3
+    let patternIndex =
+        function
+        | ThirdMan -> 0
+        | AttractSwitch -> 1
+        | ExploitDepth -> 2
+        | SecureProgression -> 3
+
     let key context pattern = context * 4 + patternIndex pattern
 
     let duty (state: CollectiveAttackState) player =

@@ -124,8 +124,16 @@ type SceneResources
 
             texture)
 
-    static let uploadKit (context: GpuContext) (owner: GpuOwner) (kit: KitTextureData) (format: TextureFormat, pixels: byte[]) =
-        GpuTexture.Create(context, sampled "a stadium kit material array" format kit.Size kit.Size kit.Layers kit.Levels)
+    static let uploadKit
+        (context: GpuContext)
+        (owner: GpuOwner)
+        (kit: KitTextureData)
+        (format: TextureFormat, pixels: byte[])
+        =
+        GpuTexture.Create(
+            context,
+            sampled "a stadium kit material array" format kit.Size kit.Size kit.Layers kit.Levels
+        )
         |> Result.map (fun texture ->
             owner.Own texture |> ignore
             let mutable offset = 0
@@ -197,6 +205,7 @@ type SceneResources
                 )
 
             owner.Own surfaceSampler |> ignore
+
             let! kitTextures =
                 [ TextureFormat.Rgba8UnormSrgb, inputs.KitTextures.Albedo
                   TextureFormat.Rgba8Unorm, inputs.KitTextures.Normal

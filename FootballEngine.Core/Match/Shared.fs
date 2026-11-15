@@ -67,17 +67,26 @@ module MatchMath =
     /// The legal ball spot for a restart of `kind` awarded to `side` near (x, y). Idempotent, and the only place a
     /// spot is computed: the award placed a goal kick a metre from where the plan sent its taker, and every kick
     /// was authorized out of reach and cancelled.
-    let restartSpot (kind: SetPieceKind) (side: ClubSide) (x: float<meter>) (y: float<meter>) : float<meter> * float<meter> =
-        let towards (value: float<meter>) magnitude = if value >= 0.0<meter> then magnitude else -magnitude
+    let restartSpot
+        (kind: SetPieceKind)
+        (side: ClubSide)
+        (x: float<meter>)
+        (y: float<meter>)
+        : float<meter> * float<meter> =
+        let towards (value: float<meter>) magnitude =
+            if value >= 0.0<meter> then magnitude else -magnitude
         // Half a metre inside the goal line keeps a free kick for an offence on the line playable.
-        let fieldX = clamp (-(float Pitch.HalfLength - 0.5)) (float Pitch.HalfLength - 0.5) (float x) * 1.0<meter>
+        let fieldX =
+            clamp (-(float Pitch.HalfLength - 0.5)) (float Pitch.HalfLength - 0.5) (float x)
+            * 1.0<meter>
 
         match kind with
         | SetPieceKind.KickOff -> 0.0<meter>, 0.0<meter>
         | SetPieceKind.Corner -> goalX side, towards y Pitch.HalfWidth
         | SetPieceKind.ThrowIn -> fieldX, towards y (Pitch.HalfWidth - Pitch.ThrowInInset)
         | SetPieceKind.GoalKick -> ownGoalX side + Pitch.GoalAreaDepth * goalDirection side, 0.0<meter>
-        | SetPieceKind.FreeKick -> fieldX, clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) (float y) * 1.0<meter>
+        | SetPieceKind.FreeKick ->
+            fieldX, clamp (-(float Pitch.HalfWidth)) (float Pitch.HalfWidth) (float y) * 1.0<meter>
         | SetPieceKind.Penalty -> goalX side - Pitch.PenaltySpotDistance * goalDirection side, 0.0<meter>
 
     /// One xG formula for the whole engine: the carrier's belief (Decision),
@@ -155,9 +164,12 @@ module MatchWorld =
 
     /// The side whose lineup holds the player; a voption so the per-tick callers allocate nothing.
     let sideOfPlayer (ctx: MatchContext) (pid: PlayerId) : ClubSide voption =
-        if slotIndex ctx ClubSide.Home pid >= 0 then ValueSome ClubSide.Home
-        elif slotIndex ctx ClubSide.Away pid >= 0 then ValueSome ClubSide.Away
-        else ValueNone
+        if slotIndex ctx ClubSide.Home pid >= 0 then
+            ValueSome ClubSide.Home
+        elif slotIndex ctx ClubSide.Away pid >= 0 then
+            ValueSome ClubSide.Away
+        else
+            ValueNone
 
     let profileOf (ctx: MatchContext) (side: ClubSide) (slot: int) : PlayerProfile = (lineup ctx side).Profiles.[slot]
 
@@ -197,7 +209,11 @@ module MatchWorld =
         match world.State.Ball.Control with
         | BallControl.Controlled(side, pid) ->
             let slot = slotIndex ctx side pid
-            if slot >= 0 then ValueSome(struct (side, slot, pid)) else ValueNone
+
+            if slot >= 0 then
+                ValueSome(struct (side, slot, pid))
+            else
+                ValueNone
         | _ -> ValueNone
 
     let looseBallChaser (world: World) (side: ClubSide) : int option =
@@ -227,10 +243,7 @@ module MatchWorld =
                         bestDistance <- distance
                         bestSlot <- slot
 
-        if bestSlot < 0 then
-            None
-        else
-            Some bestSlot
+        if bestSlot < 0 then None else Some bestSlot
 
     let lastTouchSide (ctx: MatchContext) (world: World) : ClubSide voption =
         match world.State.Ball.LastTouch with

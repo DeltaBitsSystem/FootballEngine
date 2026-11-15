@@ -16,7 +16,8 @@ module SupportPlanner =
             let local =
                 MotionInput.localPoint eye (MotionInput.facing root.Facing) (MotionInput.vector target)
 
-            let horizontal = max config.GazeNearDistance (MathF.Sqrt(local.X * local.X + local.Z * local.Z))
+            let horizontal =
+                max config.GazeNearDistance (MathF.Sqrt(local.X * local.X + local.Z * local.Z))
 
             Vector2(
                 Math.Clamp(MathF.Atan2(local.X, local.Z), -config.MaxGazeYaw, config.MaxGazeYaw),
@@ -60,16 +61,27 @@ module SupportPlanner =
           Seed = seed }
 
     let private boundedLead config (root: MotionRootSample) (proposal: Vector3) =
-        let maximum = min config.StepReach ((root.Morphology.ThighLength + root.Morphology.ShinLength) * config.MaxLegLeadFraction)
-        if proposal.Length() > maximum then Vector3.Normalize(proposal) * maximum else proposal
+        let maximum =
+            min
+                config.StepReach
+                ((root.Morphology.ThighLength + root.Morphology.ShinLength)
+                 * config.MaxLegLeadFraction)
 
-    let private nextFoot (config, time, root: MotionRootSample, left, other: FootPlan, otherTaskActive, foot: FootPlan) =
+        if proposal.Length() > maximum then
+            Vector3.Normalize(proposal) * maximum
+        else
+            proposal
+
+    let private nextFoot
+        (config, time, root: MotionRootSample, left, other: FootPlan, otherTaskActive, foot: FootPlan)
+        =
         let airborne = root.Position.Z > 0.02f || abs root.Velocity.Z > 0.1f
         let nominal = nominal config root left
         let velocity = MotionInput.vector root.Velocity
         let horizontal = Vector3(velocity.X, 0.0f, velocity.Z)
         let speed = horizontal.Length()
         let displacement = nominal - foot.Anchor
+
         let stepDistance =
             if speed > 1e-5f then
                 max 0.0f (Vector3.Dot(displacement, horizontal) / speed)
@@ -95,12 +107,21 @@ module SupportPlanner =
                 { planted with ReleaseAt = time + 2.0f }
             else
                 let remainingSeconds = (foot.Segment.Finish - time) * config.TickSeconds
-                let desired = nominal + horizontal * remainingSeconds + boundedLead config root (horizontal * config.StepLeadSeconds)
+
+                let desired =
+                    nominal
+                    + horizontal * remainingSeconds
+                    + boundedLead config root (horizontal * config.StepLeadSeconds)
+
                 let change = desired - foot.Segment.Target
                 let remaining = foot.Segment.Finish - time
+
                 let segment =
                     if change.Length() > config.RetargetDistance && remaining > 2.0f then
-                        let bounded = foot.Segment.Target + Vector3.Normalize(change) * min (change.Length()) config.RetargetDistance
+                        let bounded =
+                            foot.Segment.Target
+                            + Vector3.Normalize(change) * min (change.Length()) config.RetargetDistance
+
                         Trajectory.retarget config.TickSeconds time bounded foot.Segment.Finish foot.Segment
                     else
                         foot.Segment
@@ -118,12 +139,22 @@ module SupportPlanner =
                 || otherTaskActive
                 || (speed >= config.RunFlightSpeed
                     && other.Phase = SupportPhase.Landing
-                    && other.Segment.Finish - time <= config.RunFlightOverlapSeconds / config.TickSeconds))
-            && stepDistance
-               > min config.StepReach (max (config.StepTrigger * config.PivotTriggerMinimumRatio) (config.StepTrigger - speed * config.StepSpeedTrigger - abs root.AngularVelocity * config.PivotSensitivity))
+                    && other.Segment.Finish - time
+                       <= config.RunFlightOverlapSeconds / config.TickSeconds))
+            && stepDistance > min
+                config.StepReach
+                (max
+                    (config.StepTrigger * config.PivotTriggerMinimumRatio)
+                    (config.StepTrigger
+                     - speed * config.StepSpeedTrigger
+                     - abs root.AngularVelocity * config.PivotSensitivity))
         then
             let duration =
-                Math.Clamp(config.SwingSeconds / (1.0f + speed * config.SwingSpeedFactor), config.MinSwingSeconds, config.SwingSeconds)
+                Math.Clamp(
+                    config.SwingSeconds / (1.0f + speed * config.SwingSpeedFactor),
+                    config.MinSwingSeconds,
+                    config.SwingSeconds
+                )
 
             let mutable best = nominal
             let mutable score = Single.PositiveInfinity
@@ -152,7 +183,10 @@ module SupportPlanner =
                   Target = best
                   FromVelocity = Vector3.Zero
                   TargetVelocity = Vector3.Zero
-                  Clearance = config.Clearance * (1.0f + Math.Clamp((speed - config.RunFlightSpeed) / (config.RunFlightSpeed * 0.5f), 0.0f, 1.0f)) } }
+                  Clearance =
+                    config.Clearance
+                    * (1.0f
+                       + Math.Clamp((speed - config.RunFlightSpeed) / (config.RunFlightSpeed * 0.5f), 0.0f, 1.0f)) } }
         else
             foot
 
@@ -166,7 +200,11 @@ module SupportPlanner =
 
     let private urgency config root horizontal speed left (foot: FootPlan) =
         let displacement = nominal config root left - foot.Anchor
-        if speed > 1e-5f then Vector3.Dot(displacement, horizontal) / speed else displacement.Length()
+
+        if speed > 1e-5f then
+            Vector3.Dot(displacement, horizontal) / speed
+        else
+            displacement.Length()
 
     let advance config tick (root: MotionRootSample) (previous: ActorPlan) =
         let time = float32 tick
@@ -175,13 +213,61 @@ module SupportPlanner =
         let speed = horizontal.Length()
 
         let struct (left, right) =
-            if urgency config root horizontal speed false previous.Right > urgency config root horizontal speed true previous.Left then
-                let right = updateFoot config time root false previous.Left previous.Right previous.RightOverlay previous.LeftOverlay.Active
-                let left = updateFoot config time root true right previous.Left previous.LeftOverlay previous.RightOverlay.Active
+            if
+                urgency config root horizontal speed false previous.Right > urgency
+                    config
+                    root
+                    horizontal
+                    speed
+                    true
+                    previous.Left
+            then
+                let right =
+                    updateFoot
+                        config
+                        time
+                        root
+                        false
+                        previous.Left
+                        previous.Right
+                        previous.RightOverlay
+                        previous.LeftOverlay.Active
+
+                let left =
+                    updateFoot
+                        config
+                        time
+                        root
+                        true
+                        right
+                        previous.Left
+                        previous.LeftOverlay
+                        previous.RightOverlay.Active
+
                 struct (left, right)
             else
-                let left = updateFoot config time root true previous.Right previous.Left previous.LeftOverlay previous.RightOverlay.Active
-                let right = updateFoot config time root false left previous.Right previous.RightOverlay previous.LeftOverlay.Active
+                let left =
+                    updateFoot
+                        config
+                        time
+                        root
+                        true
+                        previous.Right
+                        previous.Left
+                        previous.LeftOverlay
+                        previous.RightOverlay.Active
+
+                let right =
+                    updateFoot
+                        config
+                        time
+                        root
+                        false
+                        left
+                        previous.Right
+                        previous.RightOverlay
+                        previous.LeftOverlay.Active
+
                 struct (left, right)
 
         let acceleration =
@@ -190,6 +276,7 @@ module SupportPlanner =
 
         // Sustained running has a small whole-body forward inclination even once acceleration falls to zero.
         let travelLean = horizontal * (config.MaxLean / (speed + config.RunFlightSpeed))
+
         let desired =
             Vector3(
                 Math.Clamp(acceleration.X * 0.012f + travelLean.X, -config.MaxLean, config.MaxLean),

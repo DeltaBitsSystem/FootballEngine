@@ -57,7 +57,11 @@ let tests =
                       ))
                       initial
 
-              Expect.equal updated.Document.Countries initial.Document.Countries "duplicate code leaves the catalog intact"
+              Expect.equal
+                  updated.Document.Countries
+                  initial.Document.Countries
+                  "duplicate code leaves the catalog intact"
+
               Expect.equal updated.SelectedCountryCode (Some "ARG") "duplicate code leaves selection intact"
           }
 
@@ -106,7 +110,11 @@ let tests =
               Expect.equal keeper.PreferredFoot (Some "Right") "Spanish foot name is understood"
               Expect.equal keeper.Nationality (Some "URU") "nationality code"
               Expect.equal players.[1].Potential 66 "missing potential defaults to the rating"
-              Expect.equal (players.[2].Position, players.[2].Rating, players.[2].Potential) ("MC", 100, 100) "rating clamps and potential never falls below it"
+
+              Expect.equal
+                  (players.[2].Position, players.[2].Rating, players.[2].Potential)
+                  ("MC", 100, 100)
+                  "rating clamps and potential never falls below it"
           }
 
           test "importing a pasted squad appends to the selected club in one undo step" {
@@ -139,7 +147,11 @@ let tests =
               match GlobalSettings.fromJson v1 with
               | Error error -> failtestf "v1 settings must load: %s" error
               | Ok migrated ->
-                  Expect.equal migrated.MatchView.HighlightFilter FootballEngine.Settings.KeyMoments "old default migrates"
+                  Expect.equal
+                      migrated.MatchView.HighlightFilter
+                      FootballEngine.Settings.KeyMoments
+                      "old default migrates"
+
                   Expect.equal migrated.Version GlobalSettings.currentVersion "migrated settings carry the new version"
 
                   // A full match chosen after the migration is the player's choice and must survive a reload.
@@ -178,5 +190,8 @@ let tests =
                       ))
                       initial
 
-              Expect.equal updated.Document.Countries initial.Document.Countries "the patch target cannot be renamed away"
+              Expect.equal
+                  updated.Document.Countries
+                  initial.Document.Countries
+                  "the patch target cannot be renamed away"
           } ]

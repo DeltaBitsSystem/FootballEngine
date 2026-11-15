@@ -3,25 +3,29 @@ namespace FootballEngine.Core.Match
 /// What a rival manager sees when he looks at the match, already reduced to the numbers his decision needs.
 [<Struct>]
 type ManagerRead =
-    { Minute: int
-      /// Goals scored minus goals conceded by his side.
-      ScoreDiff: int
-      /// Share of the recent xG he created, -1 (all theirs) to 1 (all his), before his own misjudgement.
-      Momentum: float
-      MinutesSinceMove: int
-      /// A goal or a red card since his last move.
-      EventSinceMove: bool
-      OwnRedSinceReview: bool
-      Current: ManagerShift voption }
+    {
+        Minute: int
+        /// Goals scored minus goals conceded by his side.
+        ScoreDiff: int
+        /// Share of the recent xG he created, -1 (all theirs) to 1 (all his), before his own misjudgement.
+        Momentum: float
+        MinutesSinceMove: int
+        /// A goal or a red card since his last move.
+        EventSinceMove: bool
+        OwnRedSinceReview: bool
+        Current: ManagerShift voption
+    }
 
 /// A rival manager's decision: the shift he announces, the directive that carries it and the changes that go with it.
 [<Struct>]
 type ManagerMove =
-    { Shift: ManagerShift
-      Directive: DirectiveKind
-      /// Multiplies the tactical shift of the move: parking the bus asks for twice the retreat of defending.
-      Intensity: float
-      Intent: SubstitutionIntent }
+    {
+        Shift: ManagerShift
+        Directive: DirectiveKind
+        /// Multiplies the tactical shift of the move: parking the bus asks for twice the retreat of defending.
+        Intensity: float
+        Intent: SubstitutionIntent
+    }
 
 /// The decision rules of a rival manager, free of any match state so they can be tested on a table of reads.
 module ManagerBrain =
@@ -44,7 +48,10 @@ module ManagerBrain =
     let minutesBetweenMoves (cfg: RivalManagerConfig) (profile: ManagerProfile) : int =
         int (
             round (
-                lerp (float cfg.MinMinutesBetweenMoves) (float cfg.HotheadMinutesBetweenMoves) (float profile.Temperament)
+                lerp
+                    (float cfg.MinMinutesBetweenMoves)
+                    (float cfg.HotheadMinutesBetweenMoves)
+                    (float profile.Temperament)
             )
         )
 
@@ -60,7 +67,12 @@ module ManagerBrain =
               Intent = intent }
 
     /// `noise` is a standard-normal draw: the coach misjudges the momentum by it, scaled by how badly he reads the game.
-    let decide (cfg: RivalManagerConfig) (profile: ManagerProfile) (read: ManagerRead) (noise: float) : ManagerMove voption =
+    let decide
+        (cfg: RivalManagerConfig)
+        (profile: ManagerProfile)
+        (read: ManagerRead)
+        (noise: float)
+        : ManagerMove voption =
         let boldness = float profile.Boldness
         let reading = float profile.Reading
 
@@ -69,7 +81,9 @@ module ManagerBrain =
 
         let current = read.Current
         let isCurrent shift = current = ValueSome shift
-        let chaseMinute = int (round (lerp (float cfg.ChaseMinuteCautious) (float cfg.ChaseMinuteBold) boldness))
+
+        let chaseMinute =
+            int (round (lerp (float cfg.ChaseMinuteCautious) (float cfg.ChaseMinuteBold) boldness))
 
         let protectMinute =
             int (round (lerp (float cfg.ProtectMinuteCautious) (float cfg.ProtectMinuteBold) boldness))
@@ -80,7 +94,10 @@ module ManagerBrain =
         if read.OwnRedSinceReview && not (isCurrent ManagerShift.RedCardReshape) then
             // A red card cannot wait for the pause between moves: ten men change shape now.
             move ManagerShift.RedCardReshape DirectiveKind.Defend 1.0 SubstitutionIntent.Defend
-        elif read.MinutesSinceMove < minutesBetweenMoves cfg profile && not read.EventSinceMove then
+        elif
+            read.MinutesSinceMove < minutesBetweenMoves cfg profile
+            && not read.EventSinceMove
+        then
             ValueNone
         elif
             losing
@@ -97,7 +114,11 @@ module ManagerBrain =
             && not (isCurrent ManagerShift.AllOut)
         then
             move ManagerShift.ChaseGame DirectiveKind.Attack 1.0 SubstitutionIntent.Attack
-        elif leading && read.Minute >= protectMinute && not (isCurrent ManagerShift.ProtectLead) then
+        elif
+            leading
+            && read.Minute >= protectMinute
+            && not (isCurrent ManagerShift.ProtectLead)
+        then
             if boldness <= cfg.ParkBusBoldness then
                 move ManagerShift.ProtectLead DirectiveKind.ParkTheBus 2.0 SubstitutionIntent.Defend
             else

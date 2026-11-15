@@ -25,7 +25,9 @@ module Shot =
         let xg = PlayerDecision.xGValue ctx.Ctx world side slot
         // Bodies in the lane block the ball, not the strike: only pressure on the shooter widens his error.
         let openness =
-            1.0 - 0.3 * MatchMath.clamp01 (float (MatchWorld.opponentsNear ctx.Ctx world side x y 6.0) / 4.0)
+            1.0
+            - 0.3
+              * MatchMath.clamp01 (float (MatchWorld.opponentsNear ctx.Ctx world side x y 6.0) / 4.0)
 
         let radius = float cfg.Ball.Radius
         let goalLineX = float (MatchMath.goalX side)
@@ -42,7 +44,12 @@ module Shot =
             | _ -> 0.0
 
         let corner = if keeperY > 0.0 then -1.0 else 1.0
-        let innerEdge = float Pitch.GoalHalfWidth - radius - float cfg.Actions.ShotPostMargin * (1.0 - finishing)
+
+        let innerEdge =
+            float Pitch.GoalHalfWidth
+            - radius
+            - float cfg.Actions.ShotPostMargin * (1.0 - finishing)
+
         let placement, rng1 = Rng.uniform 0.25 1.0 rng
         let height, rng2 = Rng.uniform 0.0 1.0 rng1
         // Underside heights that keep the whole ball inside the frame.
@@ -52,24 +59,36 @@ module Shot =
         let intendedZ = height * height * frameTop
 
         let error =
-            (cfg.Actions.ShotErrorBase + cfg.Actions.ShotErrorSkill * (1.0 - finishing)) * (2.0 - openness)
+            (cfg.Actions.ShotErrorBase + cfg.Actions.ShotErrorSkill * (1.0 - finishing))
+            * (2.0 - openness)
 
         let reach = sqrt (goalDistanceX * goalDistanceX + (intendedY - float y) ** 2.0)
         let lateralError, rng3 = Rng.normal 0.0 (error * reach) rng2
-        let verticalError, rng4 = Rng.normal 0.0 (error * cfg.Actions.ShotVerticalErrorRatio * reach) rng3
+
+        let verticalError, rng4 =
+            Rng.normal 0.0 (error * cfg.Actions.ShotVerticalErrorRatio * reach) rng3
+
         let aimY = intendedY + lateralError
         // A strike aimed below the ground is a skidding shot along the turf.
         let aimZ = max 0.0 (intendedZ + verticalError)
 
         // Tucking a finish inside the post is done with the side of the foot, so placement costs power: the keeper
         // gets more time on the shots aimed furthest from him.
-        let power = float cfg.Actions.ShotSpeedBase + float cfg.Actions.ShotSpeedStrength * float p.Strength / 100.0
-        let speed = min (float cfg.Ball.MaxShotSpeed) (power * (1.0 - cfg.Actions.ShotPlacementSpeedCost * placement))
+        let power =
+            float cfg.Actions.ShotSpeedBase
+            + float cfg.Actions.ShotSpeedStrength * float p.Strength / 100.0
+
+        let speed =
+            min (float cfg.Ball.MaxShotSpeed) (power * (1.0 - cfg.Actions.ShotPlacementSpeedCost * placement))
+
         let angle = atan2 (aimY - float y) goalDistanceX
 
         // Placed finishes curl the ball back toward the aim point; the solver keeps the target, only the path bends.
         let curl, rng' = Rng.uniform 0.0 1.0 rng4
-        let curlSpin = float cfg.Actions.ShotCurlSpin * curl * float p.Finishing / 100.0 * curlSense side (float y) aimY
+
+        let curlSpin =
+            float cfg.Actions.ShotCurlSpin * curl * float p.Finishing / 100.0
+            * curlSense side (float y) aimY
 
         let angularVelocity =
             { Top = 0.0<radianPerSecond>
@@ -82,8 +101,12 @@ module Shot =
             BallFlight.solve
                 cfg.Ball
                 (float (SimulationClock.dt ctx.Clock))
-                { X = ballPosition.X; Y = ballPosition.Y; Z = ballPosition.Z }
-                { X = goalLineX * 1.0<meter>; Y = aimY * 1.0<meter>; Z = aimZ * 1.0<meter> }
+                { X = ballPosition.X
+                  Y = ballPosition.Y
+                  Z = ballPosition.Z }
+                { X = goalLineX * 1.0<meter>
+                  Y = aimY * 1.0<meter>
+                  Z = aimZ * 1.0<meter> }
                 (speed * 1.0<meterPerSecond>)
                 angularVelocity
 

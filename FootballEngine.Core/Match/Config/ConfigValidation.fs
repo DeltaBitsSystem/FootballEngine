@@ -55,7 +55,15 @@ module ConfigValidation =
 
     let validateQuickMatch (q: QuickMatchConfig) : string list =
         let roles (name: string) (w: QuickRoleWeights) =
-            let all = [ w.Keeper; w.CentreBack; w.Fullback; w.Holding; w.Central; w.Playmaker; w.Wide; w.Forward ]
+            let all =
+                [ w.Keeper
+                  w.CentreBack
+                  w.Fullback
+                  w.Holding
+                  w.Central
+                  w.Playmaker
+                  w.Wide
+                  w.Forward ]
 
             [ if all |> List.exists (fun v -> not (System.Double.IsFinite v) || v < 0.0) then
                   yield $"QuickMatch.{name} weights must be finite and non-negative"
@@ -71,9 +79,13 @@ module ConfigValidation =
           if not (q.AssistedShare >= 0.0 && q.AssistedShare <= 1.0) then
               yield "QuickMatch.AssistedShare must be in [0, 1]"
           for name, rate in
-              [ "YellowsPerTeam", q.YellowsPerTeam; "RedsPerTeam", q.RedsPerTeam; "FoulsPerTeam", q.FoulsPerTeam
-                "InjuriesPerTeam", q.InjuriesPerTeam; "SubstitutionsPerTeam", q.SubstitutionsPerTeam
-                "CalmFoulShare", q.CalmFoulShare; "RobustInjuryShare", q.RobustInjuryShare ] do
+              [ "YellowsPerTeam", q.YellowsPerTeam
+                "RedsPerTeam", q.RedsPerTeam
+                "FoulsPerTeam", q.FoulsPerTeam
+                "InjuriesPerTeam", q.InjuriesPerTeam
+                "SubstitutionsPerTeam", q.SubstitutionsPerTeam
+                "CalmFoulShare", q.CalmFoulShare
+                "RobustInjuryShare", q.RobustInjuryShare ] do
               if not (rate >= 0.0 && rate < 100.0) then
                   yield $"QuickMatch.{name} must be in [0, 100)"
           if q.FirstSubstitutionMinute < 1 || q.FirstSubstitutionMinute > 89 then
@@ -136,7 +148,10 @@ module ConfigValidation =
             ranged name (float value) (float low) (float high)
 
         let formation (name: string) (value: string) =
-            if FootballEngine.Domain.FormationLineups.all |> List.exists (fun f -> string f = value) then
+            if
+                FootballEngine.Domain.FormationLineups.all
+                |> List.exists (fun f -> string f = value)
+            then
                 []
             else
                 [ $"RivalManager.{name}.PreferredFormation '{value}' is not a known formation" ]
@@ -335,7 +350,11 @@ module ConfigValidation =
               if not (System.Double.IsFinite value) || value <= 0.0 then
                   yield $"Ball.{name} must be finite and > 0"
           // The crisis lowers drag; a supercritical Cd above the subcritical one would invert the physics.
-          if not (System.Double.IsFinite b.DragSubcritical) || b.DragSubcritical < b.DragSupercritical || b.DragSubcritical > 1.5 then
+          if
+              not (System.Double.IsFinite b.DragSubcritical)
+              || b.DragSubcritical < b.DragSupercritical
+              || b.DragSubcritical > 1.5
+          then
               yield "Ball.DragSubcritical must be finite, >= DragSupercritical and <= 1.5"
           if b.MaxLift > 1.0 then
               yield "Ball.MaxLift must be <= 1"
@@ -396,7 +415,10 @@ module ConfigValidation =
           if b.SavePositioningWeight < 0.0 || b.SavePositioningWeight > 1.0 then
               yield "Ball.SavePositioningWeight must be in [0, 1]"
           // Beyond the penalty spot distance, the shootout keeper's positional penalty would dominate every kick.
-          if b.ShootoutSaveDistancePenalty < 0.0<meter> || b.ShootoutSaveDistancePenalty > 50.0<meter> then
+          if
+              b.ShootoutSaveDistancePenalty < 0.0<meter>
+              || b.ShootoutSaveDistancePenalty > 50.0<meter>
+          then
               yield "Ball.ShootoutSaveDistancePenalty must be in [0, 50] m"
           if b.ReceptionBase < 0.0 || b.ReceptionBase > 1.0 then
               yield "Ball.ReceptionBase must be in [0, 1]"
@@ -539,7 +561,11 @@ module ConfigValidation =
     let validateContact (c: ContactConfig) : string list =
         [ if c.BodyRadiusFallback < 0.2<meter> || c.BodyRadiusFallback > 0.6<meter> then
               yield "Contact.BodyRadiusFallback must be in [0.2, 0.6] m"
-          if not (System.Double.IsFinite c.BodyRadiusScale) || c.BodyRadiusScale < 0.2 || c.BodyRadiusScale > 0.8 then
+          if
+              not (System.Double.IsFinite c.BodyRadiusScale)
+              || c.BodyRadiusScale < 0.2
+              || c.BodyRadiusScale > 0.8
+          then
               yield "Contact.BodyRadiusScale must be finite and in [0.2, 0.8]"
           if
               not (System.Double.IsFinite c.CapsuleLowerHeightRatio)
@@ -559,36 +585,90 @@ module ConfigValidation =
               yield "Contact.StrikeSeparation must be in [0, 20] subticks"
           if c.HandRadius <= 0.0<meter> || c.HandRadius > 0.25<meter> then
               yield "Contact.HandRadius must be in (0, 0.25] m"
-          if not (System.Double.IsFinite(float c.FallbackMass)) || c.FallbackMass < 40.0<kilogram> || c.FallbackMass > 150.0<kilogram> then
+          if
+              not (System.Double.IsFinite(float c.FallbackMass))
+              || c.FallbackMass < 40.0<kilogram>
+              || c.FallbackMass > 150.0<kilogram>
+          then
               yield "Contact.FallbackMass must be finite and in [40, 150] kg"
-          if not (System.Double.IsFinite(float c.BallMass)) || c.BallMass < 0.2<kilogram> || c.BallMass > 0.6<kilogram> then
+          if
+              not (System.Double.IsFinite(float c.BallMass))
+              || c.BallMass < 0.2<kilogram>
+              || c.BallMass > 0.6<kilogram>
+          then
               yield "Contact.BallMass must be finite and in [0.2, 0.6] kg"
-          if not (System.Double.IsFinite c.BodyRestitution) || c.BodyRestitution < 0.0 || c.BodyRestitution > 0.2 then
+          if
+              not (System.Double.IsFinite c.BodyRestitution)
+              || c.BodyRestitution < 0.0
+              || c.BodyRestitution > 0.2
+          then
               yield "Contact.BodyRestitution must be finite and in [0, 0.2]"
-          if not (System.Double.IsFinite c.BodyFriction) || c.BodyFriction < 0.0 || c.BodyFriction > 1.0 then
+          if
+              not (System.Double.IsFinite c.BodyFriction)
+              || c.BodyFriction < 0.0
+              || c.BodyFriction > 1.0
+          then
               yield "Contact.BodyFriction must be finite and in [0, 1]"
-          if not (System.Double.IsFinite c.BallBodyRestitution) || c.BallBodyRestitution < 0.0 || c.BallBodyRestitution > 1.0 then
+          if
+              not (System.Double.IsFinite c.BallBodyRestitution)
+              || c.BallBodyRestitution < 0.0
+              || c.BallBodyRestitution > 1.0
+          then
               yield "Contact.BallBodyRestitution must be finite and in [0, 1]"
-          if not (System.Double.IsFinite c.BallFootRestitution) || c.BallFootRestitution < 0.0 || c.BallFootRestitution > 1.0 then
+          if
+              not (System.Double.IsFinite c.BallFootRestitution)
+              || c.BallFootRestitution < 0.0
+              || c.BallFootRestitution > 1.0
+          then
               yield "Contact.BallFootRestitution must be finite and in [0, 1]"
-          if not (System.Double.IsFinite c.BallBodyFriction) || c.BallBodyFriction < 0.0 || c.BallBodyFriction > 1.0 then
+          if
+              not (System.Double.IsFinite c.BallBodyFriction)
+              || c.BallBodyFriction < 0.0
+              || c.BallBodyFriction > 1.0
+          then
               yield "Contact.BallBodyFriction must be finite and in [0, 1]"
-          if not (System.Double.IsFinite(float c.BallControlSpeed)) || c.BallControlSpeed < 0.0<meterPerSecond> || c.BallControlSpeed > 8.0<meterPerSecond> then
+          if
+              not (System.Double.IsFinite(float c.BallControlSpeed))
+              || c.BallControlSpeed < 0.0<meterPerSecond>
+              || c.BallControlSpeed > 8.0<meterPerSecond>
+          then
               yield "Contact.BallControlSpeed must be finite and in [0, 8] m/s"
-          if not (System.Double.IsFinite(float c.MaximumTrapSpeed)) || c.MaximumTrapSpeed <= c.BallControlSpeed then
+          if
+              not (System.Double.IsFinite(float c.MaximumTrapSpeed))
+              || c.MaximumTrapSpeed <= c.BallControlSpeed
+          then
               yield "Contact.MaximumTrapSpeed must be finite and greater than BallControlSpeed"
           // Absorption is a share of the sliding speed: the best trap cannot absorb more than all of it.
-          if c.TrapAbsorptionBase < 0.0 || c.TrapAbsorptionSkill < 0.0 || c.TrapAbsorptionBase + c.TrapAbsorptionSkill > 1.0 then
+          if
+              c.TrapAbsorptionBase < 0.0
+              || c.TrapAbsorptionSkill < 0.0
+              || c.TrapAbsorptionBase + c.TrapAbsorptionSkill > 1.0
+          then
               yield "Contact.TrapAbsorptionBase and TrapAbsorptionSkill must be non-negative and sum to at most 1"
-          if c.TrapPoorRestitution < 0.0 || c.BallFootRestitution + c.TrapPoorRestitution > 1.0 then
+          if
+              c.TrapPoorRestitution < 0.0
+              || c.BallFootRestitution + c.TrapPoorRestitution > 1.0
+          then
               yield "Contact.TrapPoorRestitution must be non-negative and keep the trap's restitution within 1"
           if c.OffBalanceTrapPenalty < 1.0 || c.OffBalanceTrapPenalty > 4.0 then
               yield "Contact.OffBalanceTrapPenalty must be in [1, 4]"
-          if not (System.Double.IsFinite c.SupportedInverseMassScale) || c.SupportedInverseMassScale < 0.05 || c.SupportedInverseMassScale > 1.0 then
+          if
+              not (System.Double.IsFinite c.SupportedInverseMassScale)
+              || c.SupportedInverseMassScale < 0.05
+              || c.SupportedInverseMassScale > 1.0
+          then
               yield "Contact.SupportedInverseMassScale must be finite and in [0.05, 1]"
-          if not (System.Double.IsFinite c.AirborneInverseMassScale) || c.AirborneInverseMassScale < 0.5 || c.AirborneInverseMassScale > 2.0 then
+          if
+              not (System.Double.IsFinite c.AirborneInverseMassScale)
+              || c.AirborneInverseMassScale < 0.5
+              || c.AirborneInverseMassScale > 2.0
+          then
               yield "Contact.AirborneInverseMassScale must be finite and in [0.5, 2]"
-          if not (System.Double.IsFinite c.StabilityRecoveryPerSecond) || c.StabilityRecoveryPerSecond < 0.0 || c.StabilityRecoveryPerSecond > 5.0 then
+          if
+              not (System.Double.IsFinite c.StabilityRecoveryPerSecond)
+              || c.StabilityRecoveryPerSecond < 0.0
+              || c.StabilityRecoveryPerSecond > 5.0
+          then
               yield "Contact.StabilityRecoveryPerSecond must be finite and in [0, 5]"
           if
               not (System.Double.IsFinite c.StaggerImpulseThreshold)
@@ -597,19 +677,42 @@ module ConfigValidation =
               || c.FallImpulseThreshold <= c.StaggerImpulseThreshold
           then
               yield "Contact impulse thresholds must be finite, positive and ordered"
-          if not (System.Double.IsFinite c.RecoverStabilityThreshold) || c.RecoverStabilityThreshold <= 0.0 || c.RecoverStabilityThreshold > 1.0 then
+          if
+              not (System.Double.IsFinite c.RecoverStabilityThreshold)
+              || c.RecoverStabilityThreshold <= 0.0
+              || c.RecoverStabilityThreshold > 1.0
+          then
               yield "Contact.RecoverStabilityThreshold must be finite and in (0, 1]"
-          if not (System.Double.IsFinite c.StaggerAccelerationScale) || c.StaggerAccelerationScale < 0.0 || c.StaggerAccelerationScale > 1.0 then
+          if
+              not (System.Double.IsFinite c.StaggerAccelerationScale)
+              || c.StaggerAccelerationScale < 0.0
+              || c.StaggerAccelerationScale > 1.0
+          then
               yield "Contact.StaggerAccelerationScale must be finite and in [0, 1]"
-          if not (System.Double.IsFinite c.FallingAccelerationScale) || c.FallingAccelerationScale < 0.0 || c.FallingAccelerationScale > 1.0 then
+          if
+              not (System.Double.IsFinite c.FallingAccelerationScale)
+              || c.FallingAccelerationScale < 0.0
+              || c.FallingAccelerationScale > 1.0
+          then
               yield "Contact.FallingAccelerationScale must be finite and in [0, 1]"
-          if not (System.Double.IsFinite c.PositionCorrectionPercent) || c.PositionCorrectionPercent < 0.0 || c.PositionCorrectionPercent > 0.8 then
+          if
+              not (System.Double.IsFinite c.PositionCorrectionPercent)
+              || c.PositionCorrectionPercent < 0.0
+              || c.PositionCorrectionPercent > 0.8
+          then
               yield "Contact.PositionCorrectionPercent must be finite and in [0, 0.8]"
-          if c.MaximumPositionCorrection <= 0.0<meter> || c.MaximumPositionCorrection > 0.05<meter> then
+          if
+              c.MaximumPositionCorrection <= 0.0<meter>
+              || c.MaximumPositionCorrection > 0.05<meter>
+          then
               yield "Contact.MaximumPositionCorrection must be in (0, 0.05] m"
           if c.VelocitySlop < 0.0<meterPerSecond> || c.VelocitySlop > 0.5<meterPerSecond> then
               yield "Contact.VelocitySlop must be in [0, 0.5] m/s"
-          if not (System.Double.IsFinite c.ToiTolerance) || c.ToiTolerance <= 0.0 || c.ToiTolerance > 0.001 then
+          if
+              not (System.Double.IsFinite c.ToiTolerance)
+              || c.ToiTolerance <= 0.0
+              || c.ToiTolerance > 0.001
+          then
               yield "Contact.ToiTolerance must be finite and in (0, 0.001]"
           if
               not (System.Double.IsFinite c.SimultaneousTolerance)
@@ -656,7 +759,10 @@ module ConfigValidation =
               c.StrikePreparation
               c.HeaderPreparation ]
 
-        [ if durations |> List.exists (fun duration -> duration < 1<subtick> || duration > 80<subtick>) then
+        [ if
+              durations
+              |> List.exists (fun duration -> duration < 1<subtick> || duration > 80<subtick>)
+          then
               yield "ContactAction preparation durations must be in [1, 80] subticks"
           if c.RecoveryDuration < 1<subtick> || c.RecoveryDuration > 400<subtick> then
               yield "ContactAction.RecoveryDuration must be in [1, 400] subticks"
@@ -666,13 +772,20 @@ module ConfigValidation =
               yield "ContactAction.FootReach must be in (0, 1.2] m"
           if c.SlidingReach <= c.FootReach || c.SlidingReach > 2.5<meter> then
               yield "ContactAction.SlidingReach must exceed FootReach and be at most 2.5 m"
-          if c.ReceptionTargetTolerance < 0.0<meter> || c.ReceptionTargetTolerance > 5.0<meter> then
+          if
+              c.ReceptionTargetTolerance < 0.0<meter>
+              || c.ReceptionTargetTolerance > 5.0<meter>
+          then
               yield "ContactAction.ReceptionTargetTolerance must be in [0, 5] m"
           if c.TackleBodyClearance < 0.0<meter> || c.TackleBodyClearance > 1.0<meter> then
               yield "ContactAction.TackleBodyClearance must be in [0, 1] m"
           if c.HeadReach <= 0.0<meter> || c.HeadReach > 1.0<meter> then
               yield "ContactAction.HeadReach must be in (0, 1] m"
-          if not (System.Double.IsFinite(float c.MaximumReorientation)) || c.MaximumReorientation < 0.0<radian> || c.MaximumReorientation > 3.1416<radian> then
+          if
+              not (System.Double.IsFinite(float c.MaximumReorientation))
+              || c.MaximumReorientation < 0.0<radian>
+              || c.MaximumReorientation > 3.1416<radian>
+          then
               yield "ContactAction.MaximumReorientation must be finite and in [0, pi]"
           if c.ExecutionErrorScale < 0.0<meter> || c.ExecutionErrorScale > 0.5<meter> then
               yield "ContactAction.ExecutionErrorScale must be in [0, 0.5] m"
@@ -680,14 +793,21 @@ module ConfigValidation =
               yield "ContactAction.MaximumExecutionError must be in [0, 1] m"
           if c.ShieldOffset <= 0.0<meter> || c.ShieldOffset > 1.0<meter> then
               yield "ContactAction.ShieldOffset must be in (0, 1] m"
-          if c.NewImpactThreshold < 0.0<meterPerSecond> || c.NewImpactThreshold > 5.0<meterPerSecond> then
+          if
+              c.NewImpactThreshold < 0.0<meterPerSecond>
+              || c.NewImpactThreshold > 5.0<meterPerSecond>
+          then
               yield "ContactAction.NewImpactThreshold must be in [0, 5] m/s"
-          if c.CarelessRelativeSpeed <= 0.0<meterPerSecond>
-             || c.RecklessRelativeSpeed <= c.CarelessRelativeSpeed
-             || c.ExcessiveRelativeSpeed <= c.RecklessRelativeSpeed
+          if
+              c.CarelessRelativeSpeed <= 0.0<meterPerSecond>
+              || c.RecklessRelativeSpeed <= c.CarelessRelativeSpeed
+              || c.ExcessiveRelativeSpeed <= c.RecklessRelativeSpeed
           then
               yield "ContactAction foul speed thresholds must be positive and strictly ordered"
-          if c.DangerousBallFirstSpeed < c.RecklessRelativeSpeed || c.DangerousBallFirstSpeed > c.ExcessiveRelativeSpeed then
+          if
+              c.DangerousBallFirstSpeed < c.RecklessRelativeSpeed
+              || c.DangerousBallFirstSpeed > c.ExcessiveRelativeSpeed
+          then
               yield "ContactAction.DangerousBallFirstSpeed must be between reckless and excessive thresholds" ]
 
     let validateActions (a: ActionsConfig) : string list =
@@ -729,16 +849,36 @@ module ConfigValidation =
           if a.ShotDistanceToGoalMultiplier < 0.0 || a.ShotDistanceToGoalMultiplier > 0.1 then
               yield "Actions.ShotDistanceToGoalMultiplier must be in [0, 0.1]"
           // Beyond ~12 rev/s no foot can spin a ball; above that the curl would be fiction.
-          if not (System.Double.IsFinite(float a.ShotCurlSpin)) || a.ShotCurlSpin < 0.0<radianPerSecond> || a.ShotCurlSpin > 75.0<radianPerSecond> then
+          if
+              not (System.Double.IsFinite(float a.ShotCurlSpin))
+              || a.ShotCurlSpin < 0.0<radianPerSecond>
+              || a.ShotCurlSpin > 75.0<radianPerSecond>
+          then
               yield "Actions.ShotCurlSpin must be in [0, 75] rad/s"
           // The fastest strikes on record are ~38 m/s; a slower base than a jog could not reach goal from range.
-          if not (System.Double.IsFinite(float a.ShotSpeedBase)) || a.ShotSpeedBase < 8.0<meterPerSecond> || a.ShotSpeedBase > 38.0<meterPerSecond> then
+          if
+              not (System.Double.IsFinite(float a.ShotSpeedBase))
+              || a.ShotSpeedBase < 8.0<meterPerSecond>
+              || a.ShotSpeedBase > 38.0<meterPerSecond>
+          then
               yield "Actions.ShotSpeedBase must be in [8, 38] m/s"
-          if not (System.Double.IsFinite(float a.ShotSpeedStrength)) || a.ShotSpeedStrength < 0.0<meterPerSecond> || a.ShotSpeedStrength > 15.0<meterPerSecond> then
+          if
+              not (System.Double.IsFinite(float a.ShotSpeedStrength))
+              || a.ShotSpeedStrength < 0.0<meterPerSecond>
+              || a.ShotSpeedStrength > 15.0<meterPerSecond>
+          then
               yield "Actions.ShotSpeedStrength must be in [0, 15] m/s"
-          if not (System.Double.IsFinite a.ShotPlacementSpeedCost) || a.ShotPlacementSpeedCost < 0.0 || a.ShotPlacementSpeedCost > 0.8 then
+          if
+              not (System.Double.IsFinite a.ShotPlacementSpeedCost)
+              || a.ShotPlacementSpeedCost < 0.0
+              || a.ShotPlacementSpeedCost > 0.8
+          then
               yield "Actions.ShotPlacementSpeedCost must be in [0, 0.8]"
-          if not (System.Double.IsFinite(float a.CrossArrivalHeight)) || a.CrossArrivalHeight < 0.0<meter> || a.CrossArrivalHeight > 2.2<meter> then
+          if
+              not (System.Double.IsFinite(float a.CrossArrivalHeight))
+              || a.CrossArrivalHeight < 0.0<meter>
+              || a.CrossArrivalHeight > 2.2<meter>
+          then
               yield "Actions.CrossArrivalHeight must be in [0, 2.2] m"
           // Steepness 0 would flatten sigmoid, >20 would be step function
           if a.DuelSteepness < 0.1 || a.DuelSteepness > 20.0 then
@@ -943,7 +1083,11 @@ module ConfigValidation =
               yield "Positioning.SupportLateralDistance must be in [2, 20] m"
           if p.GkMaxAdvance < 0.0<meter> || p.GkMaxAdvance > 20.0<meter> then
               yield "Positioning.GkMaxAdvance must be in [0, 20] m"
-          if not (System.Double.IsFinite p.GkDepthRatio) || p.GkDepthRatio < 0.0 || p.GkDepthRatio > 1.0 then
+          if
+              not (System.Double.IsFinite p.GkDepthRatio)
+              || p.GkDepthRatio < 0.0
+              || p.GkDepthRatio > 1.0
+          then
               yield "Positioning.GkDepthRatio must be finite and in [0, 1]" ]
 
     let validateIntercept (c: InterceptConfig) : string list =
@@ -954,16 +1098,24 @@ module ConfigValidation =
           if c.MaxSteps < 1 || c.MaxSteps > 200 then
               yield "Intercept.MaxSteps must be in [1, 200]"
           // Finer than 1 mm/s is memory for no accuracy; coarser than 0.1 m/s makes interpolation visible
-          if c.RollTableResolution < 0.001<meterPerSecond> || c.RollTableResolution > 0.1<meterPerSecond> then
+          if
+              c.RollTableResolution < 0.001<meterPerSecond>
+              || c.RollTableResolution > 0.1<meterPerSecond>
+          then
               yield "Intercept.RollTableResolution must be in [0.001, 0.1] m/s"
           // Zero would silently disable the table; the cap and the node budget bound its memory
-          if c.RollTableMaxSpeed <= 0.0<meterPerSecond> || c.RollTableMaxSpeed > 100.0<meterPerSecond> then
+          if
+              c.RollTableMaxSpeed <= 0.0<meterPerSecond>
+              || c.RollTableMaxSpeed > 100.0<meterPerSecond>
+          then
               yield "Intercept.RollTableMaxSpeed must be in (0, 100] m/s"
           elif
               c.RollTableResolution >= 0.001<meterPerSecond>
-              && (float c.RollTableMaxSpeed / float c.RollTableResolution + 1.0) * float (c.MaxSteps + 1) > 1e7
+              && (float c.RollTableMaxSpeed / float c.RollTableResolution + 1.0)
+                 * float (c.MaxSteps + 1) > 1e7
           then
-              yield "Intercept roll table (RollTableMaxSpeed / RollTableResolution nodes x MaxSteps) must stay under 1e7 values" ]
+              yield
+                  "Intercept roll table (RollTableMaxSpeed / RollTableResolution nodes x MaxSteps) must stay under 1e7 values" ]
 
     let validateSituation (c: SituationConfig) : string list =
         [ // LeadSteps negative would invert who leads, >10 would delay phase forever
@@ -1095,8 +1247,13 @@ module ConfigValidation =
 
     let validateAll (config: BalanceConfig) : Result<unit, string list> =
         let attack = config.CollectiveAttack
+
         let attackErrors =
-            [ if not (System.Double.IsFinite config.Actions.PassArrivalSpeedGain) || config.Actions.PassArrivalSpeedGain < 0.0 || config.Actions.PassArrivalSpeedGain > 0.5 then
+            [ if
+                  not (System.Double.IsFinite config.Actions.PassArrivalSpeedGain)
+                  || config.Actions.PassArrivalSpeedGain < 0.0
+                  || config.Actions.PassArrivalSpeedGain > 0.5
+              then
                   yield "Actions.PassArrivalSpeedGain must be finite and in [0, 0.5]"
               for name, value, maximum in
                   [ "SupportDepth", float attack.SupportDepth, 25.0
@@ -1117,16 +1274,26 @@ module ConfigValidation =
                   if not (System.Double.IsFinite value) || value <= 0.0 || value > maximum then
                       yield sprintf "CollectiveAttack.%s must be finite and in (0, %.2f]" name maximum
               for name, value in
-                  [ "MinimumCondition", attack.MinimumCondition; "MinimumScore", attack.MinimumScore
-                    "LearningWeight", attack.LearningWeight; "Exploration", attack.Exploration
-                    "SeasonalRetention", attack.SeasonalRetention; "CooperationWeight", attack.CooperationWeight
-                    "ProgressReward", attack.ProgressReward; "SpaceReward", attack.SpaceReward
-                    "ConnectionReward", attack.ConnectionReward; "ThreatReward", attack.ThreatReward
-                    "LossPenalty", attack.LossPenalty; "IdlePenalty", attack.IdlePenalty
-                    "ExposurePenalty", attack.ExposurePenalty; "AnticipationConfidence", attack.AnticipationConfidence ] do
+                  [ "MinimumCondition", attack.MinimumCondition
+                    "MinimumScore", attack.MinimumScore
+                    "LearningWeight", attack.LearningWeight
+                    "Exploration", attack.Exploration
+                    "SeasonalRetention", attack.SeasonalRetention
+                    "CooperationWeight", attack.CooperationWeight
+                    "ProgressReward", attack.ProgressReward
+                    "SpaceReward", attack.SpaceReward
+                    "ConnectionReward", attack.ConnectionReward
+                    "ThreatReward", attack.ThreatReward
+                    "LossPenalty", attack.LossPenalty
+                    "IdlePenalty", attack.IdlePenalty
+                    "ExposurePenalty", attack.ExposurePenalty
+                    "AnticipationConfidence", attack.AnticipationConfidence ] do
                   if not (System.Double.IsFinite value) || value < 0.0 || value > 1.0 then
                       yield sprintf "CollectiveAttack.%s must be finite and in [0, 1]" name
-              for name, value in [ "Duration", attack.Duration; "Recovery", attack.Recovery; "CounterHold", attack.CounterHold ] do
+              for name, value in
+                  [ "Duration", attack.Duration
+                    "Recovery", attack.Recovery
+                    "CounterHold", attack.CounterHold ] do
                   if value < 1<subtick> || value > 2400<subtick> then
                       yield sprintf "CollectiveAttack.%s must be in [1, 2400]" name
               if attack.CounterHold >= attack.Duration then
@@ -1135,10 +1302,16 @@ module ConfigValidation =
                   yield "CollectiveAttack.PressureCount must be in [1, 10]"
               if config.Planner.BeamWidth < 1 || config.Planner.BeamWidth > 8 then
                   yield "Planner.BeamWidth must be in [1, 8]"
-              for name, value, maximum in ["DribbleDuration", float config.Planner.DribbleDuration, 3.0; "MinimumPassDistance", float config.Planner.MinimumPassDistance, 5.0; "ShootingRange", float config.Planner.ShootingRange, float Pitch.HalfLength; "PassTableResolution", float config.Planner.PassTableResolution, 1.0] do
+              for name, value, maximum in
+                  [ "DribbleDuration", float config.Planner.DribbleDuration, 3.0
+                    "MinimumPassDistance", float config.Planner.MinimumPassDistance, 5.0
+                    "ShootingRange", float config.Planner.ShootingRange, float Pitch.HalfLength
+                    "PassTableResolution", float config.Planner.PassTableResolution, 1.0 ] do
                   if not (System.Double.IsFinite value) || value <= 0.0 || value > maximum then
                       yield sprintf "Planner.%s must be finite and in (0, %.2f]" name maximum ]
+
         let transition = config.DefensiveTransition
+
         let transitionErrors =
             [ for name, value, maximum in
                   [ "BaseArrivalWindow", float transition.BaseArrivalWindow, 10.0
@@ -1166,25 +1339,43 @@ module ConfigValidation =
                     "RetreatWidthScale", transition.RetreatWidthScale ] do
                   if not (System.Double.IsFinite value) || value <= 0.0 || value > 1.0 then
                       yield sprintf "DefensiveTransition.%s must be finite and in (0, 1]" name
-              for name, value in [ "CoverEffort", transition.CoverEffort; "ScreenEffort", transition.ScreenEffort; "RecoveryEffort", transition.RecoveryEffort ] do
+              for name, value in
+                  [ "CoverEffort", transition.CoverEffort
+                    "ScreenEffort", transition.ScreenEffort
+                    "RecoveryEffort", transition.RecoveryEffort ] do
                   if not (System.Double.IsFinite value) || value <= 0.0 || value > 1.0 then
                       yield sprintf "DefensiveTransition.%s must be finite and in (0, 1]" name
               if transition.MaximumScreens < 0 || transition.MaximumScreens > 3 then
                   yield "DefensiveTransition.MaximumScreens must be in [0, 3]"
-              if transition.ReevaluateTicks < 1<tickDelta> || transition.ReevaluateTicks > 40<tickDelta> then
+              if
+                  transition.ReevaluateTicks < 1<tickDelta>
+                  || transition.ReevaluateTicks > 40<tickDelta>
+              then
                   yield "DefensiveTransition.ReevaluateTicks must be in [1, 40]"
-              if transition.Commitment < 1<subtick> || transition.Commitment > transition.MaxPressDuration then
+              if
+                  transition.Commitment < 1<subtick>
+                  || transition.Commitment > transition.MaxPressDuration
+              then
                   yield "DefensiveTransition.Commitment must be positive and <= MaxPressDuration"
-              if transition.MaxPressDuration < 1<subtick> || transition.MaxPressDuration > 1200<subtick> then
+              if
+                  transition.MaxPressDuration < 1<subtick>
+                  || transition.MaxPressDuration > 1200<subtick>
+              then
                   yield "DefensiveTransition.MaxPressDuration must be in [1, 1200]"
-              if transition.StabilizationHold < 1<subtick> || transition.StabilizationHold > 400<subtick> then
+              if
+                  transition.StabilizationHold < 1<subtick>
+                  || transition.StabilizationHold > 400<subtick>
+              then
                   yield "DefensiveTransition.StabilizationHold must be in [1, 400]"
               if transition.MinimumLocalPlayers < 3 || transition.MinimumLocalPlayers > 10 then
                   yield "DefensiveTransition.MinimumLocalPlayers must be in [3, 10]"
               if transition.LocalSurplus < 0 || transition.LocalSurplus > 5 then
                   yield "DefensiveTransition.LocalSurplus must be in [0, 5]" ]
+
         let errs =
-            attackErrors @ transitionErrors @ validateBall config.Ball
+            attackErrors
+            @ transitionErrors
+            @ validateBall config.Ball
             @ validateMovement config.Movement
             @ validateGait config.Gait
             @ validateStrikeTechnique config.StrikeTechnique
@@ -1206,15 +1397,24 @@ module ConfigValidation =
             @ validateQuickMatch config.QuickMatch
             @ validateExpectedValue config.ExpectedValue
             @ [ let m = config.Manager
+
                 for name, value in
                     [ "Winning", m.ConditionThresholdWinning
                       "Drawing", m.ConditionThresholdDrawing
                       "Losing", m.ConditionThresholdLosing ] do
                     if not (System.Double.IsFinite value) || value < 0.0 || value > 1.0 then
                         yield $"Manager.ConditionThreshold{name} must be in [0, 1]"
-                if config.Match.EventWindowCapacity < 1 || config.Match.EventWindowCapacity > 100000 then
+
+                if
+                    config.Match.EventWindowCapacity < 1
+                    || config.Match.EventWindowCapacity > 100000
+                then
                     yield "Match.EventWindowCapacity must be in [1, 100000]"
-                if config.Actions.PerceptionRadius <= 0.0<meter> || config.Actions.PerceptionRadius > 105.0<meter> then
+
+                if
+                    config.Actions.PerceptionRadius <= 0.0<meter>
+                    || config.Actions.PerceptionRadius > 105.0<meter>
+                then
                     yield "Actions.PerceptionRadius must be in (0, 105] m" ]
             @ validateScout config.Scout
             @ validateCounter config.Counter

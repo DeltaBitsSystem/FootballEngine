@@ -32,7 +32,8 @@ module ManagerMind =
     let reading (s: Staff) : float = clamp01 (float s.CurrentSkill / 200.0)
 
     /// How fast he picks up the user's habits: potential over the 200 ceiling.
-    let learning (s: Staff) : float = clamp01 (float s.PotentialSkill / 200.0)
+    let learning (s: Staff) : float =
+        clamp01 (float s.PotentialSkill / 200.0)
 
     /// Rules are ordered: the first that matches names the coach, so a trait that dominates his behaviour
     /// (copying, temper) outranks the milder ones.
@@ -47,7 +48,8 @@ module ManagerMind =
             Strategist
         elif
             s.Mental.Adaptability <= 7
-            && (m.Philosophy = CoachPhilosophy.Possession || m.Philosophy = CoachPhilosophy.Pressing)
+            && (m.Philosophy = CoachPhilosophy.Possession
+                || m.Philosophy = CoachPhilosophy.Pressing)
         then
             Romantic
         elif m.Boldness >= 15 then

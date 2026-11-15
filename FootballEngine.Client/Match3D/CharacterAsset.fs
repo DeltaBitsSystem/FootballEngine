@@ -75,7 +75,13 @@ module CharacterAsset =
 
         if
             geometry.GetProperty("version").GetInt32() <> 1
-            || not (String.Equals(geometry.GetProperty("glbSha256").GetString(), actualHash, StringComparison.OrdinalIgnoreCase))
+            || not (
+                String.Equals(
+                    geometry.GetProperty("glbSha256").GetString(),
+                    actualHash,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
         then
             invalidData "Character rig geometry does not match the GLB."
 
@@ -286,13 +292,26 @@ module CharacterAsset =
             let little = bindWorld[semantic ("little_01." + side)].Translation
             let direction = Vector3.Normalize(middle - hand)
             let lateral = index - little
-            let normal = Vector3.Normalize(Vector3.Cross(direction, lateral)) * (if side = "L" then 1.0f else -1.0f)
-            let upperDirection = bindWorld[chain.Lower].Translation - bindWorld[chain.Upper].Translation
+
+            let normal =
+                Vector3.Normalize(Vector3.Cross(direction, lateral))
+                * (if side = "L" then 1.0f else -1.0f)
+
+            let upperDirection =
+                bindWorld[chain.Lower].Translation - bindWorld[chain.Upper].Translation
+
             let hinge = Vector3.Normalize(Vector3.Cross(-Vector3.UnitZ, upperDirection))
             let mutable handInverse = Matrix4x4.Identity
             let mutable upperInverse = Matrix4x4.Identity
-            if not (Matrix4x4.Invert(bindWorld[chain.End], &handInverse) && Matrix4x4.Invert(bindWorld[chain.Upper], &upperInverse)) then
+
+            if
+                not (
+                    Matrix4x4.Invert(bindWorld[chain.End], &handInverse)
+                    && Matrix4x4.Invert(bindWorld[chain.Upper], &upperInverse)
+                )
+            then
                 invalidData "Singular anatomical arm frame."
+
             { chain with
                 Pole = -Vector3.UnitZ
                 HingeAxis = Vector3.TransformNormal(hinge, upperInverse)
@@ -308,6 +327,7 @@ module CharacterAsset =
             |> Seq.map (fun rule ->
                 let support = semantic (rule.GetProperty("support").GetString())
                 let source = semantic (rule.GetProperty("source").GetString())
+
                 { Support = support
                   Source = source
                   Weight = rule.GetProperty("weight").GetSingle()
@@ -317,12 +337,19 @@ module CharacterAsset =
 
         let expectedCorrectives =
             [| for side in [| "L"; "R" |] do
-                   for helper, source in [| "hip_support", "thigh"; "knee_support", "shin"; "elbow_support", "forearm"; "axilla_support", "upper_arm" |] do
+                   for helper, source in
+                       [| "hip_support", "thigh"
+                          "knee_support", "shin"
+                          "elbow_support", "forearm"
+                          "axilla_support", "upper_arm" |] do
                        yield semantic (helper + "." + side), semantic (source + "." + side) |]
 
         if
             correctives.Length <> 8
-            || (correctives |> Array.exists (fun rule -> rule.Weight <> 0.5f || not (Array.contains (rule.Support, rule.Source) expectedCorrectives)))
+            || (correctives
+                |> Array.exists (fun rule ->
+                    rule.Weight <> 0.5f
+                    || not (Array.contains (rule.Support, rule.Source) expectedCorrectives)))
             || (correctives |> Array.map _.Support |> Array.distinct |> Array.length) <> 8
         then
             invalidData "Character requires the eight authored half-rotation corrective pairs."

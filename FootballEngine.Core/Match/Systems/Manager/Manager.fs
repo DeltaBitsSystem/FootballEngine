@@ -151,9 +151,11 @@ module ManagerSystem =
         | SlotRole.DefensiveMid -> true
         | _ -> false
 
-    let private attackScore (p: PlayerProfile) = p.Pace + p.Passing + p.Finishing + p.Dribbling
+    let private attackScore (p: PlayerProfile) =
+        p.Pace + p.Passing + p.Finishing + p.Dribbling
 
-    let private defendScore (p: PlayerProfile) = p.Tackling + p.Marking + p.Positioning + p.Strength
+    let private defendScore (p: PlayerProfile) =
+        p.Tackling + p.Marking + p.Positioning + p.Strength
 
     let private mostTired (frame: TeamFrame) (candidates: int list) : int voption =
         match candidates with
@@ -166,7 +168,12 @@ module ManagerSystem =
         | _ -> ValueSome(slots |> List.maxBy (fun slot -> score lineup.Profiles.[slot], -slot))
 
     /// The change that goes with a move: who comes off and who comes on, by what the move is for.
-    let private pickChange (ctx: SystemContext) (world: World) (side: ClubSide) (intent: SubstitutionIntent) : (int * int) voption =
+    let private pickChange
+        (ctx: SystemContext)
+        (world: World)
+        (side: ClubSide)
+        (intent: SubstitutionIntent)
+        : (int * int) voption =
         let team = MatchWorld.team world side
         let frame = team.Frame
         let lineup = MatchWorld.lineup ctx.Ctx side
@@ -208,7 +215,8 @@ module ManagerSystem =
             MatchWorld.activeSlots frame
             |> List.ofArray
             |> List.filter (fun slot ->
-                (lineup.Profiles.[slot].Role = SlotRole.Defender || lineup.Profiles.[slot].Role = SlotRole.FullBack)
+                (lineup.Profiles.[slot].Role = SlotRole.Defender
+                 || lineup.Profiles.[slot].Role = SlotRole.FullBack)
                 && team.Memory.[slot].Yellows >= 1)
 
         let replacements =
@@ -217,11 +225,17 @@ module ManagerSystem =
 
         match booked, bestOf defendScore lineup replacements with
         | [], _ -> ValueNone
-        | slots, ValueSome replacement -> ValueSome(slots |> List.maxBy (fun slot -> team.Memory.[slot].Yellows, -slot), replacement)
+        | slots, ValueSome replacement ->
+            ValueSome(slots |> List.maxBy (fun slot -> team.Memory.[slot].Yellows, -slot), replacement)
         | _, ValueNone -> ValueNone
 
     /// The tired player replaced by someone who plays his role, instead of by whoever rates best.
-    let private pickRoleMatchedChange (ctx: SystemContext) (world: World) (side: ClubSide) (threshold: float32) : (int * int) voption =
+    let private pickRoleMatchedChange
+        (ctx: SystemContext)
+        (world: World)
+        (side: ClubSide)
+        (threshold: float32)
+        : (int * int) voption =
         let team = MatchWorld.team world side
         let frame = team.Frame
         let lineup = MatchWorld.lineup ctx.Ctx side
@@ -229,19 +243,30 @@ module ManagerSystem =
         let tired =
             MatchWorld.activeSlots frame
             |> List.ofArray
-            |> List.filter (fun slot -> lineup.Profiles.[slot].Role <> SlotRole.Goalkeeper && frame.Condition.[slot] < threshold)
+            |> List.filter (fun slot ->
+                lineup.Profiles.[slot].Role <> SlotRole.Goalkeeper
+                && frame.Condition.[slot] < threshold)
 
         match mostTired frame tired with
         | ValueNone -> ValueNone
         | ValueSome out ->
             let role = lineup.Profiles.[out].Role
-            let sameRole = benchSlots lineup frame |> List.filter (fun slot -> lineup.Profiles.[slot].Role = role)
+
+            let sameRole =
+                benchSlots lineup frame
+                |> List.filter (fun slot -> lineup.Profiles.[slot].Role = role)
 
             match bestOf (fun p -> attackScore p + defendScore p) lineup sameRole with
             | ValueSome inn -> ValueSome(out, inn)
             | ValueNone -> ValueNone
 
-    let private requestChange (world: World) (buffer: EventBuffer) (ctx: SystemContext) (side: ClubSide) (out: int, inn: int) =
+    let private requestChange
+        (world: World)
+        (buffer: EventBuffer)
+        (ctx: SystemContext)
+        (side: ClubSide)
+        (out: int, inn: int)
+        =
         let lineup = MatchWorld.lineup ctx.Ctx side
 
         buffer.Events.Add
@@ -249,7 +274,13 @@ module ManagerSystem =
               Data = EventData.SubstitutionRequested(lineup.Profiles.[out].Id, lineup.Profiles.[inn].Id) }
 
     /// Measures every shift from the plan the coach started with, so a chain of shifts never compounds.
-    let private applyMove (ctx: SystemContext) (world: World) (buffer: EventBuffer) (side: ClubSide) (move: ManagerMove) =
+    let private applyMove
+        (ctx: SystemContext)
+        (world: World)
+        (buffer: EventBuffer)
+        (side: ClubSide)
+        (move: ManagerMove)
+        =
         let cfg = ctx.Ctx.Config.RivalManager
         let team = MatchWorld.team world side
         let brain = team.Brain
@@ -312,12 +343,29 @@ module ManagerSystem =
         (playClock: PlayClock)
         : Rng =
         let cfg = ctx.Ctx.Config.RivalManager
-        let profile = (if side = ClubSide.Home then ctx.Ctx.HomeClub else ctx.Ctx.AwayClub).Manager
+
+        let profile =
+            (if side = ClubSide.Home then
+                 ctx.Ctx.HomeClub
+             else
+                 ctx.Ctx.AwayClub)
+                .Manager
+
         let team = MatchWorld.team world side
-        let opponent = MatchWorld.team world (if side = ClubSide.Home then ClubSide.Away else ClubSide.Home)
+
+        let opponent =
+            MatchWorld.team
+                world
+                (if side = ClubSide.Home then
+                     ClubSide.Away
+                 else
+                     ClubSide.Home)
+
         let brain = team.Brain
         let minute = int (PlayClock.toMatchMinute playClock)
-        let isMinuteTick = PlayClock.value playClock % SimulationClock.minuteSubticks = 0<subtick>
+
+        let isMinuteTick =
+            PlayClock.value playClock % SimulationClock.minuteSubticks = 0<subtick>
 
         let mutable goal = false
         let mutable ownRed = false
@@ -357,7 +405,9 @@ module ManagerSystem =
             && minute >= brain.PendingReviewMinute
             && (minute > brain.LastReviewMinute || incident)
 
-        let intervalDue = isMinuteTick && minute - brain.LastReviewMinute >= cfg.ReviewIntervalMin
+        let intervalDue =
+            isMinuteTick && minute - brain.LastReviewMinute >= cfg.ReviewIntervalMin
+
         let mutable rng = rng
         let mutable requested = false
 
@@ -375,7 +425,11 @@ module ManagerSystem =
             rng <- next
             let diff = world.State.HomeScore - world.State.AwayScore
             let myDiff = if side = ClubSide.Home then diff else -diff
-            let fade = 0.5 ** (float (max 0 (minute - brain.LastReviewMinute)) / cfg.MomentumHalfLifeMin)
+
+            let fade =
+                0.5
+                ** (float (max 0 (minute - brain.LastReviewMinute)) / cfg.MomentumHalfLifeMin)
+
             brain.RecentXgFor <- brain.RecentXgFor * fade + (team.Stats.XgSum - brain.LastXgFor)
             brain.RecentXgAgainst <- brain.RecentXgAgainst * fade + (opponent.Stats.XgSum - brain.LastXgAgainst)
 
@@ -410,7 +464,11 @@ module ManagerSystem =
             | ValueNone -> ()
 
             // A hothead who is losing at the break cannot wait: he asks for a second change as well.
-            if halfTimeReview && myDiff < 0 && float profile.Temperament >= cfg.HotheadTemperament then
+            if
+                halfTimeReview
+                && myDiff < 0
+                && float profile.Temperament >= cfg.HotheadTemperament
+            then
                 brain.QueuedChanges <- cfg.HotheadHalfTimeChanges - (if requested then 1 else 0)
                 brain.QueuedIntent <- SubstitutionIntent.Attack
 
@@ -432,9 +490,12 @@ module ManagerSystem =
             let myDiff = if side = ClubSide.Home then diff else -diff
 
             let threshold =
-                if myDiff < 0 then float32 ctx.Ctx.Config.Manager.ConditionThresholdLosing
-                elif myDiff = 0 then float32 ctx.Ctx.Config.Manager.ConditionThresholdDrawing
-                else float32 ctx.Ctx.Config.Manager.ConditionThresholdWinning
+                if myDiff < 0 then
+                    float32 ctx.Ctx.Config.Manager.ConditionThresholdLosing
+                elif myDiff = 0 then
+                    float32 ctx.Ctx.Config.Manager.ConditionThresholdDrawing
+                else
+                    float32 ctx.Ctx.Config.Manager.ConditionThresholdWinning
 
             if float profile.Reading >= cfg.SmartChangeReadingMin then
                 if minute >= int ctx.Ctx.Config.Manager.FirstSubWindowMin then
@@ -452,11 +513,18 @@ module ManagerSystem =
             let playClock = MatchClock.playClock world.State.Clock
             // The old schedule (every minute) still governs the sides the user commands; the incident triggers
             // exist for the autonomous ones.
-            let isMinuteTick = PlayClock.value playClock % SimulationClock.minuteSubticks = 0<subtick>
+            let isMinuteTick =
+                PlayClock.value playClock % SimulationClock.minuteSubticks = 0<subtick>
+
             let mutable rng = rng
 
             for side in [ ClubSide.Home; ClubSide.Away ] do
-                let profile = (if side = ClubSide.Home then ctx.Ctx.HomeClub else ctx.Ctx.AwayClub).Manager
+                let profile =
+                    (if side = ClubSide.Home then
+                         ctx.Ctx.HomeClub
+                     else
+                         ctx.Ctx.AwayClub)
+                        .Manager
 
                 if profile.Autonomous then
                     rng <- autonomousStep ctx rng world buffer side playClock
@@ -468,7 +536,8 @@ module ManagerSystem =
                         |> Seq.choose (fun ev ->
                             match ev.Data with
                             | EventData.RedCardIssued pid ->
-                                MatchWorld.sideOfPlayer ctx.Ctx pid |> ValueOption.filter (fun s -> s = side)
+                                MatchWorld.sideOfPlayer ctx.Ctx pid
+                                |> ValueOption.filter (fun s -> s = side)
                                 |> ValueOption.toOption
                             | _ -> None)
                         |> Seq.toList

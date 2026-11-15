@@ -46,5 +46,4 @@ module WorldPulse =
     let runOn (weekly: bool) (config: WorldPulseConfig) (date: DateTime) (gs: GameState) : GameState =
         runWithCadence (MatchStories.detectors config) weekly config date gs
 
-    let run (config: WorldPulseConfig) (date: DateTime) (gs: GameState) : GameState =
-        runOn false config date gs
+    let run (config: WorldPulseConfig) (date: DateTime) (gs: GameState) : GameState = runOn false config date gs

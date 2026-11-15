@@ -122,7 +122,13 @@ module Sidebar =
         : IView =
         let badge: IView list =
             match badgeCount with
-            | Some count when count > 0 -> [ UI.countBadge count |> fun view -> Border.create [ Border.dock Dock.Right; Border.verticalAlignment VerticalAlignment.Center; Border.child view ] ]
+            | Some count when count > 0 ->
+                [ UI.countBadge count
+                  |> fun view ->
+                      Border.create
+                          [ Border.dock Dock.Right
+                            Border.verticalAlignment VerticalAlignment.Center
+                            Border.child view ] ]
             | _ -> []
 
         Button.create
@@ -151,7 +157,9 @@ module Sidebar =
                                                 TextBlock.fontWeight (
                                                     if isActive then FontWeight.SemiBold else FontWeight.Medium
                                                 )
-                                                TextBlock.foreground (if isActive then Theme.TextMain else Theme.TextSub)
+                                                TextBlock.foreground (
+                                                    if isActive then Theme.TextMain else Theme.TextSub
+                                                )
                                                 TextBlock.verticalAlignment VerticalAlignment.Center ] ] ] ] ]
               ) ]
 
@@ -211,7 +219,10 @@ module Sidebar =
 
     let private unemployedCard (gs: GameState) (dispatch: Msg -> unit) : IView =
         let former =
-            gs.Clubs |> Map.tryFind gs.UserClubId |> Option.map _.Name |> Option.defaultValue ""
+            gs.Clubs
+            |> Map.tryFind gs.UserClubId
+            |> Option.map _.Name
+            |> Option.defaultValue ""
 
         Button.create
             [ Button.background Theme.BgCard
@@ -289,7 +300,8 @@ module Sidebar =
                                         Border.borderThickness (0.0, 1.0, 0.0, 0.0)
                                         Border.child (item Navigation.settingsItem) ]
                               ScrollViewer.create
-                                  [ ScrollViewer.horizontalScrollBarVisibility Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
+                                  [ ScrollViewer.horizontalScrollBarVisibility
+                                        Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
                                     ScrollViewer.content (
                                         StackPanel.create
                                             [ StackPanel.margin (0.0, 0.0, 0.0, 12.0)
@@ -297,13 +309,16 @@ module Sidebar =
                                                   [ for section in Navigation.menuSections do
                                                         let sectionItems =
                                                             section.Items
-                                                            |> List.filter (fun navItem -> List.contains navItem visibleItems)
+                                                            |> List.filter (fun navItem ->
+                                                                List.contains navItem visibleItems)
 
                                                         if not sectionItems.IsEmpty then
                                                             Border.create
                                                                 [ Border.padding (26.0, 14.0, 18.0, 6.0)
                                                                   Border.child (
-                                                                      UI.eyebrow (Localization.resolve section.Title []) Theme.TextDim
+                                                                      UI.eyebrow
+                                                                          (Localization.resolve section.Title [])
+                                                                          Theme.TextDim
                                                                   ) ]
                                                             :> IView
 

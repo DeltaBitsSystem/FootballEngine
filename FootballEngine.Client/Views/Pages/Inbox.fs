@@ -185,7 +185,10 @@ module Inbox =
                                         StackPanel.verticalAlignment VerticalAlignment.Center
                                         StackPanel.children
                                             [ Icons.icon IconName.inbox 18.0 Theme.Accent
-                                              UI.display (Localization.resolve TranslationKey.InboxTitle []) 22.0 Theme.TextMain ] ]
+                                              UI.display
+                                                  (Localization.resolve TranslationKey.InboxTitle [])
+                                                  22.0
+                                                  Theme.TextMain ] ]
                                   if unreadCount > 0 then
                                       Border.create
                                           [ Grid.column 1

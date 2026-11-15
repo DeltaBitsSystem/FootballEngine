@@ -27,10 +27,14 @@ module StrikeTechnique =
         let speed = sqrt (vx * vx + vy * vy)
 
         // A curled strike is bent with the inside of the boot, which is what gives it its side spin.
-        if abs (float impulse.AngularVelocity.Side) > 1e-6 then StrikeSurface.Inside
-        elif outward > cfg.OutsideAngle then StrikeSurface.Outside
-        elif speed >= float cfg.InstepSpeed then StrikeSurface.Instep
-        else StrikeSurface.Inside
+        if abs (float impulse.AngularVelocity.Side) > 1e-6 then
+            StrikeSurface.Inside
+        elif outward > cfg.OutsideAngle then
+            StrikeSurface.Outside
+        elif speed >= float cfg.InstepSpeed then
+            StrikeSurface.Instep
+        else
+            StrikeSurface.Inside
 
     /// Technique that governs a strike kind, in [0, 1].
     let technique (profile: PlayerProfile) kind =
@@ -42,7 +46,11 @@ module StrikeTechnique =
     /// Direction error (radians, one sigma) of a strike from this surface.
     let spread (cfg: StrikeTechniqueConfig) surface technique opponents composure offBalance =
         let s = surfaceConfig cfg surface
-        let pressure = float opponents * cfg.PressureSpreadPerOpponent * (1.0 - cfg.ComposureShield * composure)
+
+        let pressure =
+            float opponents
+            * cfg.PressureSpreadPerOpponent
+            * (1.0 - cfg.ComposureShield * composure)
 
         s.Spread
         * (1.0 - cfg.TechniqueShare * MatchMath.clamp01 technique)
@@ -51,7 +59,9 @@ module StrikeTechnique =
 
     let offBalance (frame: TeamFrame) slot =
         let state = frame.ContactState[slot]
-        state.Status <> BodyContactStatus.BodyStable || state.Support = BodySupport.NoBodySupport
+
+        state.Status <> BodyContactStatus.BodyStable
+        || state.Support = BodySupport.NoBodySupport
 
     let shape
         (ctx: MatchContext)
@@ -95,7 +105,9 @@ module StrikeTechnique =
             let c, s = cos angle, sin angle
             let speed = sqrt (vx * vx + vy * vy)
             let sense = if surface = StrikeSurface.Outside then -1.0 else 1.0
-            let sideSpin = sense * footSign foot * (surfaceConfig cfg surface).SideSpinPerSpeed * speed
+
+            let sideSpin =
+                sense * footSign foot * (surfaceConfig cfg surface).SideSpinPerSpeed * speed
 
             let shaped =
                 { impulse with

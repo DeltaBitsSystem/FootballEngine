@@ -91,7 +91,9 @@ module WorldPulseTests =
                   let result = NewsDesk.publish cfg date candidates state
 
                   let worldClubs =
-                      result.News |> List.filter (fun n -> n.Scope = NewsScope.World) |> List.map _.Clubs
+                      result.News
+                      |> List.filter (fun n -> n.Scope = NewsScope.World)
+                      |> List.map _.Clubs
 
                   Expect.sequenceEqual (worldClubs |> List.sort) [ [ 11 ]; [ 12 ] ] "headline and first major win"
 
@@ -119,7 +121,11 @@ module WorldPulseTests =
                   Expect.equal otherClub.News.Length 2 "a different primary entity is not a duplicate"
 
                   let outside =
-                      NewsDesk.publish config (date.AddDays(float config.DuplicateWindowDays + 1.0)) [ streak 10 5 ] first
+                      NewsDesk.publish
+                          config
+                          (date.AddDays(float config.DuplicateWindowDays + 1.0))
+                          [ streak 10 5 ]
+                          first
 
                   Expect.equal outside.News.Length 2 "outside the window it is published again"
 
@@ -139,7 +145,9 @@ module WorldPulseTests =
 
                   let final =
                       [ 1..5 ]
-                      |> List.fold (fun gs i -> NewsDesk.publish cfg (date.AddDays(float i)) [ streak (100 + i) 3 ] gs) state
+                      |> List.fold
+                          (fun gs i -> NewsDesk.publish cfg (date.AddDays(float i)) [ streak (100 + i) 3 ] gs)
+                          state
 
                   Expect.equal (final.News |> List.map _.Id) [ 5; 4; 3 ] "only the three newest remain"
                   Expect.equal final.NextNewsId 6 "ids keep counting after trimming" ]
@@ -169,11 +177,17 @@ module WorldPulseTests =
               testCase "seed matches a pinned FNV-1a value so it cannot depend on the process"
               <| fun _ ->
                   // Value computed independently in Python FNV-1a: String.GetHashCode-based seeds would differ between runs.
-                  Expect.equal (PulseRandom.seedFor 7UL (DateTime(2030, 5, 10)) "detector" 5) 15532670867235901127UL "pinned"
+                  Expect.equal
+                      (PulseRandom.seedFor 7UL (DateTime(2030, 5, 10)) "detector" 5)
+                      15532670867235901127UL
+                      "pinned"
 
               testCase "roll stays in [0,1) and spreads"
               <| fun _ ->
-                  let rolls = [ 0..999 ] |> List.map (fun i -> PulseRandom.roll (PulseRandom.seedFor 1UL date "r" i))
+                  let rolls =
+                      [ 0..999 ]
+                      |> List.map (fun i -> PulseRandom.roll (PulseRandom.seedFor 1UL date "r" i))
+
                   Expect.all rolls (fun r -> r >= 0.0 && r < 1.0) "range"
                   let mean = List.average rolls
                   Expect.isTrue (mean > 0.4 && mean < 0.6) $"mean near 0.5, got {mean}" ]
@@ -186,14 +200,33 @@ module WorldPulseTests =
 
               testCase "invalid values are rejected one by one"
               <| fun _ ->
-                  let rejected c = not (WorldPulseConfig.validate c).IsEmpty
+                  let rejected c =
+                      not (WorldPulseConfig.validate c).IsEmpty
+
                   Expect.isTrue (rejected { config with NewsRetention = 0 }) "retention"
                   Expect.isTrue (rejected { config with DailyBudgetUserClub = -1 }) "club budget"
-                  Expect.isTrue (rejected { config with DailyBudgetUserLeague = -1 }) "league budget"
+
+                  Expect.isTrue
+                      (rejected
+                          { config with
+                              DailyBudgetUserLeague = -1 })
+                      "league budget"
+
                   Expect.isTrue (rejected { config with DailyBudgetWorld = -1 }) "world budget"
                   Expect.isTrue (rejected { config with DuplicateWindowDays = -1 }) "window"
-                  Expect.isTrue (rejected { config with InitialBoardConfidence = 101 }) "confidence high"
-                  Expect.isTrue (rejected { config with InitialBoardConfidence = -1 }) "confidence low"
+
+                  Expect.isTrue
+                      (rejected
+                          { config with
+                              InitialBoardConfidence = 101 })
+                      "confidence high"
+
+                  Expect.isTrue
+                      (rejected
+                          { config with
+                              InitialBoardConfidence = -1 })
+                      "confidence low"
+
                   Expect.isTrue (rejected { config with InitialFansMood = 101 }) "mood high"
                   Expect.isTrue (rejected { config with RecentResultsKept = 0 }) "results kept"
                   Expect.isTrue (rejected { config with AwardMinAppearances = -1 }) "award appearances"

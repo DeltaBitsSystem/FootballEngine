@@ -371,7 +371,10 @@ module TestBuilders =
           Participation = ParticipationBook.create ()
           Proposals = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
           PendingActions = System.Collections.Generic.Dictionary<int, PendingPlayerAction>()
-          Latched = { OurPhase = PhaseKind.Attacking; InTransition = false; PendingSlots = 0UL }
+          Latched =
+            { OurPhase = PhaseKind.Attacking
+              InTransition = false
+              PendingSlots = 0UL }
           Attack = CollectiveAttackState.create Map.empty
           LastCarrierSlot = -1
           LastRoleAssignmentTick = -1<subtick>

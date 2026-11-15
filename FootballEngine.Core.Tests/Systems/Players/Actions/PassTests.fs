@@ -128,10 +128,10 @@ module PassTests =
                       "explanation distinguishes refusal from physical failed contact"
 
                   Expect.isNonEmpty
-                       (ConfigValidation.validateActions
-                           { ctx.Config.Actions with
-                               MaxPassExecutionDistance = System.Double.NaN * 1.0<meter> })
-                       "nonfinite execution limit is rejected")
+                      (ConfigValidation.validateActions
+                          { ctx.Config.Actions with
+                              MaxPassExecutionDistance = System.Double.NaN * 1.0<meter> })
+                      "nonfinite execution limit is rejected")
 
               testCase "arrival gate accounts for strike windup exactly once" (fun _ ->
                   let world = TestBuilders.minimalWorld ()
@@ -146,15 +146,21 @@ module PassTests =
                                           X = 0.0<meter>
                                           Y = 0.0<meter> } } }
 
-                  Pass.launch sctx (Rng.ofSeed 29UL) world (buffer ()) ClubSide.Home 5 7 0.0 |> ignore
+                  Pass.launch sctx (Rng.ofSeed 29UL) world (buffer ()) ClubSide.Home 5 7 0.0
+                  |> ignore
 
                   let pending =
                       world.State.Ball.PendingStrike
                       |> Option.defaultWith (fun () -> failtest "reachable passer prepares a physical strike")
 
                   let distance = 12.0
+
                   let seconds =
-                      (BallAero.pass ctx.Config.Ball ctx.Config.Actions.PassArrivalSpeed ctx.Config.Actions.PassArrivalSpeedGain distance)
+                      (BallAero.pass
+                          ctx.Config.Ball
+                          ctx.Config.Actions.PassArrivalSpeed
+                          ctx.Config.Actions.PassArrivalSpeedGain
+                          distance)
                           .Seconds
 
                   let expectedFlightTicks =
