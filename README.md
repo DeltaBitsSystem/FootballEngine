@@ -64,10 +64,13 @@ Five cameras: broadcast, tactical, behind the goal, touchline and close up. The 
 
 ## A tour of the game
 
-Screens from a real career, a few weeks into the season. Click a section to open it.
+Screens from a real career, a few weeks into the season. Each one says what the screen is for, what makes it different and what is still missing.
 
-<details>
-<summary><b>Today</b>: the next match and what needs you</summary>
+[Today](#today) · [Tactics](#tactics) · [Squad](#squad) · [Training](#training) · [Scouting](#scouting) · [Transfers](#transfers) · [Finances](#finances) · [Board, news and inbox](#board-news-and-inbox) · [Calendar](#calendar) · [Mod editor](#mod-editor)
+
+### Today
+
+*The next match and what needs you.*
 
 ![Today](docs/media/ui/today.webp)
 
@@ -76,10 +79,10 @@ Screens from a real career, a few weeks into the season. Click a section to open
 **What is different.** The rival manager has a personality and a record against you. The first time you meet, they have no reports on you. By the third, they know your habits. Time advances day by day and stops for a decision, an unavailable player or your match. It never plays for you.
 
 **Missing.** A short summary of the last result and the form of both teams.
-</details>
 
-<details>
-<summary><b>Tactics</b>: shape, roles and fit</summary>
+### Tactics
+
+*Shape, roles and fit.*
 
 ![Tactics](docs/media/ui/tactics.webp)
 
@@ -88,20 +91,20 @@ Screens from a real career, a few weeks into the season. Click a section to open
 **What is different.** Every player shows how well they fit the role and how fresh they are. A familiarity bar shows how well the team knows this shape. Changing everything the day before a match has a real cost on the pitch.
 
 **Missing.** Set piece routines and opposition instructions.
-</details>
 
-<details>
-<summary><b>Squad</b>: who you have</summary>
+### Squad
+
+*Who you have.*
 
 ![Squad](docs/media/ui/squad.webp)
 
 **What it is for.** The whole squad by line, level, age or value, with condition and morale at a glance.
 
 **Missing.** A richer player profile with history, personality and promises.
-</details>
 
-<details>
-<summary><b>Training</b>: the week before the match</summary>
+### Training
+
+*The week before the match.*
 
 ![Training](docs/media/ui/training.webp)
 
@@ -110,10 +113,10 @@ Screens from a real career, a few weeks into the season. Click a section to open
 **What is different.** Training trades freshness for growth. Young players develop, tired players rest, the starting eleven sharpens. The page tells you how fresh your eleven will be on match day, and injury risk is visible before you choose.
 
 **Missing.** Individual drills and staff advice.
-</details>
 
-<details>
-<summary><b>Scouting</b>: knowledge has a cost</summary>
+### Scouting
+
+*Knowledge has a cost.*
 
 ![Scouting](docs/media/ui/scouting.webp)
 
@@ -122,10 +125,10 @@ Screens from a real career, a few weeks into the season. Click a section to open
 **What is different.** You never see a player's true level. Reports give a range and a confidence, biased by how good your scout is.
 
 **Missing.** Scouting regions and a better way to find targets than a long list.
-</details>
 
-<details>
-<summary><b>Transfers</b>: the market</summary>
+### Transfers
+
+*The market.*
 
 ![Transfers](docs/media/ui/transfers.webp)
 
@@ -134,10 +137,10 @@ Screens from a real career, a few weeks into the season. Click a section to open
 **What is different.** Other clubs buy and sell on their own, all season, whether you are watching or not.
 
 **Missing.** Loans and contract clauses.
-</details>
 
-<details>
-<summary><b>Finances</b>: money you can trust</summary>
+### Finances
+
+*Money you can trust.*
 
 ![Finances](docs/media/ui/finances.webp)
 
@@ -146,10 +149,10 @@ Screens from a real career, a few weeks into the season. Click a section to open
 **What is different.** Every operation is recorded, and money is reserved before a deal closes so it is never spent twice.
 
 **Missing.** Match day income, sponsors and a clearer history view.
-</details>
 
-<details>
-<summary><b>Board, news and inbox</b>: people who remember</summary>
+### Board, news and inbox
+
+*People who remember.*
 
 ![Board](docs/media/ui/board.webp)
 
@@ -164,20 +167,20 @@ The news follows your club, your league and the world. Stories come from what re
 Messages that need you are marked for review. The rest can wait.
 
 **Missing.** Press conferences, player conversations and situations that ask for a decision.
-</details>
 
-<details>
-<summary><b>Calendar</b>: the season</summary>
+### Calendar
+
+*The season.*
 
 ![Calendar](docs/media/ui/calendar.webp)
 
 **What it is for.** Every fixture and result of the season.
 
 **Missing.** A month view and cup draws.
-</details>
 
-<details>
-<summary><b>Mod editor</b>: build your own world</summary>
+### Mod editor
+
+*Build your own world.*
 
 ![Mod library](docs/media/ui/mod-library.webp)
 
@@ -196,7 +199,6 @@ Leagues form a pyramid with their own points rules.
 Publishing checks the mod exactly as the game loads it, so a career never starts broken.
 
 **Missing.** Sharing mods online and editing competitions in depth.
-</details>
 
 ## Status
 
