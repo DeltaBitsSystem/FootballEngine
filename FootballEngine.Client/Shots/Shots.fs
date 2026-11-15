@@ -69,6 +69,10 @@ module Shots =
             ViewerSceneFrames: int
             /// Match second of the goal used by the goal scene; it depends on the match seed.
             ViewerGoalSecond: int
+            /// Camera for recorded clips; the viewer default when absent.
+            VideoCamera: ViewerCamera option
+            /// Record only the native 3D surface instead of the whole window.
+            VideoSurfaceOnly: bool
             Args: string[]
         }
 
@@ -232,6 +236,13 @@ module Shots =
                         | Error _ -> None)
                   ViewerSceneFrames = positiveValue "--viewer-frames" 120
                   ViewerGoalSecond = nonNegativeValue "--viewer-goal-at" 0
+                  VideoSurfaceOnly = args |> Array.contains "--video-surface"
+                  VideoCamera =
+                    getValue "--viewer-camera"
+                    |> Option.bind (fun value ->
+                        ViewerCamera.all
+                        |> Array.tryFind (fun camera ->
+                            String.Equals(string camera, value, StringComparison.OrdinalIgnoreCase)))
                   Args = args }
 
     // Sync replica of UpdateTransfer.buildCacheAsync: the async Load races the screenshot
@@ -631,6 +642,11 @@ module Shots =
 
             let openLiveMatch dispatch =
                 async {
+                    // Any initial hold turns off key-moment pacing, whose automatic pauses would also stop a skip
+                    // or a recording; one tick short of the end holds nothing a capture reaches.
+                    if ctx.Opts.ViewerScenesDir.IsNone then
+                        MatchRuntime.armInitialHold (MatchSession.maxTicks - 1<subtick>)
+
                     Dispatcher.UIThread.Invoke(fun () ->
                         dispatch (Navigate(liveRoute (Route.Match(1, MatchPhase.Live)))))
 
@@ -674,6 +690,8 @@ module Shots =
                 async {
                     do! openLiveMatch dispatch
                     let goals = ResizeArray<int>()
+                    // Set pieces, saves and woodwork logged alongside goals so clips of other moments can be chosen by second.
+                    let moments = ResizeArray<string>()
                     let mutable scored = 0
 
                     // Live state keeps only the latest 128 events and contacts alone exceed that in a
@@ -697,6 +715,21 @@ module Shots =
                                         if at >= stepStart && at < second then Some at else None
                                     | _ -> None)
 
+                            for event in state.Events do
+                                let at = int event.Tick / SimulationClock.defaultClock.SubTicksPerSecond
+
+                                if at >= stepStart && at < second then
+                                    match event.Data with
+                                    | EventData.SetPieceAt((SetPieceKind.Corner | SetPieceKind.FreeKick | SetPieceKind.Penalty) as kind,
+                                                           side,
+                                                           x,
+                                                           y) ->
+                                        moments.Add $"{at} {kind} {side} x={float x:F1} y={float y:F1}"
+                                    | EventData.Save _ -> moments.Add $"{at} Save"
+                                    | EventData.Woodwork _ -> moments.Add $"{at} Woodwork"
+                                    | EventData.Goal(side, _, _, xG) -> moments.Add $"{at} Goal {side} xG={xG:F2}"
+                                    | _ -> ()
+
                             let total = fst state.Score + snd state.Score
                             let added = total - scored
                             goals.AddRange(exact |> List.truncate (max 0 added))
@@ -717,6 +750,7 @@ module Shots =
                     | _ -> ()
 
                     File.WriteAllLines(Path.Combine(ctx.Opts.Dir, "goals.txt"), found |> List.map string)
+                    File.WriteAllLines(Path.Combine(ctx.Opts.Dir, "moments.txt"), moments |> Seq.distinct)
 
                     let stats (team: TeamStats) =
                         $"shots {team.Shots} on target {team.OnTarget} xG {team.XgSum:F2} passes {team.PassesCompleted}/{team.Passes}"
@@ -751,6 +785,10 @@ module Shots =
             let recordGoals dispatch (goalSeconds: int list) =
                 async {
                     do! openLiveMatch dispatch
+
+                    ctx.Opts.VideoCamera
+                    |> Option.iter (fun camera ->
+                        Dispatcher.UIThread.Invoke(fun () -> dispatch (LiveMsg(LiveMsg.SelectViewerCamera camera))))
 
                     let stem =
                         Path.Combine(
@@ -796,8 +834,14 @@ module Shots =
                                     .GetTask()
                                 |> Async.AwaitTask
 
-                            Dispatcher.UIThread.Invoke(fun () ->
-                                captureTo window (Path.Combine(framesDir, $"%06d{frame}.png")) true)
+                            let framePath = Path.Combine(framesDir, $"%06d{frame}.png")
+                            let surface = ViewerDiagnostics.nativeWindowId ()
+
+                            // The 3D surface alone gives clean footage without the page chrome around it.
+                            if ctx.Opts.VideoSurfaceOnly && surface <> 0UL then
+                                importWindow surface framePath
+                            else
+                                Dispatcher.UIThread.Invoke(fun () -> captureTo window framePath true)
 
                             frame <- frame + 1
 

@@ -430,6 +430,11 @@ module Program =
             ExecutionRandomness.seedOverride <- opts.MatchSeed
             Shots.Enabled <- true
 
+            // Shots skip the startup path that activates the saved language, so captures would render the default.
+            match Localization.setActiveCode initialGlobal.Appearance.Language with
+            | Ok() -> ()
+            | Error _ -> ()
+
             let demo = Shots.buildDemoState opts initialGlobal resolved
 
             match args |> Array.tryFindIndex ((=) "--match-corpus") with
