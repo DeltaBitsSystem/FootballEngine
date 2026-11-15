@@ -176,15 +176,14 @@ module MatchHudRenderer =
         text muted boldFont 13.0f (clockX + 145.0f) (clockY + 24.0f) (periodLabel stats.Period)
 
         let rightX = MatchHudLayout.rightX width
-        panel rightX top 286.0f 34.0f panelPaint
 
-        let fpsLabel, frameTimeLabel =
-            match performance with
-            | Some(fps, milliseconds) -> sprintf "%.0f FPS" fps, sprintf "FRAME TIME  %.2f ms" milliseconds
-            | None -> "— FPS", "FRAME TIME  — ms"
-
-        text white boldFont 14.0f (rightX + 16.0f) (top + 14.0f) fpsLabel
-        text muted font 10.0f (rightX + 16.0f) (top + 29.0f) frameTimeLabel
+        // Frame timing is a profiling aid; the caller passes it only when profiling, so play shows no debug panel.
+        match performance with
+        | Some(fps, milliseconds) ->
+            panel rightX top 286.0f 34.0f panelPaint
+            text white boldFont 14.0f (rightX + 16.0f) (top + 14.0f) (sprintf "%.0f FPS" fps)
+            text muted font 10.0f (rightX + 16.0f) (top + 29.0f) (sprintf "FRAME TIME  %.2f ms" milliseconds)
+        | None -> ()
 
         let statsX = rightX
         let statsY = top + 37.0f

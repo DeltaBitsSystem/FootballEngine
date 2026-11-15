@@ -20,6 +20,9 @@ open FootballEngine.Pages.SettingsAdvanced
 
 module Settings =
 
+    let private tr (es: string) (en: string) =
+        if Localization.active () = Locale.Es then es else en
+
     let private previewPanel (state: State) (dispatch: Msg -> unit) : IView =
         let g = state.Settings.Global
         let m = g.MatchView
@@ -32,19 +35,25 @@ module Settings =
         let diffs: (string * string) list =
             [ if g.Appearance <> AppearanceSettings.defaults then
                   if g.Appearance.Accent <> AppearanceSettings.defaults.Accent then
-                      yield ("Acento", $"{AppearanceSettings.defaults.Accent} → {g.Appearance.Accent}")
+                      yield ((tr "Acento" "Accent"), $"{AppearanceSettings.defaults.Accent} → {g.Appearance.Accent}")
 
                   if g.Appearance.FontScale <> AppearanceSettings.defaults.FontScale then
-                      yield ("Fuente", $"{AppearanceSettings.defaults.FontScale:F2} → {g.Appearance.FontScale:F2}")
+                      yield
+                          ((tr "Fuente" "Font"),
+                           $"{AppearanceSettings.defaults.FontScale:F2} → {g.Appearance.FontScale:F2}")
 
                   if g.Appearance.Density <> AppearanceSettings.defaults.Density then
-                      yield ("Densidad", $"{AppearanceSettings.defaults.Density} → {g.Appearance.Density}")
+                      yield
+                          ((tr "Densidad" "Density"), $"{AppearanceSettings.defaults.Density} → {g.Appearance.Density}")
 
                   if g.Appearance.Language <> AppearanceSettings.defaults.Language then
-                      yield ("Idioma", $"{AppearanceSettings.defaults.Language} → {g.Appearance.Language}")
+                      yield
+                          ((tr "Idioma" "Language"), $"{AppearanceSettings.defaults.Language} → {g.Appearance.Language}")
               if m <> MatchViewSettings.defaults then
                   if m.PlaybackSpeed <> MatchViewSettings.defaults.PlaybackSpeed then
-                      yield ("Vel. reprod.", $"{MatchViewSettings.defaults.PlaybackSpeed} → {m.PlaybackSpeed}")
+                      yield
+                          ((tr "Vel. reprod." "Playback"),
+                           $"{MatchViewSettings.defaults.PlaybackSpeed} → {m.PlaybackSpeed}")
 
                   if m.TickRate <> MatchViewSettings.defaults.TickRate then
                       yield ("Tick rate", $"{MatchViewSettings.defaults.TickRate} → {m.TickRate}")
@@ -53,28 +62,40 @@ module Settings =
                       yield ("Highlights", $"{MatchViewSettings.defaults.HighlightFilter} → {m.HighlightFilter}")
               if c <> CareerSettings.defaults then
                   if c.AutoSaveDays <> CareerSettings.defaults.AutoSaveDays then
-                      yield ("Autoguardado", $"{CareerSettings.defaults.AutoSaveDays}d → {c.AutoSaveDays}d")
+                      yield
+                          ((tr "Autoguardado" "Autosave"),
+                           $"{CareerSettings.defaults.AutoSaveDays}d → {c.AutoSaveDays}d")
 
                   if c.NewsFreq <> CareerSettings.defaults.NewsFreq then
-                      yield ("Noticias", $"{CareerSettings.defaults.NewsFreq} → {c.NewsFreq}")
+                      yield ((tr "Noticias" "News"), $"{CareerSettings.defaults.NewsFreq} → {c.NewsFreq}")
               if sim <> SimulationSettings.defaults then
                   if sim.DifficultyPreset <> SimulationSettings.defaults.DifficultyPreset then
                       yield ("Preset", $"{SimulationSettings.defaults.DifficultyPreset} → {sim.DifficultyPreset}")
 
                   if sim.RefStrictness <> SimulationSettings.defaults.RefStrictness then
-                      yield ("Árbitro", $"{SimulationSettings.defaults.RefStrictness:F2} → {sim.RefStrictness:F2}")
+                      yield
+                          ((tr "Árbitro" "Referee"),
+                           $"{SimulationSettings.defaults.RefStrictness:F2} → {sim.RefStrictness:F2}")
 
                   if sim.InjuryFreq <> SimulationSettings.defaults.InjuryFreq then
-                      yield ("Lesiones", $"{SimulationSettings.defaults.InjuryFreq:F2} → {sim.InjuryFreq:F2}")
+                      yield
+                          ((tr "Lesiones" "Injuries"),
+                           $"{SimulationSettings.defaults.InjuryFreq:F2} → {sim.InjuryFreq:F2}")
 
                   if sim.FatigueFactor <> SimulationSettings.defaults.FatigueFactor then
-                      yield ("Fatiga", $"{SimulationSettings.defaults.FatigueFactor:F2} → {sim.FatigueFactor:F2}")
+                      yield
+                          ((tr "Fatiga" "Fatigue"),
+                           $"{SimulationSettings.defaults.FatigueFactor:F2} → {sim.FatigueFactor:F2}")
 
                   if sim.WeatherEnabled <> SimulationSettings.defaults.WeatherEnabled then
-                      yield ("Clima", $"{SimulationSettings.defaults.WeatherEnabled} → {sim.WeatherEnabled}")
+                      yield
+                          ((tr "Clima" "Weather"),
+                           $"{SimulationSettings.defaults.WeatherEnabled} → {sim.WeatherEnabled}")
 
                   if sim.HomeAdvantage <> SimulationSettings.defaults.HomeAdvantage then
-                      yield ("Vent. local", $"{SimulationSettings.defaults.HomeAdvantage:F2} → {sim.HomeAdvantage:F2}")
+                      yield
+                          ((tr "Vent. local" "Home adv."),
+                           $"{SimulationSettings.defaults.HomeAdvantage:F2} → {sim.HomeAdvantage:F2}")
 
                   if
                       sim.BalanceOverrides.IsSome
@@ -83,25 +104,28 @@ module Settings =
                       yield
                           ("Balance",
                            if sim.BalanceOverrides.IsSome then
-                               "override activo"
+                               (tr "override activo" "override on")
                            else
-                               "sin override")
+                               (tr "sin override" "no override"))
               if scout <> ScoutingSettings.defaults then
                   if scout.AiNoise <> ScoutingSettings.defaults.AiNoise then
-                      yield ("Ruido IA", $"{ScoutingSettings.defaults.AiNoise:F2} → {scout.AiNoise:F2}")
+                      yield ((tr "Ruido IA" "AI noise"), $"{ScoutingSettings.defaults.AiNoise:F2} → {scout.AiNoise:F2}")
 
                   if scout.HalfLifeDays <> ScoutingSettings.defaults.HalfLifeDays then
                       yield ("Half-life", $"{ScoutingSettings.defaults.HalfLifeDays:F1}d → {scout.HalfLifeDays:F1}d")
 
                   if scout.MinConfidence <> ScoutingSettings.defaults.MinConfidence then
                       yield
-                          ("Confianza mín.", $"{ScoutingSettings.defaults.MinConfidence:F2} → {scout.MinConfidence:F2}")
+                          ((tr "Confianza mín." "Min. confidence"),
+                           $"{ScoutingSettings.defaults.MinConfidence:F2} → {scout.MinConfidence:F2}")
               if data <> DataSettings.defaults then
                   if data.ActiveMods <> DataSettings.defaults.ActiveMods then
-                      yield ("Mods activos", $"{data.ActiveMods.Length} activos")
+                      yield
+                          ((tr "Mods activos" "Active mods"),
+                           (tr $"{data.ActiveMods.Length} activos" $"{data.ActiveMods.Length} active"))
 
                   if data.ModOrder <> DataSettings.defaults.ModOrder then
-                      yield ("Orden Mods", String.concat ", " data.ModOrder)
+                      yield ((tr "Orden Mods" "Mod order"), String.concat ", " data.ModOrder)
               if adv <> AdvancedSettings.defaults then
                   if adv.UnlockMotorEditor <> AdvancedSettings.defaults.UnlockMotorEditor then
                       yield ("Motor", $"{AdvancedSettings.defaults.UnlockMotorEditor} → {adv.UnlockMotorEditor}")
@@ -156,7 +180,9 @@ module Settings =
                                                                   [ StackPanel.spacing 8.0
                                                                     StackPanel.children
                                                                         [ TextBlock.create
-                                                                              [ TextBlock.text "Swatch en vivo"
+                                                                              [ TextBlock.text (
+                                                                                    tr "Swatch en vivo" "Live swatch"
+                                                                                )
                                                                                 TextBlock.fontSize 10.0
                                                                                 TextBlock.fontWeight FontWeight.Bold
                                                                                 TextBlock.foreground Theme.TextMuted ]
@@ -185,8 +211,11 @@ module Settings =
                                                                                             StackPanel.spacing 2.0
                                                                                             StackPanel.children
                                                                                                 [ TextBlock.create
-                                                                                                      [ TextBlock.text
-                                                                                                            "Fuente"
+                                                                                                      [ TextBlock.text (
+                                                                                                            tr
+                                                                                                                "Fuente"
+                                                                                                                "Font"
+                                                                                                        )
                                                                                                         TextBlock.fontSize
                                                                                                             9.0
                                                                                                         TextBlock.foreground
@@ -208,8 +237,11 @@ module Settings =
                                                                                             StackPanel.spacing 2.0
                                                                                             StackPanel.children
                                                                                                 [ TextBlock.create
-                                                                                                      [ TextBlock.text
-                                                                                                            "Acento"
+                                                                                                      [ TextBlock.text (
+                                                                                                            tr
+                                                                                                                "Acento"
+                                                                                                                "Accent"
+                                                                                                        )
                                                                                                         TextBlock.fontSize
                                                                                                             9.0
                                                                                                         TextBlock.foreground
@@ -230,14 +262,19 @@ module Settings =
                                                         [ StackPanel.spacing 6.0
                                                           StackPanel.children
                                                               [ TextBlock.create
-                                                                    [ TextBlock.text "Cambios vs Default"
+                                                                    [ TextBlock.text (
+                                                                          tr "Cambios vs Default" "Changes vs default"
+                                                                      )
                                                                       TextBlock.fontSize 11.0
                                                                       TextBlock.fontWeight FontWeight.Bold
                                                                       TextBlock.foreground Theme.TextMain ]
                                                                 if diffs.IsEmpty then
                                                                     TextBlock.create
-                                                                        [ TextBlock.text
-                                                                              "Sin cambios — todo en valores por defecto"
+                                                                        [ TextBlock.text (
+                                                                              tr
+                                                                                  "Sin cambios — todo en valores por defecto"
+                                                                                  "No changes, everything at default values"
+                                                                          )
                                                                           TextBlock.fontSize 11.0
                                                                           TextBlock.foreground Theme.TextMuted
                                                                           TextBlock.textWrapping TextWrapping.Wrap ]
@@ -256,7 +293,7 @@ module Settings =
                                                                         [ Border.height 1.0
                                                                           Border.background Theme.Border ]
                                                                     TextBlock.create
-                                                                        [ TextBlock.text "Validación"
+                                                                        [ TextBlock.text (tr "Validación" "Validation")
                                                                           TextBlock.fontSize 11.0
                                                                           TextBlock.fontWeight FontWeight.Bold
                                                                           TextBlock.foreground Theme.Danger ]
@@ -288,12 +325,14 @@ module Settings =
                                                         [ StackPanel.spacing 8.0
                                                           StackPanel.children
                                                               [ TextBlock.create
-                                                                    [ TextBlock.text "Acciones rápidas"
+                                                                    [ TextBlock.text (
+                                                                          tr "Acciones rápidas" "Quick actions"
+                                                                      )
                                                                       TextBlock.fontSize 11.0
                                                                       TextBlock.fontWeight FontWeight.Bold
                                                                       TextBlock.foreground Theme.TextMain ]
                                                                 Button.create
-                                                                    [ Button.content "Guardar ahora"
+                                                                    [ Button.content (tr "Guardar ahora" "Save now")
                                                                       Button.background Theme.Accent
                                                                       Button.foreground Theme.BgSidebar
                                                                       Button.padding (14.0, 8.0)
@@ -303,7 +342,7 @@ module Settings =
                                                                       Button.onClick (fun _ ->
                                                                           dispatch (SettingsMsg SaveSettings)) ]
                                                                 Button.create
-                                                                    [ Button.content "Restaurar todo"
+                                                                    [ Button.content (tr "Restaurar todo" "Restore all")
                                                                       Button.background "Transparent"
                                                                       Button.borderBrush Theme.Border
                                                                       Button.borderThickness 1.0

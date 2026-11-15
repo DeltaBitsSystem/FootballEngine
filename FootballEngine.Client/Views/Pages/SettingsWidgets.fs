@@ -18,6 +18,9 @@ open FootballEngine.Data
 /// Rows, controls, cards and navigation shared by every settings category.
 module internal SettingsWidgets =
 
+    let internal tr (es: string) (en: string) =
+        if Localization.active () = Locale.Es then es else en
+
     // why import draft as mutable module-level: simplest textbox backing without adding field to SettingsState (0 users, no persist)
     let mutable internal importJsonDraft = ""
 
@@ -25,14 +28,14 @@ module internal SettingsWidgets =
 
     let internal categoryLabel (cat: AppTypes.SettingsCategory) =
         match cat with
-        | AppTypes.SettingsCategory.Appearance -> "Apariencia"
-        | AppTypes.SettingsCategory.MatchView -> "Partido"
-        | AppTypes.SettingsCategory.Simulation -> "Simulación"
-        | AppTypes.SettingsCategory.Career -> "Carrera"
-        | AppTypes.SettingsCategory.Data -> "Datos"
+        | AppTypes.SettingsCategory.Appearance -> (tr "Apariencia" "Appearance")
+        | AppTypes.SettingsCategory.MatchView -> (tr "Partido" "Match")
+        | AppTypes.SettingsCategory.Simulation -> (tr "Simulación" "Simulation")
+        | AppTypes.SettingsCategory.Career -> (tr "Carrera" "Career")
+        | AppTypes.SettingsCategory.Data -> (tr "Datos" "Data")
         | AppTypes.SettingsCategory.Scouting -> "Scouting"
-        | AppTypes.SettingsCategory.Advanced -> "Avanzado"
-        | AppTypes.SettingsCategory.All -> "Todos"
+        | AppTypes.SettingsCategory.Advanced -> (tr "Avanzado" "Advanced")
+        | AppTypes.SettingsCategory.All -> (tr "Todos" "All")
 
     let internal categoryIcon (cat: AppTypes.SettingsCategory) =
         match cat with
@@ -292,7 +295,11 @@ module internal SettingsWidgets =
                                     StackPanel.verticalAlignment VerticalAlignment.Center
                                     StackPanel.children
                                         [ TextBox.create
-                                              [ TextBox.placeholderText "Buscar ajustes... (ej: tema, sonido)"
+                                              [ TextBox.placeholderText (
+                                                    tr
+                                                        "Buscar ajustes... (ej: tema, sonido)"
+                                                        "Search settings... (e.g. theme, sound)"
+                                                )
                                                 TextBox.text state.Settings.SearchQuery
                                                 TextBox.width 280.0
                                                 TextBox.onTextChanged (fun t -> dispatch (SettingsMsg(SetSearch t))) ]
@@ -314,9 +321,9 @@ module internal SettingsWidgets =
                                                     TextBlock.create
                                                         [ TextBlock.text (
                                                               if state.Settings.Dirty then
-                                                                  "● Cambios sin guardar"
+                                                                  (tr "● Cambios sin guardar" "● Unsaved changes")
                                                               else
-                                                                  "✓ Sincronizado"
+                                                                  (tr "✓ Sincronizado" "✓ Synced")
                                                           )
                                                           TextBlock.fontSize 10.0
                                                           TextBlock.fontWeight FontWeight.Bold
@@ -333,7 +340,7 @@ module internal SettingsWidgets =
                                                 Border.padding (8.0, 4.0)
                                                 Border.child (
                                                     TextBlock.create
-                                                        [ TextBlock.text "Global · Carrera"
+                                                        [ TextBlock.text (tr "Global · Carrera" "Global · Career")
                                                           TextBlock.fontSize 10.0
                                                           TextBlock.foreground Theme.TextMuted ]
                                                 ) ] ] ]
@@ -422,7 +429,7 @@ module internal SettingsWidgets =
                                     StackPanel.spacing 4.0
                                     StackPanel.children
                                         [ TextBlock.create
-                                              [ TextBlock.text "CATEGORÍAS"
+                                              [ TextBlock.text (tr "CATEGORÍAS" "CATEGORIES")
                                                 TextBlock.fontSize 10.0
                                                 TextBlock.fontWeight FontWeight.Black
                                                 TextBlock.foreground Theme.TextMuted ] ] ]
@@ -565,7 +572,7 @@ module internal SettingsWidgets =
                                     Border.horizontalAlignment HorizontalAlignment.Center
                                     Border.child (Icons.iconMd IconName.info Theme.TextDim) ]
                               TextBlock.create
-                                  [ TextBlock.text "Próximamente"
+                                  [ TextBlock.text (tr "Próximamente" "Coming soon")
                                     TextBlock.fontSize 14.0
                                     TextBlock.fontWeight FontWeight.Bold
                                     TextBlock.foreground Theme.TextSub
@@ -689,15 +696,17 @@ module internal SettingsWidgets =
 
     let internal presetLabel (p: DifficultyPreset) =
         match p with
-        | DifficultyPreset.Classic -> "Clásico"
-        | DifficultyPreset.Realistic -> "Realista"
+        | DifficultyPreset.Classic -> tr "Clásico" "Classic"
+        | DifficultyPreset.Realistic -> tr "Realista" "Realistic"
         | DifficultyPreset.Arcade -> "Arcade"
         | DifficultyPreset.Custom -> "Custom"
 
     let internal labelToPreset (s: string) =
         match s with
-        | "Clásico" -> DifficultyPreset.Classic
-        | "Realista" -> DifficultyPreset.Realistic
+        | "Clásico"
+        | "Classic" -> DifficultyPreset.Classic
+        | "Realista"
+        | "Realistic" -> DifficultyPreset.Realistic
         | "Arcade" -> DifficultyPreset.Arcade
         | _ -> DifficultyPreset.Custom
 

@@ -19,13 +19,20 @@ open FootballEngine.Pages.SettingsWidgets
 /// One card per everyday settings category.
 module internal SettingsCards =
 
+    let private tr (es: string) (en: string) =
+        if Localization.active () = Locale.Es then es else en
+
     let internal appearanceCard (state: State) (dispatch: Msg -> unit) : IView =
         let q = state.Settings.SearchQuery
         let g = state.Settings.Global.Appearance
 
         let rowsData: (string * string * string * IView * string) list =
-            [ let label2 = "Color de acento"
-              let desc2 = "Hex como #C8F031 — usado en botones y enlaces, validado en vivo"
+            [ let label2 = (tr "Color de acento" "Accent color")
+
+              let desc2 =
+                  (tr
+                      "Hex como #C8F031 — usado en botones y enlaces, validado en vivo"
+                      "Hex like #C8F031. Used on buttons and links, checked as you type")
 
               let ctl2 =
                   TextBox.create
@@ -43,8 +50,13 @@ module internal SettingsCards =
                   :> IView
 
               yield (label2, desc2, "🎨", ctl2, "Accent")
-              let label3 = "Densidad"
-              let desc3 = "Comfortable deja aire, Compact aprieta listas para más filas visibles"
+              let label3 = (tr "Densidad" "Density")
+
+              let desc3 =
+                  (tr
+                      "Comfortable deja aire, Compact aprieta listas para más filas visibles"
+                      "Comfortable leaves room, Compact tightens lists to show more rows")
+
               let isCompact = g.Density = Density.Compact
 
               let ctl3 =
@@ -60,8 +72,12 @@ module internal SettingsCards =
                       ))
 
               yield (label3, desc3, "🎨", ctl3, "Density")
-              let label4 = "Escala de fuente"
-              let desc4 = "0.7x a 1.5x — escala tipográfica global, no solo zoom"
+              let label4 = (tr "Escala de fuente" "Font scale")
+
+              let desc4 =
+                  (tr
+                      "0.7x a 1.5x — escala tipográfica global, no solo zoom"
+                      "0.7x to 1.5x. Global text scale, not just zoom")
 
               let ctl4 =
                   sliderWithLabel 0.7 1.5 g.FontScale (fun v -> sprintf "%.2fx" v) (fun v ->
@@ -78,8 +94,12 @@ module internal SettingsCards =
                       ))
 
               yield (label4, desc4, "🎨", ctl4, "FontScale")
-              let label5 = "Idioma"
-              let desc5 = "Español / English — i18n futuro, hoy persiste preferencia"
+              let label5 = (tr "Idioma" "Language")
+
+              let desc5 =
+                  (tr
+                      "Español / English — i18n futuro, hoy persiste preferencia"
+                      "Español / English. Full translation is coming, for now the choice is only saved")
 
               let ctl5 =
                   ComboBox.create
@@ -99,8 +119,12 @@ module internal SettingsCards =
                   :> IView
 
               yield (label5, desc5, "🎨", ctl5, "Language")
-              let label6 = "Animaciones"
-              let desc6 = "Activa transiciones — desactivar mejora batería y reduce mareo"
+              let label6 = (tr "Animaciones" "Animations")
+
+              let desc6 =
+                  (tr
+                      "Activa transiciones — desactivar mejora batería y reduce mareo"
+                      "Turns on transitions. Turning them off saves battery and reduces motion sickness")
 
               let ctl6 =
                   toggleControl g.Animations (fun on ->
@@ -113,8 +137,12 @@ module internal SettingsCards =
                       ))
 
               yield (label6, desc6, "⚡", ctl6, "Animations")
-              let label7 = "Alto contraste"
-              let desc7 = "Refuerza bordes y texto para accesibilidad WCAG"
+              let label7 = (tr "Alto contraste" "High contrast")
+
+              let desc7 =
+                  (tr
+                      "Refuerza bordes y texto para accesibilidad WCAG"
+                      "Stronger borders and text for WCAG accessibility")
 
               let ctl7 =
                   toggleControl g.HighContrast (fun on ->
@@ -127,8 +155,10 @@ module internal SettingsCards =
                       ))
 
               yield (label7, desc7, "🎨", ctl7, "HighContrast")
-              let label8 = "Paleta del campo"
-              let desc8 = "Esquema de colores del césped en el visor táctico"
+              let label8 = (tr "Paleta del campo" "Pitch palette")
+
+              let desc8 =
+                  (tr "Esquema de colores del césped en el visor táctico" "Grass color scheme in the tactical viewer")
 
               let ctl8 =
                   ComboBox.create
@@ -159,17 +189,24 @@ module internal SettingsCards =
                 let err = errorForKey key state
                 settingRow label desc impact ctl err)
 
-        cardContainerWithReset "Apariencia" IconName.settings AppTypes.SettingsCategory.Appearance rows dispatch
+        cardContainerWithReset
+            (tr "Apariencia" "Appearance")
+            IconName.settings
+            AppTypes.SettingsCategory.Appearance
+            rows
+            dispatch
 
     let internal matchViewCard (state: State) (dispatch: Msg -> unit) : IView =
         let q = state.Settings.SearchQuery
         let m = state.Settings.Global.MatchView
 
         let rowsData: (string * string * string * IView * string) list =
-            [ let label = "Velocidad de reproducción"
+            [ let label = (tr "Velocidad de reproducción" "Playback speed")
 
               let desc =
-                  "5 a 60 — ticks por segundo en el visor, mayor es más fluido pero consume CPU"
+                  (tr
+                      "5 a 60 — ticks por segundo en el visor, mayor es más fluido pero consume CPU"
+                      "5 to 60 ticks per second in the viewer. Higher is smoother but uses more CPU")
 
               let ctl =
                   intSliderWithLabel 5 60 m.PlaybackSpeed (fun v ->
@@ -183,7 +220,11 @@ module internal SettingsCards =
 
               yield (label, desc, "⚡", ctl, "PlaybackSpeed")
               let label2 = "Auto-play"
-              let desc2 = "Inicia al abrir el visor — útil para kiosco, molesto para análisis"
+
+              let desc2 =
+                  (tr
+                      "Inicia al abrir el visor — útil para kiosco, molesto para análisis"
+                      "Starts when the viewer opens. Handy for kiosk use, annoying for analysis")
 
               let ctl2 =
                   toggleControl m.AutoPlay (fun on ->
@@ -241,8 +282,12 @@ module internal SettingsCards =
                   :> IView
 
               yield (label3, desc3, "🎯", ctl3, "HighlightFilter")
-              let labelQ = "Calidad 3D"
-              let descQ = "Low / Medium / High / Ultra — se aplica al abrir el próximo partido"
+              let labelQ = (tr "Calidad 3D" "3D quality")
+
+              let descQ =
+                  (tr
+                      "Low / Medium / High / Ultra — se aplica al abrir el próximo partido"
+                      "Low / Medium / High / Ultra. Applies when the next match opens")
 
               let ctlQ =
                   ComboBox.create
@@ -263,7 +308,11 @@ module internal SettingsCards =
 
               yield (labelQ, descQ, "🎮", ctlQ, "ViewerQuality")
               let label4 = "Tick rate"
-              let desc4 = "1 a 100 ms — intervalo del motor, menor es más suave pero más batería"
+
+              let desc4 =
+                  (tr
+                      "1 a 100 ms — intervalo del motor, menor es más suave pero más batería"
+                      "1 to 100 ms engine interval. Lower is smoother but drains more battery")
 
               let ctl4 =
                   intSliderWithLabel 1 100 m.TickRate (fun v ->
@@ -276,8 +325,10 @@ module internal SettingsCards =
                       ))
 
               yield (label4, desc4, "⚡", ctl4, "TickRate")
-              let label5 = "Mostrar xG"
-              let desc5 = "Superpone expected goals en el marcador"
+              let label5 = (tr "Mostrar xG" "Show xG")
+
+              let desc5 =
+                  (tr "Superpone expected goals en el marcador" "Shows expected goals over the scoreboard")
 
               let ctl5 =
                   toggleControl m.ShowXG (fun on ->
@@ -290,8 +341,10 @@ module internal SettingsCards =
                       ))
 
               yield (label5, desc5, "🎯", ctl5, "ShowXG")
-              let label6 = "Mostrar posesión"
-              let desc6 = "Barra de posesión por equipo en el header"
+              let label6 = (tr "Mostrar posesión" "Show possession")
+
+              let desc6 =
+                  (tr "Barra de posesión por equipo en el header" "Possession bar per team in the header")
 
               let ctl6 =
                   toggleControl m.ShowPossession (fun on ->
@@ -306,8 +359,12 @@ module internal SettingsCards =
                       ))
 
               yield (label6, desc6, "🎯", ctl6, "ShowPossession")
-              let label7 = "Mostrar overlays"
-              let desc7 = "Capas tácticas y flechas — desactivar limpia la vista"
+              let label7 = (tr "Mostrar overlays" "Show overlays")
+
+              let desc7 =
+                  (tr
+                      "Capas tácticas y flechas — desactivar limpia la vista"
+                      "Tactical layers and arrows. Turn off for a cleaner view")
 
               let ctl7 =
                   toggleControl m.ShowOverlays (fun on ->
@@ -320,8 +377,10 @@ module internal SettingsCards =
                       ))
 
               yield (label7, desc7, "🎨", ctl7, "ShowOverlays")
-              let label8 = "Sonido"
-              let desc8 = "Efectos de silbato y ambiente — requiere audio"
+              let label8 = (tr "Sonido" "Sound")
+
+              let desc8 =
+                  (tr "Efectos de silbato y ambiente — requiere audio" "Whistle and crowd effects. Needs audio")
 
               let ctl8 =
                   toggleControl m.SoundEnabled (fun on ->
@@ -334,8 +393,12 @@ module internal SettingsCards =
                       ))
 
               yield (label8, desc8, "🎨", ctl8, "SoundEnabled")
-              let label9 = "Pausa en gol"
-              let desc9 = "Detiene la reproducción al marcar — ideal para celebrar"
+              let label9 = (tr "Pausa en gol" "Pause on goal")
+
+              let desc9 =
+                  (tr
+                      "Detiene la reproducción al marcar — ideal para celebrar"
+                      "Stops playback when a goal is scored, ideal for celebrating")
 
               let ctl9 =
                   toggleControl m.PauseOnGoal (fun on ->
@@ -348,8 +411,12 @@ module internal SettingsCards =
                       ))
 
               yield (label9, desc9, "🎯", ctl9, "PauseOnGoal")
-              let label10 = "Pausa en roja"
-              let desc10 = "Detiene al ver tarjeta roja — no te pierdas la polémica"
+              let label10 = (tr "Pausa en roja" "Pause on red card")
+
+              let desc10 =
+                  (tr
+                      "Detiene al ver tarjeta roja — no te pierdas la polémica"
+                      "Stops on a red card so you don't miss the drama")
 
               let ctl10 =
                   toggleControl m.PauseOnRed (fun on ->
@@ -374,7 +441,7 @@ module internal SettingsCards =
                 settingRow label desc impact ctl err)
 
         cardContainerWithReset
-            "Partido — Visualización"
+            (tr "Partido — Visualización" "Match: Viewer")
             IconName.soccer
             AppTypes.SettingsCategory.MatchView
             rows
@@ -385,8 +452,12 @@ module internal SettingsCards =
         let c = state.Settings.Global.Career
 
         let rowsData: (string * string * string * IView * string) list =
-            [ let label = "Días entre autoguardado"
-              let desc = "1 a 30 — cada cuántos días de mundo se guarda la carrera"
+            [ let label = (tr "Días entre autoguardado" "Days between autosaves")
+
+              let desc =
+                  (tr
+                      "1 a 30 — cada cuántos días de mundo se guarda la carrera"
+                      "1 to 30. How many world days pass between career saves")
 
               let ctl =
                   intSliderWithLabel 1 30 c.AutoSaveDays (fun v ->
@@ -399,8 +470,12 @@ module internal SettingsCards =
                       ))
 
               yield (label, desc, "⚡", ctl, "AutoSaveDays")
-              let label2 = "Frecuencia de noticias"
-              let desc2 = "Low / Normal / High — controla ruido en el inbox"
+              let label2 = (tr "Frecuencia de noticias" "News frequency")
+
+              let desc2 =
+                  (tr
+                      "Low / Normal / High — controla ruido en el inbox"
+                      "Low / Normal / High. Controls how noisy the inbox is")
 
               let ctl2 =
                   ComboBox.create
@@ -420,8 +495,10 @@ module internal SettingsCards =
                   :> IView
 
               yield (label2, desc2, "🎯", ctl2, "NewsFreq")
-              let label3 = "Agrupar inbox"
-              let desc3 = "Agrupa mensajes por tema para no saturar"
+              let label3 = (tr "Agrupar inbox" "Group inbox")
+
+              let desc3 =
+                  (tr "Agrupa mensajes por tema para no saturar" "Groups messages by topic to avoid clutter")
 
               let ctl3 =
                   toggleControl c.InboxGrouping (fun on ->
@@ -435,7 +512,11 @@ module internal SettingsCards =
 
               yield (label3, desc3, "🎨", ctl3, "InboxGrouping")
               let label4 = "Tutorial"
-              let desc4 = "Muestra ayudas contextuales hasta que domines la UI"
+
+              let desc4 =
+                  (tr
+                      "Muestra ayudas contextuales hasta que domines la UI"
+                      "Shows contextual hints until you know the UI")
 
               let ctl4 =
                   toggleControl c.Tutorial (fun on ->
@@ -459,7 +540,7 @@ module internal SettingsCards =
                 let err = errorForKey key state
                 settingRow label desc impact ctl err)
 
-        cardContainerWithReset "Carrera" ClubIcon.staff AppTypes.SettingsCategory.Career rows dispatch
+        cardContainerWithReset (tr "Carrera" "Career") ClubIcon.staff AppTypes.SettingsCategory.Career rows dispatch
 
     let internal simulationCard (state: State) (dispatch: Msg -> unit) : IView =
         let q = state.Settings.SearchQuery
@@ -488,9 +569,16 @@ module internal SettingsCards =
                 )
             )
 
+        let presetItems =
+            [ DifficultyPreset.Classic
+              DifficultyPreset.Realistic
+              DifficultyPreset.Arcade
+              DifficultyPreset.Custom ]
+            |> List.map presetLabel
+
         let presetCombo: IView =
             ComboBox.create
-                [ ComboBox.dataItems [ "Clásico"; "Realista"; "Arcade"; "Custom" ]
+                [ ComboBox.dataItems presetItems
                   ComboBox.selectedItem (presetLabel sim.DifficultyPreset)
                   ComboBox.onSelectedItemChanged (fun obj ->
                       if obj <> null then
@@ -576,46 +664,68 @@ module internal SettingsCards =
                 :> IView
 
         let rowsData: (string * string * string * IView * string) list =
-            [ let label = "Preset dificultad"
+            [ let label = (tr "Preset dificultad" "Difficulty preset")
 
               let desc =
-                  "Clásico = defaults, Realista baja tiro, Arcade sube velocidad — Custom desbloquea sliders"
+                  (tr
+                      "Clásico = defaults, Realista baja tiro, Arcade sube velocidad — Custom desbloquea sliders"
+                      "Clásico = defaults, Realista lowers shot power, Arcade raises speed. Custom unlocks the sliders")
 
               yield (label, desc, "🎯", presetCombo, "DifficultyPreset")
-              let label2 = "Rigor arbitral"
+              let label2 = (tr "Rigor arbitral" "Referee strictness")
 
               let desc2 =
-                  "0 laxo a 3 estricto — escala probabilidad de falta y severidad de tarjeta"
+                  (tr
+                      "0 laxo a 3 estricto — escala probabilidad de falta y severidad de tarjeta"
+                      "0 lenient to 3 strict. Scales foul chance and card severity")
 
               yield (label2, desc2, "🎯", refCtl, "RefStrictness")
-              let label3 = "Frecuencia lesiones"
-              let desc3 = "0 nunca a 3 frecuente — multiplica InjuryFreq en motor"
+              let label3 = (tr "Frecuencia lesiones" "Injury frequency")
+
+              let desc3 =
+                  (tr
+                      "0 nunca a 3 frecuente — multiplica InjuryFreq en motor"
+                      "0 never to 3 frequent. Multiplies InjuryFreq in the engine")
+
               yield (label3, desc3, "🎯", injuryCtl, "InjuryFreq")
-              let label4 = "Factor fatiga"
+              let label4 = (tr "Factor fatiga" "Fatigue factor")
 
               let desc4 =
-                  "0 sin fatiga a 3 extremo — afecta percepción y condición además de velocidad"
+                  (tr
+                      "0 sin fatiga a 3 extremo — afecta percepción y condición además de velocidad"
+                      "0 no fatigue to 3 extreme. Affects perception and condition, not just speed")
 
               yield (label4, desc4, "🎯", fatigueCtl, "FatigueFactor")
-              let label5 = "Clima activo"
+              let label5 = (tr "Clima activo" "Weather on")
 
               let desc5 =
-                  "Activa viento/lluvia — afecta la resistencia del aire y la visibilidad si WeatherEffect>0"
+                  (tr
+                      "Activa viento/lluvia — afecta la resistencia del aire y la visibilidad si WeatherEffect>0"
+                      "Turns on wind and rain. Affects air drag and visibility if WeatherEffect>0")
 
               yield (label5, desc5, "🎯", weatherCtl, "WeatherEnabled")
-              let label6 = "Ventaja local"
-              let desc6 = "0 nula a 2 doblada — escala HomeAdvantageStrength y HomeCardBonus"
+              let label6 = (tr "Ventaja local" "Home advantage")
+
+              let desc6 =
+                  (tr
+                      "0 nula a 2 doblada — escala HomeAdvantageStrength y HomeCardBonus"
+                      "0 none to 2 doubled. Scales HomeAdvantageStrength and HomeCardBonus")
+
               yield (label6, desc6, "🎯", homeCtl, "HomeAdvantage")
-              let label7 = "Vel. máx. tiro (Balance)"
+              let label7 = (tr "Vel. máx. tiro (Balance)" "Max shot speed (Balance)")
 
               let desc7 =
-                  "20-40 m/s — toca Ball.MaxShotSpeed en BalanceOverrides, requiere Custom"
+                  (tr
+                      "20-40 m/s — toca Ball.MaxShotSpeed en BalanceOverrides, requiere Custom"
+                      "20-40 m/s. Edits Ball.MaxShotSpeed in BalanceOverrides, needs Custom")
 
               yield (label7, desc7, "🎯", maxShotCtl, "MaxShotSpeed")
-              let label8 = "Vel. sprint (Balance)"
+              let label8 = (tr "Vel. sprint (Balance)" "Sprint speed (Balance)")
 
               let desc8 =
-                  "6-11 m/s — toca Movement.SprintSpeed, visible siempre pero editable solo en Custom"
+                  (tr
+                      "6-11 m/s — toca Movement.SprintSpeed, visible siempre pero editable solo en Custom"
+                      "6-11 m/s. Edits Movement.SprintSpeed, always visible but editable only in Custom")
 
               yield (label8, desc8, "🎯", sprintCtl, "SprintSpeed") ]
 
@@ -631,8 +741,11 @@ module internal SettingsCards =
 
         let banner =
             if not isCustom then
-                [ infoBanner
-                      "Preset controla estos valores — cambia a Custom para editar. Balance efectivo mostrado como lectura." ]
+                [ infoBanner (
+                      tr
+                          "Preset controla estos valores — cambia a Custom para editar. Balance efectivo mostrado como lectura."
+                          "The preset controls these values. Switch to Custom to edit. Effective balance is shown read-only."
+                  ) ]
             else
                 []
 
@@ -648,12 +761,14 @@ module internal SettingsCards =
                                 [ StackPanel.spacing 4.0
                                   StackPanel.children
                                       [ TextBlock.create
-                                            [ TextBlock.text "Balance efectivo (solo lectura)"
+                                            [ TextBlock.text (
+                                                  tr "Balance efectivo (solo lectura)" "Effective balance (read-only)"
+                                              )
                                               TextBlock.fontSize 10.0
                                               TextBlock.fontWeight FontWeight.Bold
                                               TextBlock.foreground Theme.TextMuted ]
                                         readOnlyValue
-                                            "Tiro máx."
+                                            (tr "Tiro máx." "Max shot")
                                             (sprintf "%.1f m/s" (float effective.Ball.MaxShotSpeed))
                                         readOnlyValue
                                             "Sprint"
@@ -665,7 +780,13 @@ module internal SettingsCards =
 
         // why StackPanel wrapper: banner + rows must share same card container, keeps layout consistent with other cards
         let allRows = banner @ rows @ effectivePanel
-        cardContainerWithReset "Simulación" IconName.chart AppTypes.SettingsCategory.Simulation allRows dispatch
+
+        cardContainerWithReset
+            (tr "Simulación" "Simulation")
+            IconName.chart
+            AppTypes.SettingsCategory.Simulation
+            allRows
+            dispatch
 
     let internal dataModsCard (state: State) (dispatch: Msg -> unit) : IView =
         let q = state.Settings.SearchQuery
@@ -746,7 +867,12 @@ module internal SettingsCards =
                                       )
                                   )
                               | _ -> ())
-                          CheckBox.content (if isOn then "Activo" else "Inactivo")
+                          CheckBox.content (
+                              if isOn then
+                                  (tr "Activo" "Active")
+                              else
+                                  (tr "Inactivo" "Inactive")
+                          )
                           CheckBox.foreground (if isOn then Theme.Success else Theme.TextMuted) ]
                     :> IView
 
@@ -804,7 +930,14 @@ module internal SettingsCards =
                           StackPanel.children [ toggle; upBtn; downBtn ] ]
                     :> IView
 
-                settingRow modId ("Mod " + modId + " — orden " + string (idx + 1)) "🎯" rowControl None)
+                settingRow
+                    modId
+                    (tr
+                        ("Mod " + modId + " — orden " + string (idx + 1))
+                        ("Mod " + modId + ", order " + string (idx + 1)))
+                    "🎯"
+                    rowControl
+                    None)
 
         let headerActions: IView =
             StackPanel.create
@@ -812,7 +945,7 @@ module internal SettingsCards =
                   StackPanel.spacing 8.0
                   StackPanel.children
                       [ Button.create
-                            [ Button.content "Recargar Mods"
+                            [ Button.content (tr "Recargar Mods" "Reload mods")
                               Button.background Theme.Accent
                               Button.foreground Theme.BgSidebar
                               Button.padding (12.0, 6.0)
@@ -820,7 +953,7 @@ module internal SettingsCards =
                               Button.onClick (fun _ -> dispatch ReloadMods) ]
                         :> IView
                         Button.create
-                            [ Button.content "Abrir carpeta Mods"
+                            [ Button.content (tr "Abrir carpeta Mods" "Open mods folder")
                               Button.background "Transparent"
                               Button.borderBrush Theme.Border
                               Button.borderThickness 1.0
@@ -832,7 +965,7 @@ module internal SettingsCards =
                                           PushNotification
                                               { Id = 0
                                                 Icon = Material.Icons.MaterialIconKind.FolderOutline
-                                                Title = "Carpeta Mods"
+                                                Title = (tr "Carpeta Mods" "Mods folder")
                                                 Body = ModPaths.modsDir
                                                 IsRead = false }
                                       )
@@ -855,7 +988,7 @@ module internal SettingsCards =
                                 [ StackPanel.spacing 6.0
                                   StackPanel.children
                                       [ TextBlock.create
-                                            [ TextBlock.text "Errores de carga"
+                                            [ TextBlock.text (tr "Errores de carga" "Load errors")
                                               TextBlock.fontSize 11.0
                                               TextBlock.fontWeight FontWeight.Bold
                                               TextBlock.foreground Theme.Danger ]
@@ -882,8 +1015,11 @@ module internal SettingsCards =
                         Border.padding (14.0, 12.0)
                         Border.child (
                             TextBlock.create
-                                [ TextBlock.text
-                                      "No hay mods configurados — añade carpetas en Data/Mods o usa el Editor de Mods."
+                                [ TextBlock.text (
+                                      tr
+                                          "No hay mods configurados — añade carpetas en Data/Mods o usa el Editor de Mods."
+                                          "No mods configured. Add folders in Data/Mods or use the Mod Editor."
+                                  )
                                   TextBlock.fontSize 11.0
                                   TextBlock.foreground Theme.TextMuted
                                   TextBlock.textWrapping TextWrapping.Wrap ]
@@ -893,7 +1029,9 @@ module internal SettingsCards =
                 []
 
         let searchMatch =
-            matchesSearch q "Datos" "Mods" || matchesSearch q "mods" "" || q = ""
+            matchesSearch q (tr "Datos" "Data") "Mods"
+            || matchesSearch q "mods" ""
+            || q = ""
 
         if not searchMatch && filteredIds.IsEmpty && q <> "" then
             Border.create [ Border.height 0.0 ] :> IView
@@ -937,7 +1075,9 @@ module internal SettingsCards =
                                                               StackPanel.children
                                                                   [ Icons.iconSm IconName.fileDocumentEdit Theme.Accent
                                                                     TextBlock.create
-                                                                        [ TextBlock.text "DATOS Y MODS"
+                                                                        [ TextBlock.text (
+                                                                              tr "DATOS Y MODS" "DATA AND MODS"
+                                                                          )
                                                                           TextBlock.fontSize 10.0
                                                                           TextBlock.fontWeight FontWeight.Black
                                                                           TextBlock.foreground Theme.TextMuted
@@ -987,22 +1127,28 @@ module internal SettingsCards =
                 updateScout (fun s -> { s with MinConfidence = c }))
 
         let rowsData: (string * string * string * IView * string) list =
-            [ let label = "Ruido IA"
+            [ let label = (tr "Ruido IA" "AI noise")
               // why AiNoise 0-1: feeds ScoutConfig.AiReportNoise — 0 exact, 1 full bias, human reports inherit NoiseByAbility scaling
               let desc =
-                  "0 exacto a 1 sesgo total — alimenta ScoutConfig.AiReportNoise y NoiseByAbility"
+                  (tr
+                      "0 exacto a 1 sesgo total — alimenta ScoutConfig.AiReportNoise y NoiseByAbility"
+                      "0 exact to 1 fully biased. Feeds ScoutConfig.AiReportNoise and NoiseByAbility")
 
               yield (label, desc, "🎯", aiNoiseCtl, "AiNoise")
-              let label2 = "Half-life memoria"
+              let label2 = (tr "Half-life memoria" "Memory half-life")
               // why HalfLifeDays 1-30: maps to ScoutConfig.MemoryHalfLifeDays — rival patterns decay, prune after 200d
               let desc2 =
-                  "1-30 días — media vida del recuerdo rival, antes de RivalPruneAfterDays"
+                  (tr
+                      "1-30 días — media vida del recuerdo rival, antes de RivalPruneAfterDays"
+                      "1-30 days. Half-life of rival memory, before RivalPruneAfterDays")
 
               yield (label2, desc2, "🎯", halfLifeCtl, "HalfLifeDays")
-              let label3 = "Confianza mínima"
+              let label3 = (tr "Confianza mínima" "Minimum confidence")
               // why MinConfidence 0-1: gates CounterConfig — under threshold report is withheld, SignatureChangePenalty applies
               let desc3 =
-                  "0-1 umbral — bajo esto no se reporta, afecta CounterConfig.SignatureChangePenalty"
+                  (tr
+                      "0-1 umbral — bajo esto no se reporta, afecta CounterConfig.SignatureChangePenalty"
+                      "0-1 threshold. Below it nothing is reported, affects CounterConfig.SignatureChangePenalty")
 
               yield (label3, desc3, "🎯", minConfCtl, "MinConfidence") ]
 
@@ -1017,8 +1163,11 @@ module internal SettingsCards =
                 settingRow label desc impact ctl err)
 
         let info =
-            [ infoBanner
-                  "Estos valores alimentan ScoutConfig (MemoryHalfLifeDays, MinConfidenceToReport, AiReportNoise) y CounterConfig — afectan cuánto recuerda el rival y cuánto se ajusta el plan previo." ]
+            [ infoBanner (
+                  tr
+                      "Estos valores alimentan ScoutConfig (MemoryHalfLifeDays, MinConfidenceToReport, AiReportNoise) y CounterConfig — afectan cuánto recuerda el rival y cuánto se ajusta el plan previo."
+                      "These values feed ScoutConfig (MemoryHalfLifeDays, MinConfidenceToReport, AiReportNoise) and CounterConfig. They control how much the rival remembers and how much the previous plan is adjusted."
+              ) ]
 
         let allRows = info @ rows
         cardContainerWithReset "Scouting" ClubIcon.scouting AppTypes.SettingsCategory.Scouting allRows dispatch

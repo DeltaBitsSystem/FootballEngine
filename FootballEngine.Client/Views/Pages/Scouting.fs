@@ -15,6 +15,9 @@ open FootballEngine.Icons
 
 module Scouting =
 
+    let private t (es: string) (en: string) =
+        if Localization.active () = Locale.Es then es else en
+
     /// The rival's trait reads as a threat: the stronger the habit, the redder
     /// the marker, so the page answers "what hurts us" at a glance.
     let private strengthColor (strength: float) =
@@ -228,21 +231,30 @@ module Scouting =
 
     let private assignmentCard (row: ScoutingSlice.AssignmentRow) (gs: GameState) =
         let playerName =
-            row.Player |> Option.map _.Name |> Option.defaultValue "Objetivo no disponible"
+            row.Player
+            |> Option.map _.Name
+            |> Option.defaultValue (t "Objetivo no disponible" "Target unavailable")
 
         let scoutName =
             gs.Staff
             |> Map.tryFind row.Assignment.Scout
             |> Option.map _.Name
-            |> Option.defaultValue "Scout no disponible"
+            |> Option.defaultValue (t "Scout no disponible" "Scout unavailable")
 
         let reportText =
             row.Knowledge
             |> Option.map (fun k ->
                 let low, high = k.CurrentSkillRange
                 let confidence = int (k.Confidence * 100.0)
-                $"Rango actual {low}–{high} · confianza {confidence}%%")
-            |> Option.defaultValue "Todavía no hay conocimiento persistido para este encargo."
+
+                (t
+                    $"Rango actual {low}–{high} · confianza {confidence}%%"
+                    $"Current range {low}–{high} · confidence {confidence}%%"))
+            |> Option.defaultValue (
+                t
+                    "Todavía no hay conocimiento persistido para este encargo."
+                    "No knowledge stored for this assignment yet."
+            )
 
         Border.create
             [ Border.background Theme.BgCard
@@ -264,8 +276,11 @@ module Scouting =
                                     TextBlock.fontSize 10.0
                                     TextBlock.foreground Theme.Accent ]
                               TextBlock.create
-                                  [ TextBlock.text
-                                        $"{scoutName} · vence {row.Assignment.Due.ToShortDateString()} · costo {Formatters.money row.Assignment.Cost}"
+                                  [ TextBlock.text (
+                                        t
+                                            $"{scoutName} · vence {row.Assignment.Due.ToShortDateString()} · costo {Formatters.money row.Assignment.Cost}"
+                                            $"{scoutName} · due {row.Assignment.Due.ToShortDateString()} · cost {Formatters.money row.Assignment.Cost}"
+                                    )
                                     TextBlock.fontSize 11.0
                                     TextBlock.foreground Theme.TextMuted ]
                               TextBlock.create
@@ -275,7 +290,7 @@ module Scouting =
               ) ]
 
     let private scoutingViewContent (state: State) (gs: GameState) (dispatch: Msg -> unit) =
-        let t = state.Transfer
+        let transfer = state.Transfer
 
         let staff =
             GameState.getStaff gs.UserClubId gs
@@ -322,25 +337,33 @@ module Scouting =
                           [ StackPanel.spacing 7.0
                             StackPanel.children
                                 [ TextBlock.create
-                                      [ TextBlock.text "NUEVO ENCARGO"
+                                      [ TextBlock.text (t "NUEVO ENCARGO" "NEW ASSIGNMENT")
                                         TextBlock.fontWeight FontWeight.Black
                                         TextBlock.foreground Theme.TextMain ]
                                   TextBlock.create
-                                      [ TextBlock.text
-                                            "Elegí un jugador, un miembro del staff y confirmá costo y plazo."
+                                      [ TextBlock.text (
+                                            t
+                                                "Elegí un jugador, un miembro del staff y confirmá costo y plazo."
+                                                "Pick a player and a staff member, then confirm cost and deadline."
+                                        )
                                         TextBlock.fontSize 11.0
                                         TextBlock.foreground Theme.TextMuted ]
                                   WrapPanel.create
                                       [ WrapPanel.children
                                             [ for p in candidates |> List.truncate 24 do
                                                   yield
-                                                      pickButton p.Name (t.ScoutingPlayerId = Some p.Id) (fun () ->
-                                                          dispatch (TransferMsg(SelectScoutingPlayer(Some p.Id)))) ] ]
+                                                      pickButton
+                                                          p.Name
+                                                          (transfer.ScoutingPlayerId = Some p.Id)
+                                                          (fun () ->
+                                                              dispatch (TransferMsg(SelectScoutingPlayer(Some p.Id)))) ] ]
                                   if staff.IsEmpty then
                                       UI.emptyState
                                           ClubIcon.scouting
-                                          "No hay scout disponible"
-                                          "Contratá un scout o analista de reclutamiento para crear encargos."
+                                          (t "No hay scout disponible" "No scout available")
+                                          (t
+                                              "Contratá un scout o analista de reclutamiento para crear encargos."
+                                              "Hire a scout or recruitment analyst to create assignments.")
                                   else
                                       WrapPanel.create
                                           [ WrapPanel.children
@@ -348,7 +371,7 @@ module Scouting =
                                                       yield
                                                           pickButton
                                                               $"{s.Name} · {s.Knowledge.JudgingPlayerAbility}"
-                                                              (t.ScoutingScoutId = Some s.Id)
+                                                              (transfer.ScoutingScoutId = Some s.Id)
                                                               (fun () ->
                                                                   dispatch (
                                                                       TransferMsg(SelectScoutingScout(Some s.Id))
@@ -358,19 +381,19 @@ module Scouting =
                                         Grid.children
                                             [ TextBox.create
                                                   [ Grid.column 0
-                                                    TextBox.text t.ScoutingCostText
-                                                    TextBox.placeholderText "Costo"
+                                                    TextBox.text transfer.ScoutingCostText
+                                                    TextBox.placeholderText (t "Costo" "Cost")
                                                     TextBox.margin (0.0, 0.0, 6.0, 0.0)
                                                     TextBox.onTextChanged (fun v ->
                                                         dispatch (TransferMsg(SetScoutingCost v))) ]
                                               TextBox.create
                                                   [ Grid.column 1
-                                                    TextBox.text t.ScoutingDaysText
-                                                    TextBox.placeholderText "Días"
+                                                    TextBox.text transfer.ScoutingDaysText
+                                                    TextBox.placeholderText (t "Días" "Days")
                                                     TextBox.margin (0.0, 0.0, 6.0, 0.0)
                                                     TextBox.onTextChanged (fun v ->
                                                         dispatch (TransferMsg(SetScoutingDays v))) ]
-                                              actionButton "Crear encargo" (fun () ->
+                                              actionButton (t "Crear encargo" "Create assignment") (fun () ->
                                                   dispatch (TransferMsg CreateScoutingAssignment))
                                               |> fun b -> Border.create [ Grid.column 2; Border.child b ] ] ] ] ]
                   ) ]
@@ -390,8 +413,11 @@ module Scouting =
                                       TextBlock.create
                                           [ TextBlock.text (
                                                 knowledge
-                                                |> Option.map (fun k -> $"Confianza {int (k.Confidence * 100.0)}%%")
-                                                |> Option.defaultValue "Sin informe"
+                                                |> Option.map (fun k ->
+                                                    (t
+                                                        $"Confianza {int (k.Confidence * 100.0)}%%"
+                                                        $"Confidence {int (k.Confidence * 100.0)}%%"))
+                                                |> Option.defaultValue (t "Sin informe" "No report")
                                             )
                                             TextBlock.fontSize 10.0
                                             TextBlock.foreground Theme.TextMuted ]
@@ -399,9 +425,9 @@ module Scouting =
                                           [ StackPanel.orientation Orientation.Horizontal
                                             StackPanel.spacing 5.0
                                             StackPanel.children
-                                                [ actionButton "Abrir oferta" (fun () ->
+                                                [ actionButton (t "Abrir oferta" "Make offer") (fun () ->
                                                       dispatch (TransferMsg(OpenScoutingOffer p.Id)))
-                                                  actionButton "Quitar" (fun () ->
+                                                  actionButton (t "Quitar" "Remove") (fun () ->
                                                       dispatch (TransferMsg(ToggleShortlist p.Id))) ] ] ] ]
                       ) ])
 
@@ -424,8 +450,10 @@ module Scouting =
                                 :: (if shortlistRows.IsEmpty then
                                         [ UI.emptyState
                                               PlayerIcon.skill
-                                              "Shortlist vacía"
-                                              "Agregá jugadores desde el mercado o desde un informe listo." ]
+                                              (t "Shortlist vacía" "Shortlist empty")
+                                              (t
+                                                  "Agregá jugadores desde el mercado o desde un informe listo."
+                                                  "Add players from the market or from a finished report.") ]
                                     else
                                         shortlistRows |> List.map (fun row -> row :> IView))
                             ) ]
@@ -448,14 +476,16 @@ module Scouting =
                               createPanel
                               shortlistPanel
                               TextBlock.create
-                                  [ TextBlock.text "ENCARGOS E INFORMES"
+                                  [ TextBlock.text (t "ENCARGOS E INFORMES" "ASSIGNMENTS AND REPORTS")
                                     TextBlock.fontWeight FontWeight.Black
                                     TextBlock.foreground Theme.TextMain ]
                               if assignments.IsEmpty then
                                   UI.emptyState
                                       ClubIcon.scouting
-                                      "Sin encargos"
-                                      "Elegí un objetivo y confirmá el primer encargo de scouting."
+                                      (t "Sin encargos" "No assignments")
+                                      (t
+                                          "Elegí un objetivo y confirmá el primer encargo de scouting."
+                                          "Pick a target and confirm your first scouting assignment.")
                               else
                                   // No explicit yield: one would silently drop every implicit element above it.
                                   for row in assignments do

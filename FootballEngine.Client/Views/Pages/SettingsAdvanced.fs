@@ -48,10 +48,12 @@ module internal SettingsAdvanced =
             )
 
         let rowsData: (string * string * string * IView * string) list =
-            [ let label = "Desbloquear editor motor"
+            [ let label = (tr "Desbloquear editor motor" "Unlock engine editor")
 
               let desc =
-                  "Permite abrir el editor crudo de BalanceConfig — solo depuración, sin validación extra"
+                  (tr
+                      "Permite abrir el editor crudo de BalanceConfig — solo depuración, sin validación extra"
+                      "Opens the raw BalanceConfig editor. For debugging only, no extra validation")
 
               let ctl =
                   toggleControl adv.UnlockMotorEditor (fun on ->
@@ -66,8 +68,12 @@ module internal SettingsAdvanced =
                       ))
 
               yield (label, desc, "⚡", ctl, "UnlockMotorEditor")
-              let label2 = "Mostrar debug"
-              let desc2 = "Superpone IDs y ticks — útil para QA, ruidoso para juego normal"
+              let label2 = (tr "Mostrar debug" "Show debug")
+
+              let desc2 =
+                  (tr
+                      "Superpone IDs y ticks — útil para QA, ruidoso para juego normal"
+                      "Overlays IDs and ticks. Useful for QA, noisy for normal play")
 
               let ctl2 =
                   toggleControl adv.ShowDebug (fun on ->
@@ -80,10 +86,12 @@ module internal SettingsAdvanced =
                       ))
 
               yield (label2, desc2, "⚡", ctl2, "ShowDebug")
-              let label3 = "Nivel de log"
+              let label3 = (tr "Nivel de log" "Log level")
 
               let desc3 =
-                  "Silent/Normal/Verbose — controla LogLevel y verbosidad del pipeline de mods"
+                  (tr
+                      "Silent/Normal/Verbose — controla LogLevel y verbosidad del pipeline de mods"
+                      "Silent/Normal/Verbose. Controls LogLevel and mod pipeline verbosity")
 
               let ctl3 =
                   ComboBox.create
@@ -119,14 +127,27 @@ module internal SettingsAdvanced =
                 if baseRows.IsEmpty then
                     []
                 else
-                    [ infoBanner
-                          "Activa para editar motor — desbloquea los deslizadores de BalanceConfig. Cambios requieren Custom preset." ]
+                    [ infoBanner (
+                          tr
+                              "Activa para editar motor — desbloquea los deslizadores de BalanceConfig. Cambios requieren Custom preset."
+                              "Turn on to edit the engine. Unlocks the BalanceConfig sliders. Changes need the Custom preset."
+                      ) ]
 
             let allRows = lockedInfo @ baseRows
-            cardContainerWithReset "Avanzado" IconName.training AppTypes.SettingsCategory.Advanced allRows dispatch
+
+            cardContainerWithReset
+                (tr "Avanzado" "Advanced")
+                IconName.training
+                AppTypes.SettingsCategory.Advanced
+                allRows
+                dispatch
         else
             let warning =
-                warningBanner "Editor motor desbloqueado — cambios afectan toda la simulación"
+                warningBanner (
+                    tr
+                        "Editor motor desbloqueado — cambios afectan toda la simulación"
+                        "Engine editor unlocked. Changes affect the whole simulation"
+                )
 
             // why validation banner inline: ConfigValidation.validateAll is single source, surfaced here so user sees broken ranges immediately
             let validationErrors =
@@ -144,7 +165,11 @@ module internal SettingsAdvanced =
                                     [ StackPanel.spacing 6.0
                                       StackPanel.children
                                           [ TextBlock.create
-                                                [ TextBlock.text "Errores de validación BalanceConfig"
+                                                [ TextBlock.text (
+                                                      tr
+                                                          "Errores de validación BalanceConfig"
+                                                          "BalanceConfig validation errors"
+                                                  )
                                                   TextBlock.fontSize 11.0
                                                   TextBlock.fontWeight FontWeight.Bold
                                                   TextBlock.foreground Theme.Danger ]
@@ -307,77 +332,97 @@ module internal SettingsAdvanced =
             let motorRowsData: (string * string * string * IView * string) list =
                 [ yield
                       ("Ball.Gravity",
-                       "0-20 m/s² — 9.81 real, 0 flota, >20 cae como piedra",
+                       (tr
+                           "0-20 m/s² — 9.81 real, 0 flota, >20 cae como piedra"
+                           "0-20 m/s². 9.81 is real, 0 floats, above 20 drops like a stone"),
                        "🎯",
                        ballGravityCtl,
                        "Gravity")
                   yield
                       ("Ball.DragSupercritical",
-                       "Resistencia del aire a alta velocidad (≈0,2) — menor = tiros que conservan más velocidad",
+                       (tr
+                           "Resistencia del aire a alta velocidad (≈0,2) — menor = tiros que conservan más velocidad"
+                           "Air drag at high speed (about 0.2). Lower means shots keep more speed"),
                        "⚡",
                        ballDragCtl,
                        "DragSupercritical")
                   yield
                       ("Ball.MaxShotSpeed",
-                       "10-40 m/s — 32 default, 40 es récord mundial",
+                       (tr "10-40 m/s — 32 default, 40 es récord mundial" "10-40 m/s. 32 default, 40 is a world record"),
                        "🎯",
                        ballMaxShotCtl,
                        "MaxShotSpeed")
                   yield
                       ("Ball.BounceRestitution",
-                       "0-1 rebote — >1 crea energía, 0 no rebota",
+                       (tr
+                           "0-1 rebote — >1 crea energía, 0 no rebota"
+                           "0-1 bounce. Above 1 creates energy, 0 does not bounce"),
                        "⚡",
                        ballBounceCtl,
                        "BounceRestitution")
                   yield
-                      ("Movement.SprintSpeed", "5-12 m/s — Velocidad punta, 8.5 default", "⚡", sprintCtl, "SprintSpeed")
+                      ("Movement.SprintSpeed",
+                       (tr "5-12 m/s — Velocidad punta, 8.5 default" "5-12 m/s. Top speed, 8.5 default"),
+                       "⚡",
+                       sprintCtl,
+                       "SprintSpeed")
                   yield
-                      ("Movement.Acceleration", "0.5-10 m/s² — 4 default, >10 teleport", "⚡", accelCtl, "Acceleration")
+                      ("Movement.Acceleration",
+                       (tr "0.5-10 m/s² — 4 default, >10 teleport" "0.5-10 m/s². 4 default, above 10 is teleporting"),
+                       "⚡",
+                       accelCtl,
+                       "Acceleration")
                   yield
                       ("Actions.DecisionSoftmaxTemperature",
-                       "0.1-5 — 1 default, 0.1 rígido, 5 aleatorio",
+                       (tr "0.1-5 — 1 default, 0.1 rígido, 5 aleatorio" "0.1-5. 1 default, 0.1 rigid, 5 random"),
                        "🎯",
                        decisionTempCtl,
                        "DecisionSoftmaxTemperature")
                   yield
                       ("Actions.PassBaseQuality",
-                       "0-1 calidad base de pase — 0.7 default",
+                       (tr "0-1 calidad base de pase — 0.7 default" "0-1 base pass quality. 0.7 default"),
                        "🎯",
                        passQualityCtl,
                        "PassBaseQuality")
                   yield
                       ("Team.UrgencyMaxDeficit",
-                       "0-5 déficit máx para urgencia — 2 default",
+                       (tr "0-5 déficit máx para urgencia — 2 default" "0-5 max goal deficit for urgency. 2 default"),
                        "🎯",
                        urgencyDeficitCtl,
                        "UrgencyMaxDeficit")
                   yield
                       ("Team.DirectiveHysteresis",
-                       "0-1 histéresis directiva — 0.08 default, >1 nunca cambia",
+                       (tr
+                           "0-1 histéresis directiva — 0.08 default, >1 nunca cambia"
+                           "0-1 directive hysteresis. 0.08 default, above 1 never changes"),
                        "🎯",
                        directiveHystCtl,
                        "DirectiveHysteresis")
                   yield
                       ("Referee.FoulYellowWorthyChance",
-                       "0-1 prob. amarilla por falta temeraria — 0.85 default",
+                       (tr
+                           "0-1 prob. amarilla por falta temeraria — 0.85 default"
+                           "0-1 yellow card chance for a reckless foul. 0.85 default"),
                        "🎯",
                        foulYellowCtl,
                        "FoulYellowWorthyChance")
                   yield
                       ("Referee.FoulRedWorthyChance",
-                       "0-1 prob. roja por fuerza excesiva — 0.7 default",
+                       (tr
+                           "0-1 prob. roja por fuerza excesiva — 0.7 default"
+                           "0-1 red card chance for excessive force. 0.7 default"),
                        "🎯",
                        foulRedCtl,
                        "FoulRedWorthyChance")
                   yield
                       ("Referee.HomeCardBonus",
-                       "0-1 sesgo local tarjeta — 0.05 default",
+                       (tr "0-1 sesgo local tarjeta — 0.05 default" "0-1 home card bias. 0.05 default"),
                        "🎯",
                        homeCardCtl,
                        "HomeCardBonus")
                   yield
                       ("Environment.HomeAdvantageStrength",
-                       "0-1 fuerza ventaja local — 0.1 default",
+                       (tr "0-1 fuerza ventaja local — 0.1 default" "0-1 home advantage strength. 0.1 default"),
                        "🎯",
                        homeAdvCtl,
                        "HomeAdvantageStrength") ]
@@ -401,7 +446,7 @@ module internal SettingsAdvanced =
                 if ballRows.IsEmpty then
                     []
                 else
-                    [ motorSection "Ball — física y tiro" ballRows ]
+                    [ motorSection (tr "Ball — física y tiro" "Ball: physics and shooting") ballRows ]
 
             let movementSection =
                 let mvRows = motorRows |> List.skip 4 |> List.take 2
@@ -409,7 +454,7 @@ module internal SettingsAdvanced =
                 if mvRows.IsEmpty then
                     []
                 else
-                    [ motorSection "Movement — velocidad y aceleración" mvRows ]
+                    [ motorSection (tr "Movement — velocidad y aceleración" "Movement: speed and acceleration") mvRows ]
 
             let actionsSection =
                 let actRows = motorRows |> List.skip 6 |> List.take 4
@@ -417,7 +462,7 @@ module internal SettingsAdvanced =
                 if actRows.IsEmpty then
                     []
                 else
-                    [ motorSection "Actions — decisiones y faltas" actRows ]
+                    [ motorSection (tr "Actions — decisiones y faltas" "Actions: decisions and fouls") actRows ]
 
             let teamSection =
                 let tRows = motorRows |> List.skip 10 |> List.take 2
@@ -425,7 +470,7 @@ module internal SettingsAdvanced =
                 if tRows.IsEmpty then
                     []
                 else
-                    [ motorSection "Team — urgencia e histéresis" tRows ]
+                    [ motorSection (tr "Team — urgencia e histéresis" "Team: urgency and hysteresis") tRows ]
 
             let refereeSection =
                 let refRows = motorRows |> List.skip 12 |> List.take 3
@@ -433,7 +478,7 @@ module internal SettingsAdvanced =
                 if refRows.IsEmpty then
                     []
                 else
-                    [ motorSection "Referee — tarjetas y sesgo local" refRows ]
+                    [ motorSection (tr "Referee — tarjetas y sesgo local" "Referee: cards and home bias") refRows ]
 
             let envSection =
                 let eRows = motorRows |> List.skip 15
@@ -441,11 +486,11 @@ module internal SettingsAdvanced =
                 if eRows.IsEmpty then
                     []
                 else
-                    [ motorSection "Environment — ventaja local" eRows ]
+                    [ motorSection (tr "Environment — ventaja local" "Environment: home advantage") eRows ]
 
             let restoreBtn: IView =
                 Button.create
-                    [ Button.content "Restaurar Balance por defecto"
+                    [ Button.content (tr "Restaurar Balance por defecto" "Restore default Balance")
                       Button.background Theme.Accent
                       Button.foreground Theme.BgSidebar
                       Button.padding (14.0, 8.0)
@@ -479,7 +524,11 @@ module internal SettingsAdvanced =
                                             TextBlock.fontWeight FontWeight.Bold
                                             TextBlock.foreground Theme.TextMain ]
                                       TextBox.create
-                                          [ TextBox.placeholderText "Pega JSON exportado aquí para importar..."
+                                          [ TextBox.placeholderText (
+                                                tr
+                                                    "Pega JSON exportado aquí para importar..."
+                                                    "Paste exported JSON here to import..."
+                                            )
                                             TextBox.text importJsonDraft
                                             TextBox.height 80.0
                                             TextBox.acceptsReturn true
@@ -490,7 +539,7 @@ module internal SettingsAdvanced =
                                             StackPanel.spacing 8.0
                                             StackPanel.children
                                                 [ Button.create
-                                                      [ Button.content "Exportar"
+                                                      [ Button.content (tr "Exportar" "Export")
                                                         Button.background Theme.Accent
                                                         Button.foreground Theme.BgSidebar
                                                         Button.padding (12.0, 6.0)
@@ -502,7 +551,7 @@ module internal SettingsAdvanced =
                                                                 ()) ]
                                                   :> IView
                                                   Button.create
-                                                      [ Button.content "Importar"
+                                                      [ Button.content (tr "Importar" "Import")
                                                         Button.background Theme.BgCard
                                                         Button.foreground Theme.TextMain
                                                         Button.borderBrush Theme.Border
@@ -513,8 +562,11 @@ module internal SettingsAdvanced =
                                                             dispatch (SettingsMsg(Import importJsonDraft))) ]
                                                   :> IView ] ]
                                       TextBlock.create
-                                          [ TextBlock.text
-                                                "Export copia JSON al portapapeles y al log; Import valida y notifica error si falla."
+                                          [ TextBlock.text (
+                                                tr
+                                                    "Export copia JSON al portapapeles y al log; Import valida y notifica error si falla."
+                                                    "Export copies JSON to the clipboard and the log. Import validates and reports an error if it fails."
+                                            )
                                             TextBlock.fontSize 10.0
                                             TextBlock.foreground Theme.TextDim
                                             TextBlock.textWrapping TextWrapping.Wrap ] ] ]
@@ -537,4 +589,9 @@ module internal SettingsAdvanced =
                   yield restoreBtn
                   yield importExportPanel ]
 
-            cardContainerWithReset "Avanzado" IconName.training AppTypes.SettingsCategory.Advanced allRows dispatch
+            cardContainerWithReset
+                (tr "Avanzado" "Advanced")
+                IconName.training
+                AppTypes.SettingsCategory.Advanced
+                allRows
+                dispatch

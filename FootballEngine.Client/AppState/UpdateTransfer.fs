@@ -11,6 +11,9 @@ open AppMsgs
 
 module UpdateTransfer =
 
+    let private tr (es: string) (en: string) =
+        if Localization.active () = Locale.Es then es else en
+
     let private pushNotification = AppTypes.pushNotification
 
     let private pushRoute (route: Route) (state: State) =
@@ -48,7 +51,9 @@ module UpdateTransfer =
         |> fun id -> ScoutingAssignmentId(id + 1)
 
     let private scoutingError (message: string) (state: State) =
-        state |> pushNotification NotificationIcons.error "Encargo no creado" message, Cmd.none
+        state
+        |> pushNotification NotificationIcons.error (tr "Encargo no creado" "Assignment not created") message,
+        Cmd.none
 
     let private createScoutingAssignment (state: State) (gs: GameState) =
         let t = state.Transfer
@@ -93,10 +98,21 @@ module UpdateTransfer =
                                     ScoutingDaysText = "" } }
 
                     next
-                    |> pushNotification ClubIcon.scouting "Encargo creado" "El encargo quedó confirmado en el mercado.",
+                    |> pushNotification
+                        ClubIcon.scouting
+                        (tr "Encargo creado" "Assignment created")
+                        (tr "El encargo quedó confirmado en el mercado." "The assignment is confirmed in the market."),
                     SimHelpers.saveCmdForState state newGs state.WorldClock state.SaveSettings
-            | _ -> scoutingError "El jugador o el scout ya no están disponibles." state
-        | _ -> scoutingError "Seleccioná jugador, scout, costo válido y plazo mayor a cero." state
+            | _ ->
+                scoutingError
+                    (tr "El jugador o el scout ya no están disponibles." "The player or scout is no longer available.")
+                    state
+        | _ ->
+            scoutingError
+                (tr
+                    "Seleccioná jugador, scout, costo válido y plazo mayor a cero."
+                    "Pick a player, a scout, a valid cost and a deadline above zero.")
+                state
 
     let private buildClubNameCache (gs: GameState) : Map<PlayerId, string> =
         gs.Players
@@ -463,7 +479,10 @@ module UpdateTransfer =
         | OpenScoutingOffer playerId ->
             withGame (fun gs ->
                 match gs.Players |> Map.tryFind playerId with
-                | None -> scoutingError "El jugador de la shortlist ya no existe." state
+                | None ->
+                    scoutingError
+                        (tr "El jugador de la shortlist ya no existe." "The shortlisted player no longer exists.")
+                        state
                 | Some p ->
                     { state with
                         Navigation =

@@ -305,7 +305,16 @@ type WebGpuStadiumRenderer
             updateWindowShape bounds cutouts
             ensureStadium ()
             uploadScene (buildScene frame palettes)
-            hud.Value.Update(frame, stats, pacing.Performance)
+
+            hud.Value.Update(
+                frame,
+                stats,
+                (if ViewerDiagnostics.profilingHud () then
+                     pacing.Performance
+                 else
+                     None)
+            )
+
             let mutable current = SurfaceTexture()
             api.SurfaceGetCurrentTexture(ctx.Surface, &current)
 
