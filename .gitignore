@@ -49,6 +49,7 @@
 
 # --- Documentación (raíz y docs/) ---
 !/*.md
+!/LICENSE
 !/docs/**
 
 # --- CI/CD y scripts ---
@@ -137,3 +138,6 @@ __pycache__/
 
 # Raw CMU mocap is fetched by Tools/MatchViewer3D/Mocap/fetch_cmu.py and verified against its manifest.
 /Tools/MatchViewer3D/Mocap/source/
+
+# Private business planning, never published
+MONETIZATION_PLAN.md

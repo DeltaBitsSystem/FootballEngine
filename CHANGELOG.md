@@ -1,42 +1,22 @@
 # Changelog
 
-All notable changes in FootballEngine.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/es/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/lang/es/).
+All notable changes to FootballEngine. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-- AGENTS.md — contributor and AI guide
-- CONTRIBUTING.md — contribution guide
-- .editorconfig — formatting rules
-- .github/workflows/ci.yml — CI pipeline with build, test, and dependency audit
-- global.json — SDK version pinning
-- Save file schema versioning and automatic backup
-- Migrations.fs — save file migration system
-- Build scripts (build.sh, build.ps1, publish.sh)
-- Pre-commit hook for Fantomas
+First public snapshot after months of private development.
 
-### Fixed
-- Crash on Scouting, Finances, and Settings pages (failwith "todo")
-- Crash in Simulator.fs due to failwithf inside result{}
-- Crash in DuelAction.fs due to failwith on empty roster
-- Silent exception swallowing in UpdateSim.fs
-- Debug printfn removed from production
+### Added
+
+* Deterministic match engine: 22 players that perceive, decide and move at 40 Hz, with ball flight, spin and bounce.
+* 3D match viewer on WebGPU with broadcast, tactical, behind goal, touchline and close up cameras.
+* Career mode: calendar, squad, tactics, training, scouting, transfers, finances, board, news and inbox.
+* Rival managers with personalities who study your team before facing you.
+* Key-moment pacing that stops the match for chances and manager signals.
+* Mod editor with countries, leagues, cups, clubs, kits and squads, plus publishing and a library.
+* Calibration CLI (`Training`) that validates results on held-out matches.
+* English and Spanish interface.
 
 ### Changed
-- Full formatting with Fantomas v7.0.5 (153 files)
-- Debug printfn replaced with eprintfn
 
-## [0.1.0] - 2026-XX-XX
-
-### Added
-- Deterministic 2D match simulation engine
-- World generation with players, clubs, and competitions
-- Transfer system with FSM
-- VAR and foul analysis
-- Training and ML weight calibration
-- Graphical interface with Avalonia (FuncUI + Elmish)
-- Cross-platform support (Windows, Linux, macOS)
-- JSON mod system
+* A match now simulates in 2.8 s on one core, down from 5.0 s.

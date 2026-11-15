@@ -1,37 +1,216 @@
-<div align="center">
+# FootballEngine
 
-# Football Engine 2026
+A football management game where every result has a cause.
 
-**A deterministic, offline football management simulation built entirely in F#.**
+![A goal in the 3D match viewer, close up camera](docs/media/match/goal.webp)
 
-[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](#)
-[![F#](https://img.shields.io/badge/F%23-10.1-378BBA)](#)
-[![AvaloniaUI](https://img.shields.io/badge/Avalonia-12.1-purple)](#)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+> **In development.** Playable from start to finish, far from finished. The first public demo is planned for January 2027.
 
-</div>
+## What we are building
 
----
+You take a club and give it an identity. Then you watch it play that way.
 
-## Why Football Engine
+* **Your club plays like you built it.** Tactics, training and signings show up on the pitch, not in a hidden number.
+* **Rival managers learn.** They study you and answer in their own style. No tactic wins forever.
+* **You can see why.** Lost 2 to 1? The tired full back you left on is in the replay.
+* **People remember.** Players, the board and the press act on what you did to them.
+* **The world moves without you.** Careers, rivalries and sackings happen whether you watch or not.
+* **Mods come first.** The editor is a core feature, so anyone can build and share their own leagues.
 
-**Results have causes.** A 2-1 is a chain of linked decisions: a corridor the winger keeps finding, a defensive line that dropped as fatigue built up, a counter-plan your rival prepared after studying your last match. Every event in the engine is resolved from the state of the game -- never from a dice roll.
+## How the match works
 
-**Deterministic and fully offline.** One self-contained executable. No installer, no internet connection, no external services. The same seed produces the same match, replayable and reproducible -- which also makes every AI decision auditable.
+Every match is a real simulation of 22 bodies and 22 minds, 40 times a second.
 
-**The adaptive coach AI learns from you.** The active P0 program builds an adaptive rival: it studies your patterns -- preferred corridors, pass length, formation, instructions -- keeps that memory between matches with temporal decay in the local database, and adjusts its match plan before facing you. You receive the same tool, but biased: your staff's reports carry the noise of real scouting, while the AI reads the truth. Difficulty emerges from the rival's intelligence, not from artificial modifiers. Your rival remembers how you beat them last week; you have to innovate, like in real football. The counter-plan is a pure function of persisted history: same seed plus same history still produces the same match. See [docs/ADAPTIVE_AI_PLAN.md](docs/ADAPTIVE_AI_PLAN.md).
+* Each player perceives, decides and moves. Nobody rolls a dice to pick the winner.
+* The team thinks as a unit. Shape, pressing and transitions frame what each player chooses.
+* The ball carrier plans a few moves ahead before passing, carrying or shooting.
+* Fatigue hurts perception and judgement, not only speed.
+* The ball has real flight, spin, bounce and drag.
+* Same seed, same match, down to the last bit. Any result can be replayed and explained.
+* Results are calibrated against real league statistics on matches the tuning never saw.
 
-**A market that buys well.** The transfer AI signs by need: role coverage, real minutes played, value discipline. No redundant 29-to-31-year-old purchases piling up on the bench.
+## Numbers
 
-## Overview
+One full 90 minute match on a Ryzen 5 5600X:
 
-Football Engine resolves matches through a full 2D spatial simulation running at 40Hz on a 105x68 metre pitch. Players move with steering behaviours, perceive the field through limited vision cones, and make cognitive decisions based on their attributes, tactical instructions, and the current state of play. The ball follows aerodynamic physics including drag, ground friction, restitution, and Magnus effect spin.
+| | |
+|---|---|
+| Time to simulate a match | 2.8 s on one core, 2.2 s with a second thread |
+| Simulation steps per match | about 262,000 |
+| Decisions by the ball carrier | about 42,000, each searching chains of up to 4 actions |
+| Memory allocated per match | 93 MB |
+| 48 match calibration run | 37 s |
+| Automated tests | 1,279 |
 
-The world layer -- transfers, player development, finances, season progression -- runs on the same principles: deterministic, data-driven, no dice rolls.
+## The match viewer
 
-Everything runs offline. A single self-contained executable. No installer, no internet connection, no external dependencies.
+Every frame below comes from the simulation. The viewer only draws what the engine decided. All clips are from one seeded match, so anyone can replay them exactly.
 
-## Quick Start
+| | |
+|---|---|
+| ![Goal, broadcast camera](docs/media/match/goal-broadcast.webp) | ![Late goal, touchline camera](docs/media/match/late-goal-touchline.webp) |
+| **The same goal** from the broadcast camera. | **A late goal** from the touchline. |
+| ![Scramble in the box and a save](docs/media/match/scramble-save.webp) | ![Counter attack and a save](docs/media/match/counter-save.webp) |
+| **A scramble in the box,** cleared by the keeper. | **A counter attack** that ends in a save. |
+
+Five cameras: broadcast, tactical, behind the goal, touchline and close up. The stadium is generated from the club's size and reputation.
+
+| | |
+|---|---|
+| ![Close up camera](docs/media/match/still-close-up.webp) | ![Touchline camera](docs/media/match/still-touchline.webp) |
+| ![Broadcast camera](docs/media/match/still-broadcast.webp) | ![Behind the goal camera](docs/media/match/still-behind-goal.webp) |
+
+**Missing.** Crowd and crowd reactions, replays and slow motion, weather and night games, club badges in the scoreboard, and original player models and animations.
+
+## A tour of the game
+
+Screens from a real career, a few weeks into the season. Click a section to open it.
+
+<details>
+<summary><b>Today</b>: the next match and what needs you</summary>
+
+![Today](docs/media/ui/today.webp)
+
+**What it is for.** Your desk. The next opponent, how their manager plays, whether your lineup is ready and the messages that need a decision.
+
+**What is different.** The rival manager has a personality and a record against you. The first time you meet, they have no reports on you. By the third, they know your habits. Time advances day by day and stops for a decision, an unavailable player or your match. It never plays for you.
+
+**Missing.** A short summary of the last result and the form of both teams.
+</details>
+
+<details>
+<summary><b>Tactics</b>: shape, roles and fit</summary>
+
+![Tactics](docs/media/ui/tactics.webp)
+
+**What it is for.** Pick a formation, place your eleven, set the bench.
+
+**What is different.** Every player shows how well they fit the role and how fresh they are. A familiarity bar shows how well the team knows this shape. Changing everything the day before a match has a real cost on the pitch.
+
+**Missing.** Set piece routines and opposition instructions.
+</details>
+
+<details>
+<summary><b>Squad</b>: who you have</summary>
+
+![Squad](docs/media/ui/squad.webp)
+
+**What it is for.** The whole squad by line, level, age or value, with condition and morale at a glance.
+
+**Missing.** A richer player profile with history, personality and promises.
+</details>
+
+<details>
+<summary><b>Training</b>: the week before the match</summary>
+
+![Training](docs/media/ui/training.webp)
+
+**What it is for.** Set the team's emphasis for the week and a plan for each player.
+
+**What is different.** Training trades freshness for growth. Young players develop, tired players rest, the starting eleven sharpens. The page tells you how fresh your eleven will be on match day, and injury risk is visible before you choose.
+
+**Missing.** Individual drills and staff advice.
+</details>
+
+<details>
+<summary><b>Scouting</b>: knowledge has a cost</summary>
+
+![Scouting](docs/media/ui/scouting.webp)
+
+**What it is for.** Send a scout to watch a player, with a cost and a deadline.
+
+**What is different.** You never see a player's true level. Reports give a range and a confidence, biased by how good your scout is.
+
+**Missing.** Scouting regions and a better way to find targets than a long list.
+</details>
+
+<details>
+<summary><b>Transfers</b>: the market</summary>
+
+![Transfers](docs/media/ui/transfers.webp)
+
+**What it is for.** Search players, follow targets, make offers and track incoming and outgoing deals.
+
+**What is different.** Other clubs buy and sell on their own, all season, whether you are watching or not.
+
+**Missing.** Loans and contract clauses.
+</details>
+
+<details>
+<summary><b>Finances</b>: money you can trust</summary>
+
+![Finances](docs/media/ui/finances.webp)
+
+**What it is for.** Cash, transfer budget, wage commitments and a 30 day forecast.
+
+**What is different.** Every operation is recorded, and money is reserved before a deal closes so it is never spent twice.
+
+**Missing.** Match day income, sponsors and a clearer history view.
+</details>
+
+<details>
+<summary><b>Board, news and inbox</b>: people who remember</summary>
+
+![Board](docs/media/ui/board.webp)
+
+**What it is for.** The board's confidence and the supporters' mood, the season objective and your recent results.
+
+![News](docs/media/ui/news.webp)
+
+The news follows your club, your league and the world. Stories come from what really happened.
+
+![Inbox](docs/media/ui/inbox.webp)
+
+Messages that need you are marked for review. The rest can wait.
+
+**Missing.** Press conferences, player conversations and situations that ask for a decision.
+</details>
+
+<details>
+<summary><b>Calendar</b>: the season</summary>
+
+![Calendar](docs/media/ui/calendar.webp)
+
+**What it is for.** Every fixture and result of the season.
+
+**Missing.** A month view and cup draws.
+</details>
+
+<details>
+<summary><b>Mod editor</b>: build your own world</summary>
+
+![Mod library](docs/media/ui/mod-library.webp)
+
+**What it is for.** Start a new world or edit a copy of a built in country. The original stays intact.
+
+![Club editor](docs/media/ui/mod-club.webp)
+
+Clubs, kits, reputation and squads. Players you do not define are generated when a career starts. You can paste a squad from a spreadsheet.
+
+![League editor](docs/media/ui/mod-leagues.webp)
+
+Leagues form a pyramid with their own points rules.
+
+![Publish](docs/media/ui/mod-publish.webp)
+
+Publishing checks the mod exactly as the game loads it, so a career never starts broken.
+
+**Missing.** Sharing mods online and editing competitions in depth.
+</details>
+
+## Status
+
+Early and playable. You can start a career, run a season and watch every match in 3D.
+
+**The 3D assets are placeholders.** Players, animations, the stadium and the crowd were generated by asking Claude to make them, and it shows. They are unpolished and will be replaced with our own work.
+
+The built in leagues use real club names for testing. The game will ship with its own world, and the mod editor is how players bring in the leagues they love.
+
+See the [roadmap](ROADMAP.md) for what comes next.
+
+## Run it
+
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
 git clone https://github.com/DeltaBitsSystem/FootballEngine.git
@@ -39,276 +218,16 @@ cd FootballEngine
 dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release
 ```
 
-Requires [.NET 10.0 SDK](https://dotnet.microsoft.com/download). League data is bundled as JSON and loads automatically.
+Run the tests with `dotnet fsi scripts/test.fsx`.
 
-## Screenshots
+## Built with
 
-<div align="center">
-
-<img src="docs/media/goal.webp" width="800" alt="A goal move in the live 3D match viewer, recorded at real match speed">
-
-*A goal from the live 3D viewer, recorded at real speed with `--video-goals` (see [Recording media](#recording-media)).*
-
-| | |
-|---|---|
-| <img src="docs/media/home.png" width="400" alt="Home"> | <img src="docs/media/squad.png" width="400" alt="Squad"> |
-| <img src="docs/media/tactics.png" width="400" alt="Tactics"> | <img src="docs/media/training.png" width="400" alt="Training"> |
-| <img src="docs/media/transfers.png" width="400" alt="Transfer market"> | <img src="docs/media/match-live.webp" width="400" alt="Live match, broadcast camera"> |
-
-**Player model** (procedural ProAthlete pack, WebGPU renderer probe):
-
-| | |
-|---|---|
-| <img src="docs/media/player-close-up.webp" width="400" alt="Player close-up"> | <img src="docs/media/player-broadcast.webp" width="400" alt="Players at broadcast distance"> |
-
-</div>
-
-### What still looks bad
-
-An honest list of what you will notice today, so the screenshots above are not mistaken for a finished game:
-
-- **Scorelines swing too far.** Ten fixtures of the generated Argentine league average 3.4 goals and 20 shots per match with a sensible home/away split, but two of them ended 0-8 and 0-6 with the losing side barely shooting. One-sided collapses like that are not yet explained.
-- **The ball is loose more than it should be.** The contact engine keeps controlled possession for a small share of match time, so play has more scrambles and second balls than real football.
-- **Several pages are thin.** Finances shows a forecast and an empty breakdown; Calendar is a long list of fixtures with little context; Inbox and Scouting show a large empty panel until something is selected.
-- **Mixed languages.** Parts of the UI are in Spanish and parts in English.
-- **Player close-ups.** Faces and hair are generic and identical across players, shirts have no names or numbers, and the HUD player card uses a placeholder avatar.
-- **Crowd and stadium.** The crowd is a repeated low-detail figure and the advertising boards repeat a single banner.
-- **Animation.** Movement is driven by 18 procedural clips; turns, traps and tackles can look abrupt at broadcast distance.
-
-## Match Engine
-
-### Ball Physics
-
-The ball is a physical object with position, velocity, and spin in three dimensions.
-
-- Air drag decelerates the ball proportionally to speed
-- Ground friction applies when the ball is rolling
-- Ground restitution determines bounce height
-- Magnus effect curves balls with sidespin or topspin
-- Goal posts deflect the ball with configurable restitution
-- Stop threshold prevents micro-movement jitter
-
-### Player Movement
-
-Steering behaviours evaluated every tick against a shape grid derived from the active formation.
-
-| Behaviour | Use |
-|-----------|-----|
-| Seek | Move to target position |
-| Arrive | Decelerate approaching target |
-| Pursuit | Intercept moving targets (ball, opponent) |
-| Separation | Avoid overlapping teammates |
-| Shape maintenance | Hold formation position when idle |
-
-Off-ball runs trigger from possession state, space detection, or tactical instruction: deep runs, overlaps, underlaps, diagonal runs, third-man runs, false nine drops.
-
-### Cognitive Processing
-
-Runs on a separate, lower-frequency cycle. Each player computes:
-
-- A visibility mask based on position and facing direction
-- A field-of-view cone scaled by Vision and Positioning attributes
-- Passing targets, press triggers, and spatial coverage from perceptual state, not omniscient knowledge
-
-The decision pipeline flows through: CollectiveModifiers -> CollectiveIntents -> SlotRole -> DefensiveRole -> EmergentState -> pickIntent. Each stage applies multiplicative weights; the highest-scoring intent wins.
-
-### Spatial Awareness
-
-A 10x7 influence grid (cells ~10.5m x 9.7m) accumulates Gaussian-weighted presence from all players. Sigma varies by position: GK 10m, centre-backs 12m, midfielders 15m, attackers 18m. Derived frames provide pass safety, defender coverage, and territorial control from each team's perspective.
-
-### Tactical Adaptation
-
-Emergent feedback loops track pass success rate, press success rate, and flank success rate during the match. These nudge compactness, pressing intensity, tempo, and wing-play preference in response. A team leading comfortably plays differently from the same team chasing a goal in the 80th minute.
-
-### Fatigue and Condition
-
-Condition drains during the match. A team on a losing run with heavy training load enters matches with degraded compactness, pressing intensity, tempo, and risk appetite -- modelled as cascading emergent state penalties.
-
-### Set Pieces and Officiating
-
-Dedicated agent handles corners, free kicks, throw-ins, goal kicks, and penalties. Offside is checked at pass moment via snapshot. The referee system includes foul analysis, advantage detection, handball detection, and VAR review.
-
-## Player Attributes
-
-Players have 30+ attributes across four groups:
-
-| Group | Attributes |
-|-------|-----------|
-| Physical | Acceleration, Pace, Agility, Balance, Jumping Reach, Stamina, Strength |
-| Technical | Finishing, Long Shots, Dribbling, Ball Control, Passing, Crossing, Tackling, Marking, Heading, Free Kick, Penalty |
-| Mental | Aggression, Composure, Vision, Positioning, Bravery, Work Rate, Concentration, Leadership |
-| Goalkeeping | Reflexes, Handling, Kicking, One-on-One, Aerial Reach |
-
-Attributes generate a BehavioralProfile -- a continuous representation of how each player naturally moves and decides. The profile feeds directly into steering targets, risk tolerance, pass selection, and pressing triggers.
-
-## Player Development
-
-Development is probabilistic, age-gated, and attribute-sensitive. Players under 20 can gain up to 4 skill points per cycle; this ceiling drops with age, reaching 0 after 30. Weekly development probability scales by training focus, training intensity, the gap between current skill and potential, and the player's behavioral profile. Heavy training increases development rate but raises injury risk and damages morale.
-
-## Transfers and Negotiations
-
-Transfers run as a finite state machine: offer -> club response -> contract offer -> player response. Club response evaluates fee against market value (quadratic in skill) and buyer reputation. Player response evaluates club reputation and offered salary. Both sides can reject independently.
-
-## Staff
-
-Thirteen distinct roles: Head Coach, Assistant Manager, First Team Coach, Goalkeeper Coach, Fitness Coach, Head of Youth Development, Scout, Physio, Sports Scientist, Performance Analyst, Recruitment Analyst, Loan Manager, Technical Director. Each has an attribute set and effective ability formula. Coach quality affects training output, squad development, and tactical execution.
-
-## Board Objectives
-
-The board assigns objectives: Survival, Mid-Table, Top Half, Top Four, Win League, Promotion, Domestic Cup, Continental Cup. Meeting them builds coach reputation. Failing twice in a row costs the job.
-
-## Competitions and Bundled Data
-
-Six data mods ship with the engine:
-
-| Mod | Content |
-|-----|---------|
-| Argentina | League, cup, name pools |
-| Brazil | League, cup, name pools |
-| England | League, cup, name pools |
-| Spain | League, cup, name pools |
-| CONMEBOL | Libertadores, Sudamericana |
-| UEFA | Champions League, Europa League |
-
-Competition formats: domestic leagues with configurable points and tiebreakers, straight knockout, group-then-knockout, two-legged ties with configurable resolution (away goals, extra time, penalties, replays).
-
-## Mod System
-
-All database content is decoupled from the executable. Nations, leagues, cup formats, tiebreaker rules, promotion/relegation slots, qualification paths, and name pools are distributed as validated `.femod` packages loaded at startup.
-
-The mod system validates loaded data against a strict schema. Errors surface with precise messages: invalid JSON, schema version mismatch, duplicate content ID, missing dependency, path traversal attempt, oversized file, or invalid package hash.
-
-A built-in mod editor allows creation, modification, and patching of data from within the application.
-
-## Architecture
-
-Football Engine enforces a functional, immutable-by-default architecture. The match simulation hot path uses mutable `TeamFrame` arrays in Structure-of-Arrays layout for cache performance at 40Hz.
-
-```
-Match simulation (40 Hz) -- FootballEngine.Core/Match
-  |-- Stepper
-  |     |-- SystemsTable (Ball, Players, Referee, Team, Manager)
-  |     |-- EventApply, Flow, Scheduler, Shootout
-  |-- Systems
-  |     |-- Ball      # possession, contacts, outcomes, physics
-  |     |-- Players   # Perception -> Decision -> Intent -> Planner -> Steering -> Actions
-  |     |-- Referee   # fouls, cards, VAR
-  |     |-- Team      # Decide, TeamEmergent, Formation, Pressing, InterceptTable
-  |     └-- Manager   # substitutions, directives
-  |-- Contracts       # MatchContext, BalanceConfig, MatchEvent, Frames, Rng, Units
-  └-- Simulator       # Simulator, Replay, MatchDump
-
-World layer (daily / weekly / monthly) -- FootballEngine.Core/World
-  |-- Phases         # SeasonPhase, MatchPhase, TransferPhase, DevelopmentPhase, FinancePhase
-  |-- Agents         # ClubAgent, ManagerAgent, PlayerAgent
-  |-- Supervisors    # Finance, Transfer, Youth
-  └-- Core           # WorldClock, WorldTick, agent types
-```
-
-| Layer | Technology |
-|-------|------------|
-| Language | F# (.NET 10), Units of Measure for physics |
-| UI | Avalonia FuncUI + Elmish (MVU, unidirectional data flow) |
-| Rendering | WebGPU (Silk.NET) 3D match viewer embedded in Avalonia |
-| Statistics | Deterministic distributions (Normal, Beta, Poisson) seeded from the match RNG |
-| Persistence | SQLite (sqlite-net-pcl), transactional save/load |
-| Error Handling | Result types and FsToolkit.ErrorHandling |
-
-### Project Structure
-
-```
-FootballEngine/
-├── FootballEngine.Core/          # Engine and domain, no UI
-│   ├── Domain/                   # Player, Club, Staff, Transfer, MatchMetrics, CoordinationMemory
-│   ├── Match/                    # 40 Hz match simulation
-│   │   ├── Contracts/            # MatchContext, BalanceConfig, MatchEvent (29 kinds), Frames, Rng
-│   │   ├── Config/               # ConfigValidation, weight merging
-│   │   ├── Stepper/              # SystemsTable, MatchFlow, MatchClock
-│   │   ├── Simulator/            # Simulator, Replay, match dump
-│   │   └── Systems/              # Ball, Players, Referee, Team, Manager
-│   ├── World/                    # Season, match, transfer, development, finance phases
-│   │   ├── Agents/               # ClubAgent, ManagerAgent, PlayerAgent
-│   │   ├── Phases/               # SeasonPhase, MatchPhase, TransferPhase, DevelopmentPhase, FinancePhase
-│   │   └── Supervisors/          # Finance, Transfer, Youth supervisors
-│   ├── WorldGeneration/          # Player, club and fixture generation
-│   └── GameData/                 # .femod resolution and resolved snapshots
-│
-├── FootballEngine.Client/        # Avalonia FuncUI + Elmish desktop application
-│   ├── AppState/                 # Elmish model, messages, update functions, slices
-│   ├── Database/                 # SQLite entities, mappers, serializers, repository
-│   └── Views/                    # Pages, components, shared controls
-│
-├── FootballEngine.Core.Tests/    # Expecto test suite
-├── FootballEngine.Benchmarks/    # Deterministic benchmark + CPU/GC profiling
-├── Data/Builtins/                # Six bundled .femod packages
-└── Training/                     # Weight calibration pipeline (outside the solution)
-```
-
-## Testing
-
-```bash
-dotnet fsi scripts/test.fsx
-dotnet fsi scripts/test.fsx --project Core --list
-dotnet fsi scripts/test.fsx --project Client
-```
-
-Local development and CI use the same SDK-only F# runner. It builds and runs all source `*.Tests.fsproj` executables with Expecto, rejects empty/focused/skipped runs and saves JUnit reports and logs under `artifacts/tests/`. See [testing commands and policy](docs/TESTING.md). Benchmarks are separate:
-
-```bash
-dotnet run --project FootballEngine.Benchmarks/FootballEngine.Benchmarks.fsproj -c Release
-dotnet run --project FootballEngine.Benchmarks/FootballEngine.Benchmarks.fsproj -c Release -- --profile
-```
-
-The benchmark runner reports median/p95 time, allocations, GC collections, event/tick counts, replay size and same-seed determinism. `--profile` additionally writes CPU/GC trace files and per-system timings under `artifacts/benchmarks/<run>/`.
-
-The test suite covers physics invariants (ball trajectory, restitution), offside detection, match determinism (same seed produces identical scoreline and events), and world state integrity (no orphaned player IDs, no budget underflow, valid standing computations).
-
-### Recording media
-
-The client has a screenshot, video and calibration mode built on a fixed demo career. Video needs a display and `ffmpeg` on `PATH`; `--match-seed` fixes the live match so a search and a recording see the same game.
-
-```bash
-# Screenshots of every page (or a subset with --shots-pages home,squad,match)
-dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release -- \
-  --shots artifacts/shots --shots-size 1600x900
-
-# Find every goal (skips through the match unpaced, ~2 minutes) and record each one at real speed
-dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release -- \
-  --shots artifacts/goals --match-video artifacts/goals/goal.mp4 --video-goals \
-  --match-seed 7 --video-max-goals 3 --video-lead 10 --video-tail 4
-
-# Only list the goals (writes goals.txt), or record known match seconds
-dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release -- \
-  --shots artifacts/goals --video-find-goals --match-seed 7
-dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release -- \
-  --shots artifacts/goals --match-video artifacts/goals/goal.mp4 --match-seed 7 --video-goal-at 529,1355
-
-# Headless calibration: simulate the first N fixtures of the demo league with real squads
-dotnet run --project FootballEngine.Client/FootballEngine.Client.fsproj -c Release -- \
-  --shots artifacts/corpus --match-corpus 10
-```
-
-Clips are written as `goal-01.mp4`, `goal-02.mp4`, ... next to `--match-video`. The skip is presentation-only: the worker advances the deterministic match without waiting for the wall clock, so it reaches the same state the paced viewer would. Without a goal option, `--match-video` captures `--video-frames` frames of the live match, `--video-step` milliseconds apart, encoded at `--video-fps`.
-
-## Roadmap
-
-The roadmap is organized around one principle: the AI plays the same game the human plays -- same information, same incentives, same consequences. Difficulty comes from the AI's intelligence, never from artificial modifiers.
-
-- **P0 -- Adaptive coach AI (Phase 1):** cross-match memory. The AI extracts your patterns (corridors, pass length, formation, instructions), persists them with temporal decay, and counter-plans before each match. You get the same tool, biased by your staff. Parallel track: a transfer AI that always buys well -- need by role, real minutes, value discipline -- with a 10-season CI test.
-- **P1:** Phase 2 (live in-match adaptation), plus manager AI: distinct philosophies, causal morale, causal market value, load-driven injuries, modern newgen archetypes.
-- **P2:** advanced statistics (xG, xA, pass maps, heatmaps -- unlocked by event positions), finances dashboard, match ratings, staff hiring, set piece designer, youth academy.
-- **P3:** community: more league mods, exportable match data, documentation for mod authors.
-
-Every item closes with a test in `FootballEngine.Core.Tests` -- balance is measured, not felt. Full detail: [ROADMAP.md](ROADMAP.md).
+F#, .NET 10, Avalonia, WebGPU and SQLite. Offline, no servers.
 
 ## Contributing
 
-The mod system is the most accessible entry point. Add a workspace with `manifest.json` and declarative content, validate it with `Tools/ModCli`, and pack it into an immutable `.femod` package.
-
-For code contributions: fork the repository, create a branch, and open a pull request. The test suite must pass. For larger changes, open an issue first to discuss the approach.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Design notes in `docs/` are mostly in Spanish.
 
 ## License
 
-Football Engine is free software under the GNU General Public License v3.0. See [LICENSE](LICENSE) for the full text.
-
-The source code is open. The GPL guarantees that any distributed modified version must also be open source.
+[GPL 3.0](LICENSE). The code is free, and anything built on it stays free.
