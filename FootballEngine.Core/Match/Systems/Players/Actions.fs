@@ -125,23 +125,19 @@ module Actions =
         | DeliverCross -> Cross.launch ctx rng world buffer side slot
 
     let private prepareChallenges (ctx: SystemContext) (world: World) =
-        let owner =
-            match world.State.Ball.Control with
-            | BallControl.Controlled(side, player)
-            | BallControl.Receiving(side, player, _) -> Some(side, player)
-            | _ -> None
-
-        match owner with
-        | Some(ownerSide, ownerId) when world.State.Flow = MatchFlow.Live ->
+        match world.State.Ball.Control with
+        | BallControl.Controlled(ownerSide, ownerId)
+        | BallControl.Receiving(ownerSide, ownerId, _) when world.State.Flow = MatchFlow.Live ->
             let ownerFrame = (MatchWorld.team world ownerSide).Frame
-            let ownerSlot = MatchWorld.slotOf ctx.Ctx ownerSide ownerId
+            // -1 when the holder is in neither lineup.
+            let ownerSlot = MatchWorld.slotIndex ctx.Ctx ownerSide ownerId
             let ball = world.State.Ball.Position
             let config = ctx.Ctx.Config.ContactAction
             let movement = ctx.Ctx.Config.Movement
             let preparation = float config.StandingTacklePreparation / float ctx.Clock.SubTicksPerSecond
             let slidePreparation = float config.SlidingTacklePreparation / float ctx.Clock.SubTicksPerSecond
 
-            for side in [ ClubSide.Home; ClubSide.Away ] do
+            for side in MatchWorld.sides do
                 if side <> ownerSide then
                     let team = MatchWorld.team world side
 
@@ -177,8 +173,9 @@ module Actions =
                             let ownGoal = float (MatchMath.ownGoalX side)
                             let shielded seconds =
                                 match ownerSlot with
-                                | Some carrier when
-                                    abs (float ownerFrame.PosX[carrier] - ownGoal) >= abs (float team.Frame.PosX[slot] - ownGoal)
+                                | carrier when
+                                    carrier >= 0
+                                    && abs (float ownerFrame.PosX[carrier] - ownGoal) >= abs (float team.Frame.PosX[slot] - ownGoal)
                                     ->
                                     let px, py = float team.Frame.PosX[slot], float team.Frame.PosY[slot]
                                     let bx, by = float ball.X + float ball.Vx * seconds, float ball.Y + float ball.Vy * seconds
@@ -196,30 +193,30 @@ module Actions =
                             let exposed =
                                 engaging
                                 || match ownerSlot with
-                                   | Some carrier ->
+                                   | carrier when carrier >= 0 ->
                                        let cx = float ball.X - float ownerFrame.PosX[carrier]
                                        let cy = float ball.Y - float ownerFrame.PosY[carrier]
                                        distanceSquared < cx * cx + cy * cy
-                                   | None -> true
+                                   | _ -> true
 
                             let kind =
                                 if not exposed then
-                                    None
+                                    ValueNone
                                 elif distanceSquared <= reach * reach && not (shielded preparation) then
-                                    Some ContactActionKind.ContactStandingTackle
+                                    ValueSome ContactActionKind.ContactStandingTackle
                                 elif
                                     intent = IntentCode.Recover
                                     && escaping
                                     && distanceSquared <= slideReach * slideReach
                                     && not (shielded slidePreparation)
                                 then
-                                    Some ContactActionKind.ContactSlidingTackle
+                                    ValueSome ContactActionKind.ContactSlidingTackle
                                 else
-                                    None
+                                    ValueNone
 
-                            kind
-                            |> Option.iter (fun kind ->
-                                ContactActionPlanner.prepare ctx world side slot kind (Some ownerId) |> ignore)
+                            match kind with
+                            | ValueSome kind -> ContactActionPlanner.prepare ctx world side slot kind (Some ownerId) |> ignore
+                            | ValueNone -> ()
         | _ -> ()
 
     let private prepareReceptions (ctx: SystemContext) (world: World) =
@@ -229,14 +226,14 @@ module Actions =
 
         let intendedReceiver =
             match ball.Trajectory with
-            | Some(TrajectoryIntent.Aimed(_, receiver, _)) -> Some receiver
-            | _ -> None
+            | Some(TrajectoryIntent.Aimed(_, receiver, _)) -> ValueSome receiver
+            | _ -> ValueNone
 
         match ball.Control with
         | BallControl.Free
         | BallControl.Airborne
         | BallControl.Contesting _ when world.State.Flow = MatchFlow.Live ->
-            for side in [ ClubSide.Home; ClubSide.Away ] do
+            for side in MatchWorld.sides do
                 let team = MatchWorld.team world side
                 let frame = team.Frame
 
@@ -247,7 +244,9 @@ module Actions =
                         intent = IntentCode.Recover
                         || intent = IntentCode.Press
                         || intent = IntentCode.ExecuteRun
-                        || intendedReceiver = Some team.RosterIds[slot]
+                        || (match intendedReceiver with
+                            | ValueSome receiver -> receiver = team.RosterIds[slot]
+                            | ValueNone -> false)
 
                     if pursuing && frame.ContactState[slot].Status <> BodyContactStatus.BodyFalling then
                         let dx = float ball.Position.X - float frame.PosX[slot]
@@ -280,7 +279,7 @@ module Actions =
             prepareReceptions ctx world
 
             match world.State.Ball.PendingStrike, MatchWorld.ballCarrier ctx.Ctx world with
-            | None, Some(side, slot, _) ->
+            | None, ValueSome(struct (side, slot, _)) ->
                 let team = MatchWorld.team world side
                 let frame = team.Frame
 

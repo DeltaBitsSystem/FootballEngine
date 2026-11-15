@@ -55,14 +55,14 @@ module EventApply =
         team.Frame.ContactState[slot] <-
             { BodyContactState.stable with
                 Support = BodySupport.NoBodySupport }
-        team.Defense.Tasks[slot] <- None
+        team.Defense.Tasks[slot] <- ValueNone
         team.Frame.RunLookup.Remove slot |> ignore
         team.Proposals.Remove slot |> ignore
         team.PendingActions.Remove slot |> ignore
 
     let private teamForPair (ctx: MatchContext) outgoing incoming =
-        match MatchWorld.teamOfPlayer ctx outgoing, MatchWorld.teamOfPlayer ctx incoming with
-        | Some side, Some incomingSide when side = incomingSide -> Some side
+        match MatchWorld.sideOfPlayer ctx outgoing, MatchWorld.sideOfPlayer ctx incoming with
+        | ValueSome side, ValueSome incomingSide when side = incomingSide -> Some side
         | _ -> None
 
     let private availableSubstitute (lineup: Lineup) (team: TeamWorld) (slot: int) (player: PlayerId) =
@@ -81,7 +81,7 @@ module EventApply =
             let team = MatchWorld.team world side
 
             match MatchWorld.slotOf ctx side outgoing, MatchWorld.slotOf ctx side incoming with
-            | Some outSlot, Some inSlot when outSlot <> inSlot ->
+            | ValueSome outSlot, ValueSome inSlot when outSlot <> inSlot ->
                 match team.Frame.Occupancy.[outSlot] with
                 | OccupancyKind.Active _ when
                     availableSubstitute (MatchWorld.lineup ctx side) team inSlot incoming
@@ -333,10 +333,10 @@ module EventApply =
         | None -> ()
 
     let private applyPhysicalContact (ctx: MatchContext) (world: World) (contact: ContactRecord) =
-        match MatchWorld.teamOfPlayer ctx contact.Actor with
-        | Some side ->
+        match MatchWorld.sideOfPlayer ctx contact.Actor with
+        | ValueSome side ->
             match MatchWorld.slotOf ctx side contact.Actor with
-            | Some slot ->
+            | ValueSome slot ->
                 let frame = (MatchWorld.team world side).Frame
 
                 if
@@ -363,8 +363,8 @@ module EventApply =
                                 | _ -> BallControl.Free
                             GKHoldSince = None
                             StationarySince = None })
-            | None -> ()
-        | None -> ()
+            | ValueNone -> ()
+        | ValueNone -> ()
 
     let private applyGoal (ctx: MatchContext) (world: World) side scorer xG tick buffer =
         let home =
@@ -584,13 +584,13 @@ module EventApply =
                         Impulse = None
                         Position = { b.Position with X = x; Y = y } })
             | EventData.Pass(passer, receiver, _, _, completed, _, _, _, _) ->
-                match MatchWorld.teamOfPlayer ctx passer with
-                | Some side ->
+                match MatchWorld.sideOfPlayer ctx passer with
+                | ValueSome side ->
                     let team = MatchWorld.team world side
                     team.Stats.Passes <- team.Stats.Passes + 1
 
                     match MatchWorld.slotOf ctx side passer with
-                    | Some slot ->
+                    | ValueSome slot ->
                         team.Memory.[slot].PassesMade <- team.Memory.[slot].PassesMade + 1
 
                         if completed then
@@ -601,11 +601,11 @@ module EventApply =
                         else
                             team.Memory.[slot].PassFailMod <- min 1.5 (team.Memory.[slot].PassFailMod + 0.3)
                             team.Memory.[slot].StreakMod <- max -2.0 (team.Memory.[slot].StreakMod - 0.25)
-                    | None -> ()
-                | None -> ()
+                    | ValueNone -> ()
+                | ValueNone -> ()
             | EventData.Shot(shooter, result, xG, _, _, _) ->
-                match MatchWorld.teamOfPlayer ctx shooter with
-                | Some side ->
+                match MatchWorld.sideOfPlayer ctx shooter with
+                | ValueSome side ->
                     let team = MatchWorld.team world side
                     team.Stats.Shots <- team.Stats.Shots + 1
                     team.Stats.XgSum <- team.Stats.XgSum + xG
@@ -615,7 +615,7 @@ module EventApply =
                     | _ -> ()
 
                     match MatchWorld.slotOf ctx side shooter with
-                    | Some slot ->
+                    | ValueSome slot ->
                         team.Memory.[slot].ShotsTaken <- team.Memory.[slot].ShotsTaken + 1
 
                         match result with
@@ -624,33 +624,33 @@ module EventApply =
                         | ShotResult.OnTarget false ->
                             team.Memory.[slot].ShotSuccessMod <- max -2.0 (team.Memory.[slot].ShotSuccessMod - 0.2)
                         | _ -> ()
-                    | None -> ()
-                | None -> ()
+                    | ValueNone -> ()
+                | ValueNone -> ()
             | EventData.Goal(side, scorer, _, xG) -> applyGoal ctx world side scorer xG tick buffer
             | EventData.Foul(fouler, _, _, _, _) ->
-                match MatchWorld.teamOfPlayer ctx fouler with
-                | Some side ->
+                match MatchWorld.sideOfPlayer ctx fouler with
+                | ValueSome side ->
                     let team = MatchWorld.team world side
                     team.Stats.Fouls <- team.Stats.Fouls + 1
-                | None -> ()
+                | ValueNone -> ()
             | EventData.Card(player, CardColor.Yellow) ->
-                match MatchWorld.teamOfPlayer ctx player, MatchWorld.teamOfPlayer ctx player with
-                | Some side, Some _ ->
+                match MatchWorld.sideOfPlayer ctx player, MatchWorld.sideOfPlayer ctx player with
+                | ValueSome side, ValueSome _ ->
                     let team = MatchWorld.team world side
 
                     match MatchWorld.slotOf ctx side player with
-                    | Some slot ->
+                    | ValueSome slot ->
                         team.Memory.[slot].Yellows <- team.Memory.[slot].Yellows + 1
                         team.Cards.Yellows <- team.Cards.Yellows + 1
-                    | None -> ()
+                    | ValueNone -> ()
                 | _ -> ()
             | EventData.Card(_, CardColor.Red) ->
                 // RefereeCards emits RedCardIssued; red totals and dismissal are
                 // deliberately committed by that structural effect only.
                 ()
             | EventData.Offside player ->
-                match MatchWorld.teamOfPlayer ctx player with
-                | Some side ->
+                match MatchWorld.sideOfPlayer ctx player with
+                | ValueSome side ->
                     let team = MatchWorld.team world side
                     team.Stats.Offsides <- team.Stats.Offsides + 1
                     let defending = MatchWorld.oppOf side
@@ -658,7 +658,7 @@ module EventApply =
 
                     applyRestart ctx world tick (RestartCause.Offside player) SetPieceKind.FreeKick defending x y
                     |> ignore
-                | None -> ()
+                | ValueNone -> ()
             | EventData.SetPiece(kind, side) ->
                 let x, y = restartSpot kind side world.State.Ball
 
@@ -715,31 +715,31 @@ module EventApply =
             | EventData.Tackle _ -> ()
             | EventData.Save _ -> ()
             | EventData.CrossAttempt(crosser, _, _) ->
-                match MatchWorld.teamOfPlayer ctx crosser with
-                | Some side ->
+                match MatchWorld.sideOfPlayer ctx crosser with
+                | ValueSome side ->
                     (MatchWorld.team world side).Stats.Crosses <- (MatchWorld.team world side).Stats.Crosses + 1
-                | None -> ()
+                | ValueNone -> ()
             | EventData.Dribble(dribbler, succeeded, _, _) ->
-                match MatchWorld.teamOfPlayer ctx dribbler with
-                | Some side ->
+                match MatchWorld.sideOfPlayer ctx dribbler with
+                | ValueSome side ->
                     let team = MatchWorld.team world side
 
                     if succeeded then
                         team.Stats.Dribbles <- team.Stats.Dribbles + 1
 
                     match MatchWorld.slotOf ctx side dribbler with
-                    | Some slot when succeeded ->
+                    | ValueSome slot when succeeded ->
                         team.Memory.[slot].SuccessfulDuels <- team.Memory.[slot].SuccessfulDuels + 1
-                    | Some slot -> team.Memory.[slot].FailedDuels <- team.Memory.[slot].FailedDuels + 1
-                    | None -> ()
-                | None -> ()
+                    | ValueSome slot -> team.Memory.[slot].FailedDuels <- team.Memory.[slot].FailedDuels + 1
+                    | ValueNone -> ()
+                | ValueNone -> ()
             | EventData.Injury(player, severity) ->
-                match MatchWorld.teamOfPlayer ctx player with
-                | Some side ->
+                match MatchWorld.sideOfPlayer ctx player with
+                | ValueSome side ->
                     let team = MatchWorld.team world side
 
                     match MatchWorld.slotOf ctx side player with
-                    | Some slot ->
+                    | ValueSome slot ->
                         match team.Frame.Occupancy.[slot] with
                         | OccupancyKind.Active _ ->
                             team.Frame.Occupancy.[slot] <-
@@ -754,8 +754,8 @@ module EventApply =
                             team.Frame <- frame
                             ParticipationBook.stop team.Participation player tick
                         | _ -> ()
-                    | None -> ()
-                | None -> ()
+                    | ValueNone -> ()
+                | ValueNone -> ()
 
                 if severity >= 3 then
                     let duration =
@@ -909,12 +909,12 @@ module EventApply =
             | EventData.FullTime -> applyFullTime ctx world
             | EventData.ConditionCritical _ -> ()
             | EventData.RedCardIssued player ->
-                match MatchWorld.teamOfPlayer ctx player with
-                | Some side ->
+                match MatchWorld.sideOfPlayer ctx player with
+                | ValueSome side ->
                     let team = MatchWorld.team world side
 
                     match MatchWorld.slotOf ctx side player with
-                    | Some slot ->
+                    | ValueSome slot ->
                         match team.Frame.Occupancy.[slot] with
                         | OccupancyKind.Active _ ->
                             team.Frame.Occupancy.[slot] <-
@@ -930,8 +930,8 @@ module EventApply =
                             ParticipationBook.stop team.Participation player tick
                             team.Cards.Reds <- team.Cards.Reds + 1
                         | _ -> ()
-                    | None -> ()
-                | None -> ()
+                    | ValueNone -> ()
+                | ValueNone -> ()
             | EventData.ShootoutGoal side ->
                 if not world.State.Shootout.Complete then
                     let shootout = world.State.Shootout
@@ -1022,8 +1022,8 @@ module EventApply =
             | EventData.ShootoutKick(side, taker, scored) ->
                 let valid =
                     match MatchWorld.slotOf ctx side taker with
-                    | Some slot -> MatchWorld.isActive (MatchWorld.team world side).Frame slot
-                    | None -> false
+                    | ValueSome slot -> MatchWorld.isActive (MatchWorld.team world side).Frame slot
+                    | ValueNone -> false
 
                 if valid then
                     let shootout = world.State.Shootout

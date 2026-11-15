@@ -21,7 +21,7 @@ module PlayerSteering =
         let mutable lateral = 0.0
         let mutable found = false
 
-        for otherSide in [| ClubSide.Home; ClubSide.Away |] do
+        for otherSide in MatchWorld.sides do
             let other = (MatchWorld.team world otherSide).Frame
 
             for o in MatchWorld.activeSlots other do
@@ -82,23 +82,18 @@ module PlayerSteering =
                 plan.Executor = team.RosterIds.[slot]
             | _ -> false
 
-        let desiredFacing =
+        frame.TargetFacing.[slot] <-
             let targetDx = tx - px
             let targetDy = ty - py
 
             if targetDx * targetDx + targetDy * targetDy > float cfg.FacingIntentDistance ** 2.0 then
-                Some(atan2 targetDy targetDx)
+                float32 (atan2 targetDy targetDx)
             else
                 // Small shape corrections must not turn an otherwise settled player away from play.
                 let ballDx, ballDy = float world.State.Ball.Position.X - px, float world.State.Ball.Position.Y - py
                 if ballDx * ballDx + ballDy * ballDy > float cfg.FacingIntentDistance ** 2.0 then
-                    Some(atan2 ballDy ballDx)
-                else None
-
-        frame.TargetFacing.[slot] <-
-            desiredFacing
-            |> Option.map float32
-            |> Option.defaultValue frame.BodyFacing.[slot]
+                    float32 (atan2 ballDy ballDx)
+                else frame.BodyFacing.[slot]
 
         let dx = tx - px
         let dy = ty - py
@@ -173,7 +168,7 @@ module PlayerSteering =
             world.State.Clock.Tick > 0<subtick>
             && world.State.Clock.Phase <> ClockPhase.HalfTime
 
-        for side in [ ClubSide.Home; ClubSide.Away ] do
+        for side in MatchWorld.sides do
             let frame = (MatchWorld.team world side).Frame
 
             for slot in MatchWorld.activeSlots frame do
@@ -198,7 +193,7 @@ module PlayerSteering =
         fun ctx rng world _ ->
             let tick = world.State.Tick
 
-            for side in [ ClubSide.Home; ClubSide.Away ] do
+            for side in MatchWorld.sides do
                 let frame = (MatchWorld.team world side).Frame
 
                 for slot in MatchWorld.activeSlots frame do

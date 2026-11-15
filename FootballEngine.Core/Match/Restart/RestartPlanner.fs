@@ -270,8 +270,8 @@ module RestartRules =
             add Rule.BallSpot None "restart spot is outside the law-defined area"
 
         match MatchWorld.slotOf ctx side plan.Executor with
-        | None -> add Rule.ExecutorActive (Some plan.Executor) "executor is not in the lineup"
-        | Some slot ->
+        | ValueNone -> add Rule.ExecutorActive (Some plan.Executor) "executor is not in the lineup"
+        | ValueSome slot ->
             let frame = (MatchWorld.team world side).Frame
 
             if not (MatchWorld.isActive frame slot) then

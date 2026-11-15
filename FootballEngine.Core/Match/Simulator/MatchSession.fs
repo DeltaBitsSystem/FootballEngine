@@ -580,7 +580,7 @@ module MatchSession =
                 match failure with
                 | Some _ -> ()
                 | None ->
-                    let rng, _, appliedCount =
+                    let struct (rng, _, appliedCount) =
                         Stepper.stepInto
                             session.Systems
                             context
@@ -678,8 +678,8 @@ module MatchSession =
         match session.World.Cognition.Planner with
         | ValueSome planner ->
             // A search still in flight must end before its thread does.
-            if session.World.Cognition.Plan.IsSome then
-                session.World.Cognition.Plan <- ValueNone
+            if session.World.Cognition.Plan.Active then
+                session.World.Cognition.Plan.Active <- false
                 planner.Join()
 
             session.World.Cognition.Planner <- ValueNone

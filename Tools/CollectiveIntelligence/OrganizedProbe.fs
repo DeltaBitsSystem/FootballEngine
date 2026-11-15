@@ -209,7 +209,7 @@ let private runCase diagnostic seed side y scenario intensity =
             elif step = 20 then
                 fixture { Tick = tick; Data = EventData.SetPiece(SetPieceKind.ThrowIn, side) }
         let before = if diagnostic then Some(boundary world) else None
-        let next, _, count = Stepper.stepInto schedule sctx rng world buffer output
+        let struct (next, _, count) = Stepper.stepInto schedule sctx rng world buffer output
         rng <- next
         for index in 0 .. count - 1 do events.Add output[index]
         if diagnostic then
@@ -260,14 +260,14 @@ let private runCase diagnostic seed side y scenario intensity =
             previousX[slot] <- team.Frame.PosX[slot]
             previousY[slot] <- team.Frame.PosY[slot]
             match team.Defense.Tasks[slot] with
-            | Some task ->
+            | ValueSome task ->
                 match task.Role with
                 | DefensiveRole.FirstDefender -> primary <- slot; primaryCount <- primaryCount + 1
                 | DefensiveRole.Cover -> cover <- slot; coverCount <- coverCount + 1
                 | DefensiveRole.ProtectDepth ->
                     protectors <- protectors + 1
                     depthX <- min depthX (float task.Target.X * dir)
-                    let opponentSlot = task.Opponent |> Option.bind (fun id -> rival.RosterIds |> Array.tryFindIndex ((=) id))
+                    let opponentSlot = task.Opponent |> ValueOption.toOption |> Option.bind (fun id -> rival.RosterIds |> Array.tryFindIndex ((=) id))
                     let relativeDepth = opponentSlot |> Option.map (fun index -> float task.Target.X * dir - float rival.Frame.PosX[index] * dir)
                     protectorDetails.Add {| Slot = slot; Player = string team.RosterIds[slot]; Opponent = string task.Opponent
                                             TargetX = float task.Target.X; TargetY = float task.Target.Y
@@ -276,9 +276,9 @@ let private runCase diagnostic seed side y scenario intensity =
                 if task.Role = DefensiveRole.Screen then
                     screenDetails.Add {| Slot = slot; Player = string team.RosterIds[slot]; Outlet = string task.Opponent |}
                     match task.Opponent with
-                    | Some id when not (outlets.Add id) -> duplicateOutlet <- true
+                    | ValueSome id when not (outlets.Add id) -> duplicateOutlet <- true
                     | _ -> ()
-            | None -> ()
+            | ValueNone -> ()
         if primaryCount > 1 then duplicatePrimaryTicks <- duplicatePrimaryTicks + 1
         if coverCount > 1 then duplicateCoverTicks <- duplicateCoverTicks + 1
         if duplicateOutlet then duplicateOutletTicks <- duplicateOutletTicks + 1
@@ -305,7 +305,7 @@ let private runCase diagnostic seed side y scenario intensity =
         if primary >= 0 then
             minProtectors <- min minProtectors protectors
             maxProtectors <- max maxProtectors protectors
-        let tasksEmpty = team.Defense.Tasks |> Array.forall Option.isNone
+        let tasksEmpty = team.Defense.Tasks |> Array.forall _.IsNone
         if scenario = "lifecycle" && step = 10 then
             looseCleared <- tasksEmpty
             match team.Defense.Episode with

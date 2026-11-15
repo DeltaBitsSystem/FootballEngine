@@ -49,25 +49,29 @@ module BallPossession =
             let crossed point = point + floor (phase - point) > previous
 
             let crossing =
-                [ gait.CarryTouchPhase; gait.CarryTouchPhase + 0.5 ]
-                |> List.tryFind (fun point -> cycles > 0.0 && crossed point)
+                if cycles > 0.0 && crossed gait.CarryTouchPhase then ValueSome gait.CarryTouchPhase
+                elif cycles > 0.0 && crossed (gait.CarryTouchPhase + 0.5) then ValueSome(gait.CarryTouchPhase + 0.5)
+                else ValueNone
 
             let touch =
                 match ball.AnnouncedTouch, ball.FootMotion with
                 // An announced touch is a commitment, like a strike's wind-up: the boot is already swinging to the
                 // tick and face it was sent to, so it lands then, whatever the stride clock has drifted to since.
                 | ValueSome announced, _ when announced.Motion.Actor = pid ->
-                    if tick + 1<subtick> = announced.Motion.ContactAt then Some announced.Motion.Foot else None
+                    if tick + 1<subtick> = announced.Motion.ContactAt then ValueSome announced.Motion.Foot else ValueNone
                 | _, Some motion when motion.Actor = pid ->
-                    if tick + 1<subtick> - motion.ContactAt < cfg.CarryTouchInterval then None
-                    elif cycles = 0.0 then Some(BallFootContact.lateralFoot world side slot)
-                    else crossing |> Option.map Gait.swingFoot
+                    if tick + 1<subtick> - motion.ContactAt < cfg.CarryTouchInterval then ValueNone
+                    elif cycles = 0.0 then ValueSome(BallFootContact.lateralFoot world side slot)
+                    else
+                        match crossing with
+                        | ValueSome point -> ValueSome(Gait.swingFoot point)
+                        | ValueNone -> ValueNone
                 // The first touch is a reception: it cannot wait for the stride.
-                | _, _ -> Some(BallFootContact.lateralFoot world side slot)
+                | _, _ -> ValueSome(BallFootContact.lateralFoot world side slot)
 
             match touch with
-            | None -> ()
-            | Some touchFoot ->
+            | ValueNone -> ()
+            | ValueSome touchFoot ->
                 let facing = float frame.BodyFacing[slot]
                 let technique = float (MatchWorld.profileOf ctx.Ctx side slot).Dribbling / 100.0
 
@@ -87,7 +91,8 @@ module BallPossession =
                         let mutable best = System.Int32.MaxValue
                         let mutable foot = touchFoot
 
-                        for point in [ gait.CarryTouchPhase; gait.CarryTouchPhase + 0.5 ] do
+                        for candidate in 0..1 do
+                            let point = if candidate = 0 then gait.CarryTouchPhase else gait.CarryTouchPhase + 0.5
                             let mutable lap = Gait.wrap (point - phase)
 
                             while int (ceil (lap / cycles * perSecond)) < minimumTicks do
@@ -107,19 +112,15 @@ module BallPossession =
                 let dt = float (SimulationClock.dt ctx.Clock)
 
                 // The ball under the dynamics the engine will apply until the next touch is detected.
-                let rolled launchX launchY =
-                    let mutable rolling =
-                        { ball with
-                            Position =
-                                { ball.Position with
-                                    Vx = launchX * 1.0<meterPerSecond>
-                                    Vy = launchY * 1.0<meterPerSecond> }
-                            Impulse = None }
+                let rolled launchX launchY : struct (float * float * float * float) =
+                    let mutable rolling = BallDynamics.motionOf ball
+                    rolling.Vx <- launchX
+                    rolling.Vy <- launchY
 
                     for step = 1 to nextTicks do
-                        rolling <- BallDynamics.integrate cfg dt (tick + step * 1<subtick>) rolling
+                        BallDynamics.advance cfg dt (tick + step * 1<subtick>) &rolling |> ignore
 
-                    rolling
+                    struct (rolling.X, rolling.Y, rolling.Vx, rolling.Vy)
 
                 // At the next touch the ball must sit at boot reach ahead of where the carrier will be, as a real
                 // touch meets it; a ball aimed further ahead is out of the swinging leg's reach at contact.
@@ -130,9 +131,9 @@ module BallPossession =
 
                 // Two corrections absorb rolling loss and spin; the residual is well under a centimetre.
                 for _ in 1..2 do
-                    let arrived = rolled desiredX desiredY
-                    desiredX <- desiredX + (targetX - float arrived.Position.X) / interval
-                    desiredY <- desiredY + (targetY - float arrived.Position.Y) / interval
+                    let struct (arrivedX, arrivedY, _, _) = rolled desiredX desiredY
+                    desiredX <- desiredX + (targetX - arrivedX) / interval
+                    desiredY <- desiredY + (targetY - arrivedY) / interval
 
                 let speed = sqrt (desiredX * desiredX + desiredY * desiredY)
 
@@ -145,7 +146,9 @@ module BallPossession =
                 let nextX, nextY = desiredX * scale, desiredY * scale
 
                 let firstTouch =
-                    ball.FootMotion |> Option.forall (fun motion -> motion.Actor <> pid)
+                    match ball.FootMotion with
+                    | Some motion -> motion.Actor <> pid
+                    | None -> true
 
                 let kind =
                     if firstTouch then
@@ -183,10 +186,7 @@ module BallPossession =
                 let lead =
                     if cycles > 0.0 then int (round (gait.CarrySwingLead / cycles * perSecond)) * 1<subtick>
                     else nextTicks * 1<subtick>
-                let rolled = rolled nextX nextY
-                let ballX = float rolled.Position.X
-                let ballY = float rolled.Position.Y
-                let nextX, nextY = float rolled.Position.Vx, float rolled.Position.Vy
+                let struct (ballX, ballY, nextX, nextY) = rolled nextX nextY
 
                 BallFootContact.announceTouch
                     world
@@ -210,11 +210,11 @@ module BallPossession =
 
             match world.State.Ball.Control with
             | BallControl.Controlled(side, pid) ->
-                match MatchWorld.slotOf ctx.Ctx side pid with
-                | Some slot ->
+                match MatchWorld.slotIndex ctx.Ctx side pid with
+                | -1 -> rng
+                | slot ->
                     carry ctx world buffer side slot pid
                     rng
-                | None -> rng
             | BallControl.Receiving(side, pid, since) ->
                 if tick - since >= cfg.Ball.ReceptionGrace then
                     buffer.Events.Add

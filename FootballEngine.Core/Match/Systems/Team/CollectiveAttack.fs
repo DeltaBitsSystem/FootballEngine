@@ -68,18 +68,34 @@ module AttackGeometry =
         if x < -float cfg.TerritoryBoundary then 0 elif x < float cfg.TerritoryBoundary then 1 else 2
 
     let situation (cfg: CollectiveAttackConfig) side (point: Vec2) (opponents: TeamFrame) =
-        let pressure = MatchWorld.activeSlots opponents |> Array.filter (fun slot ->
-            opponents.SlotRoles[slot] <> SlotRole.Goalkeeper && MatchMath.dist point.X point.Y (MatchWorld.posX opponents slot) (MatchWorld.posY opponents slot) <= float cfg.PressureRadius)
-        context cfg side point + (if pressure.Length >= cfg.PressureCount then 3 else 0)
+        let mutable pressure = 0
+
+        for slot in MatchWorld.activeSlots opponents do
+            if opponents.SlotRoles[slot] <> SlotRole.Goalkeeper && MatchMath.dist point.X point.Y (MatchWorld.posX opponents slot) (MatchWorld.posY opponents slot) <= float cfg.PressureRadius then
+                pressure <- pressure + 1
+
+        context cfg side point + (if pressure >= cfg.PressureCount then 3 else 0)
 
     let exposure side (point: Vec2) (frame: TeamFrame) =
-        let cover = MatchWorld.activeSlots frame |> Array.filter (fun slot ->
-            frame.SlotRoles[slot] <> SlotRole.Goalkeeper && float (MatchWorld.posX frame slot - point.X) * MatchMath.goalDirection side < 0.0)
-        if cover.Length >= 2 then 0.0 else 1.0
+        let mutable cover = 0
+
+        for slot in MatchWorld.activeSlots frame do
+            if frame.SlotRoles[slot] <> SlotRole.Goalkeeper && float (MatchWorld.posX frame slot - point.X) * MatchMath.goalDirection side < 0.0 then
+                cover <- cover + 1
+
+        if cover >= 2 then 0.0 else 1.0
 
     let complementary cfg (duties: AttackDuty list) =
         duties |> List.forall (fun a -> duties |> List.forall (fun b ->
             a.Player = b.Player || MatchMath.dist a.Target.X a.Target.Y b.Target.X b.Target.Y >= float cfg.MinimumDutySeparation))
+
+    let private separated cfg (a: AttackDuty) (b: AttackDuty) =
+        a.Player = b.Player || MatchMath.dist a.Target.X a.Target.Y b.Target.X b.Target.Y >= float cfg.MinimumDutySeparation
+
+    /// `complementary` for exactly three duties without building a list; the distance is symmetric, so the three
+    /// unordered pairs decide what the six ordered ones did.
+    let complementary3 cfg (a: AttackDuty) (b: AttackDuty) (c: AttackDuty) =
+        separated cfg a b && separated cfg a c && separated cfg b c
 
 type AttackCandidate =
     { Pattern: AttackPattern
@@ -93,6 +109,8 @@ type AttackCandidate =
 
 /// Sustained commitments are team-owned; only observed football facts advance their stages.
 module AttackCandidates =
+    let private patterns = [| ThirdMan; AttractSwitch; ExploitDepth; SecureProgression |]
+
     let candidates (ctx: MatchContext) (world: World) side carrierSlot =
         let cfg = ctx.Config.CollectiveAttack
         let team = MatchWorld.team world side
@@ -105,15 +123,26 @@ module AttackCandidates =
         let point depth y = AttackGeometry.legalTarget ctx world side (float origin.X + dir * depth) y
         let eligible slot =
             TransitionGeometry.outfielder frame slot && slot <> carrierSlot && float frame.Condition[slot] >= cfg.MinimumCondition
-        let choose target excluded =
-            MatchWorld.activeSlots frame
-            |> Array.filter (fun slot -> eligible slot && not (Set.contains slot excluded))
-            |> Array.map (fun slot -> slot, TransitionGeometry.arrivalTime ctx frame slot target)
-            |> Array.sortBy (fun (slot, arrival) -> arrival, slot)
-            |> Array.tryHead
-            |> Option.filter (fun (_, arrival) -> arrival <= cfg.MaxArrival)
-            |> Option.map (fun (slot, _) -> { Player = (MatchWorld.profileOf ctx side slot).Id; Slot = slot; Target = target })
-        [| for pattern in [ ThirdMan; AttractSwitch; ExploitDepth; SecureProgression ] do
+        // The earliest arrival (ties to the lower slot) among the eligible players not already given a duty; -1
+        // when nobody gets there within MaxArrival.
+        let choose target excluded1 excluded2 =
+            let mutable best = -1
+            let mutable bestArrival = 0.0<second>
+
+            for slot in MatchWorld.activeSlots frame do
+                if eligible slot && slot <> excluded1 && slot <> excluded2 then
+                    let arrival = TransitionGeometry.arrivalTime ctx frame slot target
+
+                    if best < 0 || arrival < bestArrival || (arrival = bestArrival && slot < best) then
+                        best <- slot
+                        bestArrival <- arrival
+
+            if best >= 0 && bestArrival <= cfg.MaxArrival then best else -1
+        let dutyOf slot target =
+            { Player = (MatchWorld.profileOf ctx side slot).Id; Slot = slot; Target = target }
+        let results = Array.zeroCreate<AttackCandidate> patterns.Length
+        let mutable count = 0
+        for pattern in patterns do
                let linkPoint =
                    match pattern with
                    | ExploitDepth -> point (float cfg.SupportDepth) (float origin.Y + sign * float cfg.SupportWidth)
@@ -125,20 +154,20 @@ module AttackCandidates =
                    | ExploitDepth -> point (float cfg.RunDepth) (float origin.Y - sign * float cfg.SupportWidth)
                    | SecureProgression -> point (float cfg.SupportDepth) (float origin.Y + sign * float cfg.SupportWidth)
                let securityPoint = point (-float cfg.SecurityDepth) (float origin.Y + sign * float cfg.SupportWidth)
-               match choose linkPoint Set.empty with
-               | None -> ()
-               | Some link ->
-                   match choose runnerPoint (Set.singleton link.Slot) with
-                   | None -> ()
-                   | Some runner ->
-                       match choose securityPoint (Set.ofList [ link.Slot; runner.Slot ]) with
-                       | None -> ()
-                       | Some security ->
+               let linkSlot = choose linkPoint -1 -1
+               if linkSlot >= 0 then
+                   let runnerSlot = choose runnerPoint linkSlot -1
+                   if runnerSlot >= 0 then
+                       let securitySlot = choose securityPoint linkSlot runnerSlot
+                       if securitySlot >= 0 then
+                           let link = dutyOf linkSlot linkPoint
+                           let runner = dutyOf runnerSlot runnerPoint
+                           let security = dutyOf securitySlot securityPoint
                            let currentLink = AttackGeometry.position frame link.Slot
                            let currentRunner = AttackGeometry.position frame runner.Slot
                            let firstLane = if pattern = ExploitDepth then currentRunner else currentLink
-                           if AttackGeometry.complementary cfg [link; runner; security] && AttackGeometry.lane cfg opponents origin firstLane then
-                               let readiness duty =
+                           if AttackGeometry.complementary3 cfg link runner security && AttackGeometry.lane cfg opponents origin firstLane then
+                               let readiness (duty: AttackDuty) =
                                    let p = MatchWorld.profileOf ctx side duty.Slot
                                    MatchMath.clamp01 ((float p.Anticipation + float p.Teamwork) / 200.0)
                                    * float frame.Cognitive[duty.Slot] * float frame.Condition[duty.Slot]
@@ -154,9 +183,12 @@ module AttackCandidates =
                                let key = CollectiveAttackState.key context pattern
                                let learned = if cfg.LearningEnabled then AttackLearning.value cfg key team.Attack.Estimates else 0.0
                                let uncertainty = if cfg.LearningEnabled then AttackLearning.uncertainty cfg key team.Attack.Estimates else 0.0
-                               yield { Pattern = pattern; Link = link; Runner = runner; Security = security
-                                       Geometry = geometry; Learned = learned; Uncertainty = uncertainty
-                                       Score = geometry + cfg.LearningWeight * learned + uncertainty } |]
+                               results[count] <-
+                                   { Pattern = pattern; Link = link; Runner = runner; Security = security
+                                     Geometry = geometry; Learned = learned; Uncertainty = uncertainty
+                                     Score = geometry + cfg.LearningWeight * learned + uncertainty }
+                               count <- count + 1
+        if count = results.Length then results else Array.sub results 0 count
 
 module AttackLifecycle =
     let emit (world: World) (buffer: EventBuffer) side id change cause =
@@ -198,22 +230,22 @@ module AttackLifecycle =
             let terminal = emit world buffer side episode.Id (Ended(reason, reward, learningKey)) cause
             world.Observation.Record(world.State.Tick, ValueSome(EventCause(MatchEvent.id terminal)), AttackResolved(side, episode.Id, reason, reward, episode.Connections, progress, exposure)) |> ignore
 
-    let frontier ctx world side point episode =
-        { episode with OwnedPoint = point
-                       OwnedSpace = AttackGeometry.space ctx.Config.CollectiveAttack (MatchWorld.team world (MatchWorld.oppOf side)).Frame point
-                       OwnedExposure = AttackGeometry.exposure side point (MatchWorld.team world side).Frame }
+    let frontier ctx world side point (episode: AttackEpisode) =
+        episode.OwnedPoint <- point
+        episode.OwnedSpace <- AttackGeometry.space ctx.Config.CollectiveAttack (MatchWorld.team world (MatchWorld.oppOf side)).Frame point
+        episode.OwnedExposure <- AttackGeometry.exposure side point (MatchWorld.team world side).Frame
 
     // Reduction consumes each authoritative fact in drain order, so no single-slot mailbox can overwrite a connection or shot.
     let observe (ctx: MatchContext) (world: World) (buffer: EventBuffer) (ev: MatchEvent) =
-        for side in [ClubSide.Home; ClubSide.Away] do
+        for side in MatchWorld.sides do
             let state = (MatchWorld.team world side).Attack
             match state.Episode with
             | Some episode when ev.Tick >= episode.Deadline -> finish ctx world buffer side TimedOut episode.LastFact
-            | Some episode when ev.Tick >= episode.StartedAt && ev.Tick >= episode.FactTick && Some(MatchEvent.id ev) <> episode.LastFact ->
+            | Some episode when ev.Tick >= episode.StartedAt && ev.Tick >= episode.FactTick && (match episode.LastFact with Some last -> last <> MatchEvent.id ev | None -> true) ->
                 let id = MatchEvent.id ev
                 match ev.Data with
                 | EventData.Possession(owner, _) when owner <> side -> finish ctx world buffer side LostBall (Some id)
-                | EventData.Pass(passer, Some receiver, _, _, true, _, _, x, y) when MatchWorld.teamOfPlayer ctx passer = Some side ->
+                | EventData.Pass(passer, Some receiver, _, _, true, _, _, x, y) when MatchWorld.sideOfPlayer ctx passer = ValueSome side ->
                     let expected =
                         passer = episode.Owner &&
                         match episode.Stage with
@@ -223,11 +255,11 @@ module AttackLifecycle =
                         | Exploiting -> false
                     if expected then
                         let stage = if episode.Stage = Preparing && episode.Pattern <> ExploitDepth then Connected else Exploiting
-                        let advanced = frontier ctx world side (Vec2.create x y) episode
-                        state.Episode <- Some { advanced with Owner = receiver; Stage = stage; Connections = episode.Connections + 1; LastFact = Some id; FactTick = ev.Tick; BlockedSince = None }
+                        frontier ctx world side (Vec2.create x y) episode
+                        state.Episode <- Some { episode with Owner = receiver; Stage = stage; Connections = episode.Connections + 1; LastFact = Some id; FactTick = ev.Tick; BlockedSince = None }
                         emit world buffer side episode.Id (Advanced(stage, id)) (Some id) |> ignore
                     else finish ctx world buffer side Deviated (Some id)
-                | EventData.Shot(shooter, _, xg, _, _, _) when MatchWorld.teamOfPlayer ctx shooter = Some side ->
+                | EventData.Shot(shooter, _, xg, _, _, _) when MatchWorld.sideOfPlayer ctx shooter = ValueSome side ->
                     if shooter = episode.Owner && episode.Connections > 0 && System.Double.IsFinite xg && xg >= 0.0 && xg <= 1.0 then
                         state.Episode <- Some { episode with Threat = xg; LastFact = Some id; FactTick = ev.Tick }
                         finish ctx world buffer side AttackEnd.Completed (Some id)
@@ -250,22 +282,21 @@ module TeamAttack =
         | Some initial ->
             let valid duty = TransitionGeometry.outfielder team.Frame duty.Slot && (MatchWorld.profileOf ctx side duty.Slot).Id = duty.Player
             let cause = initial.LastFact
-            let mutable episode = initial
+            let episode = initial
             let ownFlight =
                 match world.State.Ball.Trajectory with
                 | Some(TrajectoryIntent.Aimed(passer, receiver, _)) ->
-                    MatchWorld.teamOfPlayer ctx receiver = Some side && MatchWorld.teamOfPlayer ctx passer = Some side
-                | Some(TrajectoryIntent.Struck(shooter, _, _, _)) -> MatchWorld.teamOfPlayer ctx shooter = Some side
+                    MatchWorld.sideOfPlayer ctx receiver = ValueSome side && MatchWorld.sideOfPlayer ctx passer = ValueSome side
+                | Some(TrajectoryIntent.Struck(shooter, _, _, _)) -> MatchWorld.sideOfPlayer ctx shooter = ValueSome side
                 | _ -> false
             // A loose contact is uncertainty, not evidence the rival won possession; flight and contested recovery stay bounded by the deadline.
-            let lost = match carrier with Some(owner, _, _) -> owner <> side | None -> world.State.Possession.LastGainer <> Some side
-            let deviated = match carrier with Some(owner, _, player) -> owner = side && player <> episode.Owner | _ -> false
+            let lost = match carrier with ValueSome(struct (owner, _, _)) -> owner <> side | ValueNone -> (match world.State.Possession.LastGainer with Some gainer -> gainer <> side | None -> true)
+            let deviated = match carrier with ValueSome(struct (owner, _, player)) -> owner = side && player <> episode.Owner | _ -> false
             match carrier with
-            | Some(owner, _, player) when owner = side && player = episode.Owner ->
-                episode <- AttackLifecycle.frontier ctx world side (Vec2.create world.State.Ball.Position.X world.State.Ball.Position.Y) episode
-                state.Episode <- Some episode
+            | ValueSome(struct (owner, _, player)) when owner = side && player = episode.Owner ->
+                AttackLifecycle.frontier ctx world side (Vec2.create world.State.Ball.Position.X world.State.Ball.Position.Y) episode
             | _ -> ()
-            let carrierPresent = MatchWorld.slotOf ctx side episode.Carrier |> Option.exists (TransitionGeometry.outfielder team.Frame)
+            let carrierPresent = TransitionGeometry.outfielder team.Frame (MatchWorld.slotIndex ctx side episode.Carrier)
             if not cfg.Enabled || world.State.Flow <> MatchFlow.Live then finish ctx world buffer side AttackEnd.Stopped cause
             elif not (carrierPresent && valid episode.Link && valid episode.Runner && valid episode.Security) then finish ctx world buffer side ParticipantLeft cause
             elif team.Tactics <> episode.Tactics then finish ctx world buffer side InstructionsChanged cause
@@ -284,12 +315,15 @@ module TeamAttack =
                 | _ ->
                     let legal (duty: AttackDuty) = { duty with Target = AttackGeometry.legalTarget ctx world side (float duty.Target.X) (float duty.Target.Y) }
                     let link, runner, security = legal episode.Link, legal episode.Runner, legal episode.Security
-                    if AttackGeometry.complementary cfg [link; runner; security] then
-                        state.Episode <- Some { episode with BlockedSince = blocked; Link = link; Runner = runner; Security = security }
+                    if AttackGeometry.complementary3 cfg link runner security then
+                        episode.BlockedSince <- blocked
+                        episode.Link <- link
+                        episode.Runner <- runner
+                        episode.Security <- security
                     else finish ctx world buffer side Countered cause
         | None when cfg.Enabled && world.State.Flow = MatchFlow.Live && tick >= state.AvailableAt ->
             match carrier with
-            | Some(owner, slot, player) when owner = side && TransitionGeometry.outfielder team.Frame slot ->
+            | ValueSome(struct (owner, slot, player)) when owner = side && TransitionGeometry.outfielder team.Frame slot ->
                 let choices = candidates ctx world side slot
                 match choices |> Array.sortByDescending _.Score |> Array.tryHead with
                 | Some chosen when chosen.Geometry >= cfg.MinimumScore ->

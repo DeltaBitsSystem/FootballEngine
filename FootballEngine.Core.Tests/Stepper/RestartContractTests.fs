@@ -355,7 +355,7 @@ module RestartContractTests =
                               { world.State with
                                   Flow = MatchFlow.Restart { restart with Plan = Some plan } }
 
-                          let slot = MatchWorld.slotOf ctx side plan.Executor |> Option.get
+                          let slot = MatchWorld.slotOf ctx side plan.Executor |> ValueOption.get
                           let events = buffer ()
                           let ctx' = stepContext ctx
                           RestartPlanning.step ctx' (Rng.ofSeed 17UL) world events |> ignore
@@ -527,7 +527,7 @@ module RestartContractTests =
                            0<subtick>
                        |> Result.defaultWith (fun error -> failtestf "goal-kick planning failed: %A" error)
 
-                   let executorSlot = MatchWorld.slotOf ctx ClubSide.Home plan.Executor |> Option.get
+                   let executorSlot = MatchWorld.slotOf ctx ClubSide.Home plan.Executor |> ValueOption.get
                    world.Home.Frame.PosX[executorSlot] <- float32 plan.Spot.X
                    world.Home.Frame.PosY[executorSlot] <- float32 plan.Spot.Y
 
@@ -661,7 +661,7 @@ module RestartContractTests =
                       let next, _, _ = Stepper.step Scheduler.systems ctx' rng world (buffer ())
                       rng <- next
 
-                  let executorSlot = MatchWorld.slotOf ctx ClubSide.Home executor |> Option.get
+                  let executorSlot = MatchWorld.slotOf ctx ClubSide.Home executor |> ValueOption.get
 
                   Expect.isTrue
                       (MatchWorld.activeSlots world.Home.Frame

@@ -63,7 +63,7 @@ let scenario seed enabled closed tired =
     let output = Array.zeroCreate<MatchEvent> 256
     let mutable collapsed, exposedTicks, activeTicks = 0, 0, 0
     for _ in 1 .. 1600 do
-        let next, _, count = Stepper.stepInto schedule (systemContext ctx) rng world buffer output
+        let struct (next, _, count) = Stepper.stepInto schedule (systemContext ctx) rng world buffer output
         rng <- next
         for index in 0 .. count - 1 do events.Add output[index]
         world.Home.Attack.Episode |> Option.iter (fun e ->

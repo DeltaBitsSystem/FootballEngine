@@ -44,6 +44,8 @@
     <Compile Include="Systems\Players\ChainIntegrationTests.fs"/>
     <Compile Include="Systems\Players\ChainLifetimeTests.fs"/>
     <Compile Include="Systems\Players\PlannerBudgetTests.fs"/>
+    <Compile Include="Systems\Players\PlannerReference.fs"/>
+    <Compile Include="Systems\Players\PlannerEquivalenceTests.fs"/>
     <Compile Include="Systems\Players\DuelContactTests.fs"/>
     <Compile Include="Systems\Players\TackleFoulTests.fs"/>
     <Compile Include="Systems\Players\ReactionCoherenceTests.fs"/>
@@ -53,6 +55,8 @@
     <Compile Include="Systems\Team\FormationTests.fs"/>
     <Compile Include="Systems\Team\FieldEvaluatorTests.fs"/>
     <Compile Include="Systems\Team\LateralPairsTests.fs"/>
+    <Compile Include="Kernels\RaceTests.fs"/>
+    <Compile Include="Kernels\RollTableTests.fs"/>
     <Compile Include="Systems\Team\InterceptTableTests.fs"/>
     <Compile Include="Systems\Team\InterceptPressingTests.fs"/>
     <Compile Include="Systems\Team\PositionTests.fs"/>

@@ -83,7 +83,7 @@ module GoalDetectionTests =
           ControlAfter = control }
 
     let private applyPhysicalTouch (world: World) (actor: PlayerId) (control: ContactControlSnapshot) =
-        let side = MatchWorld.teamOfPlayer ctx actor |> Option.defaultValue ClubSide.Away
+        let side = MatchWorld.sideOfPlayer ctx actor |> ValueOption.defaultValue ClubSide.Away
         let ballControl =
             match control.Kind, control.Side, control.Player with
             | ContactControlKind.ReceivingBall, Some ownerSide, Some player when player = actor ->

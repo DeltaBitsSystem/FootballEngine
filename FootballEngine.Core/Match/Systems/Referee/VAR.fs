@@ -36,11 +36,11 @@ module RefereeVAR =
 
     let isOffsideFor (ctx: MatchContext) (world: World) (scoringSide: ClubSide) (scorer: PlayerId) : bool =
         match MatchWorld.slotOf ctx scoringSide scorer with
-        | Some slot ->
+        | ValueSome slot ->
             match world.Reviews.Offside.TryGetValue((scoringSide, slot)) with
             | true, snapshot -> beyondMargin ctx scoringSide snapshot
             | _ -> false
-        | None -> false
+        | ValueNone -> false
 
     let isOffside (ctx: MatchContext) (world: World) (scoringSide: ClubSide) : bool =
         world.Reviews.Offside

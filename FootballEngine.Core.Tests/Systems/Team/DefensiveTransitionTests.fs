@@ -23,9 +23,9 @@ module DefensiveTransitionTests =
         for slot in 0 .. frame.SlotCount - 1 do
             if not (MatchWorld.isActive frame slot) then
                 Expect.equal frame.DefensiveRoles[slot] DefensiveRole.Unassigned "inactive slot has no role"
-                Expect.isNone team.Defense.Tasks[slot] "inactive slot has no task"
+                Expect.isTrue team.Defense.Tasks[slot].IsNone "inactive slot has no task"
             match team.Defense.Tasks[slot] with
-            | Some task ->
+            | ValueSome task ->
                 Expect.isTrue (TransitionGeometry.outfielder frame slot) "only active outfielders participate"
                 Expect.equal frame.DefensiveRoles[slot] task.Role "one responsibility"
                 Expect.equal frame.Intent.TargetX[slot] (float32 task.Target.X) "task reaches movement"
@@ -33,7 +33,7 @@ module DefensiveTransitionTests =
                 Expect.isLessThanOrEqual (abs (float task.Target.X)) (float Pitch.HalfLength - 2.0) "legal X"
                 Expect.isLessThanOrEqual (abs (float task.Target.Y)) (float Pitch.HalfWidth - 2.0) "legal Y"
                 Expect.isFalse (frame.RunLookup.ContainsKey slot) "no orphaned attacking assignment"
-            | None -> ()
+            | ValueNone -> ()
 
     let private unwrap = function Ok value -> value | Error error -> failtestf "unexpected contract error: %A" error
 
@@ -112,7 +112,7 @@ module DefensiveTransitionTests =
                       { world.State with
                           Ball = { world.State.Ball with Control = BallControl.Controlled(ClubSide.Home, team.RosterIds[9]) } }
                   TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
-                  Expect.isTrue (team.Defense.Tasks |> Array.forall Option.isNone) "recovery clears defensive tasks")
+                  Expect.isTrue (team.Defense.Tasks |> Array.forall _.IsNone) "recovery clears defensive tasks")
               testCase "organized defense records changed responsibilities without capture effects" (fun _ ->
                   let ctx, captured = DefensiveTransitionFixtures.scenario ClubSide.Home false 1.0f
                   let _, silent = DefensiveTransitionFixtures.scenario ClubSide.Home false 1.0f
@@ -142,10 +142,10 @@ module DefensiveTransitionTests =
                       [ ClubSide.Home; ClubSide.Away ] |> List.exists (fun side ->
                           let team = MatchWorld.team session.World side
                           (team.Defense.Episode |> Option.forall (fun episode -> episode.EndedAt.IsSome))
-                          && (team.Defense.Tasks |> Array.exists Option.isSome)
+                          && (team.Defense.Tasks |> Array.exists _.IsSome)
                           && (match MatchWorld.ballCarrier input.Context session.World with
-                              | Some (owner, _, _) -> owner <> side
-                              | None -> false))
+                              | ValueSome (struct (owner, _, _)) -> owner <> side
+                              | ValueNone -> false))
                   while not (organized ()) && session.World.State.Tick < 40000<subtick> do
                       MatchSession.advanceTo (session.World.State.Tick + 8<subtick>) session |> unwrap |> ignore
                   Expect.isTrue (organized ()) "production scheduler reaches an organized defensive frontier"
@@ -191,7 +191,7 @@ module DefensiveTransitionTests =
                       let schedule = ScheduleCompiler.compile Scheduler.systems
                       let context = DefensiveTransitionFixtures.systemContext ctx
                       let output = Array.zeroCreate<MatchEvent> 256
-                      let initialRng, _, _ = Stepper.stepInto schedule context (Rng.ofSeed 1UL) world buffer output
+                      let struct (initialRng, _, _) = Stepper.stepInto schedule context (Rng.ofSeed 1UL) world buffer output
                       let primary = MatchWorld.activeSlots team.Frame |> Array.find (fun slot -> team.Frame.DefensiveRoles[slot] = DefensiveRole.FirstDefender)
                       Expect.equal (team.Frame.DefensiveRoles |> Array.filter ((=) DefensiveRole.Cover) |> Array.length) 1 "one cover supports the initial press"
                       Expect.equal (team.Frame.DefensiveRoles |> Array.filter ((=) DefensiveRole.ProtectDepth) |> Array.length) 2 "two players protect depth"
@@ -202,7 +202,7 @@ module DefensiveTransitionTests =
                       let mutable rng = initialRng
                       let mutable tracking = true
                       for _ in 1 .. 20 do
-                          let next, _, _ = Stepper.stepInto schedule context rng world buffer output
+                          let struct (next, _, _) = Stepper.stepInto schedule context rng world buffer output
                           rng <- next
                           if team.Frame.DefensiveRoles[primary] <> DefensiveRole.FirstDefender then tracking <- false
                           if tracking then minimum <- min minimum (distance ())
@@ -219,10 +219,10 @@ module DefensiveTransitionTests =
                       if interruption = 0 then
                           world.State <- { world.State with Ball = { world.State.Ball with Control = BallControl.Free } }
                           TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
-                          Expect.isTrue (world.Home.Defense.Tasks |> Array.forall Option.isNone) "loose-ball roles replace controlled-ball tasks"
+                          Expect.isTrue (world.Home.Defense.Tasks |> Array.forall _.IsNone) "loose-ball roles replace controlled-ball tasks"
                       elif interruption = 1 then
                           EventApply.apply ctx world { Tick = 402<subtick>; Data = EventData.SetPiece(SetPieceKind.ThrowIn, ClubSide.Home) }
-                          Expect.isTrue (world.Home.Defense.Tasks |> Array.forall Option.isNone) "restart reducer clears duties immediately"
+                          Expect.isTrue (world.Home.Defense.Tasks |> Array.forall _.IsNone) "restart reducer clears duties immediately"
                       else
                           world.Home.Tactics <- { world.Home.Tactics with PressIntensity = 0.0f }
                           TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
@@ -238,7 +238,7 @@ module DefensiveTransitionTests =
                       let old = MatchWorld.activeSlots world.Home.Frame |> Array.find (fun slot -> world.Home.Frame.DefensiveRoles[slot] = DefensiveRole.FirstDefender)
                       let data = if injury then EventData.Injury(world.Home.RosterIds[old], 1) else EventData.RedCardIssued world.Home.RosterIds[old]
                       EventApply.apply ctx world { Tick = 402<subtick>; Data = data }
-                      Expect.isNone world.Home.Defense.Tasks[old] "reducer releases the departed slot immediately"
+                      Expect.isTrue world.Home.Defense.Tasks[old].IsNone "reducer releases the departed slot immediately"
                       TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
                       Expect.equal world.Home.Frame.DefensiveRoles[old] DefensiveRole.Unassigned "departed player cannot regain a duty")
               testCase "organized defense releases substituted identity" (fun _ ->
@@ -255,7 +255,7 @@ module DefensiveTransitionTests =
                   TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
                   let old = MatchWorld.activeSlots world.Home.Frame |> Array.find (fun slot -> world.Home.Frame.DefensiveRoles[slot] = DefensiveRole.FirstDefender)
                   EventApply.apply ctx world { Tick = 402<subtick>; Data = EventData.Substitution(world.Home.RosterIds[old], PlayerId 500) }
-                  Expect.isNone world.Home.Defense.Tasks[old] "old identity is released immediately"
+                  Expect.isTrue world.Home.Defense.Tasks[old].IsNone "old identity is released immediately"
                   TeamPosition.step system (Rng.ofSeed 1UL) world (DefensiveTransitionFixtures.buffer ()) |> ignore
                   Expect.equal world.Home.Frame.DefensiveRoles[old] DefensiveRole.Unassigned "outgoing slot cannot regain a duty"
                   Expect.isTrue (MatchWorld.isActive world.Home.Frame 11) "incoming slot participates by its own identity")
@@ -312,8 +312,8 @@ module DefensiveTransitionTests =
                   stream.Position <- 0L
                   use reader = new System.IO.BinaryReader(stream)
                   Expect.equal (DefensiveCheckpoint.read reader) snapshot "no reconstructed phase or commitment"
-                  world.Home.Defense.Tasks[5] <- Some { Role = DefensiveRole.Cover; Target = Vec2.create 1.0<meter> 2.0<meter>; Opponent = None }
-                  Expect.isNone snapshot.Tasks[5] "checkpoint arrays are caller-independent")
+                  world.Home.Defense.Tasks[5] <- ValueSome { Role = DefensiveRole.Cover; Target = Vec2.create 1.0<meter> 2.0<meter>; Opponent = ValueNone }
+                  Expect.isTrue snapshot.Tasks[5].IsNone "checkpoint arrays are caller-independent")
               testCase "local superiority and cover make counterpress viable" (fun _ ->
                   let ctx, world = DefensiveTransitionFixtures.scenario ClubSide.Home false 1.0f
                   decide ctx world
@@ -463,14 +463,14 @@ module DefensiveTransitionTests =
                   response ctx world
                   for slot in MatchWorld.activeSlots world.Home.Frame do
                       match world.Home.Defense.Tasks[slot] with
-                      | Some task -> world.Home.Frame.PosX[slot] <- float32 task.Target.X; world.Home.Frame.PosY[slot] <- float32 task.Target.Y
-                      | None -> ()
+                      | ValueSome task -> world.Home.Frame.PosX[slot] <- float32 task.Target.X; world.Home.Frame.PosY[slot] <- float32 task.Target.Y
+                      | ValueNone -> ()
                   decide ctx world
                   Expect.isNone (episode world).Outcome "one settled observation is insufficient"
                   world.State <- { world.State with Tick = 401<subtick> + ctx.Config.DefensiveTransition.StabilizationHold }
                   decide ctx world
                   Expect.equal (episode world).Outcome (Some Stabilized) "organisation, not window expiry"
-                  Expect.isTrue (world.Home.Defense.Tasks |> Array.forall Option.isNone) "finished task namespace is empty")
+                  Expect.isTrue (world.Home.Defense.Tasks |> Array.forall _.IsNone) "finished task namespace is empty")
               testCase "unchanged geometry produces neither event nor observation spam" (fun _ ->
                   let ctx, world = DefensiveTransitionFixtures.scenario ClubSide.Home false 1.0f
                   let context = DefensiveTransitionFixtures.systemContext ctx

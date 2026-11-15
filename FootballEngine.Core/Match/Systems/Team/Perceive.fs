@@ -13,8 +13,8 @@ module TeamPerceive =
 
         let ours =
             match MatchWorld.ballCarrier ctx world with
-            | Some(s, _, _) -> s = side
-            | None ->
+            | ValueSome(struct (s, _, _)) -> s = side
+            | ValueNone ->
                 match world.State.Possession.LastGainer with
                 | Some s -> s = side
                 | None -> world.State.LastAttackingClub = Some side
@@ -37,12 +37,12 @@ module TeamPerceive =
                 PhaseKind.TransitionDefend
             else
                 match MatchWorld.ballCarrier ctx world with
-                | Some(carrierSide, _, _) ->
+                | ValueSome(struct (carrierSide, _, _)) ->
                     if carrierSide = side then
                         PhaseKind.Attacking
                     else
                         PhaseKind.Defending
-                | None ->
+                | ValueNone ->
                     match situationPhase with
                     | Some p -> p
                     | None -> team.Blackboard.OurPhase

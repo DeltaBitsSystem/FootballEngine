@@ -184,8 +184,8 @@ module Gate0Tests =
                       { Tick = 0<subtick>
                         Data = EventData.Substitution(playerOut, playerIn) }
 
-                  let outSlot = MatchWorld.slotOf ctx ClubSide.Home playerOut |> Option.get
-                  let inSlot = MatchWorld.slotOf ctx ClubSide.Home playerIn |> Option.get
+                  let outSlot = MatchWorld.slotOf ctx ClubSide.Home playerOut |> ValueOption.get
+                  let inSlot = MatchWorld.slotOf ctx ClubSide.Home playerIn |> ValueOption.get
                   let active = MatchWorld.activeSlots world.Home.Frame
 
                   Expect.isFalse (Array.contains outSlot active) "the outgoing player is no longer active"

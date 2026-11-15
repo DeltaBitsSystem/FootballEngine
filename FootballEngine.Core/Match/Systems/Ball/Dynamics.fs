@@ -97,8 +97,10 @@ module BallAero =
 
 /// Fixed-size sphere dynamics avoid a general collision solver and heap-allocated mutable closures.
 module BallDynamics =
+    /// The ball's kinematic state in bare floats: hot paths (keeper prediction, carry solving) step it in place
+    /// instead of building a BallState per step.
     [<Struct>]
-    type private Motion =
+    type Motion =
         { mutable X: float
           mutable Y: float
           mutable Z: float
@@ -287,16 +289,16 @@ module BallDynamics =
                     let depth0, depth1 = (x0 - goalX) * direction, (m.X - goalX) * direction
                     let crossed s0 s1 = (s0 >= radius && s1 < radius) || (s0 <= -radius && s1 > -radius)
 
-                    let faces =
-                        [| struct (depth - depth0, depth - depth1, -direction, 0.0, 0.0)
-                           struct (halfWidth - y0, halfWidth - m.Y, 0.0, -1.0, 0.0)
-                           struct (halfWidth + y0, halfWidth + m.Y, 0.0, 1.0, 0.0)
-                           struct (height - c0, height - c1, 0.0, 0.0, -1.0) |]
-
                     let mutable index = 0
 
-                    while contact.IsNone && index < faces.Length do
-                        let struct (s0, s1, fx, fy, fz) = faces[index]
+                    while contact.IsNone && index < 4 do
+                        // The four faces are computed in place: an array of them was built on every step near a goal.
+                        let struct (s0, s1, fx, fy, fz) =
+                            match index with
+                            | 0 -> struct (depth - depth0, depth - depth1, -direction, 0.0, 0.0)
+                            | 1 -> struct (halfWidth - y0, halfWidth - m.Y, 0.0, -1.0, 0.0)
+                            | 2 -> struct (halfWidth + y0, halfWidth + m.Y, 0.0, 1.0, 0.0)
+                            | _ -> struct (height - c0, height - c1, 0.0, 0.0, -1.0)
 
                         if crossed s0 s1 then
                             // Contact happens when the surface, not the centre, reaches the net: one radius short of it.
@@ -326,19 +328,24 @@ module BallDynamics =
 
         struct (m, contact)
 
-    let integrate (cfg: BallConfig) dt tick (ball: BallState) =
+    let motionOf (ball: BallState) : Motion =
         let p = ball.Position
 
-        let mutable m =
-            { X = float p.X
-              Y = float p.Y
-              Z = float p.Z
-              Vx = float p.Vx
-              Vy = float p.Vy
-              Vz = float p.Vz
-              Wx = float ball.Spin.X
-              Wy = float ball.Spin.Y
-              Wz = float ball.Spin.Z }
+        { X = float p.X
+          Y = float p.Y
+          Z = float p.Z
+          Vx = float p.Vx
+          Vy = float p.Vy
+          Vz = float p.Vz
+          Wx = float ball.Spin.X
+          Wy = float ball.Spin.Y
+          Wz = float ball.Spin.Z }
+
+    /// One dynamics step in place: the arithmetic `integrate` performs, without building a ball. Returns the
+    /// goal-frame contact of the step, if any.
+    let advance (cfg: BallConfig) dt tick (motion: byref<Motion>) : GoalFrameContact voption =
+        let mutable m = motion
+        let x0, y0, z0 = m.X, m.Y, m.Z
 
         if m.Z <= 0.0 && abs m.Vz <= float cfg.StopSpeedCutoff then
             // Support cancels gravity; applying it here would manufacture perpetual tiny bounces.
@@ -386,8 +393,7 @@ module BallDynamics =
                     m.Z <- m.Vz * remaining + 0.5 * az * remaining * remaining
                     m.Vz <- m.Vz + az * remaining
 
-        let struct (framed, frameContact) =
-            goalFrame cfg dt tick (float p.X) (float p.Y) (float p.Z) m
+        let struct (framed, frameContact) = goalFrame cfg dt tick x0 y0 z0 m
 
         m <- framed
         let decay = cfg.SpinDecay ** dt
@@ -395,10 +401,22 @@ module BallDynamics =
         // already couples it), while pivoting on the grass still bleeds spin about the vertical axis.
         let horizontalDecay = if m.Z > 0.0 then decay else 1.0
 
+        m.Wx <- m.Wx * horizontalDecay
+        m.Wy <- m.Wy * horizontalDecay
+        m.Wz <- m.Wz * decay
+        motion <- m
+        frameContact
+
+
+    let integrate (cfg: BallConfig) dt tick (ball: BallState) =
+        let p = ball.Position
+        let mutable m = motionOf ball
+        let frameContact = advance cfg dt tick &m
+
         let spin: Spin =
-            { X = m.Wx * horizontalDecay * 1.0<radianPerSecond>
-              Y = m.Wy * horizontalDecay * 1.0<radianPerSecond>
-              Z = m.Wz * decay * 1.0<radianPerSecond> }
+            { X = m.Wx * 1.0<radianPerSecond>
+              Y = m.Wy * 1.0<radianPerSecond>
+              Z = m.Wz * 1.0<radianPerSecond> }
 
         let moving = m.Vx <> 0.0 || m.Vy <> 0.0 || m.Vz <> 0.0 || m.Z > 0.0
 

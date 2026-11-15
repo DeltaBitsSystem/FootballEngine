@@ -21,7 +21,9 @@ module PassIntercept =
           PlayerSpeedPerSecond = movement.SprintSpeed
           PlayerAcceleration = InterceptTable.bodyAcceleration movement
           ControlRadius = intercept.ControlRadius
-          MaxSteps = intercept.MaxSteps }
+          MaxSteps = intercept.MaxSteps
+          RollTableResolution = intercept.RollTableResolution
+          RollTableMaxSpeed = intercept.RollTableMaxSpeed }
 
     /// The binding constraint: steps for the fastest non-GK opponent to reach
     /// the ball. The GK is excluded — a keeper never leaves his line for a
@@ -96,14 +98,16 @@ module PassIntercept =
         // One roll raced by receiver and interceptors alike; the same verdict as interceptorStep/passArrivalStep.
         let rolled = InterceptTable.RolledBalls.Rent(p, ball)
         let opponents = (MatchWorld.team world (MatchWorld.oppOf side)).Frame
-        let mutable interceptor = p.MaxSteps
+        let struct (bodyX, bodyY) = rolled.Bodies opponents.Occupancy.Length
+        let mutable count = 0
 
         for slot in MatchWorld.activeSlots opponents do
             if slot <> 0 then
-                let steps = rolled.StepsFor(MatchWorld.posX opponents slot, MatchWorld.posY opponents slot)
+                bodyX[count] <- float (MatchWorld.posX opponents slot)
+                bodyY[count] <- float (MatchWorld.posY opponents slot)
+                count <- count + 1
 
-                if steps < interceptor then
-                    interceptor <- steps
+        let interceptor = rolled.FirstArrival(bodyX, bodyY, count, p.MaxSteps)
 
         let own = (MatchWorld.team world side).Frame
         let arrival = rolled.StepsFor(MatchWorld.posX own receiverSlot, MatchWorld.posY own receiverSlot)

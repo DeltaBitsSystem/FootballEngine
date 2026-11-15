@@ -15,9 +15,14 @@ module InterceptTable =
           /// The body's acceleration limit: a race from a standstill is not run at top speed from the first step.
           PlayerAcceleration: float<meterPerSecondSquared>
           ControlRadius: float<meter> // kickable area
-          MaxSteps: int } // horizon cap: beyond this many ticks the ball is treated as unreachable
+          MaxSteps: int // horizon cap: beyond this many ticks the ball is treated as unreachable
+          /// Grid step of the tabulated roll in launch speed; see `RollTable`.
+          RollTableResolution: float<meterPerSecond>
+          /// Fastest launch speed the table covers; zero disables the table and rolls every ball step by step.
+          RollTableMaxSpeed: float<meterPerSecond> }
 
-    let private dt = 1.0<second> / 40.0
+    /// The race step, shared with the planner so both integrate the same roll.
+    let dt = 1.0<second> / 40.0
 
     /// The same limit ContactDynamics applies when it integrates a player toward his target velocity.
     let bodyAcceleration (movement: MovementConfig) =
@@ -45,7 +50,9 @@ module InterceptTable =
           PlayerSpeedPerSecond = movement.SprintSpeed
           PlayerAcceleration = bodyAcceleration movement
           ControlRadius = intercept.ControlRadius
-          MaxSteps = intercept.MaxSteps }
+          MaxSteps = intercept.MaxSteps
+          RollTableResolution = intercept.RollTableResolution
+          RollTableMaxSpeed = intercept.RollTableMaxSpeed }
 
     /// Ground speed after one prediction step: turf resistance plus air drag, as BallDynamics rolls the ball.
     let private nextGroundSpeed (p: InterceptParams) speed =
@@ -78,42 +85,151 @@ module InterceptTable =
           Vy = vy * 1.0<meterPerSecond>
           Vz = 0.0<meterPerSecond> }
 
+    /// Speed after one prediction step; a ball already at rest stays at rest.
+    let stepSpeed (p: InterceptParams) (speed: float) =
+        if speed > 1e-9 then nextGroundSpeed p speed else speed
+
+    /// Cache identity of a roll table: every ball field `BallAero.dragDeceleration` and the turf resistance read,
+    /// plus the table's own shape.
+    [<Struct>]
+    type private RollKey =
+        { Gravity: float
+          Rolling: float
+          AirDensity: float
+          Mass: float
+          Radius: float
+          DragSubcritical: float
+          DragSupercritical: float
+          CrisisSpeed: float
+          CrisisWidth: float
+          Steps: int
+          Resolution: float
+          MaxSpeed: float }
+
+    /// Distance rolled after n steps as a function of launch speed, s(n; v0): the stepped 1D roll (decelerate, then
+    /// move) tabulated on a uniform v0 grid so a straight roll costs one interpolation per step instead of a drag
+    /// evaluation. Immutable once built, so matches on any thread share it.
+    ///
+    /// A node whose ball stops inside the horizon makes s(n; v0) kinked in v0 (the speed is clipped at zero), where
+    /// linear interpolation is two orders of magnitude worse than in smooth cells; such cells are not served and
+    /// the caller steps the roll exactly instead.
+    [<Sealed; AllowNullLiteral>]
+    type RollTable internal (p: InterceptParams) =
+        let resolution = float p.RollTableResolution
+        let steps = p.MaxSteps
+        let width = steps + 1
+
+        let nodes =
+            if resolution > 0.0 && float p.RollTableMaxSpeed > 0.0 then
+                int (float p.RollTableMaxSpeed / resolution) + 1
+            else
+                0
+
+        let distance = Array.zeroCreate<float> (nodes * width)
+        // First step at which the node's ball is at rest, or -1 when it still rolls at the horizon.
+        let stop = Array.create nodes -1
+
+        do
+            for j in 0 .. nodes - 1 do
+                let mutable v = float j * resolution
+                let mutable s = 0.0
+                let row = j * width
+                if v <= 1e-9 then stop[j] <- 0
+
+                for n in 1..steps do
+                    v <- stepSpeed p v
+                    s <- s + v * float dt
+                    distance[row + n] <- s
+                    if v <= 1e-9 && stop[j] < 0 then stop[j] <- n
+
+        /// The cell holding this launch speed, or -1 when it must be rolled step by step: at rest, past the table, or
+        /// in a cell where either node stops inside the horizon.
+        member _.Cell(v0: float) : int =
+            if nodes < 2 || not (v0 > 0.0) then
+                -1
+            else
+                let j = int (v0 / resolution)
+                if j + 1 >= nodes || stop[j] >= 0 || stop[j + 1] >= 0 then -1 else j
+
+        member _.At(cell: int, v0: float, n: int) : float =
+            let f = (v0 - float cell * resolution) / resolution
+            let lower = cell * width + n
+            distance[lower] * (1.0 - f) + distance[lower + width] * f
+
+    [<AbstractClass; Sealed>]
+    type RollTables =
+        static let tables =
+            System.Collections.Concurrent.ConcurrentDictionary<RollKey, RollTable>()
+
+        // The last table a thread used: a match keeps one ball config, so the dictionary is rarely consulted.
+        [<System.ThreadStatic; DefaultValue>]
+        static val mutable private lastKey: RollKey
+
+        [<System.ThreadStatic; DefaultValue>]
+        static val mutable private lastTable: RollTable
+
+        static member For(p: InterceptParams) : RollTable =
+            let b = p.Ball
+
+            let key =
+                { Gravity = float b.Gravity
+                  Rolling = b.RollingResistance
+                  AirDensity = b.AirDensity
+                  Mass = b.Mass
+                  Radius = float b.Radius
+                  DragSubcritical = b.DragSubcritical
+                  DragSupercritical = b.DragSupercritical
+                  CrisisSpeed = float b.DragCrisisSpeed
+                  CrisisWidth = float b.DragCrisisWidth
+                  Steps = p.MaxSteps
+                  Resolution = float p.RollTableResolution
+                  MaxSpeed = float p.RollTableMaxSpeed }
+
+            if not (isNull RollTables.lastTable) && RollTables.lastKey = key then
+                RollTables.lastTable
+            else
+                // A table is ~1.8 MB and a sweep over ball parameters makes one per variant; dropping them all past
+                // a bound keeps memory flat, and threads still holding an evicted table keep using it safely.
+                if tables.Count >= 32 then
+                    tables.Clear()
+
+                let table = tables.GetOrAdd(key, fun _ -> RollTable p)
+                RollTables.lastKey <- key
+                RollTables.lastTable <- table
+                table
+
     /// Smallest n in [0..MaxSteps] such that the player, running straight at
     /// the ball at PlayerSpeed, is within ControlRadius of the ball's inertia
     /// point at tick n. Equivalently: dist(player, ballAt(n)) - ControlRadius
     /// <= speed·dt·n. The reachable predicate is monotonic in n, so scanning
     /// upward and taking the first hit is exact; unreachable balls return
-    /// MaxSteps, keeping the result deterministic.
+    /// MaxSteps, keeping the result deterministic. The roll is the exact stepped
+    /// 1D roll along the launch direction, the reference the tabulated one is held to.
     let stepsToReach (p: InterceptParams) (ball: Spatial) (px: float<meter>) (py: float<meter>) : int =
         let control = float p.ControlRadius
         let stepSeconds = float dt
-        let mutable ballX = float ball.X
-        let mutable ballY = float ball.Y
-        let mutable velocityX = float ball.Vx
-        let mutable velocityY = float ball.Vy
+        let startX = float ball.X
+        let startY = float ball.Y
+        let launch = sqrt (float ball.Vx * float ball.Vx + float ball.Vy * float ball.Vy)
+        let dirX = if launch > 0.0 then float ball.Vx / launch else 0.0
+        let dirY = if launch > 0.0 then float ball.Vy / launch else 0.0
+        let mutable speed = launch
+        let mutable rolled = 0.0
         let playerX = float px
         let playerY = float py
         let mutable n = 0
         let mutable reached = false
 
         while not reached && n <= p.MaxSteps do
-            let dx = playerX - ballX
-            let dy = playerY - ballY
+            let dx = playerX - (startX + dirX * rolled)
+            let dy = playerY - (startY + dirY * rolled)
             let reach = control + reachableDistance p (float n * stepSeconds)
 
             if dx * dx + dy * dy <= reach * reach then
                 reached <- true
             else
-                let speed = sqrt (velocityX * velocityX + velocityY * velocityY)
-
-                if speed > 1e-9 then
-                    let scale = nextGroundSpeed p speed / speed
-                    velocityX <- velocityX * scale
-                    velocityY <- velocityY * scale
-
-                ballX <- ballX + velocityX * stepSeconds
-                ballY <- ballY + velocityY * stepSeconds
-
+                speed <- stepSpeed p speed
+                rolled <- rolled + speed * stepSeconds
                 n <- n + 1
 
         if reached then n else p.MaxSteps
@@ -130,56 +246,119 @@ module InterceptTable =
           Steps: int }
 
     /// A player's reach after n steps depends only on the race parameters, not on the ball, so every rolled ball
-    /// shares one table. Published whole as one reference, so concurrent matches never see a partial table.
-    let mutable private reachTable: ReachKey * float[] = ({ Speed = 0.0<meterPerSecond>; Acceleration = 0.0<meterPerSecondSquared>; Control = 0.0<meter>; Steps = -1 }, [||])
+    /// of the same parameters shares one table. Tables are immutable and keyed by their parameters: `sweep` runs
+    /// matches with different configs in parallel, and a single mutable slot would make them evict each other.
+    [<AbstractClass; Sealed>]
+    type private ReachTables =
+        static let tables =
+            System.Collections.Concurrent.ConcurrentDictionary<ReachKey, float[]>()
 
-    let private reachesFor (p: InterceptParams) =
-        let key =
-            { Speed = p.PlayerSpeedPerSecond
-              Acceleration = p.PlayerAcceleration
-              Control = p.ControlRadius
-              Steps = p.MaxSteps }
+        // The last table a thread used: a match keeps one parameter set, so the dictionary is rarely consulted.
+        [<System.ThreadStatic; DefaultValue>]
+        static val mutable private lastKey: ReachKey
 
-        let cachedKey, cached = reachTable
+        [<System.ThreadStatic; DefaultValue>]
+        static val mutable private lastTable: float[]
 
-        if cachedKey = key then
-            cached
-        else
-            let control = float p.ControlRadius
-            let built = Array.init (p.MaxSteps + 1) (fun n -> control + reachableDistance p (float n * float dt))
-            reachTable <- (key, built)
-            built
+        static member For(p: InterceptParams) : float[] =
+            let key =
+                { Speed = p.PlayerSpeedPerSecond
+                  Acceleration = p.PlayerAcceleration
+                  Control = p.ControlRadius
+                  Steps = p.MaxSteps }
+
+            if not (isNull ReachTables.lastTable) && ReachTables.lastKey = key then
+                ReachTables.lastTable
+            else
+                let table =
+                    tables.GetOrAdd(
+                        key,
+                        fun _ ->
+                            let control = float p.ControlRadius
+                            Array.init (p.MaxSteps + 1) (fun n -> control + reachableDistance p (float n * float dt))
+                    )
+
+                ReachTables.lastKey <- key
+                ReachTables.lastTable <- table
+                table
+
+    /// Slack on the exclusion distance: the rolled positions drift from the ideal straight line by rounding
+    /// (below 1e-12 m over a 50-step roll), so a body this close to the limit is still scanned.
+    [<Literal>]
+    let private ExclusionSlack = 1e-6
 
     [<Sealed>]
     type RolledBall(initial: InterceptParams, ball: Spatial) =
         let mutable p = initial
         let mutable xs = Array.zeroCreate<float> (p.MaxSteps + 1)
         let mutable ys = Array.zeroCreate<float> (p.MaxSteps + 1)
-        let mutable reaches = reachesFor p
+        let mutable reaches = ReachTables.For p
         let mutable filled = -1
         let mutable ballX = float ball.X
         let mutable ballY = float ball.Y
         let mutable velocityX = float ball.Vx
         let mutable velocityY = float ball.Vy
+        let mutable table = RollTables.For p
+        // The launch speed and, for a ball rolled step by step, its current speed and distance rolled.
+        let mutable launch = 0.0
+        let mutable speed = 0.0
+        let mutable rolled = 0.0
+        // The table cell serving this launch speed, or -1 when the roll is stepped exactly.
+        let mutable cell = -1
+        // The roll is a straight segment from the start: both velocity components are scaled by the same factor
+        // each step and the speed never grows, so the path is no longer than speed * dt * MaxSteps.
+        let mutable startX = 0.0
+        let mutable startY = 0.0
+        let mutable dirX = 0.0
+        let mutable dirY = 0.0
+        let mutable pathLength = 0.0
+        // No scanned step can bring a body within this distance of the segment, or it is out of reach at every step.
+        let mutable cutoff = 0.0
+        let mutable bodyX: float[] = Array.empty
+        let mutable bodyY: float[] = Array.empty
+        let mutable alive: int[] = Array.empty
+
+        let aim () =
+            startX <- ballX
+            startY <- ballY
+            launch <- sqrt (velocityX * velocityX + velocityY * velocityY)
+
+            if launch > 0.0 then
+                dirX <- velocityX / launch
+                dirY <- velocityY / launch
+            else
+                dirX <- 0.0
+                dirY <- 0.0
+
+            speed <- launch
+            rolled <- 0.0
+            cell <- table.Cell launch
+            pathLength <- launch * float dt * float p.MaxSteps
+            cutoff <- reaches[p.MaxSteps] + ExclusionSlack
+
+        do aim ()
+
+        /// Whether the body is too far from the whole roll to reach it at any scanned step.
+        let outOfRange (playerX: float) (playerY: float) =
+            let along = (playerX - startX) * dirX + (playerY - startY) * dirY
+            let t = if along < 0.0 then 0.0 elif along > pathLength then pathLength else along
+            let dx = playerX - (startX + dirX * t)
+            let dy = playerY - (startY + dirY * t)
+            sqrt (dx * dx + dy * dy) > cutoff
 
         let fillTo n =
-            let stepSeconds = float dt
-
             while filled < n do
-                if filled >= 0 then
-                    let speed = sqrt (velocityX * velocityX + velocityY * velocityY)
-
-                    if speed > 1e-9 then
-                        let scale = nextGroundSpeed p speed / speed
-                        velocityX <- velocityX * scale
-                        velocityY <- velocityY * scale
-
-                    ballX <- ballX + velocityX * stepSeconds
-                    ballY <- ballY + velocityY * stepSeconds
-
                 filled <- filled + 1
-                xs[filled] <- ballX
-                ys[filled] <- ballY
+
+                if filled > 0 then
+                    if cell >= 0 then
+                        rolled <- table.At(cell, launch, filled)
+                    else
+                        speed <- stepSpeed p speed
+                        rolled <- rolled + speed * float dt
+
+                xs[filled] <- startX + dirX * rolled
+                ys[filled] <- startY + dirY * rolled
 
         /// Re-aims the roll at a new ball, keeping the buffers: passes and intercepts are raced thousands of times
         /// a match, and two fresh arrays per race were a sixth of a match's allocations.
@@ -189,55 +368,117 @@ module InterceptTable =
                 ys <- Array.zeroCreate (parameters.MaxSteps + 1)
 
             p <- parameters
-            reaches <- reachesFor parameters
+            reaches <- ReachTables.For parameters
+            table <- RollTables.For parameters
             filled <- -1
             ballX <- float next.X
             ballY <- float next.Y
             velocityX <- float next.Vx
             velocityY <- float next.Vy
+            aim ()
+
+        /// Scratch coordinates for `FirstArrival` callers, owned by the roll so a race gathers its bodies without
+        /// allocating.
+        member _.Bodies(capacity: int) : struct (float[] * float[]) =
+            if bodyX.Length < capacity then
+                bodyX <- Array.zeroCreate capacity
+                bodyY <- Array.zeroCreate capacity
+                alive <- Array.zeroCreate capacity
+
+            struct (bodyX, bodyY)
 
         /// Whether the player reaches the ball within `limit` steps: the same test as `StepsFor(px, py) <= limit`,
         /// without rolling the ball past a step that can no longer change the verdict.
         member _.ReachesWithin(px: float<meter>, py: float<meter>, limit: int) : bool =
             let playerX = float px
             let playerY = float py
-            let last = min limit p.MaxSteps
-            let mutable n = 0
-            let mutable reached = false
 
-            while not reached && n <= last do
-                if n > filled then fillTo n
-                let dx = playerX - xs[n]
-                let dy = playerY - ys[n]
-                let reach = reaches[n]
+            if outOfRange playerX playerY then
+                limit >= p.MaxSteps
+            else
+                let last = min limit p.MaxSteps
+                let mutable n = 0
+                let mutable reached = false
 
-                if dx * dx + dy * dy <= reach * reach then
-                    reached <- true
+                while not reached && n <= last do
+                    if n > filled then fillTo n
+                    let dx = playerX - xs[n]
+                    let dy = playerY - ys[n]
+                    let reach = reaches[n]
 
-                n <- n + 1
+                    if dx * dx + dy * dy <= reach * reach then
+                        reached <- true
 
-            reached || limit >= p.MaxSteps
+                    n <- n + 1
+
+                reached || limit >= p.MaxSteps
 
         member _.StepsFor(px: float<meter>, py: float<meter>) : int =
             let playerX = float px
             let playerY = float py
-            let mutable n = 0
-            let mutable result = p.MaxSteps
-            let mutable reached = false
 
-            while not reached && n <= p.MaxSteps do
-                if n > filled then fillTo n
-                let dx = playerX - xs[n]
-                let dy = playerY - ys[n]
-                let reach = reaches[n]
+            if outOfRange playerX playerY then
+                p.MaxSteps
+            else
+                let mutable n = 0
+                let mutable result = p.MaxSteps
+                let mutable reached = false
 
-                if dx * dx + dy * dy <= reach * reach then
-                    reached <- true
-                    result <- n
+                while not reached && n <= p.MaxSteps do
+                    if n > filled then fillTo n
+                    let dx = playerX - xs[n]
+                    let dy = playerY - ys[n]
+                    let reach = reaches[n]
 
-                n <- n + 1
+                    if dx * dx + dy * dy <= reach * reach then
+                        reached <- true
+                        result <- n
 
-            result
+                    n <- n + 1
+
+                result
+
+        /// min(limit, the smallest `StepsFor` over the first `count` bodies): every body that can still reach is
+        /// checked at each step, so the scan stops at the first arrival instead of running each body to its end.
+        member _.FirstArrival(px: float[], py: float[], count: int, limit: int) : int =
+            if count <= 0 then
+                limit
+            else
+                if alive.Length < count then
+                    alive <- Array.zeroCreate count
+
+                let horizon = min limit p.MaxSteps
+                let mutable remaining = 0
+
+                for i in 0 .. count - 1 do
+                    if not (outOfRange px[i] py[i]) then
+                        alive[remaining] <- i
+                        remaining <- remaining + 1
+
+                let mutable n = 0
+                let mutable found = false
+
+                while not found && remaining > 0 && n <= horizon do
+                    if n > filled then fillTo n
+                    let rollX = xs[n]
+                    let rollY = ys[n]
+                    let reach = reaches[n]
+                    let mutable k = 0
+
+                    while not found && k < remaining do
+                        let i = alive[k]
+                        let dx = px[i] - rollX
+                        let dy = py[i] - rollY
+
+                        if dx * dx + dy * dy <= reach * reach then
+                            found <- true
+
+                        k <- k + 1
+
+                    if not found then
+                        n <- n + 1
+
+                if found then n else horizon
 
     /// Rolled balls lent per thread: matches run in parallel, and a race never outlives the call that rents it.
     [<AbstractClass; Sealed>]

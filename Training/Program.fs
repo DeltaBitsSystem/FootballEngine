@@ -291,7 +291,7 @@ module Program =
 
     /// Wall time per system over one match: where a slow balance loop actually spends its time. With cognition
     /// on its own thread the per-system times overlap, so only the wall time says what the match costs.
-    let private profileCmd (ownThread: bool) (cfg: BalanceConfig) (seed: uint64) (budgetPath: string option) : int =
+    let private profileCmd (ownThread: bool) (warm: int) (cfg: BalanceConfig) (seed: uint64) (budgetPath: string option) : int =
         let names = Scheduler.systems |> List.map _.Name |> Array.ofList
         // One slot per system: cognition's systems are timed on its own thread, so no slot is shared.
         let timeOf = Array.zeroCreate<int64> names.Length
@@ -312,6 +312,16 @@ module Program =
                             callsOf[index] <- callsOf[index] + 1
                             result })
 
+        // The first match of a process pays tiering and PGO; warm runs keep that noise out of the measured match.
+        for run in 1..warm do
+            let clock = System.Diagnostics.Stopwatch.StartNew()
+            SimulatorRunner.runWith ownThread timed cfg seed |> ignore
+            printfn "warm-up %d: %.0f ms" run clock.Elapsed.TotalMilliseconds
+
+        System.Array.Clear timeOf
+        System.Array.Clear callsOf
+        System.Array.Clear bytesOf
+        let allocatedBefore = System.GC.GetTotalAllocatedBytes true
         let pauseBefore = System.GC.GetTotalPauseDuration()
         let gen0, gen1, gen2 = System.GC.CollectionCount 0, System.GC.CollectionCount 1, System.GC.CollectionCount 2
         let total = System.Diagnostics.Stopwatch.StartNew()
@@ -325,6 +335,8 @@ module Program =
             timers[name] <- timeOf[index]
             calls[name] <- callsOf[index]
             bytes[name] <- bytesOf[index]
+
+        printfn "allocated: %.0f MB in the measured match" (float (System.GC.GetTotalAllocatedBytes true - allocatedBefore) / 1e6)
 
         printfn
             "gc: %.0f ms paused, collections gen0 %d gen1 %d gen2 %d"
@@ -384,8 +396,11 @@ module Program =
                     for event in events do
                         count <- count + 1
 
-                        for c in sprintf "%d %A" (int event.Tick) event.Data do
-                            hash <- (hash ^^^ uint64 c) * 1099511628211UL)
+                        // MatchEvent.id hashes every field bit-exactly; `%A` rounded floats to 10 digits and cost
+                        // more than the match itself.
+                        let (EventId id) = MatchEvent.id event
+                        hash <- (hash ^^^ uint64 (int event.Tick)) * 1099511628211UL
+                        hash <- (hash ^^^ id) * 1099511628211UL)
 
             seed, hash, count, world.State.HomeScore, world.State.AwayScore
 
@@ -430,8 +445,9 @@ module Program =
                 0
             | [ "sweep"; path; values ] -> sweepCmd cfg path (values.Split(',') |> List.ofArray) (seedsFor heldOut 8); 0
             | [ "sweep"; path; values; n ] -> sweepCmd cfg path (values.Split(',') |> List.ofArray) (seedsFor heldOut (int n)); 0
-            | [ "profile" ] -> profileCmd ownThread cfg 42UL None
-            | [ "profile"; "--gate"; path ] -> profileCmd ownThread cfg 42UL (Some path)
+            | [ "profile" ] -> profileCmd ownThread 0 cfg 42UL None
+            | [ "profile"; "--warm"; n ] -> profileCmd ownThread (int n) cfg 42UL None
+            | [ "profile"; "--gate"; path ] -> profileCmd ownThread 2 cfg 42UL (Some path)
             | "quick-fit" :: rest ->
                 let perPair = defaultArgs rest [ "6" ] |> List.head |> int
                 printfn "%A" (QuickFit.fit cfg perPair)

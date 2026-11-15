@@ -327,7 +327,7 @@ module ManagerSystem =
             match ev.Data with
             | EventData.Goal _ -> goal <- true
             | EventData.RedCardIssued pid ->
-                if MatchWorld.teamOfPlayer ctx.Ctx pid = Some side then
+                if MatchWorld.sideOfPlayer ctx.Ctx pid = ValueSome side then
                     ownRed <- true
             | EventData.HalfTime -> halfTime <- true
             | _ -> ()
@@ -468,7 +468,8 @@ module ManagerSystem =
                         |> Seq.choose (fun ev ->
                             match ev.Data with
                             | EventData.RedCardIssued pid ->
-                                MatchWorld.teamOfPlayer ctx.Ctx pid |> Option.filter (fun s -> s = side)
+                                MatchWorld.sideOfPlayer ctx.Ctx pid |> ValueOption.filter (fun s -> s = side)
+                                |> ValueOption.toOption
                             | _ -> None)
                         |> Seq.toList
 

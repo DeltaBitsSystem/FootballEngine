@@ -10,6 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="FootballEngine.Core.Tests"/>
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="Match\Contracts\Units.fs"/>
     <Compile Include="Match\Contracts\EngineTypes.fs"/>
     <Compile Include="Match\Contracts\MatchEvent.fs"/>

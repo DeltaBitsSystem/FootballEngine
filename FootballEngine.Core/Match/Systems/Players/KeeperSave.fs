@@ -14,25 +14,27 @@ module KeeperSave =
     /// First crossing of the plane x = planeX by the ball centre, interpolated within the step.
     let private crossingAt (cfg: BallConfig) dt tick (ball: BallState) planeX : Crossing voption =
         let radius = float ball.Radius
-        let mutable state = ball
+        let mutable state = BallDynamics.motionOf ball
         let mutable elapsed = 0.0
         let mutable result = ValueNone
 
         while result.IsNone && elapsed < maximumPredictionSeconds do
-            let next = BallDynamics.integrate cfg dt tick state
-            let before = float state.Position.X - planeX
-            let after = float next.Position.X - planeX
+            let before = state.X - planeX
+            let startY = state.Y
+            let startZ = state.Z
+            // Stepped in place: this predicts up to 3 s of flight per shot and built a ball per step.
+            BallDynamics.advance cfg dt tick &state |> ignore
+            let after = state.X - planeX
 
             if before * after <= 0.0 && before <> after then
                 let f = before / (before - after)
 
                 result <-
                     ValueSome
-                        { Y = float state.Position.Y + (float next.Position.Y - float state.Position.Y) * f
-                          Z = float state.Position.Z + (float next.Position.Z - float state.Position.Z) * f + radius
+                        { Y = startY + (state.Y - startY) * f
+                          Z = startZ + (state.Z - startZ) * f + radius
                           Seconds = elapsed + f * dt }
 
-            state <- next
             elapsed <- elapsed + dt
 
         result
@@ -61,7 +63,7 @@ module KeeperSave =
         | ValueSome _, _, _, _ -> AlreadyCommitted
         | ValueNone, Some slot, Some(TrajectoryIntent.Struck(shooter, _, _, _)), Some impulse when
             MatchWorld.isActive team.Frame slot
-            && MatchWorld.teamOfPlayer ctx.Ctx shooter = Some(MatchWorld.oppOf side)
+            && MatchWorld.sideOfPlayer ctx.Ctx shooter = ValueSome(MatchWorld.oppOf side)
             ->
             let frame = team.Frame
             let profile = MatchWorld.profileOf ctx.Ctx side slot

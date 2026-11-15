@@ -138,7 +138,7 @@ module BallFootContact =
                 ) }
 
     let request (ctx: SystemContext) (world: World) (buffer: EventBuffer) (impulse: BallImpulse) trajectory arrival =
-        match impulse.StrikeKind, MatchWorld.teamOfPlayer ctx.Ctx impulse.ActorId with
+        match impulse.StrikeKind, MatchWorld.sideOfPlayer ctx.Ctx impulse.ActorId with
         | StrikeKind.Restart SetPieceKind.ThrowIn, _ ->
             BallPhysics.applyImpulse world impulse trajectory arrival
 
@@ -147,9 +147,9 @@ module BallFootContact =
                 buffer.Events.Add
                     { Tick = world.State.Tick
                       Data = EventData.RestartContact(id, impulse.ActorId, SetPieceKind.ThrowIn) })
-        | _, Some side ->
+        | _, ValueSome side ->
             match MatchWorld.slotOf ctx.Ctx side impulse.ActorId with
-            | Some slot when world.State.Ball.PendingStrike.IsNone && reachable ctx.Ctx world side slot ->
+            | ValueSome slot when world.State.Ball.PendingStrike.IsNone && reachable ctx.Ctx world side slot ->
                 withdrawTouch world
                 let cfg = ctx.Ctx.Config.Ball
                 let contact = world.State.Tick + cfg.KickWindup
@@ -288,10 +288,10 @@ module BallFootContact =
 
         match pending.Trajectory, impulse.ExecutionContext with
         | TrajectoryIntent.Aimed(_, receiver, _), ExecutionContext.OpenPlay ->
-            match MatchWorld.teamOfPlayer ctx.Ctx receiver with
-            | Some side ->
+            match MatchWorld.sideOfPlayer ctx.Ctx receiver with
+            | ValueSome side ->
                 match MatchWorld.slotOf ctx.Ctx side receiver with
-                | Some slot ->
+                | ValueSome slot ->
                     let frame = (MatchWorld.team world side).Frame
                     let cfg = ctx.Ctx.Config
 
@@ -340,8 +340,8 @@ module BallFootContact =
                         Some target, Some(world.State.Tick + travelTicks), (if groundPass then Some launchSpeed else None)
                     else
                         unchanged
-                | None -> unchanged
-            | None -> unchanged
+                | ValueNone -> unchanged
+            | ValueNone -> unchanged
         | _ -> unchanged
 
     let step: SystemStep =
@@ -469,7 +469,7 @@ module BallFootContact =
                     match pending.Trajectory, impulse.ExecutionContext with
                     | TrajectoryIntent.Aimed(_, receiver, _), ExecutionContext.OpenPlay ->
                         match MatchWorld.slotOf ctx.Ctx pending.Side receiver with
-                        | Some receiverSlot ->
+                        | ValueSome receiverSlot ->
                             let frame = (MatchWorld.team world pending.Side).Frame
                             let receiverX = MatchWorld.posX frame receiverSlot
                             let line = MatchWorld.offsideLine ctx.Ctx world pending.Side
@@ -483,7 +483,7 @@ module BallFootContact =
                                 buffer.Events.Add
                                     { Tick = tick
                                       Data = EventData.Offside receiver }
-                        | None -> ()
+                        | ValueNone -> ()
                     | _ -> ()
 
                     match impulse.RestartId, impulse.StrikeKind with

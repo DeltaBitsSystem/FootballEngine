@@ -46,7 +46,7 @@ module DeliberationTests =
                   let next () = let r, _, _ = Stepper.step Scheduler.systems system rng world buf in rng <- r
 
                   next ()
-                  Expect.isTrue world.Cognition.Plan.IsSome "the decision began a deliberation"
+                  Expect.isTrue world.Cognition.Plan.Active "the decision began a deliberation"
                   Expect.isFalse (decided world 5) "no choice on the tick the decision began"
 
                   for _ in 1 .. int deliberation - 1 do
@@ -75,7 +75,7 @@ module DeliberationTests =
                   let next () = let r, _, _ = Stepper.step Scheduler.systems system rng world buf in rng <- r
 
                   next ()
-                  Expect.isTrue world.Cognition.Plan.IsSome "the decision began a deliberation"
+                  Expect.isTrue world.Cognition.Plan.Active "the decision began a deliberation"
                   world.Away.Frame.PosX[5] <- 0.5f
                   world.Away.Frame.PosY[5] <- 0.0f
                   buf.Events.Add(possession world ClubSide.Away world.Away.RosterIds[5])
@@ -83,5 +83,5 @@ module DeliberationTests =
                   while world.State.Tick <= started + deliberation do
                       next ()
 
-                  Expect.isTrue world.Cognition.Plan.IsNone "the deliberation ended when due"
+                  Expect.isTrue (not world.Cognition.Plan.Active) "the deliberation ended when due"
                   Expect.isFalse (decided world 5) "the former carrier chose nothing") ]

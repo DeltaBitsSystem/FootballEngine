@@ -49,13 +49,13 @@ module PlayerIntent =
 
             frame.Intent.ExitTrigger.[slot] <- ExitTrigger.None
 
-    let private insetTarget (ctx: MatchContext) (x: float) (y: float) : float32 * float32 =
+    let private insetTarget (ctx: MatchContext) (x: float) (y: float) : struct (float32 * float32) =
         let inset = float ctx.Config.Positioning.TargetInset
         let halfLength = float Pitch.HalfLength - inset
         let halfWidth = float Pitch.HalfWidth - inset
-        float32 (MatchMath.clamp (-halfLength) halfLength x), float32 (MatchMath.clamp (-halfWidth) halfWidth y)
+        struct (float32 (MatchMath.clamp (-halfLength) halfLength x), float32 (MatchMath.clamp (-halfWidth) halfWidth y))
 
-    let private carryTarget (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : float32 * float32 =
+    let private carryTarget (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : struct (float32 * float32) =
         let team = MatchWorld.team world side
         let opponents = MatchWorld.team world (MatchWorld.oppOf side)
         let frame = team.Frame
@@ -89,7 +89,7 @@ module PlayerIntent =
                 elif candidate = 0 then preferred
                 else -preferred
 
-            let tx, ty = insetTarget ctx (px * dir + forwardStep) (py + sign * lateral)
+            let struct (tx, ty) = insetTarget ctx (px * dir + forwardStep) (py + sign * lateral)
             let mutable nearest = System.Double.MaxValue
 
             for opponentSlot in MatchWorld.activeSlots opponents.Frame do
@@ -102,16 +102,29 @@ module PlayerIntent =
                 bestX <- float tx
                 bestY <- float ty
 
-        float32 (bestX * dir), float32 bestY
+        struct (float32 (bestX * dir), float32 bestY)
 
-    let private supportTargets
-        (ctx: MatchContext)
-        (world: World)
-        (side: ClubSide)
-        (carrierSlot: int)
-        : (int * float32 * float32) option * (int * float32 * float32) option =
+    /// The two teammates asked to offer themselves to the carrier, nearest ahead and nearest behind; -1 is nobody.
+    [<Struct>]
+    type private SupportPlan =
+        { FrontSlot: int
+          FrontX: float32
+          FrontY: float32
+          RearSlot: int
+          RearX: float32
+          RearY: float32 }
+
+    let private noSupport =
+        { FrontSlot = -1
+          FrontX = 0.0f
+          FrontY = 0.0f
+          RearSlot = -1
+          RearX = 0.0f
+          RearY = 0.0f }
+
+    let private supportTargets (ctx: MatchContext) (world: World) (side: ClubSide) (carrierSlot: int) : SupportPlan =
         if carrierSlot < 0 then
-            None, None
+            noSupport
         else
             let team = MatchWorld.team world side
             let frame = team.Frame
@@ -142,43 +155,60 @@ module PlayerIntent =
                         rearSlot <- candidate
                         rearDistance <- distance
 
-            let targetFor chosen front =
-                if chosen < 0 then
-                    None
-                else
-                    let candidateY = float (MatchWorld.posY frame chosen)
+            let targetFor chosen front : struct (float32 * float32) =
+                let candidateY = float (MatchWorld.posY frame chosen)
 
-                    let naturalSign =
-                        if candidateY > carrierY then 1.0
-                        elif candidateY < carrierY then -1.0
-                        else if chosen % 2 = 0 then 1.0
-                        else -1.0
+                let naturalSign =
+                    if candidateY > carrierY then 1.0
+                    elif candidateY < carrierY then -1.0
+                    else if chosen % 2 = 0 then 1.0
+                    else -1.0
 
-                    let sign = if front then naturalSign else -naturalSign
+                let sign = if front then naturalSign else -naturalSign
 
-                    let xOffset =
-                        if front then
-                            float ctx.Config.Positioning.SupportForwardDistance
-                        else
-                            -float ctx.Config.Positioning.SupportForwardDistance
+                let xOffset =
+                    if front then
+                        float ctx.Config.Positioning.SupportForwardDistance
+                    else
+                        -float ctx.Config.Positioning.SupportForwardDistance
 
-                    let yOffset = sign * float ctx.Config.Positioning.SupportLateralDistance
+                let yOffset = sign * float ctx.Config.Positioning.SupportLateralDistance
 
-                    let targetX, targetY =
-                        insetTarget ctx (carrierX * dir + xOffset) (carrierY + yOffset)
+                let struct (targetX, targetY) =
+                    insetTarget ctx (carrierX * dir + xOffset) (carrierY + yOffset)
 
-                    Some(chosen, float32 (float targetX * dir), targetY)
+                struct (float32 (float targetX * dir), targetY)
 
-            targetFor frontSlot true, targetFor rearSlot false
+            let struct (frontX, frontY) = if frontSlot < 0 then struct (0.0f, 0.0f) else targetFor frontSlot true
+            let struct (rearX, rearY) = if rearSlot < 0 then struct (0.0f, 0.0f) else targetFor rearSlot false
+
+            { FrontSlot = frontSlot
+              FrontX = frontX
+              FrontY = frontY
+              RearSlot = rearSlot
+              RearX = rearX
+              RearY = rearY }
+
+    /// The attack episode's duty for a player, searched Link, Runner, Security like `CollectiveAttackState.duty`.
+    let private dutyOf (state: CollectiveAttackState) (player: PlayerId) : AttackDuty voption =
+        match state.Episode with
+        | Some episode ->
+            if episode.Link.Player = player then ValueSome episode.Link
+            elif episode.Runner.Player = player then ValueSome episode.Runner
+            elif episode.Security.Player = player then ValueSome episode.Security
+            else ValueNone
+        | None -> ValueNone
 
     let private roleIntent
         (ctx: MatchContext)
         (world: World)
         (side: ClubSide)
         (carrierSlot: int)
-        (support: (float32 * float32) option)
-        (looseBallChaser: int option)
+        (support: struct (float32 * float32) voption)
+        (looseBallChaser: int)
         (looseBall: bool)
+        (opponentControlsBall: bool)
+        (ownFlight: bool)
         (slot: int)
         (tick: int<subtick>)
         : unit =
@@ -195,27 +225,18 @@ module PlayerIntent =
         let setRoleIntent frame slot kind tx ty tick =
             setIntent frame slot kind tx ty tick ctx.Config.Movement.CommittedRunDuration
 
-        let opponentControlsBall =
-            match MatchWorld.ballCarrier ctx world with
-            | Some(carrierSide, _, _) -> carrierSide <> side
-            | None -> false
-
         let transitionTask =
             match team.Defense.Episode with
             | Some episode when episode.EndedAt.IsNone -> team.Defense.Tasks[slot]
             | _ when opponentControlsBall && world.State.Flow = MatchFlow.Live -> team.Defense.Tasks[slot]
-            | _ -> None
+            | _ -> ValueNone
 
         let attackDuty =
-            let ownFlight =
-                match world.State.Ball.Trajectory with
-                | Some(TrajectoryIntent.Aimed(passer, _, _)) -> MatchWorld.teamOfPlayer ctx passer = Some side
-                | Some(TrajectoryIntent.Struck(shooter, _, _, _)) -> MatchWorld.teamOfPlayer ctx shooter = Some side
-                | _ -> false
-            CollectiveAttackState.duty team.Attack p.Id
-            |> Option.filter (fun duty -> duty.Slot = slot && slot <> carrierSlot && not opponentControlsBall && (carrierSlot >= 0 || ownFlight))
+            match dutyOf team.Attack p.Id with
+            | ValueSome duty when duty.Slot = slot && slot <> carrierSlot && not opponentControlsBall && (carrierSlot >= 0 || ownFlight) -> ValueSome duty
+            | _ -> ValueNone
 
-        let keeperClaims = looseBall && looseBallChaser = Some slot
+        let keeperClaims = looseBall && looseBallChaser = slot
 
         // The chaser runs to where he meets the rolling ball, not where it is now; aiming at the current position
         // trails a moving ball forever and lets slow balls roll out of play.
@@ -258,7 +279,7 @@ module PlayerIntent =
             setRoleIntent frame slot IntentCode.Support (float32 duty.Target.X) (float32 duty.Target.Y) tick
         elif looseBall then
             match frame.DefensiveRoles.[slot] with
-            | _ when looseBallChaser = Some slot ->
+            | _ when looseBallChaser = slot ->
                 let chaseX, chaseY = chasePoint ()
                 setRoleIntent frame slot IntentCode.Press (float32 chaseX) (float32 chaseY) tick
             | _ when p.Role = SlotRole.Goalkeeper ->
@@ -300,12 +321,12 @@ module PlayerIntent =
             | DefensiveRole.Unassigned ->
                 setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
         elif slot = carrierSlot then
-            let tx, ty = carryTarget ctx world side slot
+            let struct (tx, ty) = carryTarget ctx world side slot
             setRoleIntent frame slot IntentCode.BallCarry tx ty tick
         elif p.Role = SlotRole.Goalkeeper then
             setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
         elif support.IsSome then
-            let tx, ty = support.Value
+            let struct (tx, ty) = support.Value
             setRoleIntent frame slot IntentCode.Support tx ty tick
         elif carrierSlot >= 0 then
             setRoleIntent frame slot IntentCode.HoldPosition (float32 shapeX) (float32 shapeY) tick
@@ -371,32 +392,51 @@ module PlayerIntent =
 
             let carrier = MatchWorld.ballCarrier ctx.Ctx world
 
-            let aimedReceiver =
-                match world.State.Ball.Trajectory, world.State.Ball.ArrivalGate with
-                | Some(TrajectoryIntent.Aimed(_, receiver, _)), Some gate when gate > tick ->
-                    match MatchWorld.teamOfPlayer ctx.Ctx receiver with
-                    | Some side -> MatchWorld.slotOf ctx.Ctx side receiver |> Option.map (fun slot -> side, slot)
-                    | None -> None
-                | _ -> None
-
             let incomingPass =
                 match world.State.Ball.Trajectory, world.State.Ball.ArrivalGate with
                 | Some(TrajectoryIntent.Aimed _), Some gate when gate > tick -> true
                 | _ -> false
 
-            let receiveTarget =
-                aimedReceiver
-                |> Option.filter (fun (side, slot) -> MatchWorld.isActive (MatchWorld.team world side).Frame slot)
+            // Slot -1 when no pass is on its way to an active player.
+            let struct (receiveSide, receiveSlot) =
+                match world.State.Ball.Trajectory, world.State.Ball.ArrivalGate with
+                | Some(TrajectoryIntent.Aimed(_, receiver, _)), Some gate when gate > tick ->
+                    match MatchWorld.sideOfPlayer ctx.Ctx receiver with
+                    | ValueSome side ->
+                        let slot = MatchWorld.slotIndex ctx.Ctx side receiver
+
+                        if slot >= 0 && MatchWorld.isActive (MatchWorld.team world side).Frame slot then
+                            struct (side, slot)
+                        else
+                            struct (ClubSide.Home, -1)
+                    | ValueNone -> struct (ClubSide.Home, -1)
+                | _ -> struct (ClubSide.Home, -1)
+
+            // The opponent holding the ball and our own flight are team-wide facts, so every player's policy
+            // reads them from here instead of each rebuilding the lookup.
+            let ownFlightOf side =
+                match world.State.Ball.Trajectory with
+                | Some(TrajectoryIntent.Aimed(passer, _, _)) -> MatchWorld.sideOfPlayer ctx.Ctx passer = ValueSome side
+                | Some(TrajectoryIntent.Struck(shooter, _, _, _)) -> MatchWorld.sideOfPlayer ctx.Ctx shooter = ValueSome side
+                | _ -> false
 
             let processTeam side =
                 let team = MatchWorld.team world side
                 let frame = team.Frame
-                let cancelledByReplacement = Array.zeroCreate<bool> frame.SlotCount
 
                 let carrierSlot =
                     match carrier with
-                    | Some(carrierSide, slot, _) when carrierSide = side -> slot
+                    | ValueSome(struct (carrierSide, slot, _)) when carrierSide = side -> slot
                     | _ -> -1
+
+                let opponentControlsBall =
+                    match carrier with
+                    | ValueSome(struct (carrierSide, _, _)) -> carrierSide <> side
+                    | ValueNone -> false
+
+                // Only a pass in flight cancels runs, so the common tick allocates no mask.
+                let cancelledByReplacement =
+                    if incomingPass then Array.zeroCreate<bool> frame.SlotCount else System.Array.Empty<bool>()
 
                 if team.LastCarrierSlot <> carrierSlot then
                     for activeSlot in MatchWorld.activeSlots frame do
@@ -412,39 +452,29 @@ module PlayerIntent =
                 if incomingPass then
                     for activeSlot in MatchWorld.activeSlots frame do
                         if frame.Intent.Kind.[activeSlot] = IntentCode.ExecuteRun then
-                            let keep =
-                                match receiveTarget with
-                                | Some(receiverSide, receiverSlot) -> receiverSide = side && receiverSlot = activeSlot
-                                | None -> false
+                            let keep = receiveSlot >= 0 && receiveSide = side && receiveSlot = activeSlot
 
                             if not keep then
                                 frame.Intent.Phase.[activeSlot] <- IntentPhase.Completed
                                 frame.Intent.ExitTrigger.[activeSlot] <- ExitTrigger.BallNearby
                                 cancelledByReplacement.[activeSlot] <- true
 
-                let frontSupport, rearSupport =
-                    if team.Attack.Episode.IsSome then None, None
+                let support =
+                    if team.Attack.Episode.IsSome then noSupport
                     else supportTargets ctx.Ctx world side carrierSlot
 
-                let supportFor slot =
-                    match frontSupport, rearSupport with
-                    | Some (owner, x, y), _ when owner = slot -> Some(x, y)
-                    | _, Some (owner, x, y) when owner = slot -> Some(x, y)
-                    | _ -> None
-
-                let looseBallChaser =
+                let looseBallChaser, looseBall =
                     match world.State.Ball.Control with
                     | BallControl.Free
                     | BallControl.Airborne
-                    | BallControl.Contesting _ -> MatchWorld.looseBallChaser world side
-                    | _ -> None
+                    | BallControl.Contesting _ ->
+                        (match MatchWorld.looseBallChaser world side with
+                         | Some chaser -> chaser
+                         | None -> -1),
+                        true
+                    | _ -> -1, false
 
-                let looseBall =
-                    match world.State.Ball.Control with
-                    | BallControl.Free
-                    | BallControl.Airborne
-                    | BallControl.Contesting _ -> true
-                    | _ -> false
+                let ownFlight = ownFlightOf side
 
                 match world.State.Flow with
                 | MatchFlow.Restart _ ->
@@ -452,28 +482,32 @@ module PlayerIntent =
                     // normal role policy would erase the legal restart shape.
                     ()
                 | _ ->
-                    match receiveTarget with
-                    | Some(receiverSide, slot) when receiverSide = side -> receiveIntent ctx.Ctx world frame slot tick
-                    | _ -> ()
+                    if receiveSlot >= 0 && receiveSide = side then
+                        receiveIntent ctx.Ctx world frame receiveSlot tick
 
                     for slot in MatchWorld.activeSlots frame do
-                        let isIncomingReceiver =
-                            receiveTarget
-                            |> Option.exists (fun (receiverSide, receiverSlot) ->
-                                receiverSide = side && receiverSlot = slot)
+                        let isIncomingReceiver = receiveSlot >= 0 && receiveSide = side && receiveSlot = slot
 
                         if
                             not isIncomingReceiver
-                            && (not cancelledByReplacement.[slot] || team.Defense.Tasks[slot].IsSome)
+                            && (not (slot < cancelledByReplacement.Length && cancelledByReplacement.[slot])
+                                || team.Defense.Tasks[slot].IsSome)
                         then
+                            let supportFor =
+                                if support.FrontSlot = slot then ValueSome(struct (support.FrontX, support.FrontY))
+                                elif support.RearSlot = slot then ValueSome(struct (support.RearX, support.RearY))
+                                else ValueNone
+
                             roleIntent
                                 ctx.Ctx
                                 world
                                 side
                                 carrierSlot
-                                (supportFor slot)
+                                supportFor
                                 looseBallChaser
                                 looseBall
+                                opponentControlsBall
+                                ownFlight
                                 slot
                                 tick
 

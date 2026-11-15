@@ -201,6 +201,10 @@ type ContactScratch(capacity: int) =
     let ballCandidate = Array.zeroCreate<bool> size
     let pairCandidates = Array.zeroCreate<uint64> size
     let mayBoot = Array.zeroCreate<bool> size
+    // Int32.MinValue is no player id, so the first tick always fills a body's constants.
+    let bodyPlayer = Array.create<int> size System.Int32.MinValue
+    let baseAcceleration = Array.zeroCreate<float> size
+    let footLength = Array.zeroCreate<float> size
 
     member val Count = 0 with get, set
     member val SaturationCount = 0UL with get, set
@@ -234,11 +238,153 @@ type ContactScratch(capacity: int) =
     member _.PairCandidates = pairCandidates
     /// Whether the body held a boot challenge when the tick began: within a tick a challenge can end, never start.
     member _.MayBoot = mayBoot
+    /// Body constants cached per body index: the player they were computed for (compared by id value), the
+    /// acceleration cap before the contact-state scale, and the foot length. They only change when a substitution
+    /// or red card puts another player in the slot, so the solver refills an index when its player differs.
+    member _.BodyPlayer = bodyPlayer
+    member _.BaseAcceleration = baseAcceleration
+    member _.FootLength = footLength
 
 type EventBuffer =
     { mutable Events: ResizeArray<MatchEvent>
       mutable Flags: EventFlags
       mutable Applied: ResizeArray<MatchEvent> }
+
+/// The level-1 options of a decision, in parallel arrays that grow by doubling so a lineup of any size fits.
+[<Sealed>]
+type PlanOptions() =
+    member val Utility: float[] = Array.zeroCreate 16 with get, set
+    member val Code: int[] = Array.zeroCreate 16 with get, set
+    member val Target: int[] = Array.zeroCreate 16 with get, set
+    member val Count = 0 with get, set
+
+    member this.Clear() = this.Count <- 0
+
+    member private this.Grow() =
+        let size = this.Utility.Length * 2
+        let utility = Array.zeroCreate<float> size
+        let code = Array.zeroCreate<int> size
+        let target = Array.zeroCreate<int> size
+        System.Array.Copy(this.Utility, utility, this.Count)
+        System.Array.Copy(this.Code, code, this.Count)
+        System.Array.Copy(this.Target, target, this.Count)
+        this.Utility <- utility
+        this.Code <- code
+        this.Target <- target
+
+    member this.Add(utility: float, code: int, target: int) =
+        if this.Count = this.Utility.Length then this.Grow()
+        this.Utility[this.Count] <- utility
+        this.Code[this.Count] <- code
+        this.Target[this.Count] <- target
+        this.Count <- this.Count + 1
+
+    /// A new first option: the carry, the clearance and the cross go ahead of the passes.
+    member this.InsertFirst(utility: float, code: int, target: int) =
+        this.Add(utility, code, target)
+        let last = this.Count - 1
+        System.Array.Copy(this.Utility, 0, this.Utility, 1, last)
+        System.Array.Copy(this.Code, 0, this.Code, 1, last)
+        System.Array.Copy(this.Target, 0, this.Target, 1, last)
+        this.Utility[0] <- utility
+        this.Code[0] <- code
+        this.Target[0] <- target
+
+    /// Reverses the options from `from` on: passes are found in slot order but listed last found first.
+    member this.ReverseFrom(from: int) =
+        System.Array.Reverse(this.Utility, from, this.Count - from)
+        System.Array.Reverse(this.Code, from, this.Count - from)
+        System.Array.Reverse(this.Target, from, this.Count - from)
+
+/// The planner's snapshot of the world when a decision began: both teams' positions and motion in arrays of
+/// their own, reused by every decision of the match.
+[<Sealed>]
+type ChainRoot() =
+    member val BallX = 0.0 with get, set
+    member val BallY = 0.0 with get, set
+    member val CarrierSlot = -1 with get, set
+    member val Side = ClubSide.Home with get, set
+    member val OffsideLine = 0.0 with get, set
+    member val Dir = 1.0 with get, set
+    member val Horizon = 0.0 with get, set
+    member val Confidence = 0.0 with get, set
+    /// Bit per slot, as in `SlotMask`.
+    member val GoalkeeperSlots = 0UL with get, set
+    member val OurGoalkeeperSlots = 0UL with get, set
+    member val CarrySpeed = 0.0 with get, set
+    member val OurCount = 0 with get, set
+    member val OppCount = 0 with get, set
+    /// A state with no opponent motion keeps its offside line instead of projecting it.
+    member val HasOppMotion = false with get, set
+    member val OurSlot: int[] = Array.zeroCreate 16 with get, set
+    member val OurX: float[] = Array.zeroCreate 16 with get, set
+    member val OurY: float[] = Array.zeroCreate 16 with get, set
+    member val OurVx: float[] = Array.zeroCreate 16 with get, set
+    member val OurVy: float[] = Array.zeroCreate 16 with get, set
+    member val OurMoves: bool[] = Array.zeroCreate 16 with get, set
+    member val OppSlot: int[] = Array.zeroCreate 16 with get, set
+    member val OppX: float[] = Array.zeroCreate 16 with get, set
+    member val OppY: float[] = Array.zeroCreate 16 with get, set
+    member val OppVx: float[] = Array.zeroCreate 16 with get, set
+    member val OppVy: float[] = Array.zeroCreate 16 with get, set
+    member val OppMoves: bool[] = Array.zeroCreate 16 with get, set
+
+    /// Room for `ours` and `opponents` players; storage is kept when it already fits.
+    member this.Ensure(ours: int, opponents: int) =
+        if ours > this.OurSlot.Length then
+            let size = max ours (this.OurSlot.Length * 2)
+            this.OurSlot <- Array.zeroCreate size
+            this.OurX <- Array.zeroCreate size
+            this.OurY <- Array.zeroCreate size
+            this.OurVx <- Array.zeroCreate size
+            this.OurVy <- Array.zeroCreate size
+            this.OurMoves <- Array.zeroCreate size
+
+        if opponents > this.OppSlot.Length then
+            let size = max opponents (this.OppSlot.Length * 2)
+            this.OppSlot <- Array.zeroCreate size
+            this.OppX <- Array.zeroCreate size
+            this.OppY <- Array.zeroCreate size
+            this.OppVx <- Array.zeroCreate size
+            this.OppVy <- Array.zeroCreate size
+            this.OppMoves <- Array.zeroCreate size
+
+/// What a search found, per option and in the options' order. Chains are not kept: only tests read them.
+[<Sealed>]
+type PlanResult() =
+    member val Value: float[] = Array.zeroCreate 16 with get, set
+    member val ActionCode: int[] = Array.zeroCreate 16 with get, set
+    member val TargetSlot: int[] = Array.zeroCreate 16 with get, set
+    member val CandidateEvaluations: int[] = Array.zeroCreate 16 with get, set
+    member val Count = 0 with get, set
+
+    member this.Ensure(count: int) =
+        if count > this.Value.Length then
+            let size = max count (this.Value.Length * 2)
+            this.Value <- Array.zeroCreate size
+            this.ActionCode <- Array.zeroCreate size
+            this.TargetSlot <- Array.zeroCreate size
+            this.CandidateEvaluations <- Array.zeroCreate size
+
+/// A carrier's decision while its search runs; one per match, because only one carrier deliberates at a time.
+/// PlayerDecision writes the inputs, the search (on the planner's thread when the match has one) writes Result,
+/// and the deliberation reads it once the thread is joined. The search is a pure function of the inputs
+/// taken when the decision began, so it may run on any thread across ticks.
+[<Sealed>]
+type PlanSlot() =
+    member val Active = false with get, set
+    member val Due = 0<subtick> with get, set
+    member val Side = ClubSide.Home with get, set
+    member val Slot = -1 with get, set
+    member val Actor = PlayerId 0 with get, set
+    /// The carrier's cognition when the decision began (not the frame's value at the moment it is due).
+    member val Cognitive = 0.0 with get, set
+    member val Pressure = 0 with get, set
+    member val Options = PlanOptions()
+    member val Root = ChainRoot()
+    member val Result = PlanResult()
+    /// Searches this slot; fixed for the match, so handing it to the planner thread allocates nothing.
+    member val Search: (unit -> unit) voption = ValueNone with get, set
 
 /// Runs a tick's cognition while the caller runs the body, and waits for it at the barrier.
 type ICognitionRunner =
@@ -276,15 +422,5 @@ and CognitionSide() =
     /// its own team's state and reads the other team's bodies, so the two halves run at once.
     member val Lanes: ICognitionRunner voption = ValueNone with get, set
     /// The carrier's plan still being searched, and the thread it is searched on when the match has one.
-    member val Plan: PendingPlan voption = ValueNone with get, set
+    member val Plan = PlanSlot()
     member val Planner: ICognitionRunner voption = ValueNone with get, set
-
-/// A carrier's decision while its search runs. The search is a pure function of a snapshot taken when the
-/// decision began, so it may run on any thread across ticks; the choice is made when it is due, on either path.
-and PendingPlan =
-    { PlanDue: int<subtick>
-      PlanSide: ClubSide
-      PlanSlot: int
-      PlanActor: PlayerId
-      PlanSearch: unit -> unit
-      PlanFinish: World -> int<subtick> -> Rng -> Rng }

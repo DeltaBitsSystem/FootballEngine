@@ -80,6 +80,8 @@ let main argv =
           chainSequenceTests
           steeringTests
           plannerBudgetTests
+          FootballEngine.Core.Tests.Kernels.RaceTests.tests
+          FootballEngine.Core.Tests.Kernels.RollTableTests.tests
           FootballEngine.Core.Tests.Systems.Team.DefensiveTransitionTests.tests
           FootballEngine.Core.Tests.Systems.Team.CollectiveAttackTests.tests
           positioningTests
@@ -126,6 +128,7 @@ let main argv =
           decisionTests
           plannerTests
           plannerEvaluatorTests
+          FootballEngine.Core.Tests.Systems.Players.PlannerEquivalenceTests.tests
           chainIntegrationTests
           chainLifetimeTests
           FootballEngine.Core.Tests.Systems.Players.DuelContactTests.tests

@@ -15,7 +15,9 @@ module PassInterceptTests =
           PlayerSpeedPerSecond = 8.0<meterPerSecond>
           PlayerAcceleration = 8.0<meterPerSecondSquared>
           ControlRadius = 2.5<meter>
-          MaxSteps = 50 }
+          MaxSteps = 50
+          RollTableResolution = 0.01<meterPerSecond>
+          RollTableMaxSpeed = 45.0<meterPerSecond> }
 
     let private launchedBall (vx: float<meterPerSecond>) (vy: float<meterPerSecond>) : Spatial =
         { X = 0.0<meter>

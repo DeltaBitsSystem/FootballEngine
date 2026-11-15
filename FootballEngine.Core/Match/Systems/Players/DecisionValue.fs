@@ -49,7 +49,13 @@ module DecisionValue =
         let mutable count = 0
 
         for s in MatchWorld.activeSlots opponent.Frame do
-            if opponent.GoalkeeperSlot <> Some s && depth > 0.0<meter> then
+            // A match on the option, not `<> Some s`: the comparison boxed a new option per opponent.
+            let isKeeper =
+                match opponent.GoalkeeperSlot with
+                | Some keeper -> keeper = s
+                | None -> false
+
+            if not isKeeper && depth > 0.0<meter> then
                 let ahead = (MatchWorld.posX opponent.Frame s - x) * dir
                 let t = ahead / depth
 

@@ -20,17 +20,17 @@ module BallOutcome =
     let private isInGoal (position: Vec3) : bool = BallPhysics.withinGoalFrame position
 
     let private isGoalkeeper (ctx: MatchContext) player =
-        match MatchWorld.teamOfPlayer ctx player with
-        | Some side ->
+        match MatchWorld.sideOfPlayer ctx player with
+        | ValueSome side ->
             MatchWorld.slotOf ctx side player
-            |> Option.exists (fun slot -> (MatchWorld.profileOf ctx side slot).IsGK)
-        | None -> false
+            |> ValueOption.exists (fun slot -> (MatchWorld.profileOf ctx side slot).IsGK)
+        | ValueNone -> false
 
     let private detectOwnGoal (ctx: SystemContext) (world: World) shooter scoringSide =
         let defenderSide = MatchWorld.oppOf scoringSide
 
         match MatchWorld.lastTouchSide ctx.Ctx world with
-        | Some side when side = defenderSide ->
+        | ValueSome side when side = defenderSide ->
             match world.State.Ball.LastTouch with
             | Some defender -> Some defender, None
             | None -> Some shooter, None
@@ -38,9 +38,9 @@ module BallOutcome =
 
     let private shotExitResult (ctx: SystemContext) (world: World) shooter defendingSide =
         match world.State.Ball.LastTouch with
-        | Some player when MatchWorld.teamOfPlayer ctx.Ctx player = Some defendingSide && isGoalkeeper ctx.Ctx player ->
+        | Some player when MatchWorld.sideOfPlayer ctx.Ctx player = ValueSome defendingSide && isGoalkeeper ctx.Ctx player ->
             ShotResult.OnTarget true, Some player
-        | Some _ when MatchWorld.lastTouchSide ctx.Ctx world = Some defendingSide -> ShotResult.Blocked, None
+        | Some _ when MatchWorld.lastTouchSide ctx.Ctx world = ValueSome defendingSide -> ShotResult.Blocked, None
         | _ -> ShotResult.OffTarget, None
 
     let private emitShotExit ctx world tick buffer shooter speed xG x y defendingSide =
@@ -99,7 +99,7 @@ module BallOutcome =
         else
             emitShotExit ctx world tick buffer shooter speed xG x y defenderSide
 
-            if MatchWorld.lastTouchSide ctx.Ctx world = Some defenderSide then
+            if MatchWorld.lastTouchSide ctx.Ctx world = ValueSome defenderSide then
                 emitSetPiece world tick buffer SetPieceKind.Corner scoringSide
             else
                 emitSetPiece world tick buffer SetPieceKind.GoalKick defenderSide
@@ -122,18 +122,18 @@ module BallOutcome =
             false
         else
             let lastSide = MatchWorld.lastTouchSide ctx.Ctx world
-            let attackingSide = lastSide |> Option.defaultValue ClubSide.Home
+            let attackingSide = lastSide |> ValueOption.defaultValue ClubSide.Home
 
             match ball.Trajectory with
             | Some(TrajectoryIntent.Struck(shooter, speed, _, xG)) ->
-                let shooterSide = MatchWorld.teamOfPlayer ctx.Ctx shooter |> Option.defaultValue ClubSide.Home
+                let shooterSide = MatchWorld.sideOfPlayer ctx.Ctx shooter |> ValueOption.defaultValue ClubSide.Home
                 emitShotExit ctx world tick buffer shooter speed xG px py (MatchWorld.oppOf shooterSide)
             | _ -> ()
 
             if outX then
                 let defender = goalLineDefender px
 
-                if lastSide = Some defender then
+                if lastSide = ValueSome defender then
                     emitSetPiece world tick buffer SetPieceKind.Corner (MatchWorld.oppOf defender)
                 else
                     emitSetPiece world tick buffer SetPieceKind.GoalKick defender
@@ -205,7 +205,7 @@ module BallOutcome =
             if not shotCrossed && not exited then
                 match world.State.Ball.Trajectory, world.State.Ball.StationarySince with
                 | Some(TrajectoryIntent.Struck(shooter, speed, _, xG)), Some _ ->
-                    let shooterSide = MatchWorld.teamOfPlayer ctx.Ctx shooter |> Option.defaultValue ClubSide.Home
+                    let shooterSide = MatchWorld.sideOfPlayer ctx.Ctx shooter |> ValueOption.defaultValue ClubSide.Home
                     emitShotExit ctx world tick buffer shooter speed xG world.State.Ball.Position.X world.State.Ball.Position.Y (MatchWorld.oppOf shooterSide)
                     finishBall world false
                 | _ -> ()

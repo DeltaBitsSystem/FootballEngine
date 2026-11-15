@@ -103,7 +103,7 @@ module PlayerDecision =
     /// The pass option set: every receiver the lane and the offside line allow, worth the expected value of the
     /// pass (DecisionValue.pass) at the completion the intercept race and the passer's Passing give, plus a small
     /// style term. Shared by `prepare` and the test suite so pass selection is verifiable in isolation.
-    let passOptionsFor (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : (float * int * float) list =
+    let private passOptionsInto (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) (options: PlanOptions) =
         let team = MatchWorld.team world side
         let frame = team.Frame
         let e = ctx.Config.ExpectedValue
@@ -126,7 +126,6 @@ module PlayerDecision =
             PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball
 
         let offsideLine = MatchWorld.offsideLine ctx world side
-        let mutable options: (float * int * float) list = []
 
         for s2 in MatchWorld.activeSlots frame do
             // A receiver who cannot see the carrier, behind a lane a body already cuts or offside is not a target:
@@ -175,11 +174,30 @@ module PlayerDecision =
                         DecisionValue.pass e side completion x y rx ry
                         + e.StyleValue * style
 
-                    options <- (value, 1, float s2) :: options
+                    options.Add(value, 1, s2)
+
+    /// The same options as a list, last candidate first: the order the plan lists passes in before it reverses them.
+    let passOptionsFor (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) : (float * int * float) list =
+        let found = PlanOptions()
+        passOptionsInto ctx world side slot found
+        let mutable options: (float * int * float) list = []
+
+        for index in 0 .. found.Count - 1 do
+            options <- (found.Utility[index], found.Code[index], float found.Target[index]) :: options
 
         options
 
-    let prepare (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) (tick: int<subtick>) : PendingPlan =
+    /// What the planner is handed, in the reference form the tests compare against the slot's own arrays.
+    type internal DecisionInputs =
+        { Plan: PlanSlot
+          Chain: ChainState
+          PlannerOptions: (int * int * float)[]
+          Intercept: InterceptTable.InterceptParams }
+
+    /// Writes a decision's inputs into the slot: the options, the snapshot the planner searches and the values the
+    /// choice still needs from this moment. Separate from `choose` so the planner can be exercised on exactly the
+    /// inputs a real carrier produces.
+    let internal fillPlan (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) (tick: int<subtick>) (plan: PlanSlot) : unit =
         let team = MatchWorld.team world side
         let frame = team.Frame
         // Attacking mentality lowers the bar for shots and take-ons; defensive
@@ -213,8 +231,10 @@ module PlayerDecision =
         let bravery = (float p.Aggression * 0.5 + float p.Composure * 0.5) / 100.0
         let level = ownLevel p
 
-        let options = ResizeArray<float * int * float>()
-        let mutable shotOption: (float * int * float) option = None
+        let options = plan.Options
+        options.Clear()
+        let mutable hasShot = false
+        let mutable shotUtility = 0.0
 
         let e = ctx.Config.ExpectedValue
         let xg = xGValue ctx world side slot
@@ -227,14 +247,14 @@ module PlayerDecision =
                 + shotMemoryBias ctx mem
                 + riskShift
 
-            shotOption <- Some(xg + e.StyleValue * style, 2, -1.0)
+            hasShot <- true
+            shotUtility <- xg + e.StyleValue * style
 
-        let passOpts = passOptionsFor ctx world side slot
+        passOptionsInto ctx world side slot options
+        options.ReverseFrom 0
 
-        for passOpt in passOpts do
-            options.Add passOpt
-
-        shotOption |> Option.iter options.Add
+        if hasShot then
+            options.Add(shotUtility, 2, -1)
 
         if attacking && abs (float y) > 20.0 && DecisionValue.crossTarget ctx world side slot >= 0 then
             // R9 — adaptive channels: wing play favours crosses, center play favours through passes.
@@ -244,7 +264,7 @@ module PlayerDecision =
                 - ctx.Config.Team.PatternCenterBias * float team.Emergent.ChannelCenter
 
             let style = channelBias + e.StyleCrossWidth * float team.Directive.Params.Width
-            options.Insert(0, (DecisionValue.cross e side crossing + e.StyleValue * style, 5, -1.0))
+            options.InsertFirst(DecisionValue.cross e side crossing + e.StyleValue * style, 5, -1)
 
         let keep =
             DecisionValue.carryKeep e (float p.Dribbling) (nearestTackler ctx world side x y) (MatchWorld.opponentsNear ctx world side x y (float e.PressureRadius)) (DecisionValue.blockers e world side x y)
@@ -256,205 +276,184 @@ module PlayerDecision =
             + riskShift
 
         if inOwnThird && pressure > 0 then
-            options.Insert(0, (DecisionValue.clear e side x y, 4, -1.0))
+            options.InsertFirst(DecisionValue.clear e side x y, 4, -1)
 
-        options.Insert(0, (DecisionValue.carry e side keep x y + e.StyleValue * carryStyle, 3, -1.0))
+        options.InsertFirst(DecisionValue.carry e side keep x y + e.StyleValue * carryStyle, 3, -1)
 
-        let options = options.ToArray()
+        match team.Attack.Episode with
+        | Some episode when episode.Stage <> Exploiting ->
+            let target =
+                match episode.Stage, episode.Pattern with
+                | Preparing, ExploitDepth -> episode.Runner
+                | Preparing, _ -> episode.Link
+                | _ -> episode.Runner
 
-        let options =
-            match team.Attack.Episode with
-            | Some episode when episode.Stage <> Exploiting ->
-                let target =
-                    match episode.Stage, episode.Pattern with
-                    | Preparing, ExploitDepth -> episode.Runner
-                    | Preparing, _ -> episode.Link
-                    | _ -> episode.Runner
-                let actorExpected = episode.Owner
-                if actorExpected <> p.Id then options
-                else
-                    let key = CollectiveAttackState.key episode.Context episode.Pattern
-                    let estimate = team.Attack.Estimates |> Map.tryFind key
-                    let mean = estimate |> Option.map FootballEngine.Domain.AttackEstimate.mean |> Option.defaultValue 0.0
-                    let confidence = MatchMath.clamp01 ((1.0 + mean) / 2.0)
-                    let bias = ctx.Config.CollectiveAttack.CooperationWeight * confidence * cognitive * float frame.Condition[slot] * float p.Teamwork / 100.0
-                    // Bias only the existing, interceptor-filtered option; collective intent never creates an action.
-                    options |> Array.map (fun (utility, code, receiver) ->
-                        if code = 1 && int receiver = target.Slot then
-                            if world.Observation.WantsDetail(tick, p.Id) then
-                                world.Observation.Record(tick, ValueSome(EventCause(MatchEvent.id { Tick = episode.StartedAt; Data = EventData.CollectiveAttack(side, episode.Id, Started episode.Pattern) })), AttackCooperation(p.Id, episode.Id, target.Slot, bias)) |> ignore
-                            utility + ctx.Config.ExpectedValue.StyleValue * bias, code, receiver
-                        else utility, code, receiver)
-            | _ -> options
+            if episode.Owner = p.Id then
+                let key = CollectiveAttackState.key episode.Context episode.Pattern
+                let estimate = team.Attack.Estimates |> Map.tryFind key
+                let mean = estimate |> Option.map FootballEngine.Domain.AttackEstimate.mean |> Option.defaultValue 0.0
+                let confidence = MatchMath.clamp01 ((1.0 + mean) / 2.0)
+                let bias = ctx.Config.CollectiveAttack.CooperationWeight * confidence * cognitive * float frame.Condition[slot] * float p.Teamwork / 100.0
 
-        let chainState = Planner.project ctx world side slot
-        let plannerOpts = options |> Array.map (fun (u, code, tgt) -> (code, int tgt, u))
+                // Bias only the existing, interceptor-filtered option; collective intent never creates an action.
+                for index in 0 .. options.Count - 1 do
+                    if options.Code[index] = 1 && options.Target[index] = target.Slot then
+                        if world.Observation.WantsDetail(tick, p.Id) then
+                            world.Observation.Record(tick, ValueSome(EventCause(MatchEvent.id { Tick = episode.StartedAt; Data = EventData.CollectiveAttack(side, episode.Id, Started episode.Pattern) })), AttackCooperation(p.Id, episode.Id, target.Slot, bias)) |> ignore
 
-        let pparams =
-            PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball
+                        options.Utility[index] <- options.Utility[index] + ctx.Config.ExpectedValue.StyleValue * bias
+        | _ -> ()
 
-        let found = ref [||]
+        plan.Cognitive <- cognitive
+        plan.Pressure <- pressure
+        Planner.projectInto plan.Root ctx world side slot
 
-        let search () =
-            found.Value <- Planner.search ctx.Config.Planner ctx.Config.ExpectedValue pparams chainState plannerOpts
+    let internal decisionInputs (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) (tick: int<subtick>) : DecisionInputs =
+        let plan = PlanSlot()
+        fillPlan ctx world side slot tick plan
+        let options = plan.Options
 
-        // Chooses from the search when it is due: the world and tick are those of that moment, everything else
-        // was settled when the decision began.
-        let finish (world: World) (tick: int<subtick>) (rng: Rng) : Rng =
-            let chainEvals = found.Value
-            let d, rng' = Rng.double rng
+        { Plan = plan
+          Chain = Planner.project ctx world side slot
+          PlannerOptions = Array.init options.Count (fun i -> options.Code[i], options.Target[i], options.Utility[i])
+          Intercept = PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball }
 
-            let chosen, targetSlot, chosenEvaluationIndex =
-                match options with
-                | [||] -> 3, -1.0, -1
-                | _ ->
-                    // R5 — a cognitively tired carrier decides with a hotter (more
-                    // random, less discerning) softmax.
-                    let effTemp = effectiveTemperature ctx.Config cognitive
+    /// Chooses from the search when it is due: the world and tick are those of that moment; the options, result,
+    /// cognition and pressure were settled when the decision began, and only the observation reads the frame live.
+    let private finish (ctx: MatchContext) (plan: PlanSlot) (world: World) (tick: int<subtick>) (rng: Rng) : Rng =
+        let side = plan.Side
+        let slot = plan.Slot
+        let frame = (MatchWorld.team world side).Frame
+        let cognitive = plan.Cognitive
+        let options = plan.Options
+        let result = plan.Result
+        let evaluations = result.Count
+        let d, rng' = Rng.double rng
 
-                    let mutable sum = 0.0
-                    let maximum =
-                        if chainEvals.Length > 0 then chainEvals |> Array.maxBy _.Value |> _.Value
-                        else options |> Array.maxBy (fun (utility, _, _) -> utility) |> fun (utility, _, _) -> utility
+        let mutable chosen = 3
+        let mutable targetSlot = -1
+        let mutable chosenEvaluationIndex = -1
 
-                    if chainEvals.Length > 0 then
-                        for index = 0 to chainEvals.Length - 1 do
-                            sum <- sum + exp ((chainEvals.[index].Value - maximum) / effTemp)
-                    else
-                        for index = 0 to options.Length - 1 do
-                            let utility, _, _ = options.[index]
-                            sum <- sum + exp ((utility - maximum) / effTemp)
+        if options.Count > 0 then
+            // R5 — a cognitively tired carrier decides with a hotter (more
+            // random, less discerning) softmax.
+            let effTemp = effectiveTemperature ctx.Config cognitive
+            let mutable maximum = result.Value[0]
 
-                    let mutable acc = 0.0
-                    let mutable picked = 3
-                    let mutable pickedTarget = -1.0
-                    let mutable pickedEvaluationIndex = -1
-                    let mutable found = false
-                    let mutable idx = 0
+            for index in 1 .. evaluations - 1 do
+                if result.Value[index] > maximum then
+                    maximum <- result.Value[index]
 
-                    if chainEvals.Length > 0 then
-                        while not found && idx < chainEvals.Length do
-                            let e = chainEvals[idx]
-                            acc <- acc + exp ((e.Value - maximum) / effTemp) / sum
+            let mutable sum = 0.0
 
-                            if d <= acc then
-                                picked <- e.ActionCode
-                                pickedTarget <- float e.TargetSlot
-                                pickedEvaluationIndex <- idx
-                                found <- true
+            for index = 0 to evaluations - 1 do
+                sum <- sum + exp ((result.Value[index] - maximum) / effTemp)
 
-                            idx <- idx + 1
-                    else
-                        while not found && idx < options.Length do
-                            let (u, code, tgt) = options[idx]
-                            acc <- acc + exp ((u - maximum) / effTemp) / sum
+            let mutable acc = 0.0
+            let mutable found = false
+            let mutable idx = 0
 
-                            if d <= acc then
-                                picked <- code
-                                pickedTarget <- tgt
-                                found <- true
+            while not found && idx < evaluations do
+                acc <- acc + exp ((result.Value[idx] - maximum) / effTemp) / sum
 
-                            idx <- idx + 1
+                if d <= acc then
+                    chosen <- result.ActionCode[idx]
+                    targetSlot <- result.TargetSlot[idx]
+                    chosenEvaluationIndex <- idx
+                    found <- true
 
-                    if not found then
-                        if chainEvals.Length > 0 then
-                            let last = chainEvals[chainEvals.Length - 1]
-                            picked <- last.ActionCode
-                            pickedTarget <- float last.TargetSlot
-                            pickedEvaluationIndex <- chainEvals.Length - 1
-                        else
-                            let (_, code, tgt) = options[options.Length - 1]
-                            picked <- code
-                            pickedTarget <- tgt
+                idx <- idx + 1
 
-                    picked, pickedTarget, pickedEvaluationIndex
+            // Rounding can leave the cumulative sum a hair under 1: the last option takes the remainder.
+            if not found then
+                chosen <- result.ActionCode[evaluations - 1]
+                targetSlot <- result.TargetSlot[evaluations - 1]
+                chosenEvaluationIndex <- evaluations - 1
 
-            let choice =
-                match chosen with
-                | 1 -> DeliverPass(int targetSlot)
-                | 2 -> TakeShot
-                | 3 -> ContestDuel
-                | 4 -> ClearBall
-                | _ -> DeliverCross
+        let choice =
+            match chosen with
+            | 1 -> DeliverPass targetSlot
+            | 2 -> TakeShot
+            | 3 -> ContestDuel
+            | 4 -> ClearBall
+            | _ -> DeliverCross
 
-            (MatchWorld.team world side).Proposals[ slot ] <-
-                { Choice = choice
-                  DecidedAt = tick
-                  ExpiresAt = tick + ctx.Config.Movement.CommittedRunDuration }
+        (MatchWorld.team world side).Proposals[ slot ] <-
+            { Choice = choice
+              DecidedAt = tick
+              ExpiresAt = tick + ctx.Config.Movement.CommittedRunDuration }
 
-            if world.Observation.Enabled then
-                let chosenValue =
-                    if chosenEvaluationIndex >= 0 then
-                        chainEvals[chosenEvaluationIndex].Value
-                    else
-                        options
-                        |> Array.tryPick (fun (value, code, target) ->
-                            if code = chosen && target = targetSlot then
-                                Some value
-                            else
-                                None)
-                        |> Option.defaultValue 0.0
+        if world.Observation.Enabled then
+            let chosenValue =
+                if chosenEvaluationIndex >= 0 then result.Value[chosenEvaluationIndex] else 0.0
 
-                world.Observation.Decision(
-                    tick,
-                    { Actor = p.Id
-                      ActionCode = chosen
-                      TargetSlot = int targetSlot
-                      Condition = frame.Condition[slot]
-                      Cognitive = frame.Cognitive[slot]
-                      Pressure = pressure
-                      OptionCount = options.Length
-                      ChosenValue = chosenValue
-                      Temperature = effectiveTemperature ctx.Config cognitive
-                      Sample = d }
-                )
+            world.Observation.Decision(
+                tick,
+                { Actor = plan.Actor
+                  ActionCode = chosen
+                  TargetSlot = targetSlot
+                  Condition = frame.Condition[slot]
+                  Cognitive = frame.Cognitive[slot]
+                  Pressure = plan.Pressure
+                  OptionCount = options.Count
+                  ChosenValue = chosenValue
+                  Temperature = effectiveTemperature ctx.Config cognitive
+                  Sample = d }
+            )
 
-                if world.Observation.WantsDetail(tick, p.Id) then
-                    let alternatives =
-                        if chainEvals.Length > 0 then
-                            chainEvals
-                            |> Array.map (fun evaluation ->
-                                { ActionCode = evaluation.ActionCode
-                                  TargetSlot = evaluation.TargetSlot
-                                  Value = evaluation.Value })
-                        else
-                            options
-                            |> Array.map (fun (value, code, target) ->
-                                { ActionCode = code
-                                  TargetSlot = int target
-                                  Value = value })
+            if world.Observation.WantsDetail(tick, plan.Actor) then
+                let alternatives =
+                    Array.init evaluations (fun index ->
+                        { ActionCode = result.ActionCode[index]
+                          TargetSlot = result.TargetSlot[index]
+                          Value = result.Value[index] })
 
-                    world.Observation.Alternatives(tick, p.Id, alternatives)
+                world.Observation.Alternatives(tick, plan.Actor, alternatives)
 
-            rng'
+        rng'
 
-        { PlanDue = tick + ctx.Config.Planner.DeliberationTime
-          PlanSide = side
-          PlanSlot = slot
-          PlanActor = p.Id
-          PlanSearch = search
-          PlanFinish = finish }
+    /// The search over a slot, built once per match and handed to the planner's thread each decision.
+    let private searchFor (ctx: MatchContext) (plan: PlanSlot) : unit -> unit =
+        let pparams = PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball
+        fun () -> Planner.searchInto ctx.Config pparams plan
 
     let choose (ctx: MatchContext) (world: World) (side: ClubSide) (slot: int) (tick: int<subtick>) (rng: Rng) : Rng =
-        let plan = prepare ctx world side slot tick
-        plan.PlanSearch()
-        plan.PlanFinish world tick rng
+        let plan = world.Cognition.Plan
+        fillPlan ctx world side slot tick plan
+        plan.Side <- side
+        plan.Slot <- slot
+        plan.Actor <- (MatchWorld.profileOf ctx side slot).Id
+        Planner.searchInto ctx.Config (PassIntercept.passParams ctx.Config.Intercept ctx.Config.Movement ctx.Config.Ball) plan
+        finish ctx plan world tick rng
 
     let step: SystemStep =
         fun ctx rng world _ ->
             let tick = world.State.Tick
+            let plan = world.Cognition.Plan
 
-            match world.Cognition.Plan, world.State.Ball.PendingStrike, MatchWorld.ballCarrier ctx.Ctx world with
-            | ValueNone, None, Some(side, slot, _) when (MatchWorld.profileOf ctx.Ctx side slot).Role <> SlotRole.Goalkeeper ->
+            match plan.Active, world.State.Ball.PendingStrike, MatchWorld.ballCarrier ctx.Ctx world with
+            | false, None, ValueSome(struct (side, slot, _)) when (MatchWorld.profileOf ctx.Ctx side slot).Role <> SlotRole.Goalkeeper ->
                 if ctx.Ctx.Config.Planner.DeliberationTime = 0<subtick> then
                     choose ctx.Ctx world side slot tick rng
                 else
-                    let plan = prepare ctx.Ctx world side slot tick
-                    world.Cognition.Plan <- ValueSome plan
+                    fillPlan ctx.Ctx world side slot tick plan
+                    plan.Due <- tick + ctx.Ctx.Config.Planner.DeliberationTime
+                    plan.Side <- side
+                    plan.Slot <- slot
+                    plan.Actor <- (MatchWorld.profileOf ctx.Ctx side slot).Id
+                    plan.Active <- true
+
+                    let search =
+                        match plan.Search with
+                        | ValueSome search -> search
+                        | ValueNone ->
+                            let search = searchFor ctx.Ctx plan
+                            plan.Search <- ValueSome search
+                            search
 
                     match world.Cognition.Planner with
-                    | ValueSome planner -> planner.Start plan.PlanSearch
-                    | ValueNone -> plan.PlanSearch()
+                    | ValueSome planner -> planner.Start search
+                    | ValueNone -> search ()
 
                     rng
             | _ -> rng
@@ -464,19 +463,20 @@ module PlayerDecision =
     let deliberate: SystemStep =
         fun ctx rng world _ ->
             let tick = world.State.Tick
+            let plan = world.Cognition.Plan
 
-            match world.Cognition.Plan with
-            | ValueSome plan when tick >= plan.PlanDue ->
-                world.Cognition.Plan <- ValueNone
+            if plan.Active && tick >= plan.Due then
+                plan.Active <- false
                 world.Cognition.Planner |> ValueOption.iter _.Join()
 
                 match world.State.Flow, world.State.Ball.PendingStrike, MatchWorld.ballCarrier ctx.Ctx world with
-                | MatchFlow.Live, None, Some(side, slot, carrier) when
-                    side = plan.PlanSide && slot = plan.PlanSlot && carrier = plan.PlanActor
+                | MatchFlow.Live, None, ValueSome(struct (side, slot, carrier)) when
+                    side = plan.Side && slot = plan.Slot && carrier = plan.Actor
                     ->
-                    plan.PlanFinish world tick rng
+                    finish ctx.Ctx plan world tick rng
                 | _ -> rng
-            | _ -> rng
+            else
+                rng
 
     /// A carrier the body has no action for, closed down within reach, decides at once instead of waiting for
     /// the decision cadence. It reads the body's pending actions as the latch left them, never live.
@@ -485,7 +485,7 @@ module PlayerDecision =
             let tick = world.State.Tick
 
             match world.State.Ball.PendingStrike, MatchWorld.ballCarrier ctx.Ctx world with
-            | None, Some(side, slot, _) when slot <> 0 && world.Cognition.Plan.IsNone ->
+            | None, ValueSome(struct (side, slot, _)) when slot <> 0 && not world.Cognition.Plan.Active ->
                 let team = MatchWorld.team world side
                 let frame = team.Frame
                 let idle = team.Latched.PendingSlots &&& (1UL <<< slot) = 0UL && not (team.Proposals.ContainsKey slot)

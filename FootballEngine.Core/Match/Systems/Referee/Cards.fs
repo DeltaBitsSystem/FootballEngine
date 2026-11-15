@@ -14,12 +14,12 @@ module RefereeCards =
         : unit =
         match ev.Data with
         | EventData.Card(pid, color) ->
-            match MatchWorld.teamOfPlayer ctx.Ctx pid with
-            | None -> ()
-            | Some side ->
+            match MatchWorld.sideOfPlayer ctx.Ctx pid with
+            | ValueNone -> ()
+            | ValueSome side ->
                 match MatchWorld.slotOf ctx.Ctx side pid with
-                | None -> ()
-                | Some slot ->
+                | ValueNone -> ()
+                | ValueSome slot ->
                     let team = MatchWorld.team world side
 
                     match color with

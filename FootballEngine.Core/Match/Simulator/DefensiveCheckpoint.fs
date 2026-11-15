@@ -15,6 +15,16 @@ module DefensiveCheckpoint =
             write value
         | None -> writer.Write false
 
+    let private writeValueOption (writer: BinaryWriter) write =
+        function
+        | ValueSome value ->
+            writer.Write true
+            write value
+        | ValueNone -> writer.Write false
+
+    let private readValueOption (reader: BinaryReader) read =
+        if reader.ReadBoolean() then ValueSome(read ()) else ValueNone
+
     let private readOption (reader: BinaryReader) read =
         if reader.ReadBoolean() then Some(read ()) else None
 
@@ -89,12 +99,12 @@ module DefensiveCheckpoint =
         w.Write state.Tasks.Length
 
         for task in state.Tasks do
-            writeOption
+            writeValueOption
                 w
                 (fun (task: DefensiveTask) ->
                     writeTag w task.Role
                     point task.Target
-                    writeOption w (fun (PlayerId id) -> w.Write id) task.Opponent)
+                    writeValueOption w (fun (PlayerId id) -> w.Write id) task.Opponent)
                 task
 
     let read (r: BinaryReader) =
@@ -131,10 +141,10 @@ module DefensiveCheckpoint =
 
         let tasks =
             Array.init count (fun _ ->
-                readOption r (fun () ->
+                readValueOption r (fun () ->
                     { Role = readTag r
                       Target = point ()
-                      Opponent = readOption r (fun () -> PlayerId(r.ReadInt32())) }))
+                      Opponent = readValueOption r (fun () -> PlayerId(r.ReadInt32())) }))
 
         { Episode = episode
           ControlChangedAt = changed

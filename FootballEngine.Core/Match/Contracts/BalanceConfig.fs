@@ -619,7 +619,11 @@ type PositioningConfig =
 [<Struct>]
 type InterceptConfig =
     { ControlRadius: float<meter>
-      MaxSteps: int }
+      MaxSteps: int
+      /// Launch-speed grid step of the tabulated rolling ball used by races.
+      RollTableResolution: float<meterPerSecond>
+      /// Fastest launch speed the tabulated roll covers; faster balls are rolled step by step.
+      RollTableMaxSpeed: float<meterPerSecond> }
 
 /// HELIOS updateSituation: the intercept-step lead that commits the team to a
 /// phase.
@@ -1184,7 +1188,12 @@ module BalanceConfig =
 
     let defaultIntercept: InterceptConfig =
         { ControlRadius = 2.5<meter>
-          MaxSteps = 50 }
+          MaxSteps = 50
+          // Linear interpolation in launch speed over the smooth roll curve errs ~6e-7 m at 0.01 m/s, far below
+          // the 2.5 m control radius, and the table stays ~2 MB.
+          RollTableResolution = 0.01<meterPerSecond>
+          // Covers realistic ground launches; a faster ball is stepped exactly, so the cap costs speed, never correctness.
+          RollTableMaxSpeed = 45.0<meterPerSecond> }
 
     let defaultSituation: SituationConfig = { LeadSteps = 2 }
 

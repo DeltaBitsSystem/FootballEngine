@@ -49,11 +49,11 @@ module RefereeFouls =
         match ev.Data with
         | EventData.Foul(fouler, fouled, severity, preCard, (fx, fy)) ->
             let cfg = ctx.Ctx.Config
-            let side = MatchWorld.teamOfPlayer ctx.Ctx fouler
+            let side = MatchWorld.sideOfPlayer ctx.Ctx fouler
 
             let lastMan =
                 match side with
-                | Some s ->
+                | ValueSome s ->
                     let oppGoal = MatchMath.goalX s
                     let fx = float fx
                     let isNearGoal = abs (fx - float oppGoal) < 30.0
@@ -77,7 +77,7 @@ module RefereeFouls =
                         && MatchWorld.opponentsNear ctx.Ctx world s (fx * 1.0<meter>) fy 25.0 >= 2
                     else
                         false
-                | None -> false
+                | ValueNone -> false
 
             let referee = cfg.Referee
 
@@ -94,11 +94,11 @@ module RefereeFouls =
 
             let alreadyBooked =
                 match side with
-                | Some s ->
+                | ValueSome s ->
                     match MatchWorld.slotOf ctx.Ctx s fouler with
-                    | Some slot -> (MatchWorld.team world s).Memory.[slot].Yellows >= 1
-                    | None -> false
-                | None -> false
+                    | ValueSome slot -> (MatchWorld.team world s).Memory.[slot].Yellows >= 1
+                    | ValueNone -> false
+                | ValueNone -> false
 
             // Referees are reluctant to send a player off for a second caution: careless fouls by a booked player are
             // let go almost always, and a reckless one only gets the benefit of the doubt when it is borderline.
@@ -138,7 +138,7 @@ module RefereeFouls =
         match ev.Data with
         | EventData.Foul(fouler, fouled, severity, _, (fx, fy)) ->
             let fouledSide =
-                MatchWorld.teamOfPlayer ctx.Ctx fouled |> Option.defaultValue ClubSide.Home
+                MatchWorld.sideOfPlayer ctx.Ctx fouled |> ValueOption.defaultValue ClubSide.Home
 
             let inBox = isFoulInBox fouledSide fx fy
             let advantage = shouldPlayAdvantage ctx.Ctx world fouledSide fx fy

@@ -80,7 +80,7 @@ module QuickFit =
                 goals <- goals + 1
                 // An own goal's scorer is a defender of the other side; the quick model leaves own goals out.
                 scorer
-                |> Option.filter (fun p -> MatchWorld.teamOfPlayer ctx p = Some side)
+                |> Option.filter (fun p -> MatchWorld.sideOfPlayer ctx p = ValueSome side)
                 |> Option.bind (roleOf ctx)
                 |> Option.iter roles.Add
 
@@ -386,7 +386,7 @@ module QuickFit =
             |> Array.Parallel.map (fun ((ctx, _), seed) ->
                 let ctx = { ctx with HomeLineup = shift h ctx.HomeLineup; AwayLineup = shift a ctx.AwayLineup }
                 let outcome = SimulatorRunner.runContext ctx seed
-                let shots side = outcome.Events |> List.filter (fun e -> match e.Data with EventData.Shot(p, _, _, _, _, _) -> MatchWorld.teamOfPlayer ctx p = Some side | _ -> false) |> List.length
+                let shots side = outcome.Events |> List.filter (fun e -> match e.Data with EventData.Shot(p, _, _, _, _, _) -> MatchWorld.sideOfPlayer ctx p = ValueSome side | _ -> false) |> List.length
                 float outcome.Final.State.HomeScore, float outcome.Final.State.AwayScore, float (shots ClubSide.Home), float (shots ClubSide.Away))
 
         for h, a in [ delta, -delta; 0.0f, 0.0f; -delta, delta ] do
@@ -412,7 +412,7 @@ module QuickFit =
                     let lift d (l: Lineup) = { l with Profiles = l.Profiles |> Array.map (f d) }
                     let ctx = { ctx with HomeLineup = lift delta ctx.HomeLineup; AwayLineup = lift -delta ctx.AwayLineup }
                     let outcome = SimulatorRunner.runContext ctx seed
-                    let isHome p = MatchWorld.teamOfPlayer ctx p = Some ClubSide.Home
+                    let isHome p = MatchWorld.sideOfPlayer ctx p = ValueSome ClubSide.Home
                     // Per side: shots, passes, completed passes, passes intercepted, passes from the own third.
                     let c = Array2D.zeroCreate<float> 2 5
                     let bump p k = let i = if isHome p then 0 else 1 in c[i, k] <- c[i, k] + 1.0
@@ -482,7 +482,7 @@ module QuickFit =
                 |> Array.Parallel.map (fun ((ctx, _), seed) ->
                     let ctx = { ctx with HomeLineup = lift delta ctx.HomeLineup; AwayLineup = lift -delta ctx.AwayLineup }
                     let o = SimulatorRunner.runContext ctx seed
-                    let passes side = o.Events |> List.filter (fun e -> match e.Data with EventData.Pass(p, _, _, _, _, _, _, _, _) -> MatchWorld.teamOfPlayer ctx p = Some side | _ -> false) |> List.length
+                    let passes side = o.Events |> List.filter (fun e -> match e.Data with EventData.Pass(p, _, _, _, _, _, _, _, _) -> MatchWorld.sideOfPlayer ctx p = ValueSome side | _ -> false) |> List.length
                     float o.Final.State.HomeScore, float o.Final.State.AwayScore, float (passes ClubSide.Home), float (passes ClubSide.Away))
 
             let mean f = r |> Array.averageBy f
@@ -531,7 +531,7 @@ module QuickFit =
                         holder <- Some side
                     | EventData.Possession(side, _) -> holder <- Some side
                     | EventData.Shot(p, _, _, _, _, _) ->
-                        let i = if MatchWorld.teamOfPlayer ctx p = Some ClubSide.Home then 0 else 1
+                        let i = if MatchWorld.sideOfPlayer ctx p = ValueSome ClubSide.Home then 0 else 1
                         local[i, 3] <- local[i, 3] + 1.0
                         if int e.Tick - wonAt[i] < 10 * int SimulationClock.minuteSubticks / 60 then local[i, 4] <- local[i, 4] + 1.0
                     | _ -> ())
@@ -583,15 +583,15 @@ module QuickFit =
                         last <- "carry"
                     | EventData.Possession _ -> last <- "carry"
                     | EventData.Foul(fouler, _, severity, _, (fx, _)) ->
-                        match MatchWorld.teamOfPlayer ctx fouler with
-                        | Some fs ->
+                        match MatchWorld.sideOfPlayer ctx fouler with
+                        | ValueSome fs ->
                             let f = (MatchWorld.team world fs).Frame
-                            let slot = MatchWorld.slotOf ctx fs fouler |> Option.defaultValue 0
+                            let slot = MatchWorld.slotOf ctx fs fouler |> ValueOption.defaultValue 0
                             let third =
                                 let depth = float fx * MatchMath.goalDirection fs
                                 if depth < -17.5 then "own" elif depth < 17.5 then "mid" else "final"
                             add $"foul {severity} by {f.DefensiveRoles[slot]}/intent {f.SteerIntent.Kind[slot]} in {third}"
-                        | None -> ()
+                        | ValueNone -> ()
                     | EventData.Pass _ -> last <- "pass"
                     | EventData.Shot _ -> last <- "shot"
                     | EventData.CrossAttempt _ -> last <- "cross"

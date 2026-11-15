@@ -8,6 +8,9 @@ type AttackDuty =
       Slot: int
       Target: Vec2 }
 
+/// The fields rewritten on every tick the episode lives are mutable: the team attack system owns the episode and
+/// updates it in place instead of copying the record each tick. Anything that must outlive a change copies it
+/// (see `snapshot`).
 type AttackEpisode =
     { Id: uint64
       Pattern: AttackPattern
@@ -17,20 +20,20 @@ type AttackEpisode =
       Stage: AttackStage
       Carrier: PlayerId
       Owner: PlayerId
-      Link: AttackDuty
-      Runner: AttackDuty
-      Security: AttackDuty
+      mutable Link: AttackDuty
+      mutable Runner: AttackDuty
+      mutable Security: AttackDuty
       Origin: Vec2
       BaselineSpace: float
       Connections: int
       LastFact: EventId option
       Threat: float
-      OwnedPoint: Vec2
-      OwnedSpace: float
-      OwnedExposure: float
+      mutable OwnedPoint: Vec2
+      mutable OwnedSpace: float
+      mutable OwnedExposure: float
       FactTick: int<subtick>
       Tactics: TacticsConfig
-      BlockedSince: int<subtick> option }
+      mutable BlockedSince: int<subtick> option }
 
 type CollectiveAttackState =
     { mutable Episode: AttackEpisode option
@@ -47,7 +50,8 @@ module CollectiveAttackState =
           NextId = 1UL
           AvailableAt = 0<subtick> }
 
-    let snapshot (state: CollectiveAttackState) = { state with Episode = state.Episode }
+    let snapshot (state: CollectiveAttackState) =
+        { state with Episode = state.Episode |> Option.map (fun episode -> { episode with Id = episode.Id }) }
 
     let patternIndex = function ThirdMan -> 0 | AttractSwitch -> 1 | ExploitDepth -> 2 | SecureProgression -> 3
     let key context pattern = context * 4 + patternIndex pattern

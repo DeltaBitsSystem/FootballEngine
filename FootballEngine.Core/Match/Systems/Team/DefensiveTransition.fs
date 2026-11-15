@@ -49,11 +49,12 @@ module TransitionGeometry =
     let arrivalTime ctx frame slot target =
         arrivalTimeFor 1.0 ctx frame slot target
 
-    let restDefenders (world: World) side =
+    let restDefendersV (world: World) side : struct (int * int) =
         let frame = (MatchWorld.team world side).Frame
         let dir = MatchMath.goalDirection side
         let positions = frame.PosX
-        let mutable first, second = -1, -1
+        let mutable first = -1
+        let mutable second = -1
 
         let before slot current =
             current < 0
@@ -68,6 +69,10 @@ module TransitionGeometry =
                 elif before slot second then
                     second <- slot
 
+        struct (first, second)
+
+    let restDefenders (world: World) side =
+        let struct (first, second) = restDefendersV world side
         first, second
 
     let pressPoint (ctx: MatchContext) (world: World) side =
@@ -91,33 +96,49 @@ module TransitionGeometry =
              - MatchMath.goalDirection side * ctx.Config.DefensiveTransition.CoverDepth)
             ball.Y
 
-    let chooseFor effort (ctx: MatchContext) (frame: TeamFrame) target excluded previous margin =
-        let mutable best = None
+    /// `chooseFor` without options or tuples: -1 stands for no slot. Inline so the exclusion test is not a closure
+    /// allocated on every evaluation.
+    let inline chooseSlotFor
+        effort
+        (ctx: MatchContext)
+        (frame: TeamFrame)
+        target
+        ([<InlineIfLambda>] excluded: int -> bool)
+        (previous: int)
+        margin
+        : struct (int * float<second>) =
+        let mutable best = -1
         let mutable time = System.Double.MaxValue * 1.0<second>
 
         for slot in MatchWorld.activeSlots frame do
             if outfielder frame slot && not (excluded slot) then
                 let candidate = arrivalTimeFor effort ctx frame slot target
 
-                if candidate < time || (candidate = time && Some slot < best) then
-                    best <- Some slot
+                if candidate < time || (candidate = time && best >= 0 && slot < best) then
+                    best <- slot
                     time <- candidate
 
-        match previous with
-        | Some slot when
-            outfielder frame slot
-            && not (excluded slot)
-            && arrivalTimeFor effort ctx frame slot target <= time + margin
-            ->
-            Some slot, arrivalTimeFor effort ctx frame slot target
-        | _ -> best, time
+        if previous >= 0 && outfielder frame previous && not (excluded previous) then
+            let held = arrivalTimeFor effort ctx frame previous target
+
+            if held <= time + margin then struct (previous, held) else struct (best, time)
+        else
+            struct (best, time)
+
+    let chooseFor effort (ctx: MatchContext) (frame: TeamFrame) target excluded previous margin =
+        let struct (slot, time) =
+            chooseSlotFor effort ctx frame target excluded (Option.defaultValue -1 previous) margin
+
+        (if slot >= 0 then Some slot else None), time
 
     let choose ctx frame target excluded previous margin =
         chooseFor 1.0 ctx frame target excluded previous margin
 
+/// A struct so the per-cadence verdict allocates nothing; a slot of -1 is no player.
+[<Struct>]
 type TransitionAssessment =
-    { Primary: int option
-      Cover: int option
+    { Primary: int
+      Cover: int
       Arrival: float<second>
       CoverArrival: float<second>
       ArrivalWindow: float<second>
@@ -136,10 +157,11 @@ module TeamTransition =
         let opponent = (MatchWorld.team world (MatchWorld.oppOf side)).Frame
         let dir = MatchMath.goalDirection side
         let ball = world.State.Ball.Position
-        let rest1, rest2 = TransitionGeometry.restDefenders world side
+        let struct (rest1, rest2) = TransitionGeometry.restDefendersV world side
 
-        let primary, arrival =
-            TransitionGeometry.choose
+        let struct (primary, arrival) =
+            TransitionGeometry.chooseSlotFor
+                1.0
                 ctx
                 frame
                 (TransitionGeometry.pressPoint ctx world side)
@@ -148,24 +170,24 @@ module TeamTransition =
                     || slot = rest2
                     || float team.Frame.Condition[slot] < cfg.MinimumPressCondition
                     || float team.Frame.PosX[slot] * dir > float ball.X * dir + float cfg.BeatenMargin)
-                episode.Primary
+                (Option.defaultValue -1 episode.Primary)
                 cfg.HandoffAdvantage
 
         let coverTarget = TransitionGeometry.coverPoint ctx world side
 
-        let cover, coverArrival =
-            TransitionGeometry.chooseFor
+        let struct (cover, coverArrival) =
+            TransitionGeometry.chooseSlotFor
                 cfg.CoverEffort
                 ctx
                 frame
                 coverTarget
                 (fun slot ->
-                    Some slot = primary
+                    slot = primary
                     || slot = rest1
                     || slot = rest2
                     || float team.Frame.PosX[slot] * dir > float ball.X * dir
                     || float team.Frame.Condition[slot] < cfg.MinimumPressCondition)
-                episode.Cover
+                (Option.defaultValue -1 episode.Cover)
                 cfg.HandoffAdvantage
 
         let mutable local, opponents, depth = 0, 0, 0
@@ -211,11 +233,11 @@ module TeamTransition =
                 TacticalRestraint
             elif depth > 0 || rest2 < 0 || (nearGoal && coverArrival > arrival) then
                 DepthThreat
-            elif primary.IsNone || arrival > window then
+            elif primary < 0 || arrival > window then
                 ArrivalTooLate
             elif local < cfg.MinimumLocalPlayers || local < opponents + cfg.LocalSurplus then
                 Outnumbered
-            elif cover.IsNone || coverArrival > cfg.CoverArrivalWindow then
+            elif cover < 0 || coverArrival > cfg.CoverArrivalWindow then
                 MissingCover
             else
                 LocalAdvantage
@@ -238,6 +260,35 @@ module TeamTransition =
 
         world.Observation.Associate(ev, cause)
         buffer.Events.Add ev
+
+    /// Every outfielder is behind the ball and standing on his retreat task. A loop keeps the tick's allocation
+    /// flat; the short-circuit order is the one `Array.forall` had.
+    let private allSettled (team: TeamWorld) side (ball: Spatial) tolerance =
+        let frame = team.Frame
+        let dir = MatchMath.goalDirection side
+        let slots = MatchWorld.activeSlots frame
+        let mutable settled = true
+        let mutable index = 0
+
+        while settled && index < slots.Length do
+            let slot = slots[index]
+
+            if TransitionGeometry.outfielder frame slot then
+                match team.Defense.Tasks[slot] with
+                | ValueSome task ->
+                    settled <-
+                        float frame.PosX[slot] * dir <= float ball.X * dir
+                        && MatchMath.dist
+                            (MatchWorld.posX frame slot)
+                            (MatchWorld.posY frame slot)
+                            task.Target.X
+                            task.Target.Y
+                           <= float tolerance
+                | ValueNone -> settled <- false
+
+            index <- index + 1
+
+        settled
 
     let private update (ctx: MatchContext) (world: World) buffer side =
         let team = MatchWorld.team world side
@@ -279,11 +330,12 @@ module TeamTransition =
                     * MatchMath.goalDirection side
 
                 let firstBeaten =
-                    episode.Primary
-                    |> Option.exists (fun slot ->
+                    match episode.Primary with
+                    | Some slot ->
                         float team.Frame.PosX[slot] * MatchMath.goalDirection side > float world.State.Ball.Position.X
                                                                                      * MatchMath.goalDirection side
-                                                                                     + float cfg.BeatenMargin)
+                                                                                     + float cfg.BeatenMargin
+                    | None -> false
 
                 let broken =
                     progression > float cfg.EscapeProgress || (firstBeaten && not assessment.Viable)
@@ -292,36 +344,35 @@ module TeamTransition =
 
                 let forced =
                     broken
-                    || assessment.Primary.IsNone
-                    || assessment.Cover.IsNone
+                    || assessment.Primary < 0
+                    || assessment.Cover < 0
                     || assessment.Reason = DepthThreat
                     || assessment.Reason = MissingCover
                     || episode.Tactics <> team.Tactics
                     || episode.ParticipationRevision <> team.Frame.ActiveCache.Revision
 
-                let mode, reason =
+                let struct (mode, reason) =
                     if episode.Mode = Retreat then
-                        Retreat, episode.Reason
+                        struct (Retreat, episode.Reason)
                     elif broken then
-                        Retreat, PressureBroken
+                        struct (Retreat, PressureBroken)
                     elif elapsed then
-                        Retreat, PressWindowElapsed
+                        struct (Retreat, PressWindowElapsed)
                     elif episode.Mode = Assessing || forced || tick >= episode.CommitUntil then
-                        (if assessment.Viable then Counterpress else Retreat), assessment.Reason
+                        struct ((if assessment.Viable then Counterpress else Retreat), assessment.Reason)
                     else
-                        episode.Mode, episode.Reason
+                        struct (episode.Mode, episode.Reason)
 
-                let primary, cover =
-                    if mode = Counterpress then
-                        assessment.Primary, assessment.Cover
-                    else
-                        None, None
+                let primary = if mode = Counterpress then assessment.Primary else -1
+                let cover = if mode = Counterpress then assessment.Cover else -1
+                let slotOfOption (slot: int option) = match slot with Some slot -> slot | None -> -1
+                let primaryChanged = primary <> slotOfOption episode.Primary
+                let coverChanged = cover <> slotOfOption episode.Cover
 
-                let changed =
-                    mode <> episode.Mode || primary <> episode.Primary || cover <> episode.Cover
+                let changed = mode <> episode.Mode || primaryChanged || coverChanged
 
                 let player slot =
-                    slot |> Option.map (fun slot -> team.RosterIds[slot])
+                    if slot >= 0 then Some team.RosterIds[slot] else None
 
                 let cause =
                     if changed && world.Observation.Enabled then
@@ -350,33 +401,20 @@ module TeamTransition =
                 if mode <> episode.Mode then
                     emit world buffer side episode (ModeSelected(mode, reason)) cause
 
-                if primary <> episode.Primary || cover <> episode.Cover then
+                if primaryChanged || coverChanged then
                     emit world buffer side episode (Handoff(player primary, player cover)) cause
 
                 let settled =
                     episode.Mode = Retreat
                     && mode = Retreat
                     && assessment.DepthRunners = 0
-                    && (MatchWorld.activeSlots team.Frame
-                        |> Array.forall (fun slot ->
-                            if not (TransitionGeometry.outfielder team.Frame slot) then
-                                true
-                            else
-                                match team.Defense.Tasks[slot] with
-                                | Some task ->
-                                    float team.Frame.PosX[slot] * MatchMath.goalDirection side
-                                    <= float world.State.Ball.Position.X * MatchMath.goalDirection side
-                                    && MatchMath.dist
-                                        (MatchWorld.posX team.Frame slot)
-                                        (MatchWorld.posY team.Frame slot)
-                                        task.Target.X
-                                        task.Target.Y
-                                       <= float cfg.SettledTolerance
-                                | None -> false))
+                    && allSettled team side world.State.Ball.Position cfg.SettledTolerance
 
                 let stabilizing =
                     if settled then
-                        episode.StabilizingSince |> Option.orElse (Some tick)
+                        match episode.StabilizingSince with
+                        | Some _ as since -> since
+                        | None -> Some tick
                     else
                         None
 
@@ -389,27 +427,25 @@ module TeamTransition =
                     elif reason = PressWindowElapsed then Retreated
                     else Stabilized
 
-                let next =
-                    { episode with
-                        Mode = mode
-                        Reason = reason
-                        Primary = primary
-                        Cover = cover
-                        ModeSince = if mode <> episode.Mode then tick else episode.ModeSince
-                        CommitUntil =
-                            if mode <> episode.Mode then
-                                tick + cfg.Commitment
-                            else
-                                episode.CommitUntil
-                        EvaluatedAt = tick
-                        Tactics = team.Tactics
-                        ParticipationRevision = team.Frame.ActiveCache.Revision
-                        StabilizingSince = stabilizing }
+                // The episode is owned by this system, so each reassessment updates it in place; copying the record
+                // every cadence was the largest steady allocation of the team layer.
+                if mode <> episode.Mode then
+                    episode.ModeSince <- tick
+                    episode.CommitUntil <- tick + cfg.Commitment
+
+                episode.Mode <- mode
+                episode.Reason <- reason
+                if primaryChanged then episode.Primary <- (if primary >= 0 then Some primary else None)
+                if coverChanged then episode.Cover <- (if cover >= 0 then Some cover else None)
+                episode.EvaluatedAt <- tick
+                episode.Tactics <- team.Tactics
+                episode.ParticipationRevision <- team.Frame.ActiveCache.Revision
+                episode.StabilizingSince <- stabilizing
 
                 if finished then
                     team.Defense.Episode <-
                         Some
-                            { next with
+                            { episode with
                                 EndedAt = Some tick
                                 Outcome = Some outcome }
 
@@ -426,11 +462,9 @@ module TeamTransition =
                         world
                         buffer
                         side
-                        next
+                        episode
                         (Finished outcome)
                         (evidence |> ValueOption.map ResolutionCause |> ValueOption.defaultValue cause)
-                else
-                    team.Defense.Episode <- Some next
         | _ -> ()
 
     let step: SystemStep =

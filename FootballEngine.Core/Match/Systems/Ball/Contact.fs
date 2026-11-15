@@ -117,16 +117,16 @@ module BallContact =
         (rx: float<meter>)
         (ry: float<meter>)
         : float<meter> * float<meter> * float<meter> =
-        match MatchWorld.teamOfPlayer ctx passer with
-        | Some pSide ->
+        match MatchWorld.sideOfPlayer ctx passer with
+        | ValueSome pSide ->
             match MatchWorld.slotOf ctx pSide passer with
-            | Some pSlot ->
+            | ValueSome pSlot ->
                 let f = (MatchWorld.team world pSide).Frame
                 let px = MatchWorld.posX f pSlot
                 let py = MatchWorld.posY f pSlot
                 px, py, MatchMath.dist px py rx ry * 1.0<meter>
-            | None -> 10.0<meter>, 10.0<meter>, 10.0<meter>
-        | None -> 10.0<meter>, 10.0<meter>, 10.0<meter>
+            | ValueNone -> 10.0<meter>, 10.0<meter>, 10.0<meter>
+        | ValueNone -> 10.0<meter>, 10.0<meter>, 10.0<meter>
 
     let resolve (ctx: SystemContext) (rng: Rng) (world: World) (tick: int<subtick>) (buffer: EventBuffer) : Rng =
         let ball = world.State.Ball
@@ -170,14 +170,14 @@ module BallContact =
             let completed =
                 controlled
                 && (record.Actor = receiver
-                    || (MatchWorld.teamOfPlayer ctx.Ctx record.Actor).IsSome
-                       && MatchWorld.teamOfPlayer ctx.Ctx record.Actor = MatchWorld.teamOfPlayer ctx.Ctx passer)
+                    || (MatchWorld.sideOfPlayer ctx.Ctx record.Actor).IsSome
+                       && MatchWorld.sideOfPlayer ctx.Ctx record.Actor = MatchWorld.sideOfPlayer ctx.Ctx passer)
             let firstEvent = buffer.Events.Count
 
             emit (EventData.Pass(passer, Some receiver, distance, quality, completed, origin.X, origin.Y, ball.Position.X, ball.Position.Y))
 
-            match MatchWorld.teamOfPlayer ctx.Ctx record.Actor, MatchWorld.teamOfPlayer ctx.Ctx passer with
-            | Some actorSide, Some passerSide when actorSide <> passerSide && controlled ->
+            match MatchWorld.sideOfPlayer ctx.Ctx record.Actor, MatchWorld.sideOfPlayer ctx.Ctx passer with
+            | ValueSome actorSide, ValueSome passerSide when actorSide <> passerSide && controlled ->
                 emit (EventData.Interception(record.Actor, passer))
             | _ -> ()
 
@@ -197,11 +197,11 @@ module BallContact =
                 && record.ControlAfter.Player = Some record.Actor
 
             let keeper =
-                match MatchWorld.teamOfPlayer ctx.Ctx record.Actor with
-                | Some side ->
+                match MatchWorld.sideOfPlayer ctx.Ctx record.Actor with
+                | ValueSome side ->
                     MatchWorld.slotOf ctx.Ctx side record.Actor
-                    |> Option.exists (fun slot -> (MatchWorld.profileOf ctx.Ctx side slot).IsGK)
-                | None -> false
+                    |> ValueOption.exists (fun slot -> (MatchWorld.profileOf ctx.Ctx side slot).IsGK)
+                | ValueNone -> false
 
             // A parry is a save even though the ball stays loose; what happens to the rebound is a new phase.
             if keeper && not controlled && record.SurfaceA = ContactSurface.ContactHand then

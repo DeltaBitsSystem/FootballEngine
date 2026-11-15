@@ -75,7 +75,7 @@ module PlayerPerception =
 
         let carrier =
             match MatchWorld.ballCarrier ctx world with
-            | Some(carrierSide, slot, _) when carrierSide = side -> Some slot
+            | ValueSome(struct (carrierSide, slot, _)) when carrierSide = side -> Some slot
             | _ -> None
 
         let oppFrame = (MatchWorld.team world (MatchWorld.oppOf side)).Frame

@@ -37,64 +37,6 @@ module Stepper =
                   Y = Pitch.HalfWidth }
               Signal = signal }
 
-    let rec private evalTrigger
-        (transitionCadence: int<tickDelta>)
-        (simTick: SimTick)
-        (playClock: PlayClock)
-        (flow: MatchFlow)
-        (flags: EventFlags)
-        (t: CompiledTrigger)
-        : bool =
-        let tick = SimTick.value simTick
-
-        match t with
-        | CompiledTrigger.EveryTick -> true
-        | CompiledTrigger.EveryN d ->
-            let dT = int d * 1<subtick>
-            tick % dT = 0<subtick>
-        | CompiledTrigger.EveryMinute(period, offset) ->
-            let playTick = PlayClock.value playClock
-
-            playTick % SimulationClock.minuteSubticks = 0<subtick>
-            && PlayClock.toMatchMinute playClock % period = offset
-        | CompiledTrigger.OnEvent f -> EventFlags.intersects flags f
-        | CompiledTrigger.OnEventOrEveryN(f, d) ->
-            let dT = int d * 1<subtick>
-            EventFlags.intersects flags f || tick % dT = 0<subtick>
-        | CompiledTrigger.OnTransitionOrGeometry f ->
-            EventFlags.intersects flags f || tick % (int transitionCadence * 1<subtick>) = 0<subtick>
-        | CompiledTrigger.WhenLive inner ->
-            match flow with
-            | MatchFlow.Live -> evalTrigger transitionCadence simTick playClock flow flags inner
-            | _ -> false
-        | CompiledTrigger.WhenMovementAllowed inner ->
-            match flow with
-            | MatchFlow.Live
-            | MatchFlow.Restart _ -> evalTrigger transitionCadence simTick playClock flow flags inner
-            | _ -> false
-        | CompiledTrigger.WhenBallDead inner ->
-            match flow with
-            | MatchFlow.GoalPause _
-            | MatchFlow.VARReview _ -> evalTrigger transitionCadence simTick playClock flow flags inner
-            | _ -> false
-
-    let private fire
-        (transitionCadence: int<tickDelta>)
-        (simTick: SimTick)
-        (playClock: PlayClock)
-        (flow: MatchFlow)
-        (flags: EventFlags)
-        (triggers: CompiledTrigger[])
-        : bool =
-        let mutable index = 0
-        let mutable matched = false
-
-        while index < triggers.Length && not matched do
-            matched <- evalTrigger transitionCadence simTick playClock flow flags triggers[index]
-            index <- index + 1
-
-        matched
-
     let private stoppageFingerprint (world: World) : int =
         let g = world.State.HomeScore + world.State.AwayScore
         let f = world.Home.Stats.Fouls + world.Away.Stats.Fouls
@@ -169,7 +111,7 @@ module Stepper =
         (world: World)
         (buffer: EventBuffer)
         (output: MatchEvent[])
-        : Rng * World * int =
+        : struct (Rng * World * int) =
         let tick = world.State.Tick
         let simTick = SimTick.ofSubTicks tick
         let playClock = MatchClock.playClock world.State.Clock
@@ -178,13 +120,13 @@ module Stepper =
         buffer.Applied.Clear()
         let mutable appliedCount = 0
 
-        let recordApplied (ev: MatchEvent) =
-            if appliedCount >= output.Length then
+        // Takes and returns the count so no closure captures a mutable, which would box it per tick.
+        let recordApplied (count: int) (ev: MatchEvent) : int =
+            if count >= output.Length then
                 invalidOp "the per-tick applied event buffer is too small"
 
             applied.Add ev
-            output[appliedCount] <- ev
-            appliedCount <- appliedCount + 1
+            output[count] <- ev
 
             if world.Observation.Enabled then
                 let cause =
@@ -199,6 +141,8 @@ module Stepper =
 
                 world.Observation.Record(ev.Tick, cause, EventCommitted ev) |> ignore
 
+            count + 1
+
         let pendingCount = buffer.Events.Count
 
         // Event reducers only write Applied/world state; removing the processed
@@ -208,7 +152,7 @@ module Stepper =
 
             if EventApply.applyBuffered ctx.Ctx world buffer ev then
                 let k = MatchEvent.kind ev
-                recordApplied ev
+                appliedCount <- recordApplied appliedCount ev
                 flags <- EventFlags.union flags (EventFlags.ofKind k)
                 EventWindow.push world.Home.EventWindow ev.Tick k
                 EventWindow.push world.Away.EventWindow ev.Tick k
@@ -218,22 +162,21 @@ module Stepper =
 
         buffer.Flags <- flags
 
-        let applyImmediately (ev: MatchEvent) : unit =
-            if EventApply.applyBuffered ctx.Ctx world buffer ev then
-                let k = MatchEvent.kind ev
-                recordApplied ev
-                flags <- EventFlags.union flags (EventFlags.ofKind k)
-                buffer.Flags <- flags
-                EventWindow.push world.Home.EventWindow ev.Tick k
-                EventWindow.push world.Away.EventWindow ev.Tick k
+        // Most ticks sit in a flow that never counts down or emits; skipping the call spares a tuple and a state copy.
+        let flow' =
+            match world.State.Flow with
+            | MatchFlow.Live
+            | MatchFlow.Restart _
+            | MatchFlow.Shootout
+            | MatchFlow.MatchEnded -> world.State.Flow
+            | current ->
+                let next, flowEvents = Flow.tick ctx.Clock ctx.Ctx.Config world tick current
 
-        let flow', flowEvents =
-            Flow.tick ctx.Clock ctx.Ctx.Config world tick world.State.Flow
+                for ev in flowEvents do
+                    buffer.Events.Add ev
 
-        for ev in flowEvents do
-            buffer.Events.Add ev
-
-        world.State <- { world.State with Flow = flow' }
+                world.State <- { world.State with Flow = next }
+                next
 
         // VAR verdict is decided only at review expiry, from the snapshot taken at
         // goal time — never re-simulated, so the outcome is deterministic.
@@ -315,16 +258,7 @@ module Stepper =
         cognitionBuffer.Applied <- buffer.Applied
         let firstBodyEvent = buffer.Events.Count
 
-        // Each half runs its systems in table order; within a half a system may read what an earlier one wrote.
-        let runCognition (seen: World) () =
-            for spec in schedule.Cognition do
-                if fire cadence simTick playClock seen.State.Flow flags spec.Triggers then
-                    spec.Step ctx (Rng.stream stepKey spec.StreamKey) seen cognitionBuffer |> ignore
-
-        let runBody () =
-            for spec in schedule.Body do
-                if fire cadence simTick playClock world.State.Flow flags spec.Triggers then
-                    spec.Step ctx (Rng.stream stepKey spec.StreamKey) world buffer |> ignore
+        let scratch = schedule.Scratch
 
         let seen =
             match side.Runner with
@@ -332,13 +266,15 @@ module Stepper =
                 // On one thread cognition runs first, on the live teams: what it reads is then exactly the copy
                 // the parallel path takes, so both paths produce the same match.
                 let direct = CognitionView.direct world
-                runCognition direct ()
-                runBody ()
+                scratch.Begin(ctx, stepKey, tick, playClock, flags.Bits, int cadence, world, buffer, direct, cognitionBuffer)
+                scratch.RunCognition()
+                scratch.RunBody()
                 direct
             | ValueSome runner ->
                 let view = CognitionView.refresh world
-                runner.Start(runCognition view)
-                runBody ()
+                scratch.Begin(ctx, stepKey, tick, playClock, flags.Bits, int cadence, world, buffer, view, cognitionBuffer)
+                runner.Start scratch.CognitionAction
+                scratch.RunBody()
                 runner.Join()
                 CognitionView.commit view world
                 view
@@ -409,7 +345,7 @@ module Stepper =
             { world.State with
                 Tick = tick + 1<subtick> }
 
-        rng, world, appliedCount
+        struct (rng, world, appliedCount)
 
     /// Test and tooling adapter. Runtime sessions use stepInto so no mutable
     /// collection escapes the tick owner.
@@ -422,7 +358,7 @@ module Stepper =
         : Rng * World * ResizeArray<MatchEvent> =
         let output = Array.zeroCreate<MatchEvent> 256
 
-        let rng', world', count =
+        let struct (rng', world', count) =
             stepInto (ScheduleCompiler.compile systems) ctx rng world buffer output
 
         let applied = ResizeArray<MatchEvent>(count)

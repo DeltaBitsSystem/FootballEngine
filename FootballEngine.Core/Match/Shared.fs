@@ -100,10 +100,15 @@ module MatchWorld =
     let team (world: World) (side: ClubSide) : TeamWorld =
         if side = ClubSide.Home then world.Home else world.Away
 
+    /// Both sides in the order every pass runs them. One shared array: per-tick loops over `[| Home; Away |]`
+    /// allocated it each time.
+    let sides: ClubSide[] = [| ClubSide.Home; ClubSide.Away |]
+
     /// Runs a team-by-team cognition pass for both teams, the away half on the match's lane thread when it has
     /// one. Only for passes that write their own team alone: swapping the order leaves such a match unchanged,
-    /// which is what makes running them at once safe.
-    let bothTeams (world: World) (pass: ClubSide -> unit) =
+    /// which is what makes running them at once safe. Inline so the single-thread path, which is every tick of a
+    /// match without lanes, calls the pass directly instead of allocating a closure around it.
+    let inline bothTeams (world: World) ([<InlineIfLambda>] pass: ClubSide -> unit) =
         match world.Cognition.Lanes with
         | ValueSome lanes ->
             lanes.Start(fun () -> pass ClubSide.Away)
@@ -128,14 +133,6 @@ module MatchWorld =
         else
             ctx.AwayLineup
 
-    let teamOfPlayer (ctx: MatchContext) (pid: PlayerId) : ClubSide option =
-        if ctx.HomeLineup.Profiles |> Array.exists (fun p -> p.Id = pid) then
-            Some ClubSide.Home
-        elif ctx.AwayLineup.Profiles |> Array.exists (fun p -> p.Id = pid) then
-            Some ClubSide.Away
-        else
-            None
-
     /// The slot of a player, or -1: per-tick callers look players up for every restart target and must not
     /// allocate an option each time.
     let slotIndex (ctx: MatchContext) (side: ClubSide) (pid: PlayerId) : int =
@@ -151,10 +148,16 @@ module MatchWorld =
 
         found
 
-    let slotOf (ctx: MatchContext) (side: ClubSide) (pid: PlayerId) : int option =
+    let slotOf (ctx: MatchContext) (side: ClubSide) (pid: PlayerId) : int voption =
         match slotIndex ctx side pid with
-        | -1 -> None
-        | slot -> Some slot
+        | -1 -> ValueNone
+        | slot -> ValueSome slot
+
+    /// The side whose lineup holds the player; a voption so the per-tick callers allocate nothing.
+    let sideOfPlayer (ctx: MatchContext) (pid: PlayerId) : ClubSide voption =
+        if slotIndex ctx ClubSide.Home pid >= 0 then ValueSome ClubSide.Home
+        elif slotIndex ctx ClubSide.Away pid >= 0 then ValueSome ClubSide.Away
+        else ValueNone
 
     let profileOf (ctx: MatchContext) (side: ClubSide) (slot: int) : PlayerProfile = (lineup ctx side).Profiles.[slot]
 
@@ -189,10 +192,13 @@ module MatchWorld =
           Vy = float frame.VelY.[slot] * 1.0<meterPerSecond>
           Vz = 0.0<meterPerSecond> }
 
-    let ballCarrier (ctx: MatchContext) (world: World) : (ClubSide * int * PlayerId) option =
+    /// The carrier as a struct tuple voption, so per-tick callers allocate nothing.
+    let ballCarrier (ctx: MatchContext) (world: World) : struct (ClubSide * int * PlayerId) voption =
         match world.State.Ball.Control with
-        | BallControl.Controlled(side, pid) -> slotOf ctx side pid |> Option.map (fun slot -> side, slot, pid)
-        | _ -> None
+        | BallControl.Controlled(side, pid) ->
+            let slot = slotIndex ctx side pid
+            if slot >= 0 then ValueSome(struct (side, slot, pid)) else ValueNone
+        | _ -> ValueNone
 
     let looseBallChaser (world: World) (side: ClubSide) : int option =
         let team = team world side
@@ -226,10 +232,10 @@ module MatchWorld =
         else
             Some bestSlot
 
-    let lastTouchSide (ctx: MatchContext) (world: World) : ClubSide option =
+    let lastTouchSide (ctx: MatchContext) (world: World) : ClubSide voption =
         match world.State.Ball.LastTouch with
-        | Some pid -> teamOfPlayer ctx pid
-        | None -> None
+        | Some pid -> sideOfPlayer ctx pid
+        | None -> ValueNone
 
     let nearestActive
         (ctx: MatchContext)

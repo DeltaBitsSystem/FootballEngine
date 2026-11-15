@@ -952,7 +952,18 @@ module ConfigValidation =
               yield "Intercept.ControlRadius must be in [0.5, 10] m"
           // MaxSteps 0 would never intercept, >200 hurts perf per RoboCup table
           if c.MaxSteps < 1 || c.MaxSteps > 200 then
-              yield "Intercept.MaxSteps must be in [1, 200]" ]
+              yield "Intercept.MaxSteps must be in [1, 200]"
+          // Finer than 1 mm/s is memory for no accuracy; coarser than 0.1 m/s makes interpolation visible
+          if c.RollTableResolution < 0.001<meterPerSecond> || c.RollTableResolution > 0.1<meterPerSecond> then
+              yield "Intercept.RollTableResolution must be in [0.001, 0.1] m/s"
+          // Zero would silently disable the table; the cap and the node budget bound its memory
+          if c.RollTableMaxSpeed <= 0.0<meterPerSecond> || c.RollTableMaxSpeed > 100.0<meterPerSecond> then
+              yield "Intercept.RollTableMaxSpeed must be in (0, 100] m/s"
+          elif
+              c.RollTableResolution >= 0.001<meterPerSecond>
+              && (float c.RollTableMaxSpeed / float c.RollTableResolution + 1.0) * float (c.MaxSteps + 1) > 1e7
+          then
+              yield "Intercept roll table (RollTableMaxSpeed / RollTableResolution nodes x MaxSteps) must stay under 1e7 values" ]
 
     let validateSituation (c: SituationConfig) : string list =
         [ // LeadSteps negative would invert who leads, >10 would delay phase forever

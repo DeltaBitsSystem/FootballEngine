@@ -41,7 +41,7 @@ let corpus () =
                        let mutable recovered = false
                        let mutable progression, threat = 0.0, 0.0
                        for _ in 1 .. 320 do
-                           let next, _, count = Stepper.stepInto schedule context rng world buffer output
+                           let struct (next, _, count) = Stepper.stepInto schedule context rng world buffer output
                            rng <- next
                            if response < 0 && (MatchWorld.activeSlots team.Frame |> Array.exists (fun slot -> slot <> 0 && team.Frame.Intent.Kind[slot] <> IntentCode.None)) then
                                response <- int (world.State.Tick - start) - 1
@@ -82,7 +82,7 @@ let fullTicks () =
     let samples = Array.zeroCreate<float> 20000
     let mutable rng = Rng.ofSeed 42UL
     let step () =
-        let next, _, _ = Stepper.stepInto schedule context rng world buffer output
+        let struct (next, _, _) = Stepper.stepInto schedule context rng world buffer output
         rng <- next
     for _ in 1 .. 8000 do step ()
     evaluations <- 0

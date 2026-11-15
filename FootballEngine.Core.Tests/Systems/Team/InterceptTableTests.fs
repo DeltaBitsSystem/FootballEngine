@@ -15,7 +15,9 @@ module InterceptTableTests =
           PlayerSpeedPerSecond = 8.0<meterPerSecond>
           PlayerAcceleration = 8.0<meterPerSecondSquared>
           ControlRadius = 2.5<meter>
-          MaxSteps = 80 }
+          MaxSteps = 80
+          RollTableResolution = 0.01<meterPerSecond>
+          RollTableMaxSpeed = 45.0<meterPerSecond> }
 
     let private ball
         (x: float<meter>)

@@ -15,7 +15,7 @@ module Duel =
         let p = MatchWorld.profileOf ctx.Ctx side slot
         let carrierAvailable =
             match MatchWorld.ballCarrier ctx.Ctx world with
-            | Some(owner, carrierSlot, _) when owner = side && carrierSlot = slot ->
+            | ValueSome(struct (owner, carrierSlot, _)) when owner = side && carrierSlot = slot ->
                 BallFootContact.reachable ctx.Ctx world side slot
             | _ -> false
 

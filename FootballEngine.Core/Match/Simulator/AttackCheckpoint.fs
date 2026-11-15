@@ -141,8 +141,8 @@ module AttackCheckpoint =
             estimate.Samples >= 0.0 && estimate.Samples <= cfg.EvidenceCap && abs estimate.RewardSum <= estimate.Samples)
         estimatesValid state.Estimates && estimatesValid state.Evidence &&
         (state.Episode |> Option.forall (fun e ->
-            let identity duty = MatchWorld.slotOf ctx side duty.Player = Some duty.Slot
+            let identity duty = MatchWorld.slotOf ctx side duty.Player = ValueSome duty.Slot
             e.StartedAt <= tick && e.FactTick <= tick && e.Deadline = e.StartedAt + cfg.Duration && e.Id < state.NextId &&
-            (MatchWorld.slotOf ctx side e.Carrier |> Option.isSome) &&
+            (MatchWorld.slotOf ctx side e.Carrier |> ValueOption.isSome) &&
             identity e.Link && identity e.Runner && identity e.Security &&
             AttackGeometry.complementary cfg [e.Link; e.Runner; e.Security]))
