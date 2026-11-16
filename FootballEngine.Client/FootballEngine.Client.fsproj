@@ -42,6 +42,7 @@
         <Compile Include="AppState\MatchPresentation.fs"/>
         <Compile Include="AppState\MatchObservationArchive.fs"/>
         <Compile Include="AppState\KeyMoments.fs"/>
+        <Compile Include="AppState\ReplayMoments.fs"/>
         <Compile Include="AppState\MatchRuntime.fs"/>
         <Compile Include="AppState\ModEditorPackage.fs"/>
         <Compile Include="Shots\Shots.fs"/>
@@ -123,6 +124,7 @@
         <Compile Include="Match3D\RenderWorker.fs"/>
         <Compile Include="Views\MatchPitch\MatchPitchControl.fs"/>
         <Compile Include="Views\Components\EventTimeline.fs"/>
+        <Compile Include="Views\Components\ReplayTimeline.fs"/>
         <Compile Include="Views\Components\StatsPanel.fs"/>
         <Compile Include="Views\Components\CommentaryOverlay.fs"/>
         <Compile Include="Views\Components\MatchEvidenceInspector.fs"/>

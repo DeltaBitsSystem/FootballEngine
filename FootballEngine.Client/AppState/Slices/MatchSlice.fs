@@ -22,18 +22,31 @@ module MatchSlice =
         | None, None -> state
         | _ -> { state with Live = live }
 
-    let applySemantic (semantic: LiveRuntimeSemantic) (state: AppTypes.MatchState) =
-        let updated =
-            applyCore
-                (FootballEngine.LiveMatch.SemanticReceived(
+    let private applyLiveSemantic (reset: bool) (semantic: LiveRuntimeSemantic) (state: AppTypes.MatchState) =
+        let events = Array.toList semantic.Events
+        let home, away = semantic.Stats
+
+        let message =
+            if reset then
+                FootballEngine.LiveMatch.SemanticReset(
                     semantic.Revision,
                     semantic.Clock,
                     semantic.Score,
-                    fst semantic.Stats,
-                    snd semantic.Stats,
-                    Array.toList semantic.Events
-                ))
-                state
+                    home,
+                    away,
+                    events
+                )
+            else
+                FootballEngine.LiveMatch.SemanticReceived(
+                    semantic.Revision,
+                    semantic.Clock,
+                    semantic.Score,
+                    home,
+                    away,
+                    events
+                )
+
+        let updated = applyCore message state
 
         match updated.Live with
         | Some live when semantic.Revision >= live.Revision ->
@@ -45,6 +58,10 @@ module MatchSlice =
             { updated with
                 Live = Some { live with Evidence = evidence } }
         | _ -> updated
+
+    let applySemantic semantic state = applyLiveSemantic false semantic state
+
+    let applySemanticReset semantic state = applyLiveSemantic true semantic state
 
     let applyFinished (_runtimeId: MatchRuntimeId) (_result: MatchJobResult) (state: AppTypes.MatchState) =
         match state.Live with
@@ -96,7 +113,8 @@ module MatchSlice =
             applyCore (FootballEngine.LiveMatch.SetDraftSubstitutions changes) state
         | LiveMsg.SubmitDraftSubstitutions -> applyCore FootballEngine.LiveMatch.SubmitDraftSubstitutions state
         | LiveMsg.DismissError -> applyCore FootballEngine.LiveMatch.DismissError state
-        | LiveMsg.OpenReplay -> state
+        | LiveMsg.OpenReplay _ -> state
+        | LiveMsg.SeekReplay _ -> state
         | LiveMsg.TogglePause -> state
         | LiveMsg.ConfirmFinish -> state
         | LiveMsg.Close -> clearState

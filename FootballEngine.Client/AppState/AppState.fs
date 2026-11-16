@@ -272,6 +272,26 @@ module AppState =
             |> applyRouteContext next
         | _ -> state
 
+    /// Sends a payload to the live worker as the manager's command; pause and skip share this path.
+    let private submitLiveCommand
+        (live: FootballEngine.LiveMatch.LiveMatchState)
+        (payload: FootballEngine.LiveMatch.LiveMatchCommandPayload)
+        (state: State)
+        : State * Cmd<Msg> =
+        let command: FootballEngine.LiveMatch.LiveMatchCommand =
+            { CommandId = FootballEngine.LiveMatch.MatchCommandId live.NextCommandId
+              SessionId = live.SessionId
+              ExpectedRevision = live.Revision
+              IssuedAt = live.Clock.Elapsed
+              Payload = payload }
+
+        state.Match.RuntimeId
+        |> Option.iter (fun runtimeId -> MatchRuntime.submit runtimeId command)
+
+        { state with
+            Match = MatchSlice.update (LiveMsg.CommandSubmitted command) state.Match },
+        Cmd.none
+
     let private closeMatchRuntimeWhenLeaving (fromRoute: Route) (toRoute: Route) (state: State) =
         match fromRoute, toRoute with
         | Route.Match _, Route.Match _ -> state
@@ -1008,6 +1028,12 @@ module AppState =
                                 { state with
                                     Match = MatchSlice.applySemantic semantic state.Match }
                                 commands
+                        | MatchRuntimePublication.SemanticReset semantic ->
+                            drain
+                                (budget - 1)
+                                { state with
+                                    Match = MatchSlice.applySemanticReset semantic state.Match }
+                                commands
                         | MatchRuntimePublication.Failed error ->
                             MatchRuntime.close runtimeId
 
@@ -1027,6 +1053,22 @@ module AppState =
                 | _ -> state, Cmd.batch commands
 
             drain 64 state []
+
+        | LiveMsg LiveMsg.ConfirmFinish when
+            state.Match.Live
+            |> Option.exists (fun live -> live.Source = FootballEngine.LiveMatch.RecordedReplay)
+            ->
+            // A recording has no result to commit, so leaving it goes straight back to the match's review.
+            state.Match.RuntimeId |> Option.iter MatchRuntime.close
+
+            match state.Match.Live with
+            | Some live ->
+                navigateTo
+                    (Route.Match(live.Fixture.MatchId, MatchPhase.Postmatch))
+                    { state with
+                        Match = MatchSlice.clearState },
+                Cmd.none
+            | None -> state, Cmd.none
 
         | LiveMsg LiveMsg.ConfirmFinish ->
             match state.Match.PendingResult with
@@ -1085,22 +1127,33 @@ module AppState =
 
                 commit ()
 
-        | LiveMsg(LiveMsg.OpenReplay) ->
-            match state.Mode, state.Navigation.Current with
-            | InGame(gs, _), Route.Match(matchId, _) ->
+        | LiveMsg(LiveMsg.OpenReplay(matchId, startAt)) ->
+            match state.Mode with
+            | InGame(gs, _) ->
                 state.Match.RuntimeId |> Option.iter MatchRuntime.close
 
                 let runtimeId =
-                    MatchRuntime.createReplay matchId gs state.WorldClock (Some state.SaveSettings)
+                    MatchRuntime.createReplay matchId gs state.WorldClock (Some state.SaveSettings) startAt
 
-                { state with
-                    IsProcessing = false
-                    Match =
-                        { MatchSlice.clearState with
-                            RuntimeId = Some runtimeId
-                            RequestedMatchId = Some matchId
-                            Live = None } },
-                Cmd.ofEffect (fun dispatch -> MatchRuntime.start runtimeId dispatch)
+                let opened =
+                    { state with
+                        IsProcessing = false
+                        Match =
+                            { MatchSlice.clearState with
+                                Camera = state.Match.Camera
+                                RuntimeId = Some runtimeId
+                                RequestedMatchId = Some matchId
+                                Live = None } }
+                    |> navigateTo (Route.Match(matchId, MatchPhase.Replay))
+
+                opened, Cmd.ofEffect (fun dispatch -> MatchRuntime.start runtimeId dispatch)
+            | _ -> state, Cmd.none
+
+        | LiveMsg(LiveMsg.SeekReplay target) ->
+            match state.Match.Live, state.Match.RequestedMatchId with
+            | Some live, _ when state.Match.RuntimeId.IsSome && target > live.Clock.Elapsed ->
+                submitLiveCommand live (FootballEngine.LiveMatch.SkipAhead target) state
+            | _, Some matchId -> state, Cmd.ofMsg (LiveMsg(LiveMsg.OpenReplay(matchId, target)))
             | _ -> state, Cmd.none
 
         | LiveMsg LiveMsg.TogglePause ->
@@ -1114,19 +1167,7 @@ module AppState =
                     | FootballEngine.LiveMatch.HalfTime -> FootballEngine.LiveMatch.ResumeMatch
                     | _ -> FootballEngine.LiveMatch.PauseMatch
 
-                let command: FootballEngine.LiveMatch.LiveMatchCommand =
-                    { CommandId = FootballEngine.LiveMatch.MatchCommandId live.NextCommandId
-                      SessionId = live.SessionId
-                      ExpectedRevision = live.Revision
-                      IssuedAt = live.Clock.Elapsed
-                      Payload = payload }
-
-                state.Match.RuntimeId
-                |> Option.iter (fun runtimeId -> MatchRuntime.submit runtimeId command)
-
-                { state with
-                    Match = MatchSlice.update (LiveMsg.CommandSubmitted command) state.Match },
-                Cmd.none
+                submitLiveCommand live payload state
 
         | LiveMsg(LiveMsg.CommandSubmitted command) ->
             state.Match.RuntimeId

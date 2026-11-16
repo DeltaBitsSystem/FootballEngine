@@ -335,7 +335,7 @@ module SteeringTests =
 
               testCase "a replay never freezes for a full match minute" (fun _ ->
                   let outcome =
-                      Simulator.runMatch Scheduler.systems ctx 0x53484F5453UL (Simulator.RunMode.Replay 20<tickDelta>)
+                      Simulator.runMatch Scheduler.systems ctx 0x53484F5453UL (Simulator.RunMode.Archive 20<tickDelta>)
                       |> TestBuilders.requireMatchOutcome
 
                   let replay = outcome.Replay |> Option.get

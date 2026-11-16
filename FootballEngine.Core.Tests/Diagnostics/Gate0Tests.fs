@@ -244,7 +244,7 @@ module Gate0Tests =
                       |> TestBuilders.requireMatchOutcome
 
                   let full =
-                      Simulator.runMatch Scheduler.systems ctx 0xD00DFEEDUL (Simulator.RunMode.Replay 20<tickDelta>)
+                      Simulator.runMatch Scheduler.systems ctx 0xD00DFEEDUL (Simulator.RunMode.Archive 20<tickDelta>)
                       |> TestBuilders.requireMatchOutcome
 
                   Expect.equal (canonicalHash fast.Final) (canonicalHash full.Final) "full state hash identical"

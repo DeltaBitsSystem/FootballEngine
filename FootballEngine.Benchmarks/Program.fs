@@ -194,14 +194,14 @@ module Program =
         [ { Name = "fast"
             Mode = Simulator.RunMode.Fast }
           { Name = "replay-20-ticks"
-            Mode = Simulator.RunMode.Replay 20<tickDelta> }
+            Mode = Simulator.RunMode.Archive 20<tickDelta> }
           { Name = "live-policy"
             Mode = Simulator.RunMode.Live LiveExecutionPolicy.defaultPolicy } ]
 
     let private modeName (mode: Simulator.RunMode) =
         match mode with
         | Simulator.RunMode.Fast -> "fast"
-        | Simulator.RunMode.Replay interval -> sprintf "replay-%d-ticks" (int interval)
+        | Simulator.RunMode.Archive interval -> sprintf "replay-%d-ticks" (int interval)
         | Simulator.RunMode.Live policy ->
             sprintf "live-worker-%d-pose-%d" (int policy.WorkerSlice) (int policy.PoseEvery)
 

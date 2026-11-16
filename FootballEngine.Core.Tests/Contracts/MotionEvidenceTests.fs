@@ -124,7 +124,7 @@ module MotionEvidenceTests =
                       |> unwrap
 
                   let replay =
-                      MatchSession.create Scheduler.systems input (MatchRunMode.Replay 16<tickDelta>)
+                      MatchSession.create Scheduler.systems input (MatchRunMode.Archive 16<tickDelta>)
                       |> unwrap
 
                   let batch = MatchSession.advanceTo 64<subtick> replay |> unwrap

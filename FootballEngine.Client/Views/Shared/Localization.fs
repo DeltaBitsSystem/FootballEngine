@@ -85,6 +85,10 @@ type TranslationKey =
     | MatchResume
     | MatchLeave
     | MatchPostMatch
+    | WatchReplay
+    | MatchSeeking
+    | ReplayPreviousMoment
+    | ReplayNextMoment
     | MatchDefensive
     | MatchBalanced
     | MatchPositive
@@ -464,6 +468,10 @@ module Localization =
           TranslationKey.MatchResume, "Reanudar", "Resume"
           TranslationKey.MatchLeave, "Salir", "Leave"
           TranslationKey.MatchPostMatch, "Postpartido", "Post-match"
+          TranslationKey.WatchReplay, "Ver repetición", "Watch replay"
+          TranslationKey.MatchSeeking, "Buscando", "Seeking"
+          TranslationKey.ReplayPreviousMoment, "Momento anterior", "Previous moment"
+          TranslationKey.ReplayNextMoment, "Momento siguiente", "Next moment"
           TranslationKey.MatchDefensive, "Defensiva", "Defensive"
           TranslationKey.MatchBalanced, "Equilibrada", "Balanced"
           TranslationKey.MatchPositive, "Positiva", "Positive"

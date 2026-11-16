@@ -540,6 +540,8 @@ module CareerJourney =
                 |> Map.toSeq
                 |> Seq.tryPick (fun (_, competition) -> Map.tryFind matchId competition.Fixtures)
 
+            let hasRecording = Map.containsKey matchId state.WorldClock.MatchExecutions
+
             let score, events =
                 match pending, fixture with
                 | Some result, _ -> $"{result.HomeScore} – {result.AwayScore}", result.Events
@@ -598,6 +600,17 @@ module CareerJourney =
 
                                                   button (tr TranslationKey.ReviewLineup) false true (fun () ->
                                                       dispatch (Navigate(Route.Tactics TacticsRoute.Overview)))
+
+                                                  if hasRecording then
+                                                      button (tr TranslationKey.WatchReplay) false true (fun () ->
+                                                          dispatch (
+                                                              LiveMsg(
+                                                                  LiveMsg.OpenReplay(
+                                                                      matchId,
+                                                                      0<FootballEngine.Core.Match.subtick>
+                                                                  )
+                                                              )
+                                                          ))
                                               button (tr TranslationKey.ReturnHome) false true (fun () ->
                                                   dispatch (Navigate Route.Home)) ] ] ] ]
                   ) ]

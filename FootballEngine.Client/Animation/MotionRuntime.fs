@@ -61,7 +61,14 @@ module MotionCheckpoint =
             |> Array.forall id)
 
 /// Sequential ownership ends at sealed plans; evaluating a retained plan never advances gait.
-type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, ?historical: bool) =
+type MotionRuntime
+    (
+        config: AnimationConfig,
+        identity: MotionCheckpointIdentity,
+        ?historical: bool,
+        ?startTick: int,
+        ?startCursor: uint64
+    ) =
     let accepted: Result<unit, MotionRuntimeError> = Ok()
 
     let windowTicks =
@@ -167,8 +174,11 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
               Gaze = plan.Gaze }
 
     let mutable actorCount = 0
-    let mutable frontier = -1
-    let mutable cursor = 1UL
+    // A runtime opened by a seek starts at the first boundary it will receive, not at kickoff.
+    let mutable frontier = defaultArg startTick 0 - 1
+    // The frontier of a seek is the tick before the first boundary, which was never ingested, so it is not a duplicate.
+    let mutable awaitingStart = startTick.IsSome
+    let mutable cursor = defaultArg startCursor 1UL
     let mutable epoch = 0UL
     let mutable closed = false
     let mutable residualCount = 0UL
@@ -213,7 +223,7 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
 
         if closed then
             Error RuntimeClosed
-        elif frontier >= 0 && tick = frontier then
+        elif not awaitingStart && frontier >= 0 && tick = frontier then
             accepted
         elif tick <> frontier + 1 then
             Error(NonCanonicalBoundary(frontier + 1, tick))
@@ -361,6 +371,7 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
         ticks[slot] <- tick
         counts[slot] <- actorCount
         frontier <- tick
+        awaitingStart <- false
         accepted
 
     member _.TryPlan(actor: PlayerId, time: MotionTime) =
@@ -417,6 +428,7 @@ type MotionRuntime(config: AnimationConfig, identity: MotionCheckpointIdentity, 
             Array.Copy(checkpoint.Tasks, tasks, checkpoint.Tasks.Length)
             actorCount <- checkpoint.ActorCount
             frontier <- checkpoint.Tick
+            awaitingStart <- false
             cursor <- checkpoint.Cursor
 
             if frontier >= 0 then

@@ -121,6 +121,54 @@ module MatchSessionTests =
                       (irregular.Events |> List.map MatchEvent.id)
                       (whole.Events |> List.map MatchEvent.id)
                       "advance boundaries cannot change any event, physical ones included")
+              // A seek re-simulates without publishing; the match it reaches must be the one a viewer would have
+              // watched, and the motion published after the seek must continue the evidence sequence.
+              testCase "silent advance reaches the same match and continues motion evidence" (fun _ ->
+                  let liveSession () =
+                      MatchSession.create
+                          Scheduler.systems
+                          { input 11 with
+                              Context = TestBuilders.defaultCtx () }
+                          (MatchRunMode.Live LiveExecutionPolicy.defaultPolicy)
+                      |> unwrap
+
+                  let published = liveSession ()
+                  let silent = liveSession ()
+
+                  for target in 400..400..4000 do
+                      MatchSession.advanceTo (target * 1<subtick>) published |> unwrap |> ignore
+
+                  MatchSession.advanceSilentlyTo 4000<subtick> silent |> unwrap |> ignore
+
+                  Expect.equal
+                      (MatchOutcomeHash.eventsHash (List.ofSeq silent.Events))
+                      (MatchOutcomeHash.eventsHash (List.ofSeq published.Events))
+                      "a silent advance records the same events"
+
+                  Expect.equal silent.Rng published.Rng "a silent advance draws the same random numbers"
+                  Expect.equal silent.World.State.Tick published.World.State.Tick "both stop at the same tick"
+
+                  let cursorBefore = MatchSession.motionCursor silent
+                  let next = MatchSession.advanceTo 4400<subtick> silent |> unwrap
+                  Expect.isNonEmpty next.Motion "the published boundary carries motion"
+                  Expect.equal next.Motion[0].Tick 4001<subtick> "motion resumes at the first tick after the seek"
+
+                  next.Motion
+                  |> Seq.collect _.Evidence
+                  |> Seq.tryHead
+                  |> Option.iter (fun evidence ->
+                      Expect.equal
+                          evidence.Sequence
+                          cursorBefore
+                          "evidence continues from the cursor read before the advance")
+
+                  let finishedSilent = MatchSession.finish silent |> unwrap
+                  let finishedPublished = MatchSession.finish published |> unwrap
+
+                  Expect.equal
+                      finishedSilent.EventsHash
+                      finishedPublished.EventsHash
+                      "both sessions finish with the same sporting record")
               testCase "a fixture keeps the sporting record and its hash, not the physics" (fun _ ->
                   let outcome = create Simulator.RunMode.Fast 11 |> MatchSession.finish |> unwrap
                   let record = MatchEvent.record outcome.Events
@@ -166,7 +214,7 @@ module MatchSessionTests =
                       "the record still explains the score")
               testCase "Replay finish produces deterministic terminal state" (fun _ ->
                   let outcome =
-                      create (Simulator.RunMode.Replay 11<tickDelta>) 11
+                      create (Simulator.RunMode.Archive 11<tickDelta>) 11
                       |> MatchSession.finish
                       |> unwrap
 
@@ -249,7 +297,7 @@ module MatchSessionTests =
                   | Error _ -> ()
                   | Ok() -> failtest "writing to a read-only stream must report failure")
               testCase "finish is idempotent and completes replay once" (fun _ ->
-                  let session = create (Simulator.RunMode.Replay(5 * 1<tickDelta>)) 11
+                  let session = create (Simulator.RunMode.Archive(5 * 1<tickDelta>)) 11
                   let first = MatchSession.finish session |> unwrap
                   let second = MatchSession.finish session |> unwrap
 
@@ -259,7 +307,7 @@ module MatchSessionTests =
                   for mode in
                       [ MatchRunMode.Fast
                         MatchRunMode.Live LiveExecutionPolicy.defaultPolicy
-                        MatchRunMode.Replay 5<tickDelta> ] do
+                        MatchRunMode.Archive 5<tickDelta> ] do
                       let batch = MatchSession.create terminalSystems (input 11) mode |> unwrap
                       let published = MatchSession.create terminalSystems (input 11) mode |> unwrap
                       let output = MatchSession.advanceTo MatchSession.maxTicks published |> unwrap
@@ -506,7 +554,7 @@ module MatchSessionTests =
                   | Error(InvalidCommandPlayers _) -> Expect.hasLength session.Pending 1 "invalid pair is not queued"
                   | other -> failtestf "expected InvalidCommandPlayers, got %A" other)
               testCase "checkpoint roundtrip restores frontier, pending commands, RNG and event hash" (fun _ ->
-                  let session = create (Simulator.RunMode.Replay(5 * 1<tickDelta>)) 11
+                  let session = create (Simulator.RunMode.Archive(5 * 1<tickDelta>)) 11
                   let revision = session.Input.EffectiveConfig.Revision
                   let future = command revision 25<subtick> 1UL 1UL (ChangeTactics tactics)
 

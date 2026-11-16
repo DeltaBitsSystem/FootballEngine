@@ -637,7 +637,7 @@ module WorldGenerationTests =
                   Expect.equal job.Input result.Input "replay never rebuilds from today's career"
 
                   let session =
-                      MatchSession.create Scheduler.systems job.Input (MatchRunMode.Replay 40<tickDelta>)
+                      MatchSession.create Scheduler.systems job.Input (MatchRunMode.Archive 40<tickDelta>)
                       |> function
                           | Ok session -> session
                           | Error error -> failtestf "%A" error

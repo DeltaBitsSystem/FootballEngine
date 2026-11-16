@@ -91,6 +91,7 @@ module MatchViewer =
                 "⏩ AVANZANDO"
             else
                 "⏩ FAST-FORWARD"
+        | Seeking -> Localization.resolve TranslationKey.MatchSeeking []
         | Paused -> "PAUSED"
         | KeyMomentStop reason -> keyMomentText reason
         | AwaitingDecision _ -> "DECISION REQUIRED"
@@ -103,6 +104,7 @@ module MatchViewer =
         | Failed _ -> Theme.Negative
         | Preparing
         | Connecting
+        | Seeking
         | AwaitingDecision _ -> Theme.Warning
         | _ -> Theme.Accent
 
@@ -497,6 +499,8 @@ module MatchViewer =
         let tokens = Theme.currentTokens.Value
         let colors = tokens.Colors
         let canControl = live.Source = LiveSession && live.Status <> Finished
+        // A recording can be paused and sped up like a live match; only the manager's own changes stay live-only.
+        let canPlay = live.Status <> Finished
         let localized key = Localization.resolve key []
 
         let cameraChoices =
@@ -712,13 +716,13 @@ module MatchViewer =
                                                         ))
                                                         (Some(if isPaused then Nav.play else Nav.pause))
                                                         isPaused
-                                                        canControl
+                                                        canPlay
                                                         (fun () -> dispatch (LiveMsg LiveMsg.TogglePause))
-                                                    dockButton "1x" None (live.Speed = Normal) canControl (fun () ->
+                                                    dockButton "1x" None (live.Speed = Normal) canPlay (fun () ->
                                                         submit (SetLiveSpeed Normal))
-                                                    dockButton "2x" None (live.Speed = Fast) canControl (fun () ->
+                                                    dockButton "2x" None (live.Speed = Fast) canPlay (fun () ->
                                                         submit (SetLiveSpeed Fast))
-                                                    dockButton "4x" None (live.Speed = VeryFast) canControl (fun () ->
+                                                    dockButton "4x" None (live.Speed = VeryFast) canPlay (fun () ->
                                                         submit (SetLiveSpeed VeryFast))
                                                     dockButton
                                                         (localized TranslationKey.MatchEvidence)
@@ -833,6 +837,22 @@ module MatchViewer =
         match state.Match.Live, state.Match.RuntimeId with
         | Some live, Some runtimeId ->
             let inspect = live.Ui.IntelligenceWorkspace = Events
+            let recording = live.Source = RecordedReplay
+
+            let fixtureEvents =
+                match state.Mode with
+                | InGame(gs, _) ->
+                    gs.Competitions
+                    |> Map.toSeq
+                    |> Seq.tryPick (fun (_, competition) ->
+                        competition.Fixtures |> Map.tryFind live.Fixture.MatchId |> Option.map _.Events)
+                    |> Option.defaultValue []
+                | _ -> []
+
+            let moments = ReplayMoments.ofEvents fixtureEvents
+
+            let total =
+                fixtureEvents |> List.fold (fun last event -> max last event.Tick) 0<subtick>
 
             Grid.create
                 [ Grid.background Theme.BgMain
@@ -846,7 +866,11 @@ module MatchViewer =
                                         MatchEvidenceInspector.view runtimeId live dispatch ] ]
                         StackPanel.create
                             [ Grid.row 1
-                              StackPanel.children [ commandFeedback live; controlDock live state.Match.Camera dispatch ] ] ] ]
+                              StackPanel.children
+                                  [ commandFeedback live
+                                    if recording then
+                                        ReplayTimeline.view live moments total dispatch
+                                    controlDock live state.Match.Camera dispatch ] ] ] ]
             :> IView
         | _ -> noMatch state.Match.Error
 

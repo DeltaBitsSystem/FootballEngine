@@ -180,7 +180,7 @@ module MatchSession =
             writer.Write(int policy.SemanticEvery)
             writer.Write policy.BufferCapacity
             writer.Write policy.PresentationDelay.Ticks
-        | MatchRunMode.Replay interval ->
+        | MatchRunMode.Archive interval ->
             writer.Write 2
             writer.Write(int interval)
 
@@ -208,7 +208,7 @@ module MatchSession =
             if interval <= 0<tickDelta> then
                 Error "checkpoint replay interval must be positive"
             else
-                Ok(MatchRunMode.Replay interval)
+                Ok(MatchRunMode.Archive interval)
         | _ -> Error "checkpoint contains an unknown run mode"
 
     let serializeCheckpoint (checkpoint: MatchCheckpoint) : byte[] =
@@ -476,7 +476,7 @@ module MatchSession =
             Error(InvalidRunMode "Live presentation capacity must be at least two")
         | MatchRunMode.Live policy when policy.PresentationDelay < TimeSpan.Zero ->
             Error(InvalidRunMode "Live presentation delay cannot be negative")
-        | MatchRunMode.Replay interval when interval <= 0<tickDelta> ->
+        | MatchRunMode.Archive interval when interval <= 0<tickDelta> ->
             Error(InvalidRunMode "Replay snapshot interval must be positive")
         | _ -> Ok()
 
@@ -496,7 +496,7 @@ module MatchSession =
             let replayWriter =
                 match mode with
                 | MatchRunMode.Live _
-                | MatchRunMode.Replay _ ->
+                | MatchRunMode.Archive _ ->
                     let writer =
                         new Replay.ReplayWriter(
                             context.HomeLineup.Profiles |> Array.map _.Id,
@@ -630,7 +630,7 @@ module MatchSession =
                         ->
                         let frame = Replay.capture session.World
                         producedFrames.Add frame
-                    | MatchRunMode.Replay interval when
+                    | MatchRunMode.Archive interval when
                         session.World.State.Tick % (int interval * 1<subtick>) = 0<subtick>
                         ->
                         let frame = Replay.capture session.World
@@ -640,7 +640,7 @@ module MatchSession =
                             producedFrames.Add frame
                     | MatchRunMode.Fast
                     | MatchRunMode.Live _
-                    | MatchRunMode.Replay _ -> ()
+                    | MatchRunMode.Archive _ -> ()
 
             match failure with
             | Some error -> Error error
@@ -656,6 +656,13 @@ module MatchSession =
                       Motion = toArray producedMotion }
 
     let advanceTo target session = advanceToCore true target session
+
+    // A seek has no viewer to feed; in Live mode the motion journal is still drained into the session
+    // archive, so the next published boundary continues it.
+    let advanceSilentlyTo target session = advanceToCore false target session
+
+    /// The evidence sequence the next published boundary starts at.
+    let motionCursor (session: MatchSession) : uint64 = session.MotionCursor
 
     // Each side spins this many times for the other before blocking. Between two ticks the cognition thread
     // waits as long as a whole body tick; 200 spins blocked on most ticks (5,7 s a match) where 20000, still
@@ -709,7 +716,7 @@ module MatchSession =
                       Final = session.World
                       Replay =
                         match session.Mode with
-                        | MatchRunMode.Replay interval ->
+                        | MatchRunMode.Archive interval ->
                             if session.World.State.Tick % (int interval * 1<subtick>) <> 0<subtick> then
                                 session.ReplayWriter.Value.Append(Replay.capture session.World)
 
@@ -763,7 +770,7 @@ module MatchSession =
                 match queue checkpoint.Commands with
                 | Error error -> Error(InvalidCheckpoint(sprintf "checkpoint command replay failed: %A" error))
                 | Ok() ->
-                    match advanceTo checkpoint.Frontier session with
+                    match advanceSilentlyTo checkpoint.Frontier session with
                     | Error error -> Error(InvalidCheckpoint(sprintf "checkpoint frontier replay failed: %A" error))
                     | Ok advance when advance.ReachedTick <> checkpoint.Frontier ->
                         Error(InvalidCheckpoint "checkpoint frontier could not be reached")

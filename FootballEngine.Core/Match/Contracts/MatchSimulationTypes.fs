@@ -24,8 +24,10 @@ module LiveExecutionPolicy =
 /// schedule. A worker may advance the same policy in any sized deterministic slice.
 type MatchRunMode =
     | Fast
+    /// Records presentation snapshots every N ticks into `MatchOutcome.Replay` for tests and tools;
+    /// never used to watch a match, which re-simulates from its recorded execution instead.
     | Live of policy: LiveExecutionPolicy
-    | Replay of snapshotEvery: int<tickDelta>
+    | Archive of snapshotEvery: int<tickDelta>
 
 type MatchOutcome =
     { Events: MatchEvent list

@@ -1050,7 +1050,7 @@ module ReactionCoherenceTests =
                       |> unwrap
 
                   let replay =
-                      MatchSession.create Scheduler.systems input (MatchRunMode.Replay 5<tickDelta>)
+                      MatchSession.create Scheduler.systems input (MatchRunMode.Archive 5<tickDelta>)
                       |> unwrap
 
                   replay.World.Observation.Enabled <- false

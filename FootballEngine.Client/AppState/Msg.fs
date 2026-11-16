@@ -154,7 +154,10 @@ module AppMsgs =
         | SetDraftSubstitutions of SubstitutionChange list
         | SubmitDraftSubstitutions
         | DismissError
-        | OpenReplay
+        /// Opens a recorded match at the tick: the match is re-simulated silently and the viewer lands there.
+        | OpenReplay of MatchId * startAt: int<FootballEngine.Core.Match.subtick>
+        /// Moves a recording to the tick: forward through the live worker, backward by reopening it.
+        | SeekReplay of int<FootballEngine.Core.Match.subtick>
         | TogglePause
         | ConfirmFinish
         | Close

@@ -1343,4 +1343,281 @@ let tests =
               Expect.equal (MatchHudRenderer.periodLabel MatchPeriod.FirstHalf) "1T" "first half"
               Expect.equal (MatchHudRenderer.periodLabel MatchPeriod.SecondHalf) "2T" "second half"
               Expect.equal (MatchHudRenderer.periodLabel MatchPeriod.HalfTimeInterval) "DESC" "half-time"
-              Expect.equal (MatchHudRenderer.periodLabel MatchPeriod.ExtraTimeFirstHalf) "1TE" "extra time" ]
+              Expect.equal (MatchHudRenderer.periodLabel MatchPeriod.ExtraTimeFirstHalf) "1TE" "extra time"
+
+          testCase "a seek resets the timeline: old readers see nothing earlier and the next pose starts a seeked epoch"
+          <| fun _ ->
+              let stream = new MatchPresentationStream(MatchRuntimeId 1UL, policy)
+              stream.Publish(100<subtick>, visualSnapshot 100<subtick> 0.0f, 1000L) |> ignore
+              let before = stream.Publish(101<subtick>, visualSnapshot 101<subtick> 0.0f, 2000L)
+              let oldCursor = stream.TryReadAfter 0UL |> Array.last |> _.Sequence
+              Expect.isGreaterThan before 0UL "publications are sequenced before the seek"
+
+              stream.Reset(1200<subtick>, 1UL)
+
+              stream.Publish(1200<subtick>, visualSnapshot 1200<subtick> 0.0f, 3000L)
+              |> ignore
+
+              let poses = stream.TryReadAfter 0UL
+              Expect.equal (poses |> Array.map _.Tick) [| 1200<subtick> |] "no pose from before the seek is readable"
+              Expect.equal poses[0].EpochStart (Some PresentationDiscontinuity.Seeked) "the seek starts a new epoch"
+
+              match stream.Sample 4000L with
+              | Some(Hold pose) -> Expect.equal pose.Tick 1200<subtick> "the seeked pose is held until the next one"
+              | other -> failtestf "expected the seeked pose to be held, got %A" other
+
+              let event: MatchEvent =
+                  { Tick = 90<subtick>
+                    Data = EventData.Offside(FootballEngine.Core.Match.PlayerId 1) }
+
+              let beforeEvents = stream.PublishEvents [| event |]
+              stream.Reset(1300<subtick>, 2UL)
+
+              let afterEvent: MatchEvent =
+                  { Tick = 1300<subtick>
+                    Data = EventData.Offside(FootballEngine.Core.Match.PlayerId 2) }
+
+              stream.PublishEvents [| afterEvent |] |> ignore
+
+              let readEvents = stream.ReadEventsAfter beforeEvents |> Array.map _.Event
+              Expect.equal readEvents [| afterEvent |] "events from before the reset are not read again"
+              Expect.isGreaterThan (stream.ReadEventsAfter 0UL).Length 0 "event sequence stays monotonic"
+              Expect.isGreaterThan oldCursor 0UL "the old cursor was taken from a live timeline"
+
+          testCase "a semantic reset replaces events, commentary and score; a later semantic appends again"
+          <| fun _ ->
+              withRuntime (fun _ _ session fixture _ ->
+                  let initial = LiveMatchState.create session fixture 0UL LiveSession
+                  let stats = initial.Metrics.Home
+
+                  let clock =
+                      { Elapsed = 1200<subtick>
+                        DisplayMinute = 0
+                        StoppageMinute = None
+                        Period = FirstHalf }
+
+                  let goal: MatchEvent =
+                      { Tick = 900<subtick>
+                        Data = EventData.Goal(ClubSide.Home, Some(FootballEngine.Core.Match.PlayerId 1), None, 0.3) }
+
+                  let offside: MatchEvent =
+                      { Tick = 1000<subtick>
+                        Data = EventData.Offside(FootballEngine.Core.Match.PlayerId 2) }
+
+                  let received =
+                      LiveMatchUpdate.update
+                          (SemanticReceived(1UL, clock, (1, 0), stats, stats, [ goal ]))
+                          (Some initial)
+                      |> fst
+
+                  let reset =
+                      LiveMatchUpdate.update (SemanticReset(2UL, clock, (0, 0), stats, stats, [ offside ])) received
+                      |> fst
+                      |> Option.get
+
+                  Expect.equal reset.Events [ offside ] "reset keeps only the rebuilt events"
+                  Expect.equal reset.Score (0, 0) "reset takes the rebuilt score"
+
+                  Expect.equal
+                      (reset.Commentary |> List.map _.LocalizationKey)
+                      [ "match.commentary.offside" ]
+                      "commentary is rebuilt"
+
+                  let appended =
+                      LiveMatchUpdate.update
+                          (SemanticReceived(3UL, clock, (0, 1), stats, stats, [ goal ]))
+                          (Some reset)
+                      |> fst
+                      |> Option.get
+
+                  Expect.equal appended.Events [ offside; goal ] "a later semantic update appends"
+                  Expect.equal appended.Score (0, 1) "and takes its score")
+
+          testCase "replay moments mark goals, saves, woodwork, set pieces, cards and substitutions at their ticks"
+          <| fun _ ->
+              let at tick data : MatchEvent =
+                  { Tick = tick * 1<subtick>
+                    Data = data }
+
+              let events =
+                  [ at 900 (EventData.Goal(ClubSide.Home, Some(FootballEngine.Core.Match.PlayerId 1), None, 0.3))
+                    at 100 (EventData.Save(FootballEngine.Core.Match.PlayerId 2, FootballEngine.Core.Match.PlayerId 1))
+                    at 500 (EventData.Woodwork(ClubSide.Away, GoalFramePart.Post, 0.0<meter>, 0.0<meter>, 2.0<meter>))
+                    at 300 (EventData.SetPieceAt(SetPieceKind.Corner, ClubSide.Home, 50.0<meter>, 0.0<meter>))
+                    at 350 (EventData.SetPieceAt(SetPieceKind.FreeKick, ClubSide.Away, 20.0<meter>, 10.0<meter>))
+                    at 400 (EventData.SetPieceAt(SetPieceKind.Penalty, ClubSide.Home, 11.0<meter>, 0.0<meter>))
+                    at 600 (EventData.Card(FootballEngine.Core.Match.PlayerId 3, CardColor.Yellow))
+                    at 700 (EventData.Card(FootballEngine.Core.Match.PlayerId 4, CardColor.Red))
+                    at
+                        800
+                        (EventData.SubstitutionApplied(
+                            FootballEngine.Core.Match.PlayerId 5,
+                            FootballEngine.Core.Match.PlayerId 6
+                        ))
+                    at
+                        150
+                        (EventData.Tackle(FootballEngine.Core.Match.PlayerId 1, FootballEngine.Core.Match.PlayerId 2))
+                    at
+                        250
+                        (EventData.Interception(
+                            FootballEngine.Core.Match.PlayerId 1,
+                            FootballEngine.Core.Match.PlayerId 2
+                        )) ]
+
+              let moments =
+                  ReplayMoments.ofEvents events
+                  |> List.map (fun moment -> moment.Tick, moment.Kind, moment.Side)
+
+              Expect.equal
+                  moments
+                  [ 100<subtick>, ReplayMomentKind.Save, None
+                    300<subtick>, ReplayMomentKind.Corner, Some ClubSide.Home
+                    350<subtick>, ReplayMomentKind.FreeKick, Some ClubSide.Away
+                    400<subtick>, ReplayMomentKind.Penalty, Some ClubSide.Home
+                    500<subtick>, ReplayMomentKind.Woodwork, Some ClubSide.Away
+                    600<subtick>, ReplayMomentKind.YellowCard, None
+                    700<subtick>, ReplayMomentKind.RedCard, None
+                    800<subtick>, ReplayMomentKind.Substitution, None
+                    900<subtick>, ReplayMomentKind.Goal, Some ClubSide.Home ]
+                  "moments are the watched events in tick order; contacts produce none"
+
+              Expect.equal ReplayMoments.leadSeconds 8 "a moment is watched from eight seconds before it"
+
+          testCase "a recording opens two seconds before its tick and publishes its way to it"
+          <| fun _ ->
+              let matchId, gs = scheduledCareer ()
+              let clock = WorldClockOps.init gs.Season
+
+              let job =
+                  WorldRunner.prepareUserMatchJobWithBalance BalanceConfig.defaultConfig clock gs matchId
+                  |> function
+                      | Ok value -> value
+                      | Error error -> failtest error
+
+              let recorded =
+                  { clock with
+                      MatchExecutions = Map.ofList [ matchId, (job.Input, []) ] }
+
+              // A recording exists only for a played fixture; the replay holds before any result is compared.
+              let played =
+                  { gs with
+                      Competitions =
+                          gs.Competitions
+                          |> Map.map (fun _ competition ->
+                              { competition with
+                                  Fixtures =
+                                      competition.Fixtures
+                                      |> Map.map (fun id fixture ->
+                                          if id = matchId then
+                                              { fixture with
+                                                  Played = true
+                                                  HomeScore = Some 0
+                                                  AwayScore = Some 0 }
+                                          else
+                                              fixture) }) }
+
+              let host = MatchRuntimeHost()
+
+              // Held at the target, as a capture holds it, so the poses read after the reset are not overwritten.
+              let runtime =
+                  host.CreateRuntime(
+                      matchId,
+                      played,
+                      recorded,
+                      None,
+                      // Room for every pose from the restart to the tick, so the seeked one is still readable.
+                      MatchRunMode.Live { policy with BufferCapacity = 128 },
+                      RecordedReplay,
+                      1200<subtick>,
+                      1200<subtick>,
+                      HighlightFilter.All
+                  )
+
+              host.Start(runtime, ignore)
+
+              try
+                  let reset =
+                      awaitPublication host runtime (function
+                          | MatchRuntimePublication.SemanticReset value -> Some value
+                          | _ -> None)
+
+                  // Two presentation delays of one second at 40 ticks a second: the viewer needs motion behind it.
+                  Expect.equal reset.Clock.Elapsed 1120<subtick> "the silent part stops two seconds before the tick"
+
+                  let arrived =
+                      awaitPublication host runtime (function
+                          | MatchRuntimePublication.Semantic value when value.Frontier >= 1200<subtick> -> Some value
+                          | _ -> None)
+
+                  Expect.equal arrived.Frontier 1200<subtick> "the hold stops the recording exactly at its tick"
+
+                  let stream = host.PresentationStream runtime |> Option.get
+                  let poses = stream.TryReadAfter 0UL
+                  Expect.isNonEmpty poses "the recording publishes poses"
+                  Expect.equal poses[0].Tick 1120<subtick> "the first pose is where the presentation restarted"
+
+                  Expect.equal
+                      poses[0].EpochStart
+                      (Some PresentationDiscontinuity.Seeked)
+                      "the recording starts a seeked epoch"
+
+                  Expect.equal (Array.last poses).Tick 1200<subtick> "the poses are published up to the tick"
+              finally
+                  host.Close runtime
+
+          testCase "a skip in a live match restarts the presentation at a seeked epoch"
+          <| fun _ ->
+              withRuntime (fun host runtime session _ _ ->
+                  let semantic =
+                      awaitPublication host runtime (function
+                          | MatchRuntimePublication.Semantic value -> Some value
+                          | _ -> None)
+
+                  let pause =
+                      { CommandId = MatchCommandId 1UL
+                        SessionId = session
+                        ExpectedRevision = semantic.Revision
+                        IssuedAt = semantic.Frontier
+                        Payload = PauseMatch }
+
+                  host.Submit(runtime, pause)
+
+                  let revision =
+                      awaitPublication host runtime (function
+                          | MatchRuntimePublication.CommandApplied(id, revision, _) when id = pause.CommandId ->
+                              Some revision
+                          | _ -> None)
+
+                  host.Submit(
+                      runtime,
+                      { pause with
+                          CommandId = MatchCommandId 2UL
+                          ExpectedRevision = revision
+                          Payload = SkipAhead 1200<subtick> }
+                  )
+
+                  let reset =
+                      awaitPublication host runtime (function
+                          | MatchRuntimePublication.SemanticReset value -> Some value
+                          | _ -> None)
+
+                  Expect.equal reset.Clock.Elapsed 1120<subtick> "the silent part stops two seconds before the target"
+
+                  let arrived =
+                      awaitPublication host runtime (function
+                          | MatchRuntimePublication.Semantic value when value.Frontier >= 1200<subtick> -> Some value
+                          | _ -> None)
+
+                  Expect.equal arrived.Frontier 1200<subtick> "a paused match is published up to the target and stops"
+
+                  let stream = host.PresentationStream runtime |> Option.get
+                  let poses = stream.TryReadAfter 0UL
+
+                  // The small live buffer has already dropped the seeked pose; the recording test reads it.
+                  Expect.isNonEmpty poses "the restarted presentation publishes poses"
+
+                  Expect.isTrue
+                      (poses |> Array.forall (fun pose -> pose.Tick >= 1120<subtick>))
+                      "nothing from before the landing survives the restart"
+
+                  Expect.equal (Array.last poses).Tick 1200<subtick> "the poses reach the target") ]

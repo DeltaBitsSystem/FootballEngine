@@ -1085,4 +1085,19 @@ module MotionRuntimeTests =
                   Expect.equal
                       (runtime.Restore(foreign, runtime.Epoch))
                       (Error IncompatibleCheckpoint)
-                      "no legacy or incompatible restore") ]
+                      "no legacy or incompatible restore")
+              testCase "a runtime opened by a seek accepts its start tick and rejects both neighbours" (fun _ ->
+                  let opened () =
+                      MotionRuntime(config, identity, startTick = 500, startCursor = 7UL)
+
+                  (opened ()).Ingest(boundary 500) |> unwrap
+
+                  Expect.equal
+                      ((opened ()).Ingest(boundary 499))
+                      (Error(NonCanonicalBoundary(500, 499)))
+                      "the tick before the seek target is not part of the reset timeline"
+
+                  Expect.equal
+                      ((opened ()).Ingest(boundary 501))
+                      (Error(NonCanonicalBoundary(500, 501)))
+                      "the tick after the seek target waits for the start tick") ]

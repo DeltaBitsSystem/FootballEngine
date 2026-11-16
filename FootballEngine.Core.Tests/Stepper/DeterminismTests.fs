@@ -52,7 +52,7 @@ module DeterminismTests =
 
               testCase "Replay mode returns serializable snapshots" (fun _ ->
                   let out =
-                      Simulator.runMatch systems ctx 7UL (Simulator.RunMode.Replay 4000<tickDelta>)
+                      Simulator.runMatch systems ctx 7UL (Simulator.RunMode.Archive 4000<tickDelta>)
                       |> TestBuilders.requireMatchOutcome
 
                   match out.Replay with

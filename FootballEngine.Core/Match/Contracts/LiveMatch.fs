@@ -32,6 +32,8 @@ type LiveMatchStatus =
     | Live of speed: LiveSpeed
     /// Fast-forwarding through quiet play; status rather than a presentation-only flag so the HUD needs no new channel.
     | Cruising
+    /// Re-simulating to a requested moment; the viewer holds its last pose until the seek lands.
+    | Seeking
     | Paused
     | KeyMomentStop of KeyMomentReason
     | AwaitingDecision of DecisionPrompt
@@ -173,8 +175,8 @@ type LiveMatchCommandPayload =
     | ConfirmSubstitutions of changes: SubstitutionChange list
     | IssueTouchlineInstruction of TouchlineInstruction
     | SetLiveSpeed of LiveSpeed
-    /// Presentation-only: the worker advances unpaced up to the tick. The match is deterministic, so
-    /// skipping the wall-clock wait cannot change a sporting outcome.
+    /// Presentation-only: the worker re-simulates unpublished up to the tick and the viewer restarts there.
+    /// The match is deterministic, so skipping the wall-clock wait cannot change a sporting outcome.
     | SkipAhead of untilTick: int<subtick>
     /// Presentation-only: the worker stops advancing at the tick until a later hold, so a capture
     /// can step the match frame by frame however long each frame takes to grab.
@@ -283,6 +285,8 @@ type LiveMatchState =
 type LiveMatchMsg =
     | SessionConnected of LiveMatchSessionId * FixtureContext * revision: uint64 * LiveMatchSource
     | SemanticReceived of revision: uint64 * LiveClock * (int * int) * TeamStats * TeamStats * MatchEvent list
+    /// Like `SemanticReceived`, but the events and commentary are rebuilt from these, because a seek jumps the story.
+    | SemanticReset of revision: uint64 * LiveClock * (int * int) * TeamStats * TeamStats * MatchEvent list
     | CommandSubmitted of LiveMatchCommand
     | CommandAccepted of MatchCommandId * ApplicationPoint
     | CommandApplied of MatchCommandId * revision: uint64 * appliedAt: int<subtick>
@@ -537,6 +541,23 @@ module LiveMatchUpdate =
             Events = bounded 128 (state.Events @ events)
             Commentary = bounded 96 (state.Commentary @ commentary) }
 
+    let private semanticState (current: LiveMatchState) revision clock (homeScore, awayScore) homeStats awayStats =
+        { current with
+            Revision = revision
+            Status =
+                match current.Status with
+                | Paused -> Paused
+                | KeyMomentStop reason -> KeyMomentStop reason
+                | Cruising -> Cruising
+                | Seeking -> Seeking
+                | HalfTime -> HalfTime
+                | Finished -> Finished
+                | _ -> Live current.Speed
+            Clock = clock
+            Score = homeScore, awayScore
+            Metrics = { Home = homeStats; Away = awayStats }
+            Error = None }
+
     let update msg state : LiveMatchState option * LiveMatchEffect =
         match msg, state with
         | SessionConnected(sessionId, _, _, _), Some current when current.SessionId = sessionId ->
@@ -544,27 +565,25 @@ module LiveMatchUpdate =
         | SessionConnected(sessionId, fixture, revision, source), _ ->
             Some(LiveMatchState.create sessionId fixture revision source), NoEffect
         | _, None -> None, NoEffect
-        | SemanticReceived(revision, clock, (homeScore, awayScore), homeStats, awayStats, events), Some current when
+        | SemanticReceived(revision, clock, score, homeStats, awayStats, events), Some current when
             revision >= current.Revision
             ->
-            let next =
-                { applyEvents current.Fixture events current with
-                    Revision = revision
-                    Status =
-                        match current.Status with
-                        | Paused -> Paused
-                        | KeyMomentStop reason -> KeyMomentStop reason
-                        | Cruising -> Cruising
-                        | HalfTime -> HalfTime
-                        | Finished -> Finished
-                        | _ -> Live current.Speed
-                    Clock = clock
-                    Score = homeScore, awayScore
-                    Metrics = { Home = homeStats; Away = awayStats }
-                    Error = None }
-
-            Some next, NoEffect
+            Some(semanticState (applyEvents current.Fixture events current) revision clock score homeStats awayStats),
+            NoEffect
         | SemanticReceived _, Some current -> Some current, NoEffect
+        | SemanticReset(revision, clock, score, homeStats, awayStats, events), Some current when
+            revision >= current.Revision
+            ->
+            let rebuilt =
+                applyEvents
+                    current.Fixture
+                    events
+                    { current with
+                        Events = []
+                        Commentary = [] }
+
+            Some(semanticState rebuilt revision clock score homeStats awayStats), NoEffect
+        | SemanticReset _, Some current -> Some current, NoEffect
         | CommandSubmitted command, Some current ->
             let pending =
                 { Command = command

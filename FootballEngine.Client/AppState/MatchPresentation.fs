@@ -12,6 +12,7 @@ type PresentationDiscontinuity =
     | MatchFlowChanged of previous: byte * current: byte
     | ParticipationChanged
     | SimulationTickRegressed
+    | Seeked
 
 type PresentationPose =
     { Sequence: uint64
@@ -40,6 +41,8 @@ type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPol
     let mutable motionRecoveryRequest = ValueNone
     let mutable motionRecoveryInFlight = ValueNone
     let mutable motionRecoveryError: string option = None
+    // The checkpoint archive must be contiguous from kickoff; a timeline reset by a seek is not, so it stops recording.
+    let mutable archiveEnabled = true
 
     let slots: PresentationPose option[] = Array.zeroCreate policy.BufferCapacity
     let events = ResizeArray<PresentationEvent>()
@@ -55,6 +58,7 @@ type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPol
     let mutable lastCapturedAt = Int64.MinValue
     let mutable closed = false
     let mutable clockStarted = false
+    let mutable pendingSeek = false
     let mutable lastClockTimestamp = 0L
     let mutable presentationTick = 0.0
     let mutable paused = false
@@ -120,6 +124,41 @@ type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPol
                     motion <- Some(MotionRuntime(AnimationConfig.defaultConfig, identity))
                     Ok())
 
+    /// Restarts the timeline at a seek target. Sequence counters stay monotonic so reader cursors held
+    /// before the reset remain valid and simply see nothing older.
+    member _.Reset(startTick: int<subtick>, startCursor: uint64) =
+        lock gate (fun () ->
+            if not closed then
+                for index = 0 to slots.Length - 1 do
+                    slots[index] <- None
+
+                count <- 0
+                writeIndex <- 0
+                events.Clear()
+                clockStarted <- false
+                underrunActive <- false
+                pendingSeek <- true
+                archiveEnabled <- false
+                motionRecoveryRequest <- ValueNone
+                motionRecoveryInFlight <- ValueNone
+                motionRecoveryError <- None
+
+                match motion with
+                | Some old ->
+                    let identity = old.Identity
+                    old.Close()
+
+                    motion <-
+                        Some(
+                            MotionRuntime(
+                                AnimationConfig.defaultConfig,
+                                identity,
+                                startTick = int startTick,
+                                startCursor = startCursor
+                            )
+                        )
+                | None -> ())
+
     member _.PublishMotion(boundaries: MotionBoundary[]) =
         lock gate (fun () ->
             let mutable error = None
@@ -134,7 +173,8 @@ type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPol
                         match runtime.Ingest boundary with
                         | Error value -> error <- Some value
                         | Ok() when
-                            int boundary.Tick > previous
+                            archiveEnabled
+                            && int boundary.Tick > previous
                             && int boundary.Tick % MotionTrack.checkpointInterval = 0
                             ->
                             match motionArchive.Append(runtime.Checkpoint()) with
@@ -229,19 +269,23 @@ type MatchPresentationStream(runtimeId: MatchRuntimeId, policy: LiveExecutionPol
                         slots[latestIndex]
 
                 let epochStart =
-                    previous
-                    |> Option.bind (fun pose ->
-                        if pose.Snapshot.Flow <> snapshot.Flow then
-                            Some(MatchFlowChanged(pose.Snapshot.Flow, snapshot.Flow))
-                        elif
-                            pose.Snapshot.HomeActive <> snapshot.HomeActive
-                            || pose.Snapshot.AwayActive <> snapshot.AwayActive
-                        then
-                            Some ParticipationChanged
-                        elif tick <= pose.Tick then
-                            Some SimulationTickRegressed
-                        else
-                            None)
+                    if pendingSeek then
+                        pendingSeek <- false
+                        Some Seeked
+                    else
+                        previous
+                        |> Option.bind (fun pose ->
+                            if pose.Snapshot.Flow <> snapshot.Flow then
+                                Some(MatchFlowChanged(pose.Snapshot.Flow, snapshot.Flow))
+                            elif
+                                pose.Snapshot.HomeActive <> snapshot.HomeActive
+                                || pose.Snapshot.AwayActive <> snapshot.AwayActive
+                            then
+                                Some ParticipationChanged
+                            elif tick <= pose.Tick then
+                                Some SimulationTickRegressed
+                            else
+                                None)
 
                 if epochStart.IsSome then
                     epoch <- epoch + 1UL

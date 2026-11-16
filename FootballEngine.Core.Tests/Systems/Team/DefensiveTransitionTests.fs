@@ -1158,7 +1158,7 @@ module DefensiveTransitionTests =
                       fingerprint session
 
                   let fast = run MatchRunMode.Fast 4000<subtick>
-                  let replay = run (MatchRunMode.Replay 17<tickDelta>) 137<subtick>
+                  let replay = run (MatchRunMode.Archive 17<tickDelta>) 137<subtick>
 
                   let live =
                       run

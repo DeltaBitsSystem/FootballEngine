@@ -633,7 +633,7 @@ module WorldRunner =
             match prepareUserMatchJobWithBalance balance clock gs matchId with
             | Error error -> Error error
             | Ok job ->
-                match MatchSession.create Scheduler.systems job.Input (MatchRunMode.Replay 20<tickDelta>) with
+                match MatchSession.create Scheduler.systems job.Input (MatchRunMode.Archive 20<tickDelta>) with
                 | Error error -> Error(sprintf "%A" error)
                 | Ok session ->
                     match MatchSession.finish session with
