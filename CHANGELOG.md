@@ -13,6 +13,7 @@ First public snapshot after months of private development.
 * Career mode: calendar, squad, tactics, training, scouting, transfers, finances, board, news and inbox.
 * Rival managers with personalities who study your team before facing you.
 * Key-moment pacing that stops the match for chances and manager signals.
+* Match replays: watch any played match again and jump to any moment through a timeline of goals, saves, set pieces, cards and substitutions.
 * Mod editor with countries, leagues, cups, clubs, kits and squads, plus publishing and a library.
 * Calibration CLI (`Training`) that validates results on held-out matches.
 * English and Spanish interface.

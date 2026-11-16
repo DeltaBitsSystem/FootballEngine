@@ -44,23 +44,25 @@ One full 90 minute match on a Ryzen 5 5600X:
 
 ## The match viewer
 
-Every frame below comes from the simulation. The viewer only draws what the engine decided. All clips are from one seeded match, so anyone can replay them exactly.
+Every frame below comes from the simulation. The viewer only draws what the engine decided. All clips are from one seeded match, recorded from its replay, so anyone can replay them exactly.
 
 | | |
 |---|---|
-| ![Goal, broadcast camera](docs/media/match/goal-broadcast.webp) | ![Late goal, touchline camera](docs/media/match/late-goal-touchline.webp) |
-| **The same goal** from the broadcast camera. | **A late goal** from the touchline. |
-| ![Scramble in the box and a save](docs/media/match/scramble-save.webp) | ![Counter attack and a save](docs/media/match/counter-save.webp) |
-| **A scramble in the box,** cleared by the keeper. | **A counter attack** that ends in a save. |
+| ![Goal, broadcast camera](docs/media/match/goal-broadcast.webp) | ![Goal, touchline camera](docs/media/match/touchline-goal.webp) |
+| **The same goal** from the broadcast camera. | **An equaliser** from the touchline. |
+| ![A chance in the box and a save](docs/media/match/box-save.webp) | ![Pressure on the box and a save](docs/media/match/edge-save.webp) |
+| **A chance in the box,** saved by the keeper. | **Pressure on the box** that ends in a save. |
 
 Five cameras: broadcast, tactical, behind the goal, touchline and close up. The stadium is generated from the club's size and reputation.
+
+**Replays.** Any match you played can be watched again. A timeline marks goals, saves, set pieces, cards and substitutions; click anywhere to jump there, forward or back. Nothing is stored but the seed and your decisions: the engine replays the match and lands on the moment in seconds.
 
 | | |
 |---|---|
 | ![Close up camera](docs/media/match/still-close-up.webp) | ![Touchline camera](docs/media/match/still-touchline.webp) |
 | ![Broadcast camera](docs/media/match/still-broadcast.webp) | ![Behind the goal camera](docs/media/match/still-behind-goal.webp) |
 
-**Missing.** Crowd and crowd reactions, replays and slow motion, weather and night games, club badges in the scoreboard, and original player models and animations.
+**Missing.** Crowd and crowd reactions, slow motion, weather and night games, club badges in the scoreboard, and original player models and animations.
 
 ## A tour of the game
 
