@@ -1,10 +1,12 @@
 # FootballEngine
 
-A football management game where every result has a cause.
+**A football management game where every result has a cause.**
 
 ![A goal in the 3D match viewer, close up camera](docs/media/match/goal.webp)
 
-> **In development.** Playable from start to finish, far from finished. The first public demo is planned for January 2027.
+> **In development.** Playable from kickoff to the end of a season, and far from finished. The first public demo is planned for January 2027.
+
+Most management games ask you to trust a number. FootballEngine shows you the match that produced it. Twenty two players perceive, decide and move forty times a second, your choices shape how they do it, and when you lose 2 to 1 you can open the replay and point at the reason.
 
 ## What we are building
 
@@ -12,7 +14,7 @@ You take a club and give it an identity. Then you watch it play that way.
 
 * **Your club plays like you built it.** Tactics, training and signings show up on the pitch, not in a hidden number.
 * **Rival managers learn.** They study you and answer in their own style. No tactic wins forever.
-* **You can see why.** Lost 2 to 1? The tired full back you left on is in the replay.
+* **You can see why.** Every match can be replayed. Lost 2 to 1? The tired full back you left on is right there.
 * **People remember.** Players, the board and the press act on what you did to them.
 * **The world moves without you.** Careers, rivalries and sackings happen whether you watch or not.
 * **Mods come first.** The editor is a core feature, so anyone can build and share their own leagues.
@@ -29,38 +31,45 @@ Every match is a real simulation of 22 bodies and 22 minds, 40 times a second.
 * Same seed, same match, down to the last bit. Any result can be replayed and explained.
 * Results are calibrated against real league statistics on matches the tuning never saw.
 
-## Numbers
+## By the numbers
 
 One full 90 minute match on a Ryzen 5 5600X:
 
-| | |
+| Measure | Result |
 |---|---|
-| Time to simulate a match | 2.8 s on one core, 2.2 s with a second thread |
-| Simulation steps per match | about 262,000 |
-| Decisions by the ball carrier | about 42,000, each searching chains of up to 4 actions |
-| Memory allocated per match | 93 MB |
-| 48 match calibration run | 37 s |
-| Automated tests | 1,279 |
+| Simulating a whole match | 2.8 s on one core, 2.2 s with a second thread |
+| Simulation steps | about 262,000 |
+| Ball carrier decisions | about 42,000, each searching chains of up to 4 actions |
+| Memory allocated | 93 MB |
+| Jumping to any moment of a replay | about 6 s at most, from kickoff |
+| Calibration run of 48 matches | 37 s |
+| Automated tests | 1,288 |
 
 ## The match viewer
 
-Every frame below comes from the simulation. The viewer only draws what the engine decided. All clips are from one seeded match, recorded from its replay, so anyone can replay them exactly.
+Every frame below comes from the simulation; the viewer only draws what the engine decided. All clips come from the replay of one seeded match, so anyone can watch them again exactly.
 
-| | |
+| Goal | Goal |
 |---|---|
 | ![Goal, broadcast camera](docs/media/match/goal-broadcast.webp) | ![Goal, touchline camera](docs/media/match/touchline-goal.webp) |
 | **The same goal** from the broadcast camera. | **An equaliser** from the touchline. |
+
+| Save | Save |
+|---|---|
 | ![A chance in the box and a save](docs/media/match/box-save.webp) | ![Pressure on the box and a save](docs/media/match/edge-save.webp) |
 | **A chance in the box,** saved by the keeper. | **Pressure on the box** that ends in a save. |
 
 Five cameras: broadcast, tactical, behind the goal, touchline and close up. The stadium is generated from the club's size and reputation.
 
-**Replays.** Any match you played can be watched again. A timeline marks goals, saves, set pieces, cards and substitutions; click anywhere to jump there, forward or back. Nothing is stored but the seed and your decisions: the engine replays the match and lands on the moment in seconds.
-
-| | |
+| Close up | Touchline |
 |---|---|
 | ![Close up camera](docs/media/match/still-close-up.webp) | ![Touchline camera](docs/media/match/still-touchline.webp) |
+| **Broadcast** | **Behind the goal** |
 | ![Broadcast camera](docs/media/match/still-broadcast.webp) | ![Behind the goal camera](docs/media/match/still-behind-goal.webp) |
+
+### Replays
+
+Any match you played can be watched again. A timeline marks goals, saves, set pieces, cards and substitutions: click anywhere to jump there, forward or back, or step from one moment to the next. Nothing is stored but the seed and your decisions. The engine plays the match again and lands on the moment in seconds.
 
 **Missing.** Crowd and crowd reactions, slow motion, weather and night games, club badges in the scoreboard, and original player models and animations.
 
@@ -202,15 +211,25 @@ Publishing checks the mod exactly as the game loads it, so a career never starts
 
 **Missing.** Sharing mods online and editing competitions in depth.
 
-## Status
+## Where it stands
 
-Early and playable. You can start a career, run a season and watch every match in 3D.
+Early and playable. You can start a career, run a season, watch every match in 3D and replay any of them.
 
 **The 3D assets are placeholders.** Players, animations, the stadium and the crowd were generated by asking Claude to make them, and it shows. They are unpolished and will be replaced with our own work.
 
 The built in leagues use real club names for testing. The game will ship with its own world, and the mod editor is how players bring in the leagues they love.
 
-See the [roadmap](ROADMAP.md) for what comes next.
+## Where it is going
+
+The demo has to make you feel five things:
+
+* **Rivals adapt.** The other manager read you, and you had to change.
+* **Matches turn on key moments.** You made a change at the right time and turned it around.
+* **A living world.** There is always something to discover.
+* **The mod editor.** You can build your own league.
+* **Your project.** Your club finally plays the way you want.
+
+The [roadmap](ROADMAP.md) has the details.
 
 ## Run it
 
@@ -226,11 +245,11 @@ Run the tests with `dotnet fsi scripts/test.fsx`.
 
 ## Built with
 
-F#, .NET 10, Avalonia, WebGPU and SQLite. Offline, no servers.
+F#, .NET 10, Avalonia, WebGPU and SQLite. Offline, no servers, no accounts.
 
-## Contributing
+## Get involved
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Design notes in `docs/` are mostly in Spanish.
+Ideas, bug reports and pull requests are all welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how the game is built and where each change belongs; design notes in `docs/` are mostly in Spanish. If a match does something strange, open an issue with its seed: every match can be replayed exactly.
 
 ## License
 
