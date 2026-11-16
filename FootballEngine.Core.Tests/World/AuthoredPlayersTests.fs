@@ -120,8 +120,9 @@ module AuthoredPlayersTests =
         $"""{{"Name":"P","Position":"GK","Age":25,"Rating":50,"Potential":60{extra}}}"""
 
     /// Golden recorded from the generator before authored players existed; any RNG-order change for Players = [] breaks it.
+    /// Birthdays are hashed as invariant ISO text because %A follows the machine culture and CI runs under C.UTF-8.
     let private noPlayersGoldenHash =
-        "7FAB186DBDE62E3B45E5E83004FFD85B915B442FEA1BD07A7F12811441A9B313"
+        "E01B11542E19173E1D9685341182188537D332D209B65DB805619975FF40EA62"
 
     let authoredPlayersTests =
         testList
@@ -226,10 +227,10 @@ module AuthoredPlayersTests =
                       |> Map.toList
                       |> List.map (fun (id, p) ->
                           sprintf
-                              "%A|%s|%A|%d|%d|%A|%A|%A"
+                              "%A|%s|%s|%d|%d|%A|%A|%A"
                               id
                               p.Name
-                              p.Birthday
+                              (p.Birthday.ToString("O", Globalization.CultureInfo.InvariantCulture))
                               p.CurrentSkill
                               p.PotentialSkill
                               p.PreferredFoot
