@@ -272,8 +272,13 @@ module PlayerDecision =
         let e = ctx.Config.ExpectedValue
         let xg = xGValue ctx world side slot
 
+        let facingGoal =
+            let toGoal = atan2 (-(float y)) (float (MatchMath.goalX side) - float x)
+            let facing = float frame.BodyFacing.[slot]
+            abs (atan2 (sin (toGoal - facing)) (cos (toGoal - facing))) <= e.ShotTurnLimit
+
         // Style moves a choice only between options of near-equal value; the value itself decides who shoots.
-        if distToGoal < 32.0 then
+        if distToGoal < 32.0 && facingGoal then
             let style =
                 e.StyleShotBravery * (bravery - 0.5)
                 + e.StyleFlair * ((float p.Flair - 60.0) / 100.0)

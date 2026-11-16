@@ -26,6 +26,7 @@ module ConfigValidation =
                 "CarryPressurePenalty", e.CarryPressurePenalty, 0.0, 1.0
                 "PressureRadius", float e.PressureRadius, 0.5, 15.0
                 "ShotBlockShare", e.ShotBlockShare, 0.0, 1.0
+                "ShotTurnLimit", e.ShotTurnLimit, 0.5, System.Math.PI
                 "CarryBlockPenalty", e.CarryBlockPenalty, 0.0, 1.0
                 "CarryBlockRange", float e.CarryBlockRange, 1.0, 40.0
                 "CrossBaseSuccess", e.CrossBaseSuccess, 0.0, 1.0
@@ -1079,6 +1080,12 @@ module ConfigValidation =
               yield "Positioning.CarrySearchRadius must be in [1, 15] m"
           if p.SupportForwardDistance < 1.0<meter> || p.SupportForwardDistance > 12.0<meter> then
               yield "Positioning.SupportForwardDistance must be in [1, 12] m"
+          if
+              not (System.Double.IsFinite(float p.CarryCutInsideDepth))
+              || p.CarryCutInsideDepth < 0.0<meter>
+              || p.CarryCutInsideDepth > 20.0<meter>
+          then
+              yield "Positioning.CarryCutInsideDepth must be finite and in [0, 20] m"
           if p.SupportLateralDistance < 2.0<meter> || p.SupportLateralDistance > 20.0<meter> then
               yield "Positioning.SupportLateralDistance must be in [2, 20] m"
           if p.GkMaxAdvance < 0.0<meter> || p.GkMaxAdvance > 20.0<meter> then

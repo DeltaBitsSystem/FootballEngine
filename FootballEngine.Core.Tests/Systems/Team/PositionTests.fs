@@ -262,6 +262,54 @@ module PositionTests =
                       frame.PosX.[carrier]
                       "a carrier at the goal line retreats to create a new action angle")
 
+              testCase "a carrier at the byline cuts inside toward goal even when the outside has more room" (fun _ ->
+                  let carryTargetY (depth: float<meter>) =
+                      let world = TestBuilders.formationWorld ()
+                      let carrier = 5
+                      let frame = world.Home.Frame
+                      let carrierId = ctx.HomeLineup.Profiles.[carrier].Id
+                      frame.PosX.[carrier] <- 50.5f
+                      frame.PosY.[carrier] <- 8.0f
+
+                      // One defender guards the inside lane, so the most open target is the outward one.
+                      for slot in MatchWorld.activeSlots world.Away.Frame do
+                          world.Away.Frame.PosX.[slot] <- 0.0f
+                          world.Away.Frame.PosY.[slot] <- 0.0f
+
+                      world.Away.Frame.PosX.[1] <- 48.5f
+                      world.Away.Frame.PosY.[1] <- 1.0f
+
+                      world.State <-
+                          { world.State with
+                              Ball =
+                                  { world.State.Ball with
+                                      Control = BallControl.Controlled(ClubSide.Home, carrierId)
+                                      Position =
+                                          { world.State.Ball.Position with
+                                              X = 50.5<meter>
+                                              Y = 8.0<meter> } } }
+
+                      let withDepth =
+                          { sctx with
+                              Ctx =
+                                  { ctx with
+                                      Config =
+                                          { ctx.Config with
+                                              Positioning =
+                                                  { ctx.Config.Positioning with
+                                                      CarryCutInsideDepth = depth } } } }
+
+                      PlayerIntent.step withDepth (Rng.ofSeed 42UL) world (buffer ()) |> ignore
+                      Expect.equal frame.Intent.Kind.[carrier] IntentCode.BallCarry "the carrier carries"
+                      float frame.Intent.TargetY.[carrier]
+
+                  Expect.isLessThan (carryTargetY 3.0<meter>) 8.0 "the byline carry heads inside, toward goal"
+
+                  Expect.isGreaterThan
+                      (carryTargetY 0.0<meter>)
+                      8.0
+                      "without the cut inside the same carrier runs outward, into the open space")
+
               testCase "goalkeeper stands on the goal-ball line and drops deeper as the ball approaches" (fun _ ->
                   let world = TestBuilders.formationWorld ()
 

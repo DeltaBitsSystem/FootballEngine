@@ -687,7 +687,15 @@ module ManagerBrainTests =
                                   Referee =
                                       { commanded.Config.Referee with
                                           BookedLeniency = 1.0
-                                          BookedRecklessLeniency = 1.0 } } }
+                                          BookedRecklessLeniency = 1.0 }
+                                  // The hashes also predate the shot turn limit and the byline cut inside; at pi any
+                                  // facing may shoot and at 0 a carrier at the byline picks either side, as before.
+                                  ExpectedValue =
+                                      { commanded.Config.ExpectedValue with
+                                          ShotTurnLimit = System.Math.PI }
+                                  Positioning =
+                                      { commanded.Config.Positioning with
+                                          CarryCutInsideDepth = 0.0<meter> } } }
 
                   for seed, expected in preChangeHashes do
                       let outcome = run ctx seed

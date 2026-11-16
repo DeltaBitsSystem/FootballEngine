@@ -524,6 +524,9 @@ type ExpectedValueConfig =
         PressureRadius: float<meter>
         /// Share of a shot's chance each outfield opponent inside the ball-to-posts triangle takes away.
         ShotBlockShare: float
+        /// Largest angle in radians between the carrier's body facing and the goal at which a shot is an option;
+        /// beyond it the carrier has to turn first.
+        ShotTurnLimit: float
         /// Lost keep chance per opponent standing in the carrier's path to goal.
         CarryBlockPenalty: float
         /// How far ahead, inside a cone toward goal, an opponent blocks a carry.
@@ -638,6 +641,8 @@ type PositioningConfig =
         TargetInset: float<meter>
         CarrySearchRadius: float<meter>
         SupportForwardDistance: float<meter>
+        /// Room left to the goal line under which a carrier's lateral carry always cuts inside, toward goal; 0 disables.
+        CarryCutInsideDepth: float<meter>
         SupportLateralDistance: float<meter>
         /// Farthest a keeper stands off his line, reached only when play is deep in the other half.
         GkMaxAdvance: float<meter>
@@ -1265,6 +1270,10 @@ module BalanceConfig =
           TargetInset = 2.0<meter>
           CarrySearchRadius = 7.0<meter>
           SupportForwardDistance = 4.0<meter>
+          // Running outward along the byline took the carrier away from goal and he shot with his back to it. At
+          // 4 m, the whole backward-step zone, every byline carry ended in the six yard box (6.5 goals a match);
+          // 3 m keeps shots and goals in their bands on held-out seeds.
+          CarryCutInsideDepth = 3.0<meter>
           SupportLateralDistance = 8.0<meter>
           GkMaxAdvance = 18.0<meter>
           // A ball at the box edge (~20 m) leaves the keeper ~4 m out; at the halfway line ~11 m.
@@ -1369,6 +1378,8 @@ module BalanceConfig =
           PressureRadius = 4.0<meter>
           // Two bodies in the lane leave a shot about a third of its open chance; the engine blocks that often.
           ShotBlockShare = 0.4
+          // About 100 degrees: a striker can open the hips across the body, but nobody shoots at a goal behind him.
+          ShotTurnLimit = 1.75
           // A settled block of four or five in front leaves a carry little chance; space ahead is what a carry needs.
           CarryBlockPenalty = 0.08
           CarryBlockRange = 15.0<meter>

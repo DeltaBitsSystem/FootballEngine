@@ -81,7 +81,8 @@ module PlayerIntent =
         // Keep the inward escape until there is room for a complete lateral
         // stride. A single threshold made the target flip on every refresh.
         let forceInward =
-            abs py >= safeHalfWidth - lateral
+            roomAhead < float ctx.Config.Positioning.CarryCutInsideDepth
+            || abs py >= safeHalfWidth - lateral
             || (wasMovingInward && abs py > safeHalfWidth - lateral * 2.0)
 
         let mutable bestX = px * dir + forwardStep
